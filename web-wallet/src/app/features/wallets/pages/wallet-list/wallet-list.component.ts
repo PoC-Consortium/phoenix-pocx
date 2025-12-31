@@ -47,8 +47,8 @@ import {
     PageLayoutComponent,
     EmptyStateComponent,
     BalanceDisplayComponent,
-    LoadingSpinnerComponent
-],
+    LoadingSpinnerComponent,
+  ],
   template: `
     <app-page-layout [title]="'wallets' | i18n">
       <div class="wallets-container">

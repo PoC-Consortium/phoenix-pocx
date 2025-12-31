@@ -42,8 +42,8 @@ export interface PassphraseDialogResult {
     MatInputModule,
     MatButtonModule,
     MatIconModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <h2 mat-dialog-title>{{ 'unlock_wallet' | i18n }}</h2>
 

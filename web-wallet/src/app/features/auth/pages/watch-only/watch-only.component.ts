@@ -31,8 +31,8 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
     MatInputModule,
     MatSnackBarModule,
     MatProgressBarModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="watch-only-container">
       <mat-card class="watch-only-card">

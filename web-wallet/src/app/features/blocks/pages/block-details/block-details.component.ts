@@ -23,8 +23,8 @@ import { PocxBlock } from '../../models/block.model';
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatDividerModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="page-layout">
       <!-- Header -->

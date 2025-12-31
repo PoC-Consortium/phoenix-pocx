@@ -42,8 +42,8 @@ interface FullTransaction {
     MatIconModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="page-layout">
       <!-- Header -->

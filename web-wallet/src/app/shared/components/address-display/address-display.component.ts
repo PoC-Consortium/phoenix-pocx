@@ -26,14 +26,7 @@ import { NotificationService } from '../../services';
 @Component({
   selector: 'app-address-display',
   standalone: true,
-  imports: [
-    MatButtonModule,
-    MatIconModule,
-    MatMenuModule,
-    MatTooltipModule,
-    I18nPipe,
-    AddressPipe
-],
+  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, I18nPipe, AddressPipe],
   template: `
     @if (address) {
       <div class="address-container" [class.inline]="inline">

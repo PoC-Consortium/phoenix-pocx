@@ -46,8 +46,8 @@ type AddressMode = 'existing' | 'generate';
     MatProgressSpinnerModule,
     MatTooltipModule,
     QRCodeComponent,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="page-layout">
       <!-- Header -->

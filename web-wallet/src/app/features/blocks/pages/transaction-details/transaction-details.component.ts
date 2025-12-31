@@ -25,8 +25,8 @@ import {
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatExpansionModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="page-layout">
       <!-- Header -->

@@ -42,8 +42,8 @@ interface NavGroup {
     MatListModule,
     I18nPipe,
     BalanceDisplayComponent,
-    ToolbarComponent
-],
+    ToolbarComponent,
+  ],
   template: `
     <mat-sidenav-container class="sidenav-container">
       <!-- Sidebar -->

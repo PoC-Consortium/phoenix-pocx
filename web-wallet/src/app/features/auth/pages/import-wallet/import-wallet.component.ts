@@ -42,8 +42,8 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     MatProgressBarModule,
     MatAutocompleteModule,
     MatTooltipModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="import-wallet-container">
       <mat-card class="import-card">

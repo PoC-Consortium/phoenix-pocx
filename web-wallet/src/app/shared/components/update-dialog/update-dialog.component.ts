@@ -19,8 +19,8 @@ import { UpdateInfo, UpdateAsset } from '../../../core/services/electron.service
     MatIconModule,
     MatSelectModule,
     MatFormFieldModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="update-dialog">
       <h2 mat-dialog-title>

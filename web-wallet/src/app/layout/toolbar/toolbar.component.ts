@@ -35,8 +35,8 @@ import { Network } from '../../store/settings/settings.state';
     MatTooltipModule,
     MatDividerModule,
     MatProgressSpinnerModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <mat-toolbar class="toolbar">
       <!-- Network Stamp (centered) - matching original Phoenix style with stamp texture -->

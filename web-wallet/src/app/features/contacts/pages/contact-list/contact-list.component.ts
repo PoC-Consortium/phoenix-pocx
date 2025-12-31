@@ -47,8 +47,8 @@ interface Contact {
     MatDialogModule,
     MatMenuModule,
     MatTooltipModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="page-layout">
       <!-- Header with gradient background -->

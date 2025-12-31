@@ -25,8 +25,8 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
     MatPaginatorModule,
     MatTooltipModule,
     MatMenuModule,
-    I18nPipe
-],
+    I18nPipe,
+  ],
   template: `
     <div class="page-layout">
       <!-- Header -->
