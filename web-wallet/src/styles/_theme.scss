@@ -1,7 +1,8 @@
 @use '@angular/material' as mat;
 
 // Include Material core styles
-@include mat.core();
+@include mat.elevation-classes();
+@include mat.app-background();
 
 // Custom Phoenix PoCX Navy palette (matching old project)
 $phoenix-navy-palette: (

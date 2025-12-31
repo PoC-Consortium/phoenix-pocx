@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -22,7 +22,6 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
   selector: 'app-watch-only',
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     FormsModule,
     MatCardModule,

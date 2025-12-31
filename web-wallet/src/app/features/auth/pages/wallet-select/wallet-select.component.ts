@@ -227,8 +227,12 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
               (click)="openWallet()"
               class="primary-action-button"
             >
-              <mat-spinner *ngIf="isOpening()" diameter="20"></mat-spinner>
-              <mat-icon *ngIf="!isOpening()">arrow_forward</mat-icon>
+              @if (isOpening()) {
+                <mat-spinner diameter="20"></mat-spinner>
+              }
+              @if (!isOpening()) {
+                <mat-icon>arrow_forward</mat-icon>
+              }
               {{ !isOpening() ? ('open_wallet' | i18n) : '' }}
             </button>
           </div>

@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterModule, Router } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatButtonModule } from '@angular/material/button';
@@ -35,7 +35,6 @@ interface NavGroup {
   selector: 'app-main-layout',
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     MatSidenavModule,
     MatButtonModule,
@@ -157,15 +156,15 @@ interface NavGroup {
         }
 
         // Override Material list item colors and sizes for sidenav
-        --mdc-list-list-item-label-text-color: rgba(255, 255, 255, 0.9);
-        --mdc-list-list-item-hover-label-text-color: white;
-        --mdc-list-list-item-focus-label-text-color: white;
-        --mdc-list-list-item-leading-icon-color: rgba(255, 255, 255, 0.9);
-        --mdc-list-list-item-hover-leading-icon-color: white;
-        --mdc-list-list-item-focus-leading-icon-color: white;
+        --mat-list-list-item-label-text-color: rgba(255, 255, 255, 0.9);
+        --mat-list-list-item-hover-label-text-color: white;
+        --mat-list-list-item-focus-label-text-color: white;
+        --mat-list-list-item-leading-icon-color: rgba(255, 255, 255, 0.9);
+        --mat-list-list-item-hover-leading-icon-color: white;
+        --mat-list-list-item-focus-leading-icon-color: white;
         --mat-list-active-indicator-color: rgba(255, 255, 255, 0.15);
-        --mdc-list-list-item-one-line-container-height: 40px;
-        --mdc-list-list-item-label-text-size: 13px;
+        --mat-list-list-item-one-line-container-height: 40px;
+        --mat-list-list-item-label-text-size: 13px;
       }
 
       .sidenav-header {
@@ -277,8 +276,8 @@ interface NavGroup {
 
           &.active {
             background: rgba(255, 255, 255, 0.15);
-            --mdc-list-list-item-label-text-color: white;
-            --mdc-list-list-item-leading-icon-color: white;
+            --mat-list-list-item-label-text-color: white;
+            --mat-list-list-item-leading-icon-color: white;
           }
 
           // Smaller icons (16px like original)
@@ -301,9 +300,9 @@ interface NavGroup {
         margin-top: auto;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         padding: 8px 0;
-        --mdc-list-list-item-label-text-color: rgba(255, 255, 255, 0.7);
-        --mdc-list-list-item-leading-icon-color: rgba(255, 255, 255, 0.7);
-        --mdc-list-list-item-one-line-container-height: 36px;
+        --mat-list-list-item-label-text-color: rgba(255, 255, 255, 0.7);
+        --mat-list-list-item-leading-icon-color: rgba(255, 255, 255, 0.7);
+        --mat-list-list-item-one-line-container-height: 36px;
 
         a.mat-mdc-list-item {
           height: 36px;
@@ -313,8 +312,8 @@ interface NavGroup {
 
           &:hover {
             background: rgba(255, 255, 255, 0.1);
-            --mdc-list-list-item-label-text-color: white;
-            --mdc-list-list-item-leading-icon-color: white;
+            --mat-list-list-item-label-text-color: white;
+            --mat-list-list-item-leading-icon-color: white;
           }
 
           .mat-icon {

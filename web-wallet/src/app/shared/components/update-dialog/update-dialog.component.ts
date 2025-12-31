@@ -1,5 +1,5 @@
 import { Component, Inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,7 +13,6 @@ import { UpdateInfo, UpdateAsset } from '../../../core/services/electron.service
   selector: 'app-update-dialog',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     MatDialogModule,
     MatButtonModule,

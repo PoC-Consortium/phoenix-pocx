@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
@@ -26,15 +26,7 @@ import { NotificationService } from '../../services';
 @Component({
   selector: 'app-address-display',
   standalone: true,
-  imports: [
-    CommonModule,
-    MatButtonModule,
-    MatIconModule,
-    MatMenuModule,
-    MatTooltipModule,
-    I18nPipe,
-    AddressPipe,
-  ],
+  imports: [MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, I18nPipe, AddressPipe],
   template: `
     @if (address) {
       <div class="address-container" [class.inline]="inline">
@@ -101,7 +93,7 @@ import { NotificationService } from '../../services';
 
         &.clickable {
           cursor: pointer;
-          color: var(--mdc-theme-primary, #0075d4);
+          color: var(--mat-theme-primary, #0075d4);
 
           &:hover {
             text-decoration: underline;

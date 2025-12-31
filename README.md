@@ -1,6 +1,6 @@
 # Phoenix PoCX Wallet
 
-A modern Bitcoin-PoCX desktop wallet built with Angular 19 and Electron.
+A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Electron.
 
 ## Features
 
@@ -14,7 +14,7 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 19 and Electron.
 
 ## Requirements
 
-- **Node.js** 18+ and npm
+- **Node.js** 20+ and npm
 - **Bitcoin-PoCX Core** running with RPC enabled
 
 ## Quick Start
@@ -56,13 +56,13 @@ npm run build
 npm run pack
 ```
 
-The packaged app will be in `desktop/wallet/release-builds/`.
+The packaged app will be in `desktop/wallet/release/`.
 
 ## Project Structure
 
 ```
 phoenix-pocx/
-├── web-wallet/          # Angular 19 web application
+├── web-wallet/          # Angular 21 web application
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── core/           # Core services (auth, platform)
@@ -82,11 +82,11 @@ phoenix-pocx/
 
 ## Tech Stack
 
-- **Angular 19** - Frontend framework with signals and new control flow
-- **Angular Material 19** - Material Design components
-- **NgRx 19** - State management
-- **Electron 34** - Desktop wrapper
-- **TypeScript 5.7** - Type safety
+- **Angular 21** - Frontend framework with signals and block control flow
+- **Angular Material 21** - Material Design components
+- **NgRx 21** - State management
+- **Electron 39** - Desktop wrapper
+- **TypeScript 5.9** - Type safety
 
 ## Bitcoin Core Configuration
 
@@ -121,6 +121,10 @@ npm test           # Run unit tests
 npm run test:ci    # CI mode (headless)
 ```
 
+## Attribution
+
+This project is a fork of [Phoenix](https://github.com/signum-network/phoenix) by the Signum Network team. The original Phoenix wallet was built for the Signum blockchain and has been adapted for Bitcoin-PoCX.
+
 ## License
 
-MIT
+GPL-3.0 - See [LICENSE](LICENSE) for details.
