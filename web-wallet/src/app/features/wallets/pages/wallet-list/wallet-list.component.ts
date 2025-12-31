@@ -1,5 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterModule, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -35,7 +35,6 @@ import {
   selector: 'app-wallet-list',
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     MatCardModule,
     MatButtonModule,
@@ -48,8 +47,8 @@ import {
     PageLayoutComponent,
     EmptyStateComponent,
     BalanceDisplayComponent,
-    LoadingSpinnerComponent,
-  ],
+    LoadingSpinnerComponent
+],
   template: `
     <app-page-layout [title]="'wallets' | i18n">
       <div class="wallets-container">

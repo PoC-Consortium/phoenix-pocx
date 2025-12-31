@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { RouterModule, Router } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatButtonModule } from '@angular/material/button';
@@ -35,7 +35,6 @@ interface NavGroup {
   selector: 'app-main-layout',
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     MatSidenavModule,
     MatButtonModule,
@@ -43,8 +42,8 @@ interface NavGroup {
     MatListModule,
     I18nPipe,
     BalanceDisplayComponent,
-    ToolbarComponent,
-  ],
+    ToolbarComponent
+],
   template: `
     <mat-sidenav-container class="sidenav-container">
       <!-- Sidebar -->

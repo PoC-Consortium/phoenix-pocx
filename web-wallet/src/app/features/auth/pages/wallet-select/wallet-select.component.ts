@@ -40,12 +40,12 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
       <div class="logo-container">
         <img src="assets/images/logos/phoenix_trans.svg" alt="Phoenix PoCX" class="logo" />
       </div>
-
+    
       <div class="wallet-selector-box">
         <div class="box-header">
           <h2>{{ 'wallets' | i18n }}</h2>
         </div>
-
+    
         <div class="box-content">
           <!-- Connecting State -->
           @if (isConnecting()) {
@@ -54,7 +54,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
               <p>{{ 'connecting_to_bitcoin_core' | i18n }}</p>
             </div>
           }
-
+    
           <!-- Connection Error -->
           @if (connectionError() && !isConnecting()) {
             <div class="state-container error-state">
@@ -75,7 +75,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
               </button>
             </div>
           }
-
+    
           <!-- Loading Wallets -->
           @if (!isConnecting() && !connectionError() && isLoading()) {
             <div class="state-container">
@@ -83,7 +83,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
               <p>{{ 'loading' | i18n }}...</p>
             </div>
           }
-
+    
           <!-- Empty State -->
           @if (!isConnecting() && !connectionError() && !isLoading() && wallets().length === 0) {
             <div class="empty-state">
@@ -92,7 +92,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
               <p class="hint">{{ 'create_or_import_wallet' | i18n }}</p>
             </div>
           }
-
+    
           <!-- Wallet Table -->
           @if (!isConnecting() && !connectionError() && !isLoading() && wallets().length > 0) {
             <div class="wallet-table-container">
@@ -105,7 +105,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
                       class="status-badge"
                       [class.loaded]="wallet.isLoaded"
                       [class.unloaded]="!wallet.isLoaded"
-                    >
+                      >
                       <mat-icon class="status-icon">{{
                         wallet.isLoaded ? 'check_circle' : 'radio_button_unchecked'
                       }}</mat-icon>
@@ -113,7 +113,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
                     </span>
                   </td>
                 </ng-container>
-
+    
                 <!-- Name Column -->
                 <ng-container matColumnDef="name">
                   <th mat-header-cell *matHeaderCellDef class="name-header">
@@ -123,7 +123,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
                     {{ wallet.name || '(default)' }}
                   </td>
                 </ng-container>
-
+    
                 <!-- Balance Column -->
                 <ng-container matColumnDef="balance">
                   <th mat-header-cell *matHeaderCellDef class="balance-header">
@@ -134,7 +134,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
                     *matCellDef="let wallet"
                     [class.unloaded]="!wallet.isLoaded"
                     class="balance-cell"
-                  >
+                    >
                     @if (wallet.isLoaded && wallet.balance !== undefined) {
                       <span>{{ wallet.balance | number: '1.8-8' }} BTCX</span>
                     } @else {
@@ -142,7 +142,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
                     }
                   </td>
                 </ng-container>
-
+    
                 <!-- Lock/Encryption Column (or Eye for watch-only) -->
                 <ng-container matColumnDef="encryption">
                   <th mat-header-cell *matHeaderCellDef class="encryption-header"></th>
@@ -152,92 +152,96 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
                         class="encryption-icon watch-only"
                         matTooltip="{{ 'watch_only_wallet' | i18n }}"
                         >visibility</mat-icon
-                      >
-                    } @else if (wallet.isLoaded && wallet.isEncrypted === true) {
-                      <mat-icon
-                        class="encryption-icon encrypted"
-                        matTooltip="{{ 'wallet_encrypted' | i18n }}"
-                        >lock</mat-icon
-                      >
-                    } @else if (wallet.isLoaded && wallet.isEncrypted === false) {
-                      <mat-icon
-                        class="encryption-icon not-encrypted"
-                        matTooltip="{{ 'wallet_not_encrypted' | i18n }}"
-                        >lock_open</mat-icon
-                      >
-                    } @else {
-                      <span class="no-encryption">--</span>
+                        >
+                      } @else if (wallet.isLoaded && wallet.isEncrypted === true) {
+                        <mat-icon
+                          class="encryption-icon encrypted"
+                          matTooltip="{{ 'wallet_encrypted' | i18n }}"
+                          >lock</mat-icon
+                          >
+                        } @else if (wallet.isLoaded && wallet.isEncrypted === false) {
+                          <mat-icon
+                            class="encryption-icon not-encrypted"
+                            matTooltip="{{ 'wallet_not_encrypted' | i18n }}"
+                            >lock_open</mat-icon
+                            >
+                          } @else {
+                            <span class="no-encryption">--</span>
+                          }
+                        </td>
+                      </ng-container>
+    
+                      <!-- Action Column -->
+                      <ng-container matColumnDef="action">
+                        <th mat-header-cell *matHeaderCellDef></th>
+                        <td mat-cell *matCellDef="let wallet" class="action-cell">
+                          @if (isWalletLoading(wallet.name)) {
+                            <mat-spinner diameter="24"></mat-spinner>
+                          } @else {
+                            <button
+                              mat-stroked-button
+                              class="action-button"
+                              [class.load-button]="!wallet.isLoaded"
+                              [class.unload-button]="wallet.isLoaded"
+                              (click)="toggleWalletLoad(wallet, $event)"
+                              >
+                              {{ wallet.isLoaded ? ('unload' | i18n) : ('load' | i18n) }}
+                            </button>
+                          }
+                        </td>
+                      </ng-container>
+    
+                      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                      <tr
+                        mat-row
+                        *matRowDef="let wallet; columns: displayedColumns"
+                        [class.selected]="selectedWallet() === wallet.name"
+                        (click)="selectRow(wallet)"
+                      ></tr>
+                    </table>
+                  </div>
+                }
+              </div>
+    
+              <!-- Bottom Actions -->
+              <div class="box-actions">
+                <div class="left-actions">
+                  <button mat-stroked-button routerLink="/auth/create">
+                    <mat-icon>add</mat-icon>
+                    {{ 'create_new' | i18n }}
+                  </button>
+                  <button mat-stroked-button routerLink="/auth/import">
+                    <mat-icon>import_export</mat-icon>
+                    {{ 'import' | i18n }}
+                  </button>
+                  <button mat-stroked-button routerLink="/auth/watch-only">
+                    <mat-icon>visibility</mat-icon>
+                    {{ 'watch_only' | i18n }}
+                  </button>
+                </div>
+                <div class="right-actions">
+                  <button
+                    mat-raised-button
+                    color="primary"
+                    [disabled]="!selectedWallet() || isOpening()"
+                    (click)="openWallet()"
+                    class="primary-action-button"
+                    >
+                    @if (isOpening()) {
+                      <mat-spinner diameter="20"></mat-spinner>
                     }
-                  </td>
-                </ng-container>
-
-                <!-- Action Column -->
-                <ng-container matColumnDef="action">
-                  <th mat-header-cell *matHeaderCellDef></th>
-                  <td mat-cell *matCellDef="let wallet" class="action-cell">
-                    @if (isWalletLoading(wallet.name)) {
-                      <mat-spinner diameter="24"></mat-spinner>
-                    } @else {
-                      <button
-                        mat-stroked-button
-                        class="action-button"
-                        [class.load-button]="!wallet.isLoaded"
-                        [class.unload-button]="wallet.isLoaded"
-                        (click)="toggleWalletLoad(wallet, $event)"
-                      >
-                        {{ wallet.isLoaded ? ('unload' | i18n) : ('load' | i18n) }}
-                      </button>
+                    @if (!isOpening()) {
+                      <mat-icon>arrow_forward</mat-icon>
                     }
-                  </td>
-                </ng-container>
-
-                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                <tr
-                  mat-row
-                  *matRowDef="let wallet; columns: displayedColumns"
-                  [class.selected]="selectedWallet() === wallet.name"
-                  (click)="selectRow(wallet)"
-                ></tr>
-              </table>
+                    {{ !isOpening() ? ('open_wallet' | i18n) : '' }}
+                  </button>
+                </div>
+              </div>
             </div>
-          }
-        </div>
-
-        <!-- Bottom Actions -->
-        <div class="box-actions">
-          <div class="left-actions">
-            <button mat-stroked-button routerLink="/auth/create">
-              <mat-icon>add</mat-icon>
-              {{ 'create_new' | i18n }}
-            </button>
-            <button mat-stroked-button routerLink="/auth/import">
-              <mat-icon>import_export</mat-icon>
-              {{ 'import' | i18n }}
-            </button>
-            <button mat-stroked-button routerLink="/auth/watch-only">
-              <mat-icon>visibility</mat-icon>
-              {{ 'watch_only' | i18n }}
-            </button>
+    
+            <p class="version-info">v2.0.0</p>
           </div>
-          <div class="right-actions">
-            <button
-              mat-raised-button
-              color="primary"
-              [disabled]="!selectedWallet() || isOpening()"
-              (click)="openWallet()"
-              class="primary-action-button"
-            >
-              <mat-spinner *ngIf="isOpening()" diameter="20"></mat-spinner>
-              <mat-icon *ngIf="!isOpening()">arrow_forward</mat-icon>
-              {{ !isOpening() ? ('open_wallet' | i18n) : '' }}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <p class="version-info">v2.0.0</p>
-    </div>
-  `,
+    `,
   styles: [
     `
       /* Main Container - uses flex layout from app.component */

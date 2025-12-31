@@ -1,5 +1,5 @@
 import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AmountPipe, satoshisToBtc } from '../../pipes';
@@ -23,7 +23,7 @@ import { I18nPipe } from '../../../core/i18n';
 @Component({
   selector: 'app-balance-display',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatTooltipModule, AmountPipe, I18nPipe],
+  imports: [MatIconModule, MatTooltipModule, AmountPipe, I18nPipe],
   template: `
     <span
       class="balance"

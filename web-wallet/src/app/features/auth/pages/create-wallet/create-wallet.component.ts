@@ -1,5 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -30,7 +30,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
   selector: 'app-create-wallet',
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     FormsModule,
     MatCardModule,
@@ -42,8 +41,8 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     MatSnackBarModule,
     MatProgressBarModule,
     MatAutocompleteModule,
-    I18nPipe,
-  ],
+    I18nPipe
+],
   template: `
     <div class="create-wallet-container">
       <mat-card class="create-card">

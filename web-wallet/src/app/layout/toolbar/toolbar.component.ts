@@ -1,5 +1,5 @@
 import { Component, inject, signal, input, output, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,7 +27,6 @@ import { Network } from '../../store/settings/settings.state';
   selector: 'app-toolbar',
   standalone: true,
   imports: [
-    CommonModule,
     RouterModule,
     MatToolbarModule,
     MatButtonModule,
@@ -36,8 +35,8 @@ import { Network } from '../../store/settings/settings.state';
     MatTooltipModule,
     MatDividerModule,
     MatProgressSpinnerModule,
-    I18nPipe,
-  ],
+    I18nPipe
+],
   template: `
     <mat-toolbar class="toolbar">
       <!-- Network Stamp (centered) - matching original Phoenix style with stamp texture -->

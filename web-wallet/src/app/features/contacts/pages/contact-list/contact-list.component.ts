@@ -1,5 +1,5 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -37,7 +37,6 @@ interface Contact {
   selector: 'app-contact-list',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     RouterModule,
     MatButtonModule,
@@ -48,8 +47,8 @@ interface Contact {
     MatDialogModule,
     MatMenuModule,
     MatTooltipModule,
-    I18nPipe,
-  ],
+    I18nPipe
+],
   template: `
     <div class="page-layout">
       <!-- Header with gradient background -->

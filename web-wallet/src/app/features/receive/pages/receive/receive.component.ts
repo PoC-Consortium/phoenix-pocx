@@ -1,5 +1,5 @@
 import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule, Location } from '@angular/common';
+import { Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -35,7 +35,6 @@ type AddressMode = 'existing' | 'generate';
   selector: 'app-receive',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     MatCardModule,
     MatButtonModule,
@@ -47,8 +46,8 @@ type AddressMode = 'existing' | 'generate';
     MatProgressSpinnerModule,
     MatTooltipModule,
     QRCodeComponent,
-    I18nPipe,
-  ],
+    I18nPipe
+],
   template: `
     <div class="page-layout">
       <!-- Header -->

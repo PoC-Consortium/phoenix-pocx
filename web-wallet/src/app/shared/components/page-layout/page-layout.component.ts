@@ -1,5 +1,5 @@
 import { Component, Input, inject } from '@angular/core';
-import { CommonModule, Location } from '@angular/common';
+import { Location } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -25,7 +25,7 @@ export interface BreadcrumbItem {
 @Component({
   selector: 'app-page-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatIconModule, MatButtonModule, I18nPipe],
+  imports: [RouterModule, MatIconModule, MatButtonModule, I18nPipe],
   template: `
     <div class="page-layout">
       <!-- Header -->
