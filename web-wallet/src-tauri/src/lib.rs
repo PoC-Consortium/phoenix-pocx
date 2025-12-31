@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::Manager;
 
 /// Options for reading cookie file
 #[derive(Debug, Deserialize)]
@@ -129,6 +131,128 @@ fn is_dev() -> bool {
     cfg!(debug_assertions)
 }
 
+/// Create the application menu
+fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
+    // File menu
+    let file_menu = SubmenuBuilder::new(app, "File")
+        .item(
+            &MenuItemBuilder::with_id("settings", "Settings")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?,
+        )
+        .separator()
+        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?)
+        .build()?;
+
+    // Edit menu
+    let edit_menu = SubmenuBuilder::new(app, "Edit")
+        .item(&PredefinedMenuItem::undo(app, Some("Undo"))?)
+        .item(&PredefinedMenuItem::redo(app, Some("Redo"))?)
+        .separator()
+        .item(&PredefinedMenuItem::cut(app, Some("Cut"))?)
+        .item(&PredefinedMenuItem::copy(app, Some("Copy"))?)
+        .item(&PredefinedMenuItem::paste(app, Some("Paste"))?)
+        .item(&PredefinedMenuItem::select_all(app, Some("Select All"))?)
+        .build()?;
+
+    // View menu
+    #[cfg(debug_assertions)]
+    let view_menu = SubmenuBuilder::new(app, "View")
+        .item(
+            &MenuItemBuilder::with_id("devtools", "Toggle Developer Tools")
+                .accelerator("CmdOrCtrl+Shift+I")
+                .build(app)?,
+        )
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("zoom_reset", "Actual Size")
+                .accelerator("CmdOrCtrl+0")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("zoom_in", "Zoom In")
+                .accelerator("CmdOrCtrl+Plus")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("zoom_out", "Zoom Out")
+                .accelerator("CmdOrCtrl+-")
+                .build(app)?,
+        )
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("fullscreen", "Toggle Fullscreen")
+                .accelerator("F11")
+                .build(app)?,
+        )
+        .build()?;
+
+    #[cfg(not(debug_assertions))]
+    let view_menu = SubmenuBuilder::new(app, "View")
+        .item(
+            &MenuItemBuilder::with_id("fullscreen", "Toggle Fullscreen")
+                .accelerator("F11")
+                .build(app)?,
+        )
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("zoom_reset", "Actual Size")
+                .accelerator("CmdOrCtrl+0")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("zoom_in", "Zoom In")
+                .accelerator("CmdOrCtrl+Plus")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("zoom_out", "Zoom Out")
+                .accelerator("CmdOrCtrl+-")
+                .build(app)?,
+        )
+        .build()?;
+
+    // Window menu
+    let window_menu = SubmenuBuilder::new(app, "Window")
+        .item(&PredefinedMenuItem::minimize(app, Some("Minimize"))?)
+        .item(&PredefinedMenuItem::close_window(app, Some("Close"))?)
+        .build()?;
+
+    // Help menu
+    let help_menu = SubmenuBuilder::new(app, "Help")
+        .item(
+            &MenuItemBuilder::with_id("documentation", "Bitcoin PoCX Documentation")
+                .build(app)?,
+        )
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("report_suggestion", "Report A Suggestion")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("report_issue", "Report An Issue")
+                .build(app)?,
+        )
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("check_update", "Check for Update")
+                .build(app)?,
+        )
+        .item(&MenuItemBuilder::with_id("about", "About").build(app)?)
+        .build()?;
+
+    // Build main menu
+    let menu = MenuBuilder::new(app)
+        .item(&file_menu)
+        .item(&edit_menu)
+        .item(&view_menu)
+        .item(&window_menu)
+        .item(&help_menu)
+        .build()?;
+
+    Ok(menu)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
@@ -138,12 +262,117 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
-        .setup(|_app| {
-            #[cfg(debug_assertions)]
-            {
-                // DevTools are opened automatically in debug mode via tauri.conf.json
-            }
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            // Create and set application menu
+            let menu = create_menu(app)?;
+            app.set_menu(menu)?;
+
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let id = event.id().as_ref();
+            match id {
+                "settings" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval("window.location.hash = '/settings';");
+                    }
+                }
+                #[cfg(debug_assertions)]
+                "devtools" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        if window.is_devtools_open() {
+                            window.close_devtools();
+                        } else {
+                            window.open_devtools();
+                        }
+                    }
+                }
+                "zoom_reset" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval("document.body.style.zoom = '100%';");
+                    }
+                }
+                "zoom_in" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval(
+                            r#"
+                            const currentZoom = parseFloat(document.body.style.zoom || '100') / 100;
+                            document.body.style.zoom = (currentZoom + 0.1) * 100 + '%';
+                            "#,
+                        );
+                    }
+                }
+                "zoom_out" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval(
+                            r#"
+                            const currentZoom = parseFloat(document.body.style.zoom || '100') / 100;
+                            document.body.style.zoom = Math.max(0.5, currentZoom - 0.1) * 100 + '%';
+                            "#,
+                        );
+                    }
+                }
+                "fullscreen" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        if let Ok(is_fullscreen) = window.is_fullscreen() {
+                            let _ = window.set_fullscreen(!is_fullscreen);
+                        }
+                    }
+                }
+                "documentation" => {
+                    let _ = tauri_plugin_opener::open_url(
+                        "https://github.com/PoC-Consortium/bitcoin-pocx/blob/master/docs/index.md",
+                        None::<&str>,
+                    );
+                }
+                "report_suggestion" => {
+                    let _ = tauri_plugin_opener::open_url(
+                        "https://github.com/PoC-Consortium/phoenix-pocx/issues/new?assignees=&labels=enhancement&template=feature_request.md&title=",
+                        None::<&str>,
+                    );
+                }
+                "report_issue" => {
+                    let _ = tauri_plugin_opener::open_url(
+                        "https://github.com/PoC-Consortium/phoenix-pocx/issues/new?assignees=&labels=bug&template=bug_report.md&title=",
+                        None::<&str>,
+                    );
+                }
+                "check_update" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval(
+                            r#"
+                            (async () => {
+                                try {
+                                    const { check } = await import('@tauri-apps/plugin-updater');
+                                    const update = await check();
+                                    if (update) {
+                                        if (confirm('A new version (' + update.version + ') is available!\n\nWould you like to download it now?')) {
+                                            window.open('https://github.com/PoC-Consortium/phoenix-pocx/releases/latest', '_blank');
+                                        }
+                                    } else {
+                                        alert('You are running the latest version.');
+                                    }
+                                } catch (e) {
+                                    console.error('Update check failed:', e);
+                                    alert('Could not check for updates.\n\nPlease visit https://github.com/PoC-Consortium/phoenix-pocx/releases to check manually.');
+                                }
+                            })();
+                            "#,
+                        );
+                    }
+                }
+                "about" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval(
+                            r#"
+                            alert('Phoenix PoCX Wallet v2.0.0\n\nA secure and easy-to-use wallet for Bitcoin-PoCX.\n\nhttps://www.bitcoin-pocx.org\n\n© 2025 The Proof of Capacity Consortium');
+                            "#,
+                        );
+                    }
+                }
+                _ => {}
+            }
         })
         .invoke_handler(tauri::generate_handler![
             read_cookie_file,

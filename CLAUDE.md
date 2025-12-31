@@ -103,8 +103,8 @@ The monolithic `BitcoinRpcService` from v1 has been split into focused services:
 3. **WalletService** - High-level API with Angular signals
 
 ### Desktop Bridge (ElectronService)
-Despite the name, this service now supports both Tauri and Electron:
-- `isTauri` / `isElectron` / `isDesktop` - Platform detection
+Despite the legacy name, this service is now primarily for Tauri:
+- `isTauri` / `isDesktop` - Platform detection
 - `readCookieFile()` - Read Bitcoin Core cookie file
 - `showFolderDialog()` - Native folder picker
 - `showDesktopNotification()` - System notifications
@@ -127,3 +127,5 @@ Located in `src-tauri/src/lib.rs`:
 - **dialog** - Native file/folder dialogs
 - **notification** - System notifications
 - **opener** - Open URLs/files with default app
+- **http** - HTTP client for RPC calls (bypasses CORS)
+- **updater** - Auto-update support (configured but not yet active)

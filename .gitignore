@@ -27,8 +27,12 @@ npm-debug.log*
 # Angular cache (in case built from root)
 .angular/
 
-# Electron
-*.asar
+# Tauri
+web-wallet/src-tauri/target/
+
+# Old Electron folder (deprecated)
+desktop/
 
 # Claude Code
 .claude/
+todo/

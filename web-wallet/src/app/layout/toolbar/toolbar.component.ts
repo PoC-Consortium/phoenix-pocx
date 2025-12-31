@@ -107,7 +107,7 @@ import { Network } from '../../store/settings/settings.state';
             <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
               <a
                 mat-menu-item
-                [routerLink]="hasActiveWallet() ? ['/wallets'] : ['/auth']"
+                [routerLink]="['/auth']"
                 class="manage-wallets-item"
               >
                 <mat-icon>settings</mat-icon>
@@ -472,10 +472,6 @@ export class ToolbarComponent implements OnInit, OnDestroy {
       // Ignore errors - wallets may not be available yet
       this.wallets.set([]);
     }
-  }
-
-  hasActiveWallet(): boolean {
-    return !!this.currentWalletName();
   }
 
   isCurrentWalletWatchOnly(): boolean {
