@@ -45,10 +45,10 @@ export class AppComponent implements OnInit {
   }
 
   /**
-   * Initialize update notification listeners for Electron
+   * Initialize update notification listeners for desktop
    */
   private initUpdateListeners(): void {
-    if (!this.electronService.isElectron) {
+    if (!this.electronService.isDesktop) {
       return;
     }
 

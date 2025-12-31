@@ -1,39 +1,40 @@
 # Phoenix PoCX Wallet (v2)
 
-New Angular 21 implementation of the Phoenix Bitcoin-PoCX Wallet.
+Angular 21 + Tauri 2 implementation of the Phoenix Bitcoin-PoCX Wallet.
 
 ## Project Structure
 
 ```
 phoenix-pocx/
-├── web-wallet/          # Angular 21 web application
+├── web-wallet/              # Angular 21 web application
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── core/           # Core services
-│   │   │   │   ├── auth/       # Cookie authentication
-│   │   │   │   └── services/   # Electron, Platform services
-│   │   │   ├── bitcoin/        # Bitcoin-specific services
+│   │   │   ├── core/        # Core services
+│   │   │   │   ├── auth/    # Cookie authentication
+│   │   │   │   └── services/# Desktop, Platform services
+│   │   │   ├── bitcoin/     # Bitcoin-specific services
 │   │   │   │   └── services/
-│   │   │   │       ├── rpc/    # Split RPC services
+│   │   │   │       ├── rpc/ # Split RPC services
 │   │   │   │       │   ├── rpc-client.service.ts     # Base JSON-RPC transport
 │   │   │   │       │   ├── blockchain-rpc.service.ts # Chain queries
 │   │   │   │       │   ├── wallet-rpc.service.ts     # Wallet operations
 │   │   │   │       │   └── mining-rpc.service.ts     # Mining/PoCX operations
-│   │   │   │       └── wallet/ # Wallet services
+│   │   │   │       └── wallet/
 │   │   │   │           ├── descriptor.service.ts     # BIP39/descriptor generation
 │   │   │   │           ├── wallet-manager.service.ts # Wallet lifecycle
 │   │   │   │           └── wallet.service.ts         # High-level wallet API
-│   │   │   ├── shared/         # Shared components, services
-│   │   │   │   └── services/   # Notifications, error handling
-│   │   │   ├── store/          # NgRx store
-│   │   │   │   ├── wallet/     # Wallet state management
-│   │   │   │   └── settings/   # Settings state management
-│   │   │   └── features/       # Feature modules (to be created)
+│   │   │   ├── shared/      # Shared components, services
+│   │   │   ├── store/       # NgRx store
+│   │   │   │   ├── wallet/  # Wallet state management
+│   │   │   │   └── settings/# Settings state management
+│   │   │   └── features/    # Feature modules
 │   │   └── ...
-│   └── package.json
-├── desktop/wallet/      # Electron desktop wrapper
-│   ├── main.js          # Electron main process
-│   ├── preload.js       # Context bridge for IPC
+│   ├── src-tauri/           # Tauri desktop wrapper (Rust)
+│   │   ├── src/
+│   │   │   ├── main.rs      # Entry point
+│   │   │   └── lib.rs       # Commands & plugins
+│   │   ├── Cargo.toml       # Rust dependencies
+│   │   └── tauri.conf.json  # Tauri configuration
 │   └── package.json
 └── CLAUDE.md
 ```
@@ -43,38 +44,30 @@ phoenix-pocx/
 ### Web Development (Hot Reload)
 ```bash
 cd web-wallet
+npm install
 npm start
 ```
 
-### Desktop Development
+### Desktop Development (Tauri)
 ```bash
-# Terminal 1: Start Angular dev server
 cd web-wallet
-npm start
-
-# Terminal 2: Start Electron (in dev mode)
-cd desktop/wallet
-npm run start:dev
+npm install
+npm run tauri:dev
 ```
 
 ### Production Build
 ```bash
-# Build web app
 cd web-wallet
-npm run build
-
-# Build desktop (copies web build + packages Electron)
-cd desktop/wallet
-npm run build
-npm run pack
+npm install
+npm run tauri:build
 ```
 
 ## Tech Stack
 
-- **Angular 21** - Latest Angular with signals, block control flow
+- **Angular 21** - Frontend with signals, block control flow
 - **Angular Material 21** - Material Design components
 - **NgRx 21** - State management
-- **Electron 39** - Desktop wrapper
+- **Tauri 2** - Lightweight desktop wrapper (Rust)
 - **TypeScript 5.9** - Type safety
 
 ## Service Architecture
@@ -109,11 +102,30 @@ The monolithic `BitcoinRpcService` from v1 has been split into focused services:
 2. **WalletManagerService** - Wallet lifecycle management
 3. **WalletService** - High-level API with Angular signals
 
+### Desktop Bridge (ElectronService)
+Despite the legacy name, this service is now primarily for Tauri:
+- `isTauri` / `isDesktop` - Platform detection
+- `readCookieFile()` - Read Bitcoin Core cookie file
+- `showFolderDialog()` - Native folder picker
+- `showDesktopNotification()` - System notifications
+- `openExternal()` - Open URLs in browser
+
 ### State Management (NgRx)
 - **wallet** feature: balance, transactions, UTXOs, addresses
 - **settings** feature: network, theme, preferences
 
-## Migration Notes
+## Tauri Commands (Rust)
 
-This is a fresh rewrite from the original Phoenix wallet (Angular 8).
-Components are being migrated incrementally from `../phoenix/`.
+Located in `src-tauri/src/lib.rs`:
+- `read_cookie_file` - Read cookie file with path expansion
+- `get_cookie_path` - Build cookie path from data dir + network
+- `get_platform` - Return platform (win32/darwin/linux)
+- `is_dev` - Check if running in debug mode
+
+## Tauri Plugins
+
+- **dialog** - Native file/folder dialogs
+- **notification** - System notifications
+- **opener** - Open URLs/files with default app
+- **http** - HTTP client for RPC calls (bypasses CORS)
+- **updater** - Auto-update support (configured but not yet active)

@@ -1,6 +1,6 @@
 # Phoenix PoCX Wallet
 
-A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Electron.
+A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 
 ## Features
 
@@ -9,11 +9,12 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Electron.
 - Transaction history with confirmations
 - Forging assignment management (PoCX-specific)
 - Multi-language support (24 languages)
-- Desktop app for Windows, macOS, and Linux
+- Lightweight desktop app for Windows, macOS, and Linux (~10MB)
 
 ## Requirements
 
 - **Node.js** 20+ and npm
+- **Rust** (for desktop builds)
 - **Bitcoin-PoCX Core** running with RPC enabled
 
 ## Quick Start
@@ -31,50 +32,41 @@ Open http://localhost:4200 in your browser.
 ### Desktop Development
 
 ```bash
-# Terminal 1: Start Angular dev server
 cd web-wallet
 npm install
-npm start
-
-# Terminal 2: Start Electron (in dev mode)
-cd desktop/wallet
-npm install
-npm run start:dev
+npm run tauri:dev
 ```
 
 ### Production Build
 
 ```bash
-# Build web app
 cd web-wallet
-npm run build
-
-# Package desktop app
-cd desktop/wallet
-npm run build
-npm run pack
+npm install
+npm run tauri:build
 ```
 
-The packaged app will be in `desktop/wallet/release/`.
+The packaged app will be in `web-wallet/src-tauri/target/release/bundle/`.
 
 ## Project Structure
 
 ```
 phoenix-pocx/
-├── web-wallet/          # Angular 21 web application
+├── web-wallet/              # Angular 21 web application
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── core/           # Core services (auth, platform)
-│   │   │   ├── bitcoin/        # Bitcoin RPC & wallet services
-│   │   │   ├── shared/         # Shared components
-│   │   │   ├── store/          # NgRx state management
-│   │   │   └── features/       # Feature modules
+│   │   │   ├── core/        # Core services (auth, platform)
+│   │   │   ├── bitcoin/     # Bitcoin RPC & wallet services
+│   │   │   ├── shared/      # Shared components
+│   │   │   ├── store/       # NgRx state management
+│   │   │   └── features/    # Feature modules
 │   │   └── assets/
-│   │       └── locales/        # i18n translation files
-│   └── package.json
-├── desktop/wallet/      # Electron desktop wrapper
-│   ├── main.js          # Electron main process
-│   ├── preload.js       # Context bridge for IPC
+│   │       └── locales/     # i18n translation files
+│   ├── src-tauri/           # Tauri desktop wrapper (Rust)
+│   │   ├── src/
+│   │   │   ├── main.rs      # Entry point
+│   │   │   └── lib.rs       # Commands & setup
+│   │   ├── Cargo.toml       # Rust dependencies
+│   │   └── tauri.conf.json  # Tauri configuration
 │   └── package.json
 └── README.md
 ```
@@ -84,7 +76,7 @@ phoenix-pocx/
 - **Angular 21** - Frontend framework with signals and block control flow
 - **Angular Material 21** - Material Design components
 - **NgRx 21** - State management
-- **Electron 39** - Desktop wrapper
+- **Tauri 2** - Lightweight desktop wrapper (Rust)
 - **TypeScript 5.9** - Type safety
 
 ## Bitcoin Core Configuration
@@ -119,6 +111,23 @@ cd web-wallet
 npm test           # Run unit tests
 npm run test:ci    # CI mode (headless)
 ```
+
+### Tauri Prerequisites
+
+Install Rust: https://rustup.rs/
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+```
+
+**macOS:**
+```bash
+xcode-select --install
+```
+
+**Windows:**
+- Install Visual Studio Build Tools with C++ workload
 
 ## Attribution
 

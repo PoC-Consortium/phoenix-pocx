@@ -12,7 +12,6 @@ import { authGuard, noAuthGuard } from './core/guards';
  * - /receive - Receive Bitcoin (protected)
  * - /transactions - Transaction history (protected)
  * - /contacts - Address book (protected)
- * - /wallets - Wallet management (protected)
  */
 export const routes: Routes = [
   // Settings route (accessible from anywhere - uses auth layout for toolbar)
@@ -75,10 +74,6 @@ export const routes: Routes = [
         path: 'contacts',
         loadChildren: () =>
           import('./features/contacts/contacts.routes').then(m => m.CONTACTS_ROUTES),
-      },
-      {
-        path: 'wallets',
-        loadChildren: () => import('./features/wallets/wallets.routes').then(m => m.WALLETS_ROUTES),
       },
       {
         path: 'forging-assignment',

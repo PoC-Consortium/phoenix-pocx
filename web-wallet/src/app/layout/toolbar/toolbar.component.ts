@@ -105,14 +105,10 @@ import { Network } from '../../store/settings/settings.state';
             </button>
 
             <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
-              <a
-                mat-menu-item
-                [routerLink]="hasActiveWallet() ? ['/wallets'] : ['/auth']"
-                class="manage-wallets-item"
-              >
+              <button mat-menu-item (click)="manageWallets()" class="manage-wallets-item">
                 <mat-icon>settings</mat-icon>
                 <span>{{ 'manage_wallets' | i18n }}</span>
-              </a>
+              </button>
               <mat-divider></mat-divider>
               @for (wallet of wallets(); track wallet.name) {
                 <button
@@ -474,10 +470,6 @@ export class ToolbarComponent implements OnInit, OnDestroy {
     }
   }
 
-  hasActiveWallet(): boolean {
-    return !!this.currentWalletName();
-  }
-
   isCurrentWalletWatchOnly(): boolean {
     const currentName = this.currentWalletName();
     if (!currentName) return false;
@@ -566,5 +558,11 @@ export class ToolbarComponent implements OnInit, OnDestroy {
 
   setLanguage(lang: Language): void {
     this.i18n.setLanguageByCode(lang.code);
+  }
+
+  manageWallets(): void {
+    // Clear active wallet and navigate to wallet selection
+    this.walletManager.setActiveWallet(null);
+    this.router.navigate(['/auth']);
   }
 }

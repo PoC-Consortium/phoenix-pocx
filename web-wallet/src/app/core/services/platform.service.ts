@@ -15,17 +15,24 @@ export class PlatformService {
   private _initialized = false;
 
   /**
-   * Check if running in desktop (Electron) mode
+   * Check if running in desktop (Tauri or Electron) mode
    */
   get isDesktop(): boolean {
-    return this.electron.isElectron;
+    return this.electron.isDesktop;
   }
 
   /**
    * Check if running in browser mode
    */
   get isBrowser(): boolean {
-    return !this.electron.isElectron;
+    return !this.electron.isDesktop;
+  }
+
+  /**
+   * Check if running in Tauri
+   */
+  get isTauri(): boolean {
+    return this.electron.isTauri;
   }
 
   /**

@@ -27,11 +27,6 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
 
-      - name: Audit desktop
-        working-directory: desktop/wallet
-        run: npm audit --audit-level=high
-        continue-on-error: true
-
   codeql:
     name: CodeQL Analysis
     runs-on: ubuntu-latest

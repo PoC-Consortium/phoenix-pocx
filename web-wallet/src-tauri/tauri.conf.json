@@ -1,0 +1,70 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Phoenix PoCX Wallet",
+  "version": "2.0.0",
+  "identifier": "org.pocx.phoenix",
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run start",
+    "devUrl": "http://localhost:4200",
+    "frontendDist": "../dist/web-wallet/browser"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Phoenix PoCX Wallet",
+        "width": 1400,
+        "height": 900,
+        "resizable": true,
+        "fullscreen": false,
+        "minWidth": 800,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "category": "Finance",
+    "shortDescription": "Bitcoin-PoCX Desktop Wallet",
+    "longDescription": "A secure and easy-to-use wallet for Bitcoin-PoCX. Supports HD wallets (BIP39/BIP84), forging assignments, and multi-language interface.",
+    "copyright": "Copyright (c) 2025 The Proof of Capacity Consortium",
+    "publisher": "PoC Consortium",
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "deb": {
+        "depends": []
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.13"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/PoC-Consortium/phoenix-pocx/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
+  }
+}
