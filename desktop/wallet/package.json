@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "electron": "^34.0.0",
+    "electron": "^35.7.5",
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
@@ -55,7 +55,8 @@
     "files": [
       "dist/**/*",
       "main.js",
-      "preload.js"
+      "preload.js",
+      "update-service.js"
     ],
     "win": {
       "target": "nsis",
