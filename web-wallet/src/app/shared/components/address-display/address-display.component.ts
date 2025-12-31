@@ -101,7 +101,7 @@ import { NotificationService } from '../../services';
 
         &.clickable {
           cursor: pointer;
-          color: var(--mdc-theme-primary, #0075d4);
+          color: var(--mat-theme-primary, #0075d4);
 
           &:hover {
             text-decoration: underline;

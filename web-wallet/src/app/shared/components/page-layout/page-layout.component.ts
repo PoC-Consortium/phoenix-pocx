@@ -92,7 +92,7 @@ export interface BreadcrumbItem {
       }
 
       .page-header-section {
-        background: linear-gradient(135deg, var(--mdc-theme-primary, #0075d4) 0%, #0062b3 100%);
+        background: linear-gradient(135deg, var(--mat-theme-primary, #0075d4) 0%, #0062b3 100%);
         color: white;
         padding: 24px;
         min-height: 140px;
