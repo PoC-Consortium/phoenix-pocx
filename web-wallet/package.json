@@ -20,6 +20,7 @@
   "dependencies": {
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-dialog": "^2.2.1",
+    "@tauri-apps/plugin-http": "^2.3.1",
     "@tauri-apps/plugin-notification": "^2.2.2",
     "@tauri-apps/plugin-opener": "^2.3.1",
     "@angular/animations": "^21.0.6",

@@ -7,6 +7,13 @@
     "core:default",
     "opener:default",
     "dialog:default",
-    "notification:default"
+    "notification:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://127.0.0.1:*" },
+        { "url": "http://localhost:*" }
+      ]
+    }
   ]
 }

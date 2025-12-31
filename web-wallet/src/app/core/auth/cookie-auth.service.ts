@@ -50,7 +50,7 @@ export class CookieAuthService {
   async loadCredentials(): Promise<boolean> {
     this.errorSubject.next(null);
 
-    if (!this.electron.isElectron) {
+    if (!this.electron.isDesktop) {
       // In browser mode, use manual credentials or environment variables
       const manualCredentials = this.getManualCredentials();
       if (manualCredentials) {

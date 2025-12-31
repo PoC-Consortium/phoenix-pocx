@@ -4,6 +4,7 @@ import { Store } from '@ngrx/store';
 import { BehaviorSubject, Observable, Subject, firstValueFrom, throwError } from 'rxjs';
 import { catchError, timeout, takeUntil, combineLatestWith } from 'rxjs/operators';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
+import { ElectronService } from '../../../core/services/electron.service';
 import { selectRpcHost, selectRpcPort } from '../../../store/settings/settings.selectors';
 
 /**
@@ -54,6 +55,7 @@ export class RpcClientService implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly store = inject(Store);
+  private readonly electron = inject(ElectronService);
 
   private readonly DEFAULT_TIMEOUT = 30000; // 30 seconds
   private readonly statusSubject = new BehaviorSubject<ConnectionStatus>('disconnected');
@@ -143,20 +145,28 @@ export class RpcClientService implements OnDestroy {
       params,
     };
 
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/json',
-      Authorization: authHeader,
-    });
-
     this.statusSubject.next('connecting');
 
     try {
-      const response = await firstValueFrom(
-        this.http.post<RpcResponse<T>>(url, request, { headers }).pipe(
-          timeout(timeoutMs),
-          catchError((error: HttpErrorResponse) => this.handleHttpError(error))
-        )
-      );
+      let response: RpcResponse<T>;
+
+      if (this.electron.isTauri) {
+        // Use Tauri HTTP plugin to bypass CORS
+        response = await this.callWithTauri<T>(url, request, authHeader, timeoutMs);
+      } else {
+        // Use Angular HttpClient for browser/Electron
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        });
+
+        response = await firstValueFrom(
+          this.http.post<RpcResponse<T>>(url, request, { headers }).pipe(
+            timeout(timeoutMs),
+            catchError((error: HttpErrorResponse) => this.handleHttpError(error))
+          )
+        );
+      }
 
       if (response.error) {
         throw new Error(`RPC Error ${response.error.code}: ${response.error.message}`);
@@ -170,6 +180,57 @@ export class RpcClientService implements OnDestroy {
       this.statusSubject.next('error');
       const message = error instanceof Error ? error.message : 'Unknown RPC error';
       this.lastErrorSubject.next(message);
+      throw error;
+    }
+  }
+
+  /**
+   * Make RPC call using Tauri HTTP plugin
+   */
+  private async callWithTauri<T>(
+    url: string,
+    request: RpcRequest,
+    authHeader: string,
+    timeoutMs: number
+  ): Promise<RpcResponse<T>> {
+    const { fetch } = await import('@tauri-apps/plugin-http');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        },
+        body: JSON.stringify(request),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Invalid RPC credentials.');
+        } else if (response.status === 403) {
+          throw new Error('Access forbidden. Check rpcallowip configuration.');
+        } else if (response.status === 404) {
+          throw new Error('Wallet not found or RPC method not available.');
+        }
+        throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
+      }
+
+      return (await response.json()) as RpcResponse<T>;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout');
+      }
+      if (error instanceof TypeError) {
+        throw new Error('Cannot connect to Bitcoin Core. Is it running?');
+      }
       throw error;
     }
   }

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use tauri::Manager;
 
 /// Options for reading cookie file
 #[derive(Debug, Deserialize)]
@@ -138,11 +137,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .setup(|app| {
+        .plugin(tauri_plugin_http::init())
+        .setup(|_app| {
             #[cfg(debug_assertions)]
             {
-                let window = app.get_webview_window("main").unwrap();
-                window.open_devtools();
+                // DevTools are opened automatically in debug mode via tauri.conf.json
             }
             Ok(())
         })
