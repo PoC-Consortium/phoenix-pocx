@@ -1,0 +1,87 @@
+@use '@angular/material' as mat;
+
+// Include Material core styles
+@include mat.core();
+
+// Custom Phoenix PoCX Navy palette (matching old project)
+$phoenix-navy-palette: (
+  50: #ececee,
+  100: #c5c6cb,
+  200: #9ea1a9,
+  300: #7d818c,
+  400: #0086f3,
+  // rgb(0, 134, 243)
+  500: #0075d4,
+  // rgb(0, 117, 212) - Primary
+  600: #0062b3,
+  // rgb(0, 98, 179)
+  700: #00579d,
+  800: #2d5a87,
+  900: #1e3a5f,
+  A100: #c5c6cb,
+  A200: #9ea1a9,
+  A400: #5c616f,
+  A700: #2d323e,
+  contrast: (
+    50: rgba(black, 0.87),
+    100: rgba(black, 0.87),
+    200: rgba(black, 0.87),
+    300: white,
+    400: white,
+    500: white,
+    600: white,
+    700: white,
+    800: white,
+    900: white,
+    A100: rgba(black, 0.87),
+    A200: white,
+    A400: white,
+    A700: white,
+  ),
+);
+
+// Define palettes using Material's palette function
+$phoenix-primary: mat.m2-define-palette($phoenix-navy-palette, 500, 300, 700);
+$phoenix-accent: mat.m2-define-palette(mat.$m2-light-blue-palette, 600, 400, 700);
+$phoenix-warn: mat.m2-define-palette(mat.$m2-red-palette);
+
+// Light theme
+$phoenix-light-theme: mat.m2-define-light-theme(
+  (
+    color: (
+      primary: $phoenix-primary,
+      accent: $phoenix-accent,
+      warn: $phoenix-warn,
+    ),
+    typography: mat.m2-define-typography-config(
+        $font-family: 'Montserrat, "Helvetica Neue", Arial, sans-serif',
+      ),
+    density: 0,
+  )
+);
+
+// Dark theme - Blue Gray
+$phoenix-dark-primary: mat.m2-define-palette(mat.$m2-blue-palette);
+$phoenix-dark-accent: mat.m2-define-palette(mat.$m2-blue-grey-palette);
+
+$phoenix-dark-theme: mat.m2-define-dark-theme(
+  (
+    color: (
+      primary: $phoenix-dark-primary,
+      accent: $phoenix-dark-accent,
+      warn: $phoenix-warn,
+    ),
+    typography: mat.m2-define-typography-config(
+        $font-family: 'Montserrat, "Helvetica Neue", Arial, sans-serif',
+      ),
+    density: 0,
+  )
+);
+
+// Apply the light theme by default
+@include mat.all-component-themes($phoenix-light-theme);
+
+// Dark theme class
+.dark-theme {
+  @include mat.all-component-colors($phoenix-dark-theme);
+}

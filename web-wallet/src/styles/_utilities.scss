@@ -1,0 +1,411 @@
+// ============================================================
+// Layout Utilities
+// ============================================================
+
+.flex {
+  display: flex;
+}
+.flex-row {
+  flex-direction: row;
+}
+.flex-col {
+  flex-direction: column;
+}
+.flex-wrap {
+  flex-wrap: wrap;
+}
+.flex-1 {
+  flex: 1;
+}
+.flex-auto {
+  flex: auto;
+}
+.flex-none {
+  flex: none;
+}
+
+.items-start {
+  align-items: flex-start;
+}
+.items-center {
+  align-items: center;
+}
+.items-end {
+  align-items: flex-end;
+}
+.items-stretch {
+  align-items: stretch;
+}
+
+.justify-start {
+  justify-content: flex-start;
+}
+.justify-center {
+  justify-content: center;
+}
+.justify-end {
+  justify-content: flex-end;
+}
+.justify-between {
+  justify-content: space-between;
+}
+.justify-around {
+  justify-content: space-around;
+}
+
+.gap-1 {
+  gap: 4px;
+}
+.gap-2 {
+  gap: 8px;
+}
+.gap-3 {
+  gap: 12px;
+}
+.gap-4 {
+  gap: 16px;
+}
+.gap-6 {
+  gap: 24px;
+}
+.gap-8 {
+  gap: 32px;
+}
+
+.fullwidth {
+  width: 100%;
+}
+.fullheight {
+  height: 100%;
+}
+.inline {
+  display: inline;
+}
+.inline-block {
+  display: inline-block;
+}
+.block {
+  display: block;
+}
+.hidden {
+  display: none;
+}
+
+// ============================================================
+// Spacing Utilities
+// ============================================================
+
+@each $size, $value in (0: 0, 1: 4px, 2: 8px, 3: 12px, 4: 16px, 6: 24px, 8: 32px, 12: 48px) {
+  .m-#{$size} {
+    margin: $value;
+  }
+  .mt-#{$size} {
+    margin-top: $value;
+  }
+  .mb-#{$size} {
+    margin-bottom: $value;
+  }
+  .ml-#{$size} {
+    margin-left: $value;
+  }
+  .mr-#{$size} {
+    margin-right: $value;
+  }
+  .mx-#{$size} {
+    margin-left: $value;
+    margin-right: $value;
+  }
+  .my-#{$size} {
+    margin-top: $value;
+    margin-bottom: $value;
+  }
+
+  .p-#{$size} {
+    padding: $value;
+  }
+  .pt-#{$size} {
+    padding-top: $value;
+  }
+  .pb-#{$size} {
+    padding-bottom: $value;
+  }
+  .pl-#{$size} {
+    padding-left: $value;
+  }
+  .pr-#{$size} {
+    padding-right: $value;
+  }
+  .px-#{$size} {
+    padding-left: $value;
+    padding-right: $value;
+  }
+  .py-#{$size} {
+    padding-top: $value;
+    padding-bottom: $value;
+  }
+}
+
+// ============================================================
+// Text Utilities
+// ============================================================
+
+.text-left {
+  text-align: left;
+}
+.text-center {
+  text-align: center;
+}
+.text-right {
+  text-align: right;
+}
+
+.text-xs {
+  font-size: 12px;
+}
+.text-sm {
+  font-size: 14px;
+}
+.text-base {
+  font-size: 16px;
+}
+.text-lg {
+  font-size: 18px;
+}
+.text-xl {
+  font-size: 20px;
+}
+.text-2xl {
+  font-size: 24px;
+}
+.text-3xl {
+  font-size: 30px;
+}
+
+.font-light {
+  font-weight: 300;
+}
+.font-normal {
+  font-weight: 400;
+}
+.font-medium {
+  font-weight: 500;
+}
+.font-semibold {
+  font-weight: 600;
+}
+.font-bold {
+  font-weight: 700;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.break-words {
+  word-break: break-word;
+}
+.break-all {
+  word-break: break-all;
+}
+
+// ============================================================
+// Colors (matching Phoenix theme)
+// ============================================================
+
+.text-primary {
+  color: #0075d4;
+}
+.text-accent {
+  color: #039be5;
+}
+.text-warn {
+  color: #f44336;
+}
+.text-success {
+  color: #4caf50;
+}
+.text-muted {
+  color: rgba(0, 0, 0, 0.54);
+}
+
+.dark-theme {
+  .text-muted {
+    color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+.bg-primary {
+  background-color: #0075d4;
+  color: white;
+}
+.bg-accent {
+  background-color: #039be5;
+  color: white;
+}
+.bg-warn {
+  background-color: #f44336;
+  color: white;
+}
+.bg-success {
+  background-color: #4caf50;
+  color: white;
+}
+
+// ============================================================
+// Button Variants
+// ============================================================
+
+.btn-danger {
+  background-color: #f44336 !important;
+  color: white !important;
+}
+
+.btn-success {
+  background-color: #4caf50 !important;
+  color: white !important;
+}
+
+// ============================================================
+// Widget / Card Styles
+// ============================================================
+
+.widget {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+}
+
+.dark-theme .widget {
+  background: #424242;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+// ============================================================
+// Status Colors
+// ============================================================
+
+.status-confirmed {
+  color: #4caf50;
+}
+.status-pending {
+  color: #ff9800;
+}
+.status-failed {
+  color: #f44336;
+}
+
+// Error text with pulse animation
+.error-text {
+  color: #f44336;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+// ============================================================
+// Print Styles
+// ============================================================
+
+.print-hide {
+  @media print {
+    display: none !important;
+  }
+}
+
+.print-only {
+  display: none !important;
+  @media print {
+    display: block !important;
+  }
+}
+
+// ============================================================
+// Cursor Utilities
+// ============================================================
+
+.cursor-pointer {
+  cursor: pointer;
+}
+.cursor-default {
+  cursor: default;
+}
+.cursor-not-allowed {
+  cursor: not-allowed;
+}
+
+// ============================================================
+// Overflow
+// ============================================================
+
+.overflow-hidden {
+  overflow: hidden;
+}
+.overflow-auto {
+  overflow: auto;
+}
+.overflow-scroll {
+  overflow: scroll;
+}
+.overflow-x-auto {
+  overflow-x: auto;
+}
+.overflow-y-auto {
+  overflow-y: auto;
+}
+
+// ============================================================
+// Position
+// ============================================================
+
+.relative {
+  position: relative;
+}
+.absolute {
+  position: absolute;
+}
+.fixed {
+  position: fixed;
+}
+.sticky {
+  position: sticky;
+}
+
+// ============================================================
+// Border Radius
+// ============================================================
+
+.rounded {
+  border-radius: 4px;
+}
+.rounded-md {
+  border-radius: 8px;
+}
+.rounded-lg {
+  border-radius: 12px;
+}
+.rounded-xl {
+  border-radius: 16px;
+}
+.rounded-full {
+  border-radius: 9999px;
+}
+
+// ============================================================
+// Monospace (for addresses, hashes)
+// ============================================================
+
+.mono {
+  font-family: 'Roboto Mono', monospace;
+  letter-spacing: -0.5px;
+}

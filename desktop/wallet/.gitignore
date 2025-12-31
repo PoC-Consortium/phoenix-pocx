@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+release/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Electron packager outputs
+*.asar
+out/

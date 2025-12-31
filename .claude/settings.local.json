@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(npm run build:*)",
+      "Bash(find:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run lint:*)",
+      "Bash(dir /s /b)",
+      "Bash(npm run lint:fix:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(npm run format:fix:*)",
+      "Bash(npm run format:check:*)",
+      "Bash(npm run build:dev:*)",
+      "Bash(for key in about about_description activated_at_block activates_at_block active address address_must_be_segwit_v0 address_options address_placeholder address_valid appearance assignment_active assignment_created_success assignment_revoked assignment_status backup_phrase backup_warning bip39_passphrase bip39_passphrase_hint bip39_passphrase_info bip39_passphrase_title bip39_passphrase_warning bitcoin_wallet block_count block_height block_index block_info block_time blocks_remaining)",
+      "Bash(do grep \"\"\"$key\"\":\" en.json)",
+      "Bash(done)",
+      "Bash(for key in bump_fee bump_fee_description bump_fee_error bump_fee_success bump_fee_title can_create_assignment can_create_new_assignment cannot_create_assignment_state cannot_revoke_assignment_state check_status check_status_description checking_status coinbase compatible confirm_backup_written confirm_bip39_passphrase confirm_send confirm_send_message confirm_transaction confirm_wallet_password connected connection_status contact_name_placeholder contacts_will_appear_here copy create_assignment create_assignment_description create_new_wallet create_wallet create_wallet_message created_at_block creating dark_theme dark_theme_hint days delete disconnected dismiss edit effective_at_block enabled encrypt_wallet enter_forging_address enter_recovery_phrase)",
+      "Bash(comm:*)",
+      "Bash(while read:*)",
+      "Bash(node:*)",
+      "Bash(npm run test:ci:*)"
+    ]
+  }
+}
