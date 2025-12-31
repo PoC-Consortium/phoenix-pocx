@@ -65,7 +65,7 @@ export interface UpdateInfo {
 }
 
 /**
- * Type definition for the Electron API exposed via preload script
+ * Type definition for the Electron API exposed via preload script (legacy)
  */
 interface ElectronAPI {
   readCookieFile: (options: CookieReadOptions) => Promise<CookieReadResult>;
@@ -75,7 +75,6 @@ interface ElectronAPI {
   showFolderDialog: (options?: FolderDialogOptions) => Promise<string | null>;
   showNotification: (options: NotificationOptions) => Promise<NotificationResult>;
   onRouteTo: (callback: (route: string) => void) => void;
-  // Update notifications
   onNewVersion: (callback: (updateInfo: UpdateInfo) => void) => void;
   onNewVersionCheckNoUpdate: (callback: () => void) => void;
   onNewVersionDownloadStarted: (callback: () => void) => void;
@@ -86,14 +85,15 @@ interface ElectronAPI {
 declare global {
   interface Window {
     electronAPI?: ElectronAPI;
+    __TAURI_INTERNALS__?: unknown;
   }
 }
 
 /**
- * ElectronService provides a bridge to Electron's main process via IPC.
- * Uses context isolation with preload script for security.
+ * ElectronService provides a bridge to the desktop runtime (Tauri or Electron).
+ * Tauri is the primary runtime, with Electron as fallback for legacy support.
  *
- * In browser mode (non-Electron), methods return sensible defaults.
+ * In browser mode (non-desktop), methods return sensible defaults.
  */
 @Injectable({ providedIn: 'root' })
 export class ElectronService {
@@ -105,24 +105,38 @@ export class ElectronService {
   }
 
   /**
-   * Initialize listener for menu navigation events from Electron main process
+   * Check if running inside Tauri
+   */
+  get isTauri(): boolean {
+    return !!window.__TAURI_INTERNALS__;
+  }
+
+  /**
+   * Check if running inside Electron (legacy)
+   */
+  get isElectron(): boolean {
+    return !!window.electronAPI?.isElectron;
+  }
+
+  /**
+   * Check if running in any desktop environment
+   */
+  get isDesktop(): boolean {
+    return this.isTauri || this.isElectron;
+  }
+
+  /**
+   * Initialize listener for menu navigation events from main process
    */
   private initMenuRouteListener(): void {
     if (this.isElectron && window.electronAPI?.onRouteTo) {
       window.electronAPI.onRouteTo((route: string) => {
-        // Run navigation inside Angular zone to trigger change detection
         this.ngZone.run(() => {
           this.router.navigate([route]);
         });
       });
     }
-  }
-
-  /**
-   * Check if running inside Electron
-   */
-  get isElectron(): boolean {
-    return !!window.electronAPI?.isElectron;
+    // Tauri menu events are handled via Tauri event system
   }
 
   /**
@@ -131,17 +145,32 @@ export class ElectronService {
    * @returns Cookie read result with content or error
    */
   async readCookieFile(options: CookieReadOptions): Promise<CookieReadResult | null> {
-    if (!this.isElectron) {
-      console.warn('Cookie file reading only available in Electron');
-      return null;
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<CookieReadResult>('read_cookie_file', {
+          options: {
+            dataDirectory: options.dataDirectory,
+            network: options.network,
+          },
+        });
+      } catch (error) {
+        console.error('Error reading cookie file:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
     }
 
-    try {
-      return await window.electronAPI!.readCookieFile(options);
-    } catch (error) {
-      console.error('Error reading cookie file:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    if (this.isElectron) {
+      try {
+        return await window.electronAPI!.readCookieFile(options);
+      } catch (error) {
+        console.error('Error reading cookie file:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
     }
+
+    console.warn('Cookie file reading only available in desktop mode');
+    return null;
   }
 
   /**
@@ -149,30 +178,65 @@ export class ElectronService {
    * @param options - dataDirectory and network settings
    */
   async getCookiePath(options: CookieReadOptions): Promise<string | null> {
-    if (!this.isElectron) {
-      return null;
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<string | null>('get_cookie_path', {
+          options: {
+            dataDirectory: options.dataDirectory,
+            network: options.network,
+          },
+        });
+      } catch {
+        return null;
+      }
     }
-    return window.electronAPI!.getCookiePath(options);
+
+    if (this.isElectron) {
+      return window.electronAPI!.getCookiePath(options);
+    }
+
+    return null;
   }
 
   /**
    * Get the current platform (win32, darwin, linux)
    */
   async getPlatform(): Promise<string> {
-    if (!this.isElectron) {
-      return 'browser';
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<string>('get_platform');
+      } catch {
+        return 'browser';
+      }
     }
-    return window.electronAPI!.getPlatform();
+
+    if (this.isElectron) {
+      return window.electronAPI!.getPlatform();
+    }
+
+    return 'browser';
   }
 
   /**
    * Check if running in development mode
    */
   async isDev(): Promise<boolean> {
-    if (!this.isElectron) {
-      return true; // Assume dev mode in browser
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<boolean>('is_dev');
+      } catch {
+        return true;
+      }
     }
-    return window.electronAPI!.isDev();
+
+    if (this.isElectron) {
+      return window.electronAPI!.isDev();
+    }
+
+    return true; // Assume dev mode in browser
   }
 
   /**
@@ -181,10 +245,26 @@ export class ElectronService {
    * @returns Selected folder path or null if cancelled
    */
   async showFolderDialog(options?: FolderDialogOptions): Promise<string | null> {
-    if (!this.isElectron) {
-      return null;
+    if (this.isTauri) {
+      try {
+        const { open } = await import('@tauri-apps/plugin-dialog');
+        const result = await open({
+          directory: true,
+          multiple: false,
+          title: options?.title || 'Select Folder',
+          defaultPath: options?.defaultPath,
+        });
+        return result as string | null;
+      } catch {
+        return null;
+      }
     }
-    return window.electronAPI!.showFolderDialog(options);
+
+    if (this.isElectron) {
+      return window.electronAPI!.showFolderDialog(options);
+    }
+
+    return null;
   }
 
   /**
@@ -194,25 +274,65 @@ export class ElectronService {
    * @returns Result indicating success or error
    */
   async showDesktopNotification(title: string, body: string): Promise<NotificationResult> {
-    if (!this.isElectron) {
-      // Fall back to browser notifications if available
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(title, { body });
-        return { success: true };
+    if (this.isTauri) {
+      try {
+        const { sendNotification, isPermissionGranted, requestPermission } =
+          await import('@tauri-apps/plugin-notification');
+
+        let permissionGranted = await isPermissionGranted();
+        if (!permissionGranted) {
+          const permission = await requestPermission();
+          permissionGranted = permission === 'granted';
+        }
+
+        if (permissionGranted) {
+          sendNotification({ title, body });
+          return { success: true };
+        }
+        return { success: false, error: 'Notification permission denied' };
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
       }
-      return { success: false, error: 'Desktop notifications only available in Electron' };
     }
 
-    try {
-      return await window.electronAPI!.showNotification({ title, body });
-    } catch (error) {
-      console.error('Error showing notification:', error);
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    if (this.isElectron) {
+      try {
+        return await window.electronAPI!.showNotification({ title, body });
+      } catch (error) {
+        console.error('Error showing notification:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
+    }
+
+    // Fall back to browser notifications if available
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body });
+      return { success: true };
+    }
+
+    return { success: false, error: 'Desktop notifications only available in desktop mode' };
+  }
+
+  /**
+   * Open URL in external browser
+   * @param url - URL to open
+   */
+  async openExternal(url: string): Promise<void> {
+    if (this.isTauri) {
+      try {
+        const { openUrl } = await import('@tauri-apps/plugin-opener');
+        await openUrl(url);
+      } catch (error) {
+        console.error('Error opening URL:', error);
+        window.open(url, '_blank');
+      }
+    } else {
+      window.open(url, '_blank');
     }
   }
 
   /**
-   * Register callback for new version notifications
+   * Register callback for new version notifications (Electron only for now)
    * @param callback - Function to call when new version is available
    */
   onNewVersion(callback: (updateInfo: UpdateInfo) => void): void {
@@ -221,6 +341,7 @@ export class ElectronService {
         this.ngZone.run(() => callback(updateInfo));
       });
     }
+    // TODO: Implement Tauri updater events
   }
 
   /**
@@ -248,12 +369,15 @@ export class ElectronService {
   }
 
   /**
-   * Select an asset to download
+   * Select an asset to download (Electron only)
    * @param assetUrl - URL of the asset to download
    */
   selectVersionAsset(assetUrl: string): void {
     if (this.isElectron && window.electronAPI?.selectVersionAsset) {
       window.electronAPI.selectVersionAsset(assetUrl);
+    } else if (this.isTauri) {
+      // In Tauri, just open the URL
+      this.openExternal(assetUrl);
     }
   }
 }

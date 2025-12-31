@@ -11,10 +11,17 @@
     "lint": "ng lint",
     "lint:fix": "ng lint --fix",
     "format:check": "prettier --check \"src/**/*.{ts,html,scss}\"",
-    "format:fix": "prettier --write \"src/**/*.{ts,html,scss}\""
+    "format:fix": "prettier --write \"src/**/*.{ts,html,scss}\"",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "private": true,
   "dependencies": {
+    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "^2.2.1",
+    "@tauri-apps/plugin-notification": "^2.2.2",
+    "@tauri-apps/plugin-opener": "^2.3.1",
     "@angular/animations": "^21.0.6",
     "@angular/cdk": "^21.0.5",
     "@angular/common": "^21.0.6",
@@ -39,6 +46,7 @@
     "zone.js": "^0.16.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0",
     "@angular-devkit/build-angular": "^21.0.4",
     "@angular-eslint/builder": "^21.1.0",
     "@angular-eslint/eslint-plugin": "^21.1.0",
