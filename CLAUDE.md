@@ -1,12 +1,12 @@
 # Phoenix PoCX Wallet (v2)
 
-New Angular 19 implementation of the Phoenix Bitcoin-PoCX Wallet.
+New Angular 21 implementation of the Phoenix Bitcoin-PoCX Wallet.
 
 ## Project Structure
 
 ```
 phoenix-pocx/
-├── web-wallet/          # Angular 19 web application
+├── web-wallet/          # Angular 21 web application
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── core/           # Core services
@@ -71,11 +71,11 @@ npm run pack
 
 ## Tech Stack
 
-- **Angular 19** - Latest Angular with signals, new control flow
-- **Angular Material 19** - Material Design components
-- **NgRx 19** - State management
-- **Electron 34** - Desktop wrapper
-- **TypeScript 5.7** - Type safety
+- **Angular 21** - Latest Angular with signals, block control flow
+- **Angular Material 21** - Material Design components
+- **NgRx 21** - State management
+- **Electron 39** - Desktop wrapper
+- **TypeScript 5.9** - Type safety
 
 ## Service Architecture
 
