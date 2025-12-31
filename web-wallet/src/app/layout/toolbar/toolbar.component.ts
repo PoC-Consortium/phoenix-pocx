@@ -105,11 +105,7 @@ import { Network } from '../../store/settings/settings.state';
             </button>
 
             <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
-              <button
-                mat-menu-item
-                (click)="manageWallets()"
-                class="manage-wallets-item"
-              >
+              <button mat-menu-item (click)="manageWallets()" class="manage-wallets-item">
                 <mat-icon>settings</mat-icon>
                 <span>{{ 'manage_wallets' | i18n }}</span>
               </button>
