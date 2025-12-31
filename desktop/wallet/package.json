@@ -36,9 +36,9 @@
     "release:linux": "electron-builder -l"
   },
   "devDependencies": {
-    "cross-env": "^7.0.3",
-    "electron": "^35.7.5",
-    "electron-builder": "^25.1.8"
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
     "electron-is-dev": "^3.0.1",
