@@ -121,6 +121,10 @@ npm test           # Run unit tests
 npm run test:ci    # CI mode (headless)
 ```
 
+## Attribution
+
+This project is a fork of [Phoenix](https://github.com/signum-network/phoenix) by the Signum Network team. The original Phoenix wallet was built for the Signum blockchain and has been adapted for Bitcoin-PoCX.
+
 ## License
 
-MIT
+GPL-3.0 - See [LICENSE](LICENSE) for details.
