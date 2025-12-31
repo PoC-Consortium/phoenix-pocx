@@ -9,7 +9,6 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Electron.
 - Transaction history with confirmations
 - Forging assignment management (PoCX-specific)
 - Multi-language support (24 languages)
-- Light/Dark theme
 - Desktop app for Windows, macOS, and Linux
 
 ## Requirements
