@@ -9,7 +9,7 @@
   "productName": "Phoenix PoCX Wallet",
   "description": "The Bitcoin-PoCX desktop wallet",
   "update": {
-    "repositoryRootUrl": "https://api.github.com/repos/PoC-Consortium/phoenix",
+    "repositoryRootUrl": "https://api.github.com/repos/PoC-Consortium/phoenix-pocx",
     "checkIntervalMins": 10,
     "tagPrefix": "desktop-"
   },
@@ -22,7 +22,7 @@
   "main": "main.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/PoC-Consortium/phoenix"
+    "url": "https://github.com/PoC-Consortium/phoenix-pocx"
   },
   "license": "GPL-3.0",
   "scripts": {
