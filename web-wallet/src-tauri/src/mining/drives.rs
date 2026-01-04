@@ -1,0 +1,195 @@
+//! Drive detection and plot file scanning
+//!
+//! Detects available drives and scans for existing plot files.
+
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use sysinfo::Disks;
+
+/// Drive information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DriveInfo {
+    pub path: String,
+    pub label: String,
+    pub total_gib: f64,
+    pub free_gib: f64,
+    pub drive_type: DriveType,
+    pub is_system_drive: bool,
+    pub complete_files: u32,       // .pocx files (ready for mining)
+    pub complete_size_gib: f64,    // Size of complete files
+    pub incomplete_files: u32,     // .tmp files (can resume)
+    pub incomplete_size_gib: f64,  // Size of incomplete files
+}
+
+/// Drive type classification
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum DriveType {
+    Ssd,
+    Hdd,
+    Unknown,
+}
+
+/// Plot file scan results
+#[derive(Debug, Default)]
+struct PlotFileScan {
+    complete_count: u32,
+    complete_bytes: u64,
+    incomplete_count: u32,
+    incomplete_bytes: u64,
+}
+
+/// Check if this is the system/boot drive
+fn is_system_drive_path(mount_point: &str) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        mount_point.to_uppercase().starts_with("C:")
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        mount_point == "/"
+    }
+}
+
+/// Detect drive type (SSD vs HDD)
+fn detect_drive_type(_mount_point: &str) -> DriveType {
+    // TODO: Implement actual drive type detection
+    // On Windows, use WMI or DeviceIoControl
+    // On Linux, check /sys/block/*/queue/rotational
+    DriveType::Unknown
+}
+
+/// Check if filename matches PoCX plot file pattern
+/// Format: {address}_{startNonce}_{nonceCount}_{compression}.pocx or .tmp
+fn is_plot_filename(filename: &str) -> bool {
+    // Must have at least 3 underscores: addr_start_nonces_comp.ext
+    let parts: Vec<&str> = filename.split('_').collect();
+    if parts.len() < 4 {
+        return false;
+    }
+    // Last part should end with .pocx or .tmp
+    let last = parts.last().unwrap_or(&"");
+    last.ends_with(".pocx") || last.ends_with(".tmp")
+}
+
+/// Scan directory for plot files (.pocx and .tmp)
+fn scan_plot_files(path: &str) -> PlotFileScan {
+    let dir = Path::new(path);
+    if !dir.exists() || !dir.is_dir() {
+        return PlotFileScan::default();
+    }
+
+    let mut result = PlotFileScan::default();
+
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let file_path = entry.path();
+            if !file_path.is_file() {
+                continue;
+            }
+
+            let filename = match file_path.file_name().and_then(|n| n.to_str()) {
+                Some(name) => name,
+                None => continue,
+            };
+
+            // Check if it matches plot file pattern
+            if !is_plot_filename(filename) {
+                continue;
+            }
+
+            let file_size = std::fs::metadata(&file_path)
+                .map(|m| m.len())
+                .unwrap_or(0);
+
+            if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
+                match ext {
+                    "pocx" => {
+                        result.complete_count += 1;
+                        result.complete_bytes += file_size;
+                    }
+                    "tmp" => {
+                        result.incomplete_count += 1;
+                        result.incomplete_bytes += file_size;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    result
+}
+
+/// List available drives for plotting
+pub fn list_drives() -> Vec<DriveInfo> {
+    let disks = Disks::new_with_refreshed_list();
+    let gib = 1024.0 * 1024.0 * 1024.0;
+
+    disks
+        .iter()
+        .filter(|d| {
+            // Filter out very small drives (< 10 GB)
+            d.total_space() > 10 * 1024 * 1024 * 1024
+        })
+        .map(|d| {
+            let mount_point = d.mount_point().to_string_lossy().to_string();
+            let total_bytes = d.total_space() as f64;
+            let free_bytes = d.available_space() as f64;
+            let is_system = is_system_drive_path(&mount_point);
+
+            let scan = scan_plot_files(&mount_point);
+
+            DriveInfo {
+                path: mount_point.clone(),
+                label: d.name().to_string_lossy().to_string(),
+                total_gib: total_bytes / gib,
+                free_gib: free_bytes / gib,
+                drive_type: detect_drive_type(&mount_point),
+                is_system_drive: is_system,
+                complete_files: scan.complete_count,
+                complete_size_gib: scan.complete_bytes as f64 / gib,
+                incomplete_files: scan.incomplete_count,
+                incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+            }
+        })
+        .collect()
+}
+
+/// Get drive info for a specific path
+pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
+    let target_path = Path::new(path);
+    let disks = Disks::new_with_refreshed_list();
+    let gib = 1024.0 * 1024.0 * 1024.0;
+
+    // Find the disk that contains this path
+    for disk in disks.iter() {
+        let mount_point = disk.mount_point();
+        if target_path.starts_with(mount_point) {
+            let mount_str = mount_point.to_string_lossy().to_string();
+            let total_bytes = disk.total_space() as f64;
+            let free_bytes = disk.available_space() as f64;
+            let is_system = is_system_drive_path(&mount_str);
+
+            // Scan the specific path for plot files (not the mount point)
+            let scan = scan_plot_files(path);
+
+            return Some(DriveInfo {
+                path: path.to_string(),
+                label: disk.name().to_string_lossy().to_string(),
+                total_gib: total_bytes / gib,
+                free_gib: free_bytes / gib,
+                drive_type: detect_drive_type(&mount_str),
+                is_system_drive: is_system,
+                complete_files: scan.complete_count,
+                complete_size_gib: scan.complete_bytes as f64 / gib,
+                incomplete_files: scan.incomplete_count,
+                incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+            });
+        }
+    }
+
+    None
+}

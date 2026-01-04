@@ -4,6 +4,50 @@ use std::path::PathBuf;
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::Manager;
 
+// Mining module
+pub mod mining;
+
+use tauri_plugin_sql::{Migration, MigrationKind};
+
+/// Include database migrations for the mining database
+fn include_migrations() -> Vec<Migration> {
+    vec![
+        Migration {
+            version: 1,
+            description: "create_deadlines_table",
+            sql: r#"
+                CREATE TABLE IF NOT EXISTS deadlines (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    chain_name TEXT NOT NULL,
+                    account TEXT NOT NULL,
+                    height INTEGER NOT NULL,
+                    nonce INTEGER NOT NULL,
+                    deadline INTEGER NOT NULL,
+                    submitted INTEGER NOT NULL DEFAULT 0,
+                    timestamp INTEGER NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_deadlines_chain ON deadlines(chain_name);
+                CREATE INDEX IF NOT EXISTS idx_deadlines_height ON deadlines(height);
+                CREATE INDEX IF NOT EXISTS idx_deadlines_timestamp ON deadlines(timestamp);
+            "#,
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "create_mining_config_table",
+            sql: r#"
+                CREATE TABLE IF NOT EXISTS mining_config (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    config_json TEXT NOT NULL,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+            "#,
+            kind: MigrationKind::Up,
+        },
+    ]
+}
+
 /// Options for reading cookie file
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -257,12 +301,21 @@ fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
 pub fn run() {
     env_logger::init();
 
+    // Create shared mining state
+    let mining_state = mining::state::create_mining_state();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(
+            tauri_plugin_sql::Builder::default()
+                .add_migrations("sqlite:mining.db", include_migrations())
+                .build(),
+        )
+        .manage(mining_state)
         .setup(|app| {
             // Create and set application menu
             let menu = create_menu(app)?;
@@ -375,10 +428,53 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            // Cookie/wallet commands
             read_cookie_file,
             get_cookie_path,
             get_platform,
             is_dev,
+            // Mining device commands
+            mining::commands::detect_mining_devices,
+            // Mining drive commands
+            mining::commands::list_plot_drives,
+            mining::commands::get_plot_drive_info,
+            // Mining state commands
+            mining::commands::get_mining_state,
+            mining::commands::get_mining_config,
+            mining::commands::save_mining_config,
+            // Chain configuration commands
+            mining::commands::add_chain_config,
+            mining::commands::update_chain_config,
+            mining::commands::remove_chain_config,
+            mining::commands::reorder_chain_priorities,
+            // Drive configuration commands
+            mining::commands::add_drive_config,
+            mining::commands::update_drive_config,
+            mining::commands::remove_drive_config,
+            // CPU configuration commands
+            mining::commands::update_cpu_config,
+            // Plotter device commands
+            mining::commands::update_plotter_device,
+            // Mining control commands
+            mining::commands::start_mining,
+            mining::commands::stop_mining,
+            // Plotting control commands
+            mining::commands::start_plotting,
+            mining::commands::stop_plotting,
+            mining::commands::pause_plotting,
+            mining::commands::resume_plotting,
+            mining::commands::cancel_plotting,
+            // Benchmark commands
+            mining::commands::run_device_benchmark,
+            // Reset and delete commands
+            mining::commands::reset_mining_config,
+            mining::commands::delete_all_plots,
+            mining::commands::delete_drive_plots,
+            // Deadline commands
+            mining::commands::get_recent_deadlines,
+            // Address validation commands
+            mining::commands::validate_pocx_address,
+            mining::commands::get_address_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

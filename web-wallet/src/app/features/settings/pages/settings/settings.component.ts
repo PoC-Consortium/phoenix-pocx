@@ -23,6 +23,7 @@ import { RpcClientService } from '../../../../bitcoin/services/rpc/rpc-client.se
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { PlatformService } from '../../../../core/services/platform.service';
 import { ElectronService } from '../../../../core/services/electron.service';
+import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { SettingsActions } from '../../../../store/settings/settings.actions';
 import {
   selectNodeConfig,
@@ -37,6 +38,7 @@ import {
   getDefaultDataDirectory,
 } from '../../../../store/settings/settings.state';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { MiningService } from '../../../../mining/services';
 
 interface ConnectionTestResult {
   success: boolean;
@@ -356,10 +358,29 @@ interface ConnectionTestResult {
                   <mat-icon>warning</mat-icon>
                   <p>{{ 'danger_zone_warning' | i18n }}</p>
                 </div>
-                <button mat-raised-button color="warn" (click)="confirmResetWallet()">
-                  <mat-icon>delete_forever</mat-icon>
-                  {{ 'reset_wallet' | i18n }}
-                </button>
+                <div class="danger-actions">
+                  <div class="danger-action-item">
+                    <div class="danger-action-info">
+                      <strong>{{ 'reset_mining_config' | i18n }}</strong>
+                      <p>{{ 'reset_mining_config_description' | i18n }}</p>
+                    </div>
+                    <button mat-stroked-button color="warn" (click)="confirmResetMiningConfig()">
+                      <mat-icon>restart_alt</mat-icon>
+                      {{ 'reset' | i18n }}
+                    </button>
+                  </div>
+                  <mat-divider></mat-divider>
+                  <div class="danger-action-item">
+                    <div class="danger-action-info">
+                      <strong>{{ 'reset_wallet' | i18n }}</strong>
+                      <p>{{ 'reset_wallet_description' | i18n }}</p>
+                    </div>
+                    <button mat-raised-button color="warn" (click)="confirmResetWallet()">
+                      <mat-icon>delete_forever</mat-icon>
+                      {{ 'reset' | i18n }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </mat-tab>
@@ -533,10 +554,9 @@ interface ConnectionTestResult {
 
       /* Danger Zone Styles */
       .danger-zone-container {
-        max-width: 500px;
+        max-width: 600px;
         margin: 0 auto;
-        text-align: center;
-        padding: 48px 24px;
+        padding: 24px;
       }
 
       .danger-warning {
@@ -546,6 +566,7 @@ interface ConnectionTestResult {
         gap: 16px;
         margin-bottom: 32px;
         color: rgba(0, 0, 0, 0.6);
+        text-align: center;
 
         mat-icon {
           font-size: 48px;
@@ -557,6 +578,37 @@ interface ConnectionTestResult {
         p {
           margin: 0;
           max-width: 400px;
+        }
+      }
+
+      .danger-actions {
+        background: #ffffff;
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .danger-action-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        gap: 16px;
+      }
+
+      .danger-action-info {
+        flex: 1;
+
+        strong {
+          display: block;
+          margin-bottom: 4px;
+          color: rgba(0, 0, 0, 0.87);
+        }
+
+        p {
+          margin: 0;
+          font-size: 13px;
+          color: rgba(0, 0, 0, 0.6);
         }
       }
 
@@ -600,6 +652,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly platform = inject(PlatformService);
   private readonly electron = inject(ElectronService);
+  private readonly cookieAuth = inject(CookieAuthService);
+  private readonly miningService = inject(MiningService);
   private readonly destroy$ = new Subject<void>();
 
   // Node configuration (local copy for editing)
@@ -714,16 +768,31 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.testResult.set(null);
 
     try {
-      // Get blockchain info to test connection
-      const info = await this.blockchainRpc.getBlockchainInfo();
-      const networkInfo = await this.blockchainRpc.getNetworkInfo();
+      // Get credentials based on auth method from form values
+      let credentials: { username: string; password: string } | null = null;
 
-      this.testResult.set({
-        success: true,
-        version: networkInfo.subversion || `v${networkInfo.version}`,
-        chain: info.chain,
-        blocks: info.blocks,
+      if (this.nodeConfig.authMethod === 'cookie') {
+        // Read cookie with form's dataDirectory and network (not from store)
+        credentials = await this.cookieAuth.readCookieWithConfig(
+          this.nodeConfig.dataDirectory,
+          this.nodeConfig.network
+        );
+      } else {
+        // Use credentials from form
+        credentials = {
+          username: this.nodeConfig.username,
+          password: this.nodeConfig.password,
+        };
+      }
+
+      // Test connection with form values
+      const result = await this.rpcClient.testWithConfig({
+        host: this.nodeConfig.rpcHost,
+        port: this.nodeConfig.rpcPort,
+        credentials,
       });
+
+      this.testResult.set(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed';
       this.testResult.set({
@@ -739,8 +808,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.isSaving.set(true);
 
     try {
-      // Dispatch action to save config
+      // Dispatch action to save config to store
       this.store.dispatch(SettingsActions.setNodeConfig({ config: { ...this.nodeConfig } }));
+
+      // Refresh global cookie cache with new settings
+      if (this.nodeConfig.authMethod === 'cookie') {
+        await this.cookieAuth.refreshCredentials();
+      }
 
       // Test connection after save
       await this.testConnection();
@@ -767,6 +841,32 @@ export class SettingsComponent implements OnInit, OnDestroy {
   // ============================================================
   // Danger Zone
   // ============================================================
+
+  confirmResetMiningConfig(): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: {
+        title: this.i18n.get('reset_mining_config'),
+        message: this.i18n.get('reset_mining_config_confirm'),
+        confirmText: this.i18n.get('reset'),
+        cancelText: this.i18n.get('cancel'),
+        type: 'danger',
+      },
+    });
+
+    dialogRef.afterClosed().subscribe(async confirmed => {
+      if (confirmed) {
+        try {
+          await this.miningService.resetConfig();
+          this.notification.success(this.i18n.get('mining_config_reset'));
+          this.router.navigate(['/mining/setup']);
+        } catch (error) {
+          console.error('Failed to reset mining config:', error);
+          this.notification.error(this.i18n.get('reset_mining_config_failed'));
+        }
+      }
+    });
+  }
 
   confirmResetWallet(): void {
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {

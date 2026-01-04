@@ -21,6 +21,7 @@ export interface WalletInfo {
   scanning: boolean | { duration: number; progress: number };
   descriptors: boolean;
   external_signer: boolean;
+  hdmasterfingerprint?: string;
 }
 
 /**

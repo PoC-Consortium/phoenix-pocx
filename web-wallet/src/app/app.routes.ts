@@ -91,6 +91,10 @@ export const routes: Routes = [
         loadChildren: () => import('./features/blocks/blocks.routes').then(m => m.BLOCKS_ROUTES),
       },
       {
+        path: 'mining',
+        loadChildren: () => import('./mining/mining.routes').then(m => m.MINING_ROUTES),
+      },
+      {
         path: '',
         redirectTo: 'dashboard',
         pathMatch: 'full',

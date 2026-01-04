@@ -380,7 +380,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     {
       id: 'mining',
       titleKey: 'mining',
-      items: [{ path: '/forging-assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' }],
+      items: [
+        { path: '/mining', icon: 'hardware', labelKey: 'mining_dashboard' },
+        { path: '/forging-assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' },
+      ],
     },
     {
       id: 'network',

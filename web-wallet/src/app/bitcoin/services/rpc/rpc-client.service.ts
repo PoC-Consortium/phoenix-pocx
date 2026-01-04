@@ -185,6 +185,105 @@ export class RpcClientService implements OnDestroy {
   }
 
   /**
+   * Test connection with explicit config (for testing unsaved settings).
+   * Does not affect global state or cached credentials.
+   *
+   * @param config - Connection configuration to test
+   * @returns Object with success status and connection info or error
+   */
+  async testWithConfig(config: {
+    host: string;
+    port: number;
+    credentials: { username: string; password: string } | null;
+  }): Promise<{
+    success: boolean;
+    version?: string;
+    chain?: string;
+    blocks?: number;
+    error?: string;
+  }> {
+    if (!config.credentials) {
+      return { success: false, error: 'No credentials available. Check data directory path.' };
+    }
+
+    const url = `http://${config.host}:${config.port}`;
+    const authHeader = `Basic ${btoa(`${config.credentials.username}:${config.credentials.password}`)}`;
+
+    const request: RpcRequest = {
+      jsonrpc: '1.0',
+      id: ++this.requestId,
+      method: 'getblockchaininfo',
+      params: [],
+    };
+
+    try {
+      let response: RpcResponse<{ chain: string; blocks: number }>;
+
+      if (this.electron.isTauri) {
+        response = await this.callWithTauri(url, request, authHeader, 10000);
+      } else {
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        });
+
+        response = await firstValueFrom(
+          this.http
+            .post<RpcResponse<{ chain: string; blocks: number }>>(url, request, { headers })
+            .pipe(
+              timeout(10000),
+              catchError((error: HttpErrorResponse) => this.handleHttpError(error))
+            )
+        );
+      }
+
+      if (response.error) {
+        return { success: false, error: `RPC Error ${response.error.code}: ${response.error.message}` };
+      }
+
+      // Get network info for version
+      const networkRequest: RpcRequest = {
+        jsonrpc: '1.0',
+        id: ++this.requestId,
+        method: 'getnetworkinfo',
+        params: [],
+      };
+
+      let networkResponse: RpcResponse<{ version: number; subversion: string }>;
+
+      if (this.electron.isTauri) {
+        networkResponse = await this.callWithTauri(url, networkRequest, authHeader, 10000);
+      } else {
+        const headers = new HttpHeaders({
+          'Content-Type': 'application/json',
+          Authorization: authHeader,
+        });
+
+        networkResponse = await firstValueFrom(
+          this.http
+            .post<RpcResponse<{ version: number; subversion: string }>>(url, networkRequest, { headers })
+            .pipe(
+              timeout(10000),
+              catchError((error: HttpErrorResponse) => this.handleHttpError(error))
+            )
+        );
+      }
+
+      const version = networkResponse.result?.subversion || `v${networkResponse.result?.version}`;
+
+      return {
+        success: true,
+        version,
+        chain: response.result?.chain,
+        blocks: response.result?.blocks,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Connection failed';
+      return { success: false, error: message };
+    }
+  }
+
+  /**
    * Make RPC call using Tauri HTTP plugin
    */
   private async callWithTauri<T>(
