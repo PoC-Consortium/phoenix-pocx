@@ -525,12 +525,14 @@ export class WalletRpcService {
 
   /**
    * Import descriptors into wallet
+   * @param timeoutMs - Optional timeout (default 30s). Use shorter timeout for fire-and-forget style.
    */
   async importDescriptors(
     walletName: string,
-    descriptors: ImportDescriptor[]
+    descriptors: ImportDescriptor[],
+    timeoutMs?: number
   ): Promise<ImportResult[]> {
-    return this.rpc.call<ImportResult[]>('importdescriptors', [descriptors], walletName);
+    return this.rpc.call<ImportResult[]>('importdescriptors', [descriptors], walletName, timeoutMs);
   }
 
   /**
