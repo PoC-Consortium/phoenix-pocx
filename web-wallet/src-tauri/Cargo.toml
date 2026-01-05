@@ -6,6 +6,7 @@ authors = ["The Proof of Capacity Consortium <development@pocx.io>"]
 license = "GPL-3.0"
 repository = "https://github.com/PoC-Consortium/phoenix-pocx"
 edition = "2021"
+default-run = "phoenix-pocx"
 
 [lib]
 name = "phoenix_pocx_lib"
@@ -13,6 +14,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3"
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -43,6 +47,17 @@ pocx_address = { path = "../../../../pocx/pocx/pocx_address" }
 
 # OpenCL for GPU detection (dynamic loading - no build-time SDK required)
 opencl3 = { version = "0.10", features = ["dynamic"] }
+
+# Cross-platform elevation check
+is_elevated = "0.1"
+
+# Windows API for restart with elevation
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

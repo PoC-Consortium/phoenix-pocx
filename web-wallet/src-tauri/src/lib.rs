@@ -175,6 +175,71 @@ fn is_dev() -> bool {
     cfg!(debug_assertions)
 }
 
+/// Check if the current process is running with elevated (admin) privileges
+#[tauri::command]
+fn is_elevated() -> bool {
+    ::is_elevated::is_elevated()
+}
+
+/// Restart the application with elevated (admin) privileges
+/// On Windows, this uses ShellExecute with "runas" verb to trigger UAC prompt
+/// Returns true if restart was initiated, false if failed or cancelled
+#[tauri::command]
+async fn restart_elevated(app: tauri::AppHandle) -> bool {
+    #[cfg(windows)]
+    {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+        use std::ptr;
+
+        // Get the current executable path
+        let exe_path = match std::env::current_exe() {
+            Ok(path) => path,
+            Err(_) => return false,
+        };
+
+        // Convert paths to wide strings for Windows API
+        let exe_wide: Vec<u16> = OsStr::new(exe_path.as_os_str())
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        let verb_wide: Vec<u16> = OsStr::new("runas")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        // Use ShellExecuteW to restart with elevation
+        let result = unsafe {
+            windows_sys::Win32::UI::Shell::ShellExecuteW(
+                ptr::null_mut(),
+                verb_wide.as_ptr(),
+                exe_wide.as_ptr(),
+                ptr::null(),
+                ptr::null(),
+                windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL as i32,
+            )
+        };
+
+        // ShellExecuteW returns > 32 on success
+        if result as usize > 32 {
+            // Exit current instance
+            app.exit(0);
+            true
+        } else {
+            // User cancelled UAC or error occurred
+            false
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        // On Unix, we can't easily elevate. User should run with sudo.
+        log::warn!("Elevation not supported on this platform. Run with sudo for admin privileges.");
+        false
+    }
+}
+
 /// Create the application menu
 fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // File menu
@@ -304,6 +369,9 @@ pub fn run() {
     // Create shared mining state
     let mining_state = mining::state::create_mining_state();
 
+    // Create shared plotter runtime (for task management)
+    let plotter_runtime = mining::create_plotter_runtime();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -316,6 +384,7 @@ pub fn run() {
                 .build(),
         )
         .manage(mining_state)
+        .manage(plotter_runtime)
         .setup(|app| {
             // Create and set application menu
             let menu = create_menu(app)?;
@@ -433,6 +502,9 @@ pub fn run() {
             get_cookie_path,
             get_platform,
             is_dev,
+            // Elevation commands
+            is_elevated,
+            restart_elevated,
             // Mining device commands
             mining::commands::detect_mining_devices,
             // Mining drive commands
@@ -475,6 +547,22 @@ pub fn run() {
             // Address validation commands
             mining::commands::validate_pocx_address,
             mining::commands::get_address_info,
+            // Plot plan commands
+            mining::commands::get_plot_plan,
+            mining::commands::save_plot_plan,
+            mining::commands::update_plot_plan_status,
+            mining::commands::advance_plot_plan,
+            mining::commands::clear_plot_plan,
+            mining::commands::start_plot_plan,
+            mining::commands::soft_stop_plot_plan,
+            mining::commands::hard_stop_plot_plan,
+            mining::commands::complete_plot_plan_item,
+            // Plotter execution commands
+            mining::commands::execute_plot_item,
+            mining::commands::is_plotter_running,
+            mining::commands::is_stop_requested,
+            mining::commands::request_soft_stop,
+            mining::commands::request_hard_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

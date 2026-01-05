@@ -103,6 +103,7 @@ export interface MiningConfig {
   lowPriority?: boolean;
   parallelDrives?: number; // Number of drives to plot simultaneously (default 1)
   hddWakeupSeconds: number;
+  plotPlan?: PlotPlan; // Current plot execution plan
 }
 
 // ============================================================================
@@ -236,4 +237,58 @@ export interface MiningDashboardStats {
   activeChains: number;
   bestDeadline?: number;
   lastBlockHeight?: number;
+}
+
+// ============================================================================
+// Plot Plan Models
+// ============================================================================
+
+export type PlotPlanStatus = 'pending' | 'running' | 'paused' | 'completed' | 'invalid';
+
+export type PlotPlanItem =
+  | { type: 'resume'; path: string; fileIndex: number; sizeGib: number }
+  | { type: 'plot'; path: string; warps: number; batchId: number }
+  | { type: 'add_to_miner'; path: string };
+
+export interface PlotPlan {
+  version: number;           // Schema version
+  generatedAt: number;       // Timestamp when plan was generated
+  configHash: string;        // Hash of drive configs for change detection
+  finishedDrives: string[];  // Drives already complete (no work needed)
+  items: PlotPlanItem[];     // Ordered list of tasks to execute
+  currentIndex: number;      // Current execution position (0-based)
+  status: PlotPlanStatus;    // Execution status
+}
+
+export interface PlotPlanStats {
+  totalTasks: number;
+  completedTasks: number;
+  remainingTasks: number;
+  totalWarps: number;
+  completedWarps: number;
+  remainingWarps: number;
+  completedGib: number;
+  completedTib: number;
+  remainingGib: number;
+  remainingTib: number;
+}
+
+// ============================================================================
+// Plotter Execution Models
+// ============================================================================
+
+export interface PlotExecutionResult {
+  success: boolean;
+  warpsPlotted: number;
+  durationMs: number;
+  error?: string;
+}
+
+export interface PlotterItemCompleteEvent {
+  type: 'resume' | 'plot' | 'add_to_miner';
+  path: string;
+  success: boolean;
+  warpsPlotted?: number;
+  durationMs?: number;
+  error?: string;
 }

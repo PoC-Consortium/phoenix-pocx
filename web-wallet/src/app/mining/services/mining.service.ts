@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import {
   MiningState,
@@ -16,7 +16,13 @@ import {
   MiningStatus,
   PlottingStatus,
   BenchmarkResult,
+  PlotPlan,
+  PlotPlanItem,
+  PlotPlanStatus,
+  PlotPlanStats,
+  PlotExecutionResult,
 } from '../models/mining.models';
+import { PlotPlanService } from './plot-plan.service';
 
 /**
  * Mining Service
@@ -27,12 +33,15 @@ import {
   providedIn: 'root',
 })
 export class MiningService {
+  private readonly plotPlanService = inject(PlotPlanService);
+
   // Signals for reactive state
   private readonly _state = signal<MiningState | null>(null);
   private readonly _devices = signal<DeviceInfo | null>(null);
   private readonly _drives = signal<DriveInfo[]>([]);
   private readonly _isLoading = signal(false);
   private readonly _error = signal<string | null>(null);
+  private readonly _currentPlottingSpeed = signal<number>(0); // MiB/s for ETA calculation
 
   // Public computed values
   readonly state = this._state.asReadonly();
@@ -40,12 +49,27 @@ export class MiningService {
   readonly drives = this._drives.asReadonly();
   readonly isLoading = this._isLoading.asReadonly();
   readonly error = this._error.asReadonly();
+  readonly currentPlottingSpeed = this._currentPlottingSpeed.asReadonly();
 
   readonly isConfigured = computed(() => this._state()?.isConfigured ?? false);
   readonly miningStatus = computed(() => this._state()?.miningStatus ?? { type: 'stopped' as const });
   readonly plottingStatus = computed(() => this._state()?.plottingStatus ?? { type: 'idle' as const });
   readonly config = computed(() => this._state()?.config ?? null);
   readonly recentDeadlines = computed(() => this._state()?.recentDeadlines ?? []);
+
+  // Plot plan computed values
+  readonly plotPlan = computed(() => this._state()?.config.plotPlan ?? null);
+  readonly planStats = computed(() => {
+    const plan = this.plotPlan();
+    if (!plan) return null;
+    return this.plotPlanService.getPlanStats(plan);
+  });
+  readonly planEta = computed(() => {
+    const stats = this.planStats();
+    const speed = this._currentPlottingSpeed();
+    if (!stats) return '--';
+    return this.plotPlanService.formatEta(stats.remainingGib, speed);
+  });
 
   constructor() {
     // Initialize state on construction
@@ -132,6 +156,14 @@ export class MiningService {
       console.error('Failed to get drive info:', err);
       return null;
     }
+  }
+
+  /**
+   * Fetch drive info for multiple paths in parallel
+   */
+  async fetchDriveInfoBatch(paths: string[]): Promise<void> {
+    const promises = paths.map(path => this.getDriveInfo(path));
+    await Promise.all(promises);
   }
 
   // ============================================================================
@@ -471,7 +503,10 @@ export class MiningService {
   // ============================================================================
 
   async getState(): Promise<MiningState> {
-    await this.refreshState();
+    // Use cached data if available, otherwise fetch
+    if (!this._state()) {
+      await this.refreshState();
+    }
     return this._state() ?? {
       miningStatus: { type: 'stopped' },
       plottingStatus: { type: 'idle' },
@@ -492,12 +527,18 @@ export class MiningService {
   }
 
   async getConfig(): Promise<MiningConfig | null> {
-    await this.refreshState();
+    // Use cached data if available, otherwise fetch
+    if (!this._state()) {
+      await this.refreshState();
+    }
     return this._state()?.config ?? null;
   }
 
   async detectDevices(): Promise<DeviceInfo> {
-    await this.refreshDevices();
+    // Use cached data if available, otherwise fetch
+    if (!this._devices()) {
+      await this.refreshDevices();
+    }
     return this._devices() ?? {
       cpu: { name: 'Unknown CPU', cores: 1, threads: 1, features: [] },
       gpus: [],
@@ -507,7 +548,10 @@ export class MiningService {
   }
 
   async detectDrives(): Promise<DriveInfo[]> {
-    await this.refreshDrives();
+    // Use cached data if available, otherwise fetch
+    if (this._drives().length === 0) {
+      await this.refreshDrives();
+    }
     return this._drives();
   }
 
@@ -621,5 +665,386 @@ export class MiningService {
   isPlottingActive(): boolean {
     const status = this.plottingStatus();
     return status.type === 'plotting' || status.type === 'paused';
+  }
+
+  // ============================================================================
+  // Plot Plan Management
+  // ============================================================================
+
+  /**
+   * Generate a new plot plan based on current drive configurations
+   */
+  async generatePlotPlan(): Promise<PlotPlan | null> {
+    const config = this.config();
+
+    if (!config || !config.drives?.length) {
+      this._error.set('Cannot generate plan: no drives configured');
+      return null;
+    }
+
+    // Get DriveInfo ONLY for configured drives (not all system drives)
+    const configuredPaths = new Set(config.drives.map(d => d.path));
+    const driveInfos: DriveInfo[] = [];
+
+    for (const driveConfig of config.drives) {
+      const info = await this.getDriveInfo(driveConfig.path);
+      if (info) {
+        driveInfos.push(info);
+      }
+    }
+
+    if (driveInfos.length === 0) {
+      this._error.set('Cannot generate plan: no valid drive info');
+      return null;
+    }
+
+    // Generate plan using the service
+    const plan = this.plotPlanService.generatePlan(
+      driveInfos,
+      config.drives,
+      { parallelDrives: config.parallelDrives ?? 1 }
+    );
+
+    // Save to backend
+    const saved = await this.savePlotPlan(plan);
+    if (!saved) {
+      return null;
+    }
+
+    await this.refreshState();
+    return plan;
+  }
+
+  /**
+   * Save a plot plan to the backend
+   */
+  async savePlotPlan(plan: PlotPlan): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<void>>('save_plot_plan', { plan });
+      if (result.success) {
+        await this.refreshState();
+        return true;
+      }
+      this._error.set(result.error ?? 'Failed to save plot plan');
+      return false;
+    } catch (err) {
+      this._error.set(`Failed to save plot plan: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Get the current plot plan from backend
+   */
+  async getPlotPlan(): Promise<PlotPlan | null> {
+    try {
+      const result = await invoke<CommandResult<PlotPlan | null>>('get_plot_plan');
+      if (result.success) {
+        return result.data ?? null;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to get plot plan:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Start executing the plot plan
+   * Returns the first item to execute
+   */
+  async startPlotPlan(): Promise<PlotPlanItem | null> {
+    try {
+      const result = await invoke<CommandResult<PlotPlanItem>>('start_plot_plan');
+      if (result.success && result.data) {
+        await this.refreshState();
+        return result.data;
+      }
+      this._error.set(result.error ?? 'Failed to start plot plan');
+      return null;
+    } catch (err) {
+      this._error.set(`Failed to start plot plan: ${err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Soft stop - finish current task, then pause
+   */
+  async softStopPlotPlan(): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<void>>('soft_stop_plot_plan');
+      if (result.success) {
+        await this.refreshState();
+        return true;
+      }
+      this._error.set(result.error ?? 'Failed to soft stop');
+      return false;
+    } catch (err) {
+      this._error.set(`Failed to soft stop: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Hard stop - abort immediately, mark plan invalid
+   * The .tmp file is kept on disk for later resume
+   */
+  async hardStopPlotPlan(): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<void>>('hard_stop_plot_plan');
+      if (result.success) {
+        await this.refreshState();
+        return true;
+      }
+      this._error.set(result.error ?? 'Failed to hard stop');
+      return false;
+    } catch (err) {
+      this._error.set(`Failed to hard stop: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Mark current item as complete and get next item
+   */
+  async completePlotPlanItem(): Promise<PlotPlanItem | null> {
+    try {
+      const result = await invoke<CommandResult<PlotPlanItem | null>>('complete_plot_plan_item');
+      if (result.success) {
+        await this.refreshState();
+        return result.data ?? null;
+      }
+      this._error.set(result.error ?? 'Failed to advance plan');
+      return null;
+    } catch (err) {
+      this._error.set(`Failed to advance plan: ${err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Clear the current plan (used before regenerating)
+   */
+  async clearPlotPlan(): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<void>>('clear_plot_plan');
+      if (result.success) {
+        await this.refreshState();
+        return true;
+      }
+      this._error.set(result.error ?? 'Failed to clear plan');
+      return false;
+    } catch (err) {
+      this._error.set(`Failed to clear plan: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Regenerate the plot plan (used after hard stop or config changes)
+   * This clears the old plan and generates a new one
+   */
+  async regeneratePlotPlan(): Promise<PlotPlan | null> {
+    // Refresh drives first to detect any .tmp files
+    await this.refreshDrives();
+
+    // Clear old plan
+    await this.clearPlotPlan();
+
+    // Generate new plan
+    return this.generatePlotPlan();
+  }
+
+  /**
+   * Check if the current plan is still valid
+   * Returns false if config has changed since plan was generated
+   */
+  isPlanValid(): boolean {
+    const plan = this.plotPlan();
+    const config = this.config();
+    const drives = this._drives();
+
+    if (!plan || !config) return false;
+
+    const currentHash = this.plotPlanService.computeConfigHash(
+      drives,
+      config.drives,
+      { parallelDrives: config.parallelDrives ?? 1 }
+    );
+
+    return this.plotPlanService.validatePlan(plan, currentHash);
+  }
+
+  /**
+   * Update the current plotting speed (called from progress events)
+   */
+  updatePlottingSpeed(speedMibS: number): void {
+    this._currentPlottingSpeed.set(speedMibS);
+  }
+
+  /**
+   * Check if plan execution is active
+   */
+  isPlanRunning(): boolean {
+    const plan = this.plotPlan();
+    return plan?.status === 'running';
+  }
+
+  /**
+   * Check if plan is paused
+   */
+  isPlanPaused(): boolean {
+    const plan = this.plotPlan();
+    return plan?.status === 'paused';
+  }
+
+  /**
+   * Check if plan needs regeneration (invalid or missing)
+   */
+  needsPlanRegeneration(): boolean {
+    const plan = this.plotPlan();
+    return !plan || plan.status === 'invalid' || !this.isPlanValid();
+  }
+
+  /**
+   * Get current plan item being executed
+   */
+  getCurrentPlanItem(): PlotPlanItem | null {
+    const plan = this.plotPlan();
+    if (!plan || plan.currentIndex >= plan.items.length) return null;
+    return plan.items[plan.currentIndex];
+  }
+
+  // ============================================================================
+  // Plotter Execution
+  // ============================================================================
+
+  /**
+   * Execute a single plot plan item.
+   * This is the main entry point for actual plotting.
+   * The command will block until the item is complete.
+   */
+  async executePlotItem(item: PlotPlanItem): Promise<PlotExecutionResult | null> {
+    try {
+      const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_item', { item });
+      if (result.success && result.data) {
+        await this.refreshState();
+        return result.data;
+      }
+      this._error.set(result.error ?? 'Failed to execute plot item');
+      return null;
+    } catch (err) {
+      this._error.set(`Failed to execute plot item: ${err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Check if plotter is currently running
+   */
+  async isPlotterRunning(): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<boolean>>('is_plotter_running');
+      return result.success && result.data === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if stop has been requested
+   */
+  async isStopRequested(): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<boolean>>('is_stop_requested');
+      return result.success && result.data === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Request soft stop - finish current item, then pause
+   */
+  async requestSoftStop(): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<void>>('request_soft_stop');
+      if (result.success) {
+        await this.refreshState();
+        return true;
+      }
+      this._error.set(result.error ?? 'Failed to request soft stop');
+      return false;
+    } catch (err) {
+      this._error.set(`Failed to request soft stop: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Request hard stop - abort current task immediately
+   */
+  async requestHardStop(): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<void>>('request_hard_stop');
+      if (result.success) {
+        await this.refreshState();
+        return true;
+      }
+      this._error.set(result.error ?? 'Failed to request hard stop');
+      return false;
+    } catch (err) {
+      this._error.set(`Failed to request hard stop: ${err}`);
+      return false;
+    }
+  }
+
+  // ============================================================================
+  // Platform Methods
+  // ============================================================================
+
+  /**
+   * Get the current platform (win32, darwin, linux)
+   */
+  async getPlatform(): Promise<string> {
+    try {
+      return await invoke<string>('get_platform');
+    } catch (err) {
+      console.error('Failed to get platform:', err);
+      return 'unknown';
+    }
+  }
+
+  // ============================================================================
+  // Elevation Methods
+  // ============================================================================
+
+  /**
+   * Check if the application is running with elevated (admin) privileges.
+   * On Windows, this checks if running as Administrator.
+   * On Unix, this checks if running as root.
+   */
+  async isElevated(): Promise<boolean> {
+    try {
+      return await invoke<boolean>('is_elevated');
+    } catch (err) {
+      console.error('Failed to check elevation:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Restart the application with elevated (admin) privileges.
+   * On Windows, this will trigger a UAC prompt.
+   * Returns true if restart was initiated, false if cancelled or failed.
+   */
+  async restartElevated(): Promise<boolean> {
+    try {
+      return await invoke<boolean>('restart_elevated');
+    } catch (err) {
+      console.error('Failed to restart elevated:', err);
+      return false;
+    }
   }
 }

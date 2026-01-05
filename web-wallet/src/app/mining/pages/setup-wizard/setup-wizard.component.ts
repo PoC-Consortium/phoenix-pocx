@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { MiningService } from '../../services';
@@ -44,7 +45,7 @@ interface ChainModalData {
 @Component({
   selector: 'app-setup-wizard',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatDialogModule, MatIconModule, MatButtonModule],
+  imports: [CommonModule, FormsModule, MatDialogModule, MatIconModule, MatButtonModule, CdkDropList, CdkDrag],
   template: `
     <div class="header">
       <div class="header-left">
@@ -118,21 +119,10 @@ interface ChainModalData {
               <span class="chain-list-label">Priority</span>
               <span class="chain-list-hint">Drag to reorder mining priority</span>
             </div>
-            <div class="chain-list">
+            <div class="chain-list" cdkDropList (cdkDropListDropped)="onChainDropped($event)">
               @for (chain of chainConfigs(); track chain.id; let i = $index) {
-                <div
-                  class="chain-item"
-                  draggable="true"
-                  [class.dragging]="draggedChainIndex() === i"
-                  [class.drag-over]="dragOverIndex() === i && draggedChainIndex() !== i"
-                  (dragstart)="onChainDragStart($event, i)"
-                  (dragover)="onChainDragOver($event, i)"
-                  (dragenter)="onChainDragEnter($event, i)"
-                  (dragleave)="onChainDragLeave($event)"
-                  (drop)="onChainDrop($event, i)"
-                  (dragend)="onChainDragEnd()"
-                >
-                  <div class="drag-handle" title="Drag to reorder">&#9776;</div>
+                <div class="chain-item" cdkDrag>
+                  <div class="drag-handle" cdkDragHandle title="Drag to reorder">&#9776;</div>
                   <div class="priority-slot" [title]="'Priority ' + (i + 1)">{{ i + 1 }}</div>
                   <div class="chain-info">
                     <div class="chain-name">{{ chain.name }}</div>
@@ -143,7 +133,7 @@ interface ChainModalData {
                   </span>
                   <div class="chain-actions">
                     <button class="edit-btn" (click)="editChain(chain)" title="Edit">&#9998;</button>
-                    <button class="remove-btn" (click)="confirmRemoveChain(chain)">Remove</button>
+                    <button class="remove-btn" (click)="removeChain(chain)">Remove</button>
                   </div>
                 </div>
               }
@@ -253,7 +243,7 @@ interface ChainModalData {
                       <span class="apu-badge">APU</span>
                     }
                   </div>
-                  <div class="device-specs">{{ gpu.memoryMb }} MB VRAM &bull; {{ gpu.openclVersion }} &bull; Platform {{ gpu.platformIndex }}:{{ gpu.deviceIndex }} &bull; Workgroups {{ gpu.kernelWorkgroupSize }}</div>
+                  <div class="device-specs">{{ gpu.memoryMb }} MB VRAM &bull; {{ gpu.openclVersion }}</div>
                 </div>
                 <div class="benchmark-display">
                   @if (benchmarkingDevice() === gpu.id) {
@@ -554,13 +544,18 @@ interface ChainModalData {
                   }
                   <div class="drive-actions">
                     <button class="drive-refresh" (click)="refreshDrive(drive)" title="Refresh">&#8635;</button>
-                    <button class="drive-remove" (click)="confirmRemoveDrive(drive)">&#10005;</button>
+                    <button class="drive-remove" (click)="removeDrive(drive)">&#10005;</button>
                   </div>
                 </div>
 
                 <!-- Line 2: Segmented Bar -->
                 <div class="segment-bar-container">
                   <div class="segment-bar">
+                    @if (getOtherDataGib(drive) > 0) {
+                      <div class="segment other" [style.flex]="getOtherDataGib(drive)" title="Other data on this drive (non-plot files)">
+                        <span class="segment-label">{{ formatSize(getOtherDataGib(drive)) }}</span>
+                      </div>
+                    }
                     @if (drive.completeSizeGib > 0) {
                       <div class="segment existing" [style.flex]="drive.completeSizeGib" title="Plotted: Complete .pocx files ready for mining">
                         <span class="segment-label">{{ formatSize(drive.completeSizeGib) }}</span>
@@ -571,14 +566,9 @@ interface ChainModalData {
                         <span class="segment-label">{{ formatSize(drive.incompleteSizeGib) }}</span>
                       </div>
                     }
-                    @if (getOtherDataGib(drive) > 0) {
-                      <div class="segment other" [style.flex]="getOtherDataGib(drive)" title="Other data on this drive (non-plot files)">
-                        <span class="segment-label">+{{ formatSize(getOtherDataGib(drive)) }} data</span>
-                      </div>
-                    }
-                    @if (getDriveAllocatedGib(drive.path) > 0) {
-                      <div class="segment allocated" [style.flex]="getDriveAllocatedGib(drive.path)" title="To Plot: Space allocated for new plots">
-                        <span class="segment-label">+{{ formatSize(getDriveAllocatedGib(drive.path)) }}</span>
+                    @if (getToPlotGib(drive) > 0) {
+                      <div class="segment allocated" [style.flex]="getToPlotGib(drive)" title="To Plot: New space to be plotted">
+                        <span class="segment-label">+{{ formatSize(getToPlotGib(drive)) }}</span>
                       </div>
                     }
                     @if (getRemainingFree(drive) > 0) {
@@ -589,24 +579,24 @@ interface ChainModalData {
                   </div>
                 </div>
 
-                <!-- Line 3: Slider -->
+                <!-- Line 3: Slider (0 to free space = new space to plot) -->
                 <div class="drive-controls">
                   <input
                     type="range"
                     class="slider"
                     min="0"
-                    [max]="getMaxAllocatable(drive)"
-                    [ngModel]="getDriveAllocatedGib(drive.path)"
-                    (ngModelChange)="onDriveAllocatedChange(drive, $event)"
+                    [max]="getNewPlotMax(drive)"
+                    [ngModel]="getNewPlotValue(drive)"
+                    (ngModelChange)="onNewPlotChange(drive, $event)"
                     step="1"
                   />
                   <div class="gib-input">
                     <input
                       type="number"
                       min="0"
-                      [max]="getMaxAllocatable(drive)"
-                      [ngModel]="getDriveAllocatedGib(drive.path)"
-                      (ngModelChange)="onDriveAllocatedChange(drive, $event)"
+                      [max]="getNewPlotMax(drive)"
+                      [ngModel]="getNewPlotValue(drive)"
+                      (ngModelChange)="onNewPlotChange(drive, $event)"
                     />
                     <span class="unit">GiB</span>
                   </div>
@@ -811,7 +801,7 @@ interface ChainModalData {
       :host {
         display: block;
         font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: #f5f5f5;
+        background: #eaf0f6;
         color: rgb(0, 35, 65);
       }
 
@@ -847,33 +837,33 @@ interface ChainModalData {
       .wizard-container {
         max-width: 700px;
         margin: 0 auto;
-        padding: 20px 20px 0 20px;
+        padding: 16px 16px 0 16px;
       }
 
       .step-indicator {
         display: flex;
         align-items: center;
-        margin-bottom: 24px;
-        padding: 16px 20px;
+        margin-bottom: 16px;
+        padding: 12px 16px;
         background: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
       }
 
       .step {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
       }
 
       .step-circle {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 600;
         background: #e0e0e0;
         color: #9e9e9e;
@@ -895,7 +885,7 @@ interface ChainModalData {
       }
 
       .step-label {
-        font-size: 13px;
+        font-size: 12px;
         color: #666666;
       }
 
@@ -908,7 +898,7 @@ interface ChainModalData {
         flex: 1;
         height: 2px;
         background: #e0e0e0;
-        margin: 0 12px;
+        margin: 0 10px;
       }
 
       .step-line.complete {
@@ -917,10 +907,10 @@ interface ChainModalData {
 
       .section {
         background: #ffffff;
-        border-radius: 8px;
-        margin-bottom: 16px;
+        border-radius: 6px;
+        margin-bottom: 12px;
         overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
       }
 
       .section:last-of-type {
@@ -931,12 +921,12 @@ interface ChainModalData {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 20px;
+        padding: 10px 16px;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
       }
 
       .section-title {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -947,10 +937,10 @@ interface ChainModalData {
         background: rgba(255, 255, 255, 0.1);
         border: none;
         color: #ffffff;
-        padding: 4px 12px;
+        padding: 3px 10px;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 11px;
         transition: all 0.2s;
       }
 
@@ -959,20 +949,20 @@ interface ChainModalData {
       }
 
       .section-content {
-        padding: 16px 20px;
+        padding: 12px 16px;
       }
 
       .collapse-toggle {
         background: rgba(255, 255, 255, 0.1);
         border: none;
         color: #ffffff;
-        padding: 4px 10px;
+        padding: 3px 8px;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 11px;
         transition: all 0.2s;
         display: flex;
-        gap: 6px;
+        gap: 4px;
         align-items: center;
       }
 
@@ -1037,14 +1027,31 @@ interface ChainModalData {
         border-bottom: none;
       }
 
-      .chain-item.dragging {
-        opacity: 0.5;
+      /* CDK Drag and Drop styles */
+      .cdk-drag-preview {
+        box-sizing: border-box;
+        border-radius: 4px;
+        box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+                    0 8px 10px 1px rgba(0, 0, 0, 0.14),
+                    0 3px 14px 2px rgba(0, 0, 0, 0.12);
+        background: white;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 8px;
+      }
+
+      .cdk-drag-placeholder {
+        opacity: 0.3;
         background: #e3f2fd;
       }
 
-      .chain-item.drag-over {
-        border-top: 2px solid #1976d2;
-        margin-top: -2px;
+      .cdk-drag-animating {
+        transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+      }
+
+      .chain-list.cdk-drop-list-dragging .chain-item:not(.cdk-drag-placeholder) {
+        transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
       }
 
       .drag-handle {
@@ -1059,18 +1066,8 @@ interface ChainModalData {
         color: #616161;
       }
 
-      .chain-item.dragging .drag-handle {
+      .cdk-drag-preview .drag-handle {
         cursor: grabbing;
-      }
-
-      .chain-item > * {
-        pointer-events: none;
-      }
-
-      .chain-item > .drag-handle,
-      .chain-item > .chain-actions,
-      .chain-item > .chain-actions > * {
-        pointer-events: auto;
       }
 
       .chain-empty {
@@ -1172,12 +1169,12 @@ interface ChainModalData {
       .device-item {
         display: flex;
         align-items: center;
-        padding: 14px 16px;
-        gap: 14px;
+        padding: 10px 12px;
+        gap: 10px;
         background: #f8f9fa;
-        border-radius: 8px;
+        border-radius: 6px;
         border: 1px solid #e0e0e0;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
       }
 
       .device-item:last-child {
@@ -1185,29 +1182,31 @@ interface ChainModalData {
       }
 
       .device-radio {
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
         accent-color: #1976d2;
         cursor: pointer;
+        flex-shrink: 0;
       }
 
       .device-icon {
-        width: 48px;
-        height: 48px;
+        width: 36px;
+        height: 36px;
         background: #e0e0e0;
-        border-radius: 8px;
+        border-radius: 6px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        font-size: 10px;
+        font-size: 9px;
         font-weight: 700;
-        letter-spacing: 0.5px;
-        gap: 2px;
+        letter-spacing: 0.3px;
+        gap: 1px;
+        flex-shrink: 0;
       }
 
       .device-icon .icon-glyph {
-        font-size: 16px;
+        font-size: 13px;
         line-height: 1;
       }
 
@@ -1240,40 +1239,48 @@ interface ChainModalData {
 
       .device-info {
         flex: 1;
+        min-width: 0;
       }
 
       .device-name {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 500;
         color: rgb(0, 35, 65);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .device-specs {
-        font-size: 12px;
+        font-size: 11px;
         color: #666666;
-        margin-top: 2px;
+        margin-top: 1px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .device-config {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
+        flex-shrink: 0;
       }
 
       .thread-input {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
       }
 
       .thread-input input {
-        width: 60px;
-        padding: 6px 8px;
+        width: 50px;
+        padding: 4px 6px;
         background: #ffffff;
         border: 1px solid #e0e0e0;
         border-radius: 4px;
         color: rgb(0, 35, 65);
-        font-size: 13px;
+        font-size: 12px;
         text-align: center;
       }
 
@@ -1287,27 +1294,28 @@ interface ChainModalData {
       }
 
       .thread-max {
-        font-size: 12px;
+        font-size: 11px;
         color: #888888;
-        min-width: 85px;
+        min-width: 70px;
       }
 
       .benchmark-display {
-        min-width: 110px;
+        min-width: 95px;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 6px;
+        gap: 4px;
+        flex-shrink: 0;
       }
 
       .benchmark-btn {
-        height: 26px;
-        padding: 0 10px;
+        height: 24px;
+        padding: 0 8px;
         background: #f5f5f5;
         border: 1px solid #e0e0e0;
         border-radius: 4px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 500;
         color: #424242;
         display: flex;
@@ -1328,13 +1336,13 @@ interface ChainModalData {
       }
 
       .redo-btn {
-        width: 22px;
-        height: 22px;
+        width: 20px;
+        height: 20px;
         padding: 0;
         background: transparent;
         border: none;
         cursor: pointer;
-        font-size: 14px;
+        font-size: 12px;
         color: #757575;
         display: flex;
         align-items: center;
@@ -1354,8 +1362,8 @@ interface ChainModalData {
       }
 
       .benchmark-progress {
-        width: 80px;
-        height: 6px;
+        width: 70px;
+        height: 5px;
         background: #e0e0e0;
         border-radius: 3px;
         overflow: hidden;
@@ -1369,20 +1377,20 @@ interface ChainModalData {
       }
 
       .benchmark-result {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         color: #2e7d32;
         background: #e8f5e9;
-        padding: 4px 8px;
+        padding: 3px 6px;
         border-radius: 4px;
       }
 
       .benchmark-error {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         color: #c62828;
         background: #ffebee;
-        padding: 4px 8px;
+        padding: 3px 6px;
         border-radius: 4px;
         cursor: help;
       }
@@ -1476,16 +1484,16 @@ interface ChainModalData {
       /* Radio Groups */
       .radio-group {
         background: #f8f9fa;
-        border-radius: 8px;
+        border-radius: 6px;
         border: 1px solid #e0e0e0;
-        padding: 16px;
+        padding: 10px 12px;
       }
 
       .radio-option {
         display: flex;
         align-items: flex-start;
-        gap: 12px;
-        padding: 10px 0;
+        gap: 10px;
+        padding: 6px 0;
         cursor: pointer;
       }
 
@@ -1498,43 +1506,48 @@ interface ChainModalData {
       }
 
       .radio-option input[type='radio'] {
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
         accent-color: #1976d2;
         margin-top: 2px;
+        flex-shrink: 0;
       }
 
       .radio-label {
         flex: 1;
+        min-width: 0;
       }
 
       .radio-label-main {
-        font-size: 14px;
+        font-size: 13px;
         color: rgb(0, 35, 65);
       }
 
       .radio-label-sub {
-        font-size: 12px;
+        font-size: 11px;
         color: #666666;
-        margin-top: 2px;
+        margin-top: 1px;
         font-family: 'Consolas', monospace;
       }
 
       .radio-label-sub.address-full {
+        font-size: 12px;
         word-break: break-all;
         white-space: normal;
         max-width: 100%;
+        color: #444444;
+        margin-top: 4px;
       }
 
       .input-field {
         width: 100%;
-        padding: 10px 14px;
+        padding: 8px 10px;
         background: #ffffff;
         border: 1px solid #e0e0e0;
-        border-radius: 6px;
+        border-radius: 4px;
         color: rgb(0, 35, 65);
-        font-size: 14px;
-        margin-top: 8px;
+        font-size: 13px;
+        margin-top: 6px;
       }
 
       .input-field:focus {
@@ -1551,7 +1564,7 @@ interface ChainModalData {
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-top: 8px;
+        margin-top: 6px;
       }
 
       .address-input {
@@ -1563,15 +1576,15 @@ interface ChainModalData {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-size: 14px;
-        padding: 6px 8px;
-        border-radius: 6px;
+        font-size: 12px;
+        padding: 4px 6px;
+        border-radius: 4px;
         cursor: help;
         flex-shrink: 0;
       }
 
       .address-badge.error {
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 600;
         color: #c62828;
         background: rgba(211, 47, 47, 0.15);
@@ -2081,10 +2094,10 @@ interface ChainModalData {
       .info-box {
         background: rgba(25, 118, 210, 0.08);
         border: 1px solid rgba(25, 118, 210, 0.2);
-        border-radius: 8px;
-        padding: 12px 16px;
-        margin-top: 16px;
-        font-size: 13px;
+        border-radius: 6px;
+        padding: 10px 12px;
+        margin-top: 10px;
+        font-size: 12px;
         color: #555555;
       }
 
@@ -2113,14 +2126,14 @@ interface ChainModalData {
       }
 
       .btn-secondary {
-        background: #f5f5f5;
+        background: #ffffff;
         color: rgb(0, 35, 65);
-        border: 1px solid #e0e0e0;
+        border: 1px solid #d0d0d0;
       }
 
       .btn-secondary:hover {
-        background: #eeeeee;
-        border-color: #bdbdbd;
+        background: #f8f9fa;
+        border-color: #1976d2;
       }
 
       .btn-primary {
@@ -2134,12 +2147,13 @@ interface ChainModalData {
       }
 
       .btn-ghost {
-        background: none;
+        background: #ffffff;
         color: #666666;
-        border: 1px solid #e0e0e0;
+        border: 1px solid #d0d0d0;
       }
 
       .btn-ghost:hover {
+        background: #f8f9fa;
         border-color: #1976d2;
         color: #1976d2;
       }
@@ -2312,8 +2326,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   // Step 1: Chain + CPU Config
   readonly chainConfigs = signal<ChainConfig[]>([]);
-  readonly draggedChainIndex = signal<number | null>(null);
-  readonly dragOverIndex = signal<number | null>(null);
   readonly cpuConfig = signal<CpuConfig>({
     miningThreads: 8,
     plottingThreads: 16,
@@ -2474,19 +2486,21 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   });
 
   async ngOnInit(): Promise<void> {
-    await this.loadDeviceInfo();
-    await this.loadWalletAddress();
-    await this.loadExistingConfig();
-    await this.setupBenchmarkListener();
-
-    // Check for step query parameter to navigate directly to a specific step
+    // Check for step query parameter FIRST to avoid visual jump
     const stepParam = this.route.snapshot.queryParamMap.get('step');
     if (stepParam) {
       const step = parseInt(stepParam, 10);
       if (!isNaN(step) && step >= 0 && step <= 2) {
         this.currentStep.set(step);
+        // If navigating to specific step, this is not first run
+        this.isFirstRun.set(false);
       }
     }
+
+    await this.loadDeviceInfo();
+    await this.loadWalletAddress();
+    await this.loadExistingConfig();
+    await this.setupBenchmarkListener();
   }
 
   ngOnDestroy(): void {
@@ -2880,75 +2894,20 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     this.closeChainModal();
   }
 
-  confirmRemoveChain(chain: ChainConfig): void {
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: 'Remove Chain',
-        message: `Remove "${chain.name}" from mining configuration?`,
-        confirmText: 'Remove',
-        cancelText: 'Cancel',
-      },
-    });
-
-    dialogRef.afterClosed().subscribe(result => {
-      if (result) {
-        this.chainConfigs.update(chains => chains.filter(c => c.id !== chain.id));
-      }
-    });
+  removeChain(chain: ChainConfig): void {
+    this.chainConfigs.update(chains => chains.filter(c => c.id !== chain.id));
   }
 
-  // Chain drag and drop reordering
-  onChainDragStart(event: DragEvent, index: number): void {
-    this.draggedChainIndex.set(index);
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', index.toString());
-    }
-  }
-
-  onChainDragOver(event: DragEvent, index: number): void {
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
-    }
-  }
-
-  onChainDragEnter(event: DragEvent, index: number): void {
-    event.preventDefault();
-    if (this.draggedChainIndex() !== index) {
-      this.dragOverIndex.set(index);
-    }
-  }
-
-  onChainDragLeave(event: DragEvent): void {
-    // Only clear if leaving the chain-list area
-    const relatedTarget = event.relatedTarget as HTMLElement;
-    if (!relatedTarget?.closest('.chain-item')) {
-      this.dragOverIndex.set(null);
-    }
-  }
-
-  onChainDrop(event: DragEvent, dropIndex: number): void {
-    event.preventDefault();
-    const dragIndex = this.draggedChainIndex();
-
-    if (dragIndex !== null && dragIndex !== dropIndex) {
+  // Chain drag and drop reordering using CDK
+  onChainDropped(event: CdkDragDrop<ChainConfig[]>): void {
+    if (event.previousIndex !== event.currentIndex) {
       this.chainConfigs.update(chains => {
         const newChains = [...chains];
-        const [draggedChain] = newChains.splice(dragIndex, 1);
-        newChains.splice(dropIndex, 0, draggedChain);
+        moveItemInArray(newChains, event.previousIndex, event.currentIndex);
         // Update priorities based on new order
         return newChains.map((chain, i) => ({ ...chain, priority: i + 1 }));
       });
     }
-
-    this.draggedChainIndex.set(null);
-    this.dragOverIndex.set(null);
-  }
-
-  onChainDragEnd(): void {
-    this.draggedChainIndex.set(null);
-    this.dragOverIndex.set(null);
   }
 
   onMiningThreadsChange(value: number): void {
@@ -3105,14 +3064,55 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     this.driveConfigs.set(configs);
   }
 
+  /**
+   * Minimum allocatable = what's already plotted (can't go below this).
+   */
+  getMinAllocatable(drive: DriveInfo): number {
+    return Math.floor(drive.completeSizeGib);
+  }
+
+  /**
+   * Maximum allocatable = plotted + incomplete + free (total possible capacity).
+   * System drives must leave 20% free.
+   */
   getMaxAllocatable(drive: DriveInfo): number {
-    // System drive limited to 80% of total capacity (must leave 20% free)
+    const plotted = drive.completeSizeGib + drive.incompleteSizeGib;
     if (drive.isSystemDrive) {
       const minFreeRequired = drive.totalGib * 0.2;
-      const maxAllocation = drive.freeGib - minFreeRequired;
-      return Math.floor(Math.max(0, maxAllocation));
+      const maxFree = Math.max(0, drive.freeGib - minFreeRequired);
+      return Math.floor(plotted + maxFree);
+    }
+    return Math.floor(plotted + drive.freeGib);
+  }
+
+  /**
+   * Maximum new space that can be plotted (just the available free space).
+   * System drives must leave 20% free.
+   */
+  getNewPlotMax(drive: DriveInfo): number {
+    if (drive.isSystemDrive) {
+      const minFreeRequired = drive.totalGib * 0.2;
+      return Math.floor(Math.max(0, drive.freeGib - minFreeRequired));
     }
     return Math.floor(drive.freeGib);
+  }
+
+  /**
+   * Current "new to plot" value = allocated - already plotted.
+   */
+  getNewPlotValue(drive: DriveInfo): number {
+    const allocated = this.getDriveAllocatedGib(drive.path);
+    const plotted = Math.floor(drive.completeSizeGib + drive.incompleteSizeGib);
+    return Math.max(0, allocated - plotted);
+  }
+
+  /**
+   * Handle slider change for "new to plot" - converts back to total allocation.
+   */
+  onNewPlotChange(drive: DriveInfo, newToPlot: number): void {
+    const plotted = Math.floor(drive.completeSizeGib + drive.incompleteSizeGib);
+    const totalAllocated = plotted + newToPlot;
+    this.onDriveAllocatedChange(drive, totalAllocated);
   }
 
   getOtherDataGib(drive: DriveInfo): number {
@@ -3121,16 +3121,25 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     return Math.max(0, Math.round(otherData));
   }
 
-  getRemainingFree(drive: DriveInfo): number {
-    // Free space minus what we're allocating
+  /**
+   * Get the additional GiB to plot (allocatedGib - already plotted).
+   * This is what will actually be plotted when the plan runs.
+   */
+  getToPlotGib(drive: DriveInfo): number {
     const allocated = this.getDriveAllocatedGib(drive.path);
-    return Math.max(0, drive.freeGib - allocated);
+    const alreadyPlotted = drive.completeSizeGib + drive.incompleteSizeGib;
+    return Math.max(0, allocated - alreadyPlotted);
+  }
+
+  getRemainingFree(drive: DriveInfo): number {
+    // Free space minus what we're going to plot
+    const toPlot = this.getToPlotGib(drive);
+    return Math.max(0, drive.freeGib - toPlot);
   }
 
   getDriveTotalGib(drive: DriveInfo): number {
-    // Total = existing complete + unfinished + newly allocated
-    const allocated = this.getDriveAllocatedGib(drive.path);
-    return drive.completeSizeGib + drive.incompleteSizeGib + allocated;
+    // allocatedGib is now the total target (plotted + to plot)
+    return this.getDriveAllocatedGib(drive.path);
   }
 
   getFullFiles(gib: number): number {
@@ -3193,6 +3202,17 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           const driveInfo = await this.miningService.getDriveInfo(path);
           if (driveInfo) {
             this.availableDrives.update(drives => [...drives, driveInfo]);
+
+            // Also create a DriveConfig with default allocation (max allocatable)
+            const defaultAllocation = this.getMaxAllocatable(driveInfo);
+            if (defaultAllocation > 0) {
+              const config: DriveConfig = {
+                path: driveInfo.path,
+                enabled: true,
+                allocatedGib: defaultAllocation,
+              };
+              this.driveConfigs.update(configs => [...configs, config]);
+            }
           }
         } catch (error) {
           console.error('Failed to get drive info for', path, error);
@@ -3216,22 +3236,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     }
   }
 
-  confirmRemoveDrive(drive: DriveInfo): void {
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: 'Remove Drive',
-        message: `Remove "${drive.path}" from plot directories?`,
-        confirmText: 'Remove',
-        cancelText: 'Cancel',
-      },
-    });
-
-    dialogRef.afterClosed().subscribe(result => {
-      if (result) {
-        this.availableDrives.update(drives => drives.filter(d => d.path !== drive.path));
-        this.driveConfigs.update(configs => configs.filter(c => c.path !== drive.path));
-      }
-    });
+  removeDrive(drive: DriveInfo): void {
+    this.availableDrives.update(drives => drives.filter(d => d.path !== drive.path));
+    this.driveConfigs.update(configs => configs.filter(c => c.path !== drive.path));
   }
 
   // Save and start
@@ -3243,7 +3250,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         ? this.customPlottingAddress()
         : this.walletAddress();
 
-      await this.miningService.saveConfig({
+      console.log('Saving config with drives:', this.driveConfigs());
+
+      const success = await this.miningService.saveConfig({
         chains: this.chainConfigs(),
         drives: this.driveConfigs(),
         cpuConfig: this.cpuConfig(),
@@ -3258,6 +3267,23 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         parallelDrives: this.parallelDrives(),
         hddWakeupSeconds: this.hddWakeup(),
       });
+
+      if (!success) {
+        console.error('Failed to save configuration - service returned false');
+        // TODO: Show error to user
+        return;
+      }
+
+      console.log('Configuration saved successfully');
+
+      // Auto-generate plot plan if there are drives with allocations
+      if (this.driveConfigs().length > 0) {
+        console.log('Generating plot plan...');
+        const plan = await this.miningService.generatePlotPlan();
+        if (plan) {
+          console.log('Plot plan generated:', plan.items.length, 'tasks');
+        }
+      }
 
       // Navigate to dashboard - user can start mining/plotting from there
       // Mining requires plot files to exist first

@@ -10,6 +10,7 @@ export interface ConfirmDialogData {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  secondaryText?: string;  // Optional third button
   type?: 'info' | 'warning' | 'danger';
 }
 
@@ -56,6 +57,11 @@ export interface ConfirmDialogData {
       <button mat-button (click)="onCancel()">
         {{ cancelText || ('cancel' | i18n) }}
       </button>
+      @if (secondaryText) {
+        <button mat-stroked-button color="warn" (click)="onSecondary()">
+          {{ secondaryText }}
+        </button>
+      }
       <button
         mat-raised-button
         [color]="type === 'danger' ? 'warn' : 'primary'"
@@ -88,6 +94,7 @@ export interface ConfirmDialogData {
       .dialog-message {
         color: rgba(0, 0, 0, 0.7);
         line-height: 1.6;
+        white-space: pre-line;
       }
 
       :host-context(.dark-theme) {
@@ -106,6 +113,7 @@ export class ConfirmDialogComponent {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  secondaryText?: string;
   type: 'info' | 'warning' | 'danger';
 
   constructor() {
@@ -113,11 +121,16 @@ export class ConfirmDialogComponent {
     this.message = this.data?.message ?? '';
     this.confirmText = this.data?.confirmText;
     this.cancelText = this.data?.cancelText;
+    this.secondaryText = this.data?.secondaryText;
     this.type = this.data?.type ?? 'info';
   }
 
   onConfirm(): void {
     this.dialogRef.close(true);
+  }
+
+  onSecondary(): void {
+    this.dialogRef.close('secondary');
   }
 
   onCancel(): void {

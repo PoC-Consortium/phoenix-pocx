@@ -1,0 +1,7 @@
+// Windows resource file for Phoenix PoCX Wallet
+// Embeds the application manifest for UAC elevation
+
+#include <windows.h>
+
+// Manifest resource (ID 1 is for executables, 24 is RT_MANIFEST)
+1 RT_MANIFEST "app.manifest"

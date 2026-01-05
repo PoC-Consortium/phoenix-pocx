@@ -1,16 +1,37 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatIconModule } from '@angular/material/icon';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { MiningService } from '../../services';
-import { MiningStatus, PlottingStatus, DeadlineEntry, BlockInfo, ChainConfig, DriveConfig } from '../../models';
+import {
+  MiningStatus,
+  PlottingStatus,
+  DeadlineEntry,
+  BlockInfo,
+  ChainConfig,
+  DriveConfig,
+  DriveInfo,
+  PlotPlan,
+  PlotPlanStats,
+  PlotPlanItem,
+  PlotterStartedEvent,
+  PlotterHashingProgressEvent,
+  PlotterWritingProgressEvent,
+  PlotterCompleteEvent,
+  PlotterErrorEvent,
+  PlotterItemCompleteEvent,
+} from '../../models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/plan-viewer-dialog.component';
 
 @Component({
   selector: 'app-mining-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, MatDialogModule],
+  imports: [CommonModule, RouterModule, FormsModule, MatDialogModule, MatTooltipModule, MatIconModule],
   template: `
     <div class="dashboard">
       <div class="main-content">
@@ -68,45 +89,74 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             }
           </div>
 
-          <!-- Plots Card -->
-          <div class="summary-card storage-card">
+          <!-- Capacity Card -->
+          <div class="summary-card capacity-card">
             <div class="card-header">
-              <span class="card-title">Plotter</span>
-              <a routerLink="/mining/setup" [queryParams]="{step: 1}" class="gear-link" title="Plotter Settings">⚙</a>
+              <span class="card-title">Capacity</span>
             </div>
-            <div class="status-row">
-              <span class="status-indicator" [class]="getPlotterStatusIndicatorClass()"></span>
-              <span class="status-text">{{ getPlotterStatusText() }}</span>
-              @if (pendingFiles() > 0 || isPlotting()) {
-                <button
-                  class="btn btn-icon"
-                  [class.btn-stop]="isPlotting()"
-                  [class.btn-start]="!isPlotting()"
-                  (click)="togglePlotting()"
-                  [title]="isPlotting() ? 'Stop Plotting' : 'Start Plotting'"
-                >
-                  <span class="btn-label">{{ isPlotting() ? 'Stop' : 'Start' }}</span>
-                  <span class="btn-icon-glyph">{{ isPlotting() ? '■' : '▶' }}</span>
-                </button>
-              }
-            </div>
-            <div class="card-sub">
-              <span class="ready-dot">●</span> {{ readySize() }} ready
-              @if (pendingFiles() > 0) {
-                <span class="queued-dot">●</span> {{ pendingFiles() }} to plot
-              }
-            </div>
-            @if (plottingStatus()?.type === 'plotting') {
-              <div class="plotter-progress">
-                <div class="progress-label">
-                  <span><span class="status-indicator plotting"></span>{{ getPlottingDrive() }}</span>
-                  <span>{{ getPlottingSpeed() }}</span>
-                </div>
-                <div class="progress-bar-sm">
-                  <div class="progress-fill plotting" [style.width.%]="getPlottingProgress()"></div>
-                </div>
+
+            <!-- Upper Section: Total capacity and status -->
+            <div class="capacity-upper">
+              <div class="capacity-value">{{ totalPlotSize() }}</div>
+              <div class="capacity-status">
+                @if (isAllComplete()) {
+                  <span class="status-legend">ready for mining</span>
+                } @else {
+                  <span class="status-item ready"><span class="dot">●</span> {{ formatTib(getReadyTib()) }} ready</span>
+                  <span class="status-item plotted"><span class="dot">●</span> {{ formatTib(getPlottedTib()) }} plotted</span>
+                  <span class="status-item to-plot"><span class="dot">○</span> {{ formatTib(getToPlotTib()) }} to plot</span>
+                }
               </div>
-            }
+            </div>
+
+            <div class="capacity-divider"></div>
+
+            <!-- Lower Section: Plotter controls -->
+            <div class="capacity-lower">
+              @if (isPlotting()) {
+                <!-- Plotting State: Button | Progress -->
+                <div class="plotter-active">
+                  <button
+                    class="btn btn-icon btn-stop"
+                    (click)="togglePlotting()"
+                    title="Stop Plotting"
+                  >
+                    <span class="btn-label">Stop</span>
+                    <span class="btn-icon-glyph">■</span>
+                  </button>
+                  <div class="plotter-info">
+                    <div class="plotter-info-row">
+                      <span class="task-info">Task {{ getCurrentTask() }}/{{ getTotalTasks() }}</span>
+                      <span class="speed-info">{{ getPlottingSpeed() }}</span>
+                    </div>
+                    <div class="progress-bar-sm">
+                      <div class="progress-fill plotting" [style.width.%]="getPlottingProgress()"></div>
+                    </div>
+                    <div class="eta-info">ETA: {{ planEta() }}</div>
+                  </div>
+                </div>
+
+              } @else if (hasQueuedDrives()) {
+                <!-- Queued State: Button | Info -->
+                <div class="plotter-idle">
+                  <button
+                    class="btn btn-icon btn-start"
+                    (click)="togglePlotting()"
+                    title="Start Plotting"
+                  >
+                    <span class="btn-label">Start</span>
+                    <span class="btn-icon-glyph">▶</span>
+                  </button>
+                  <span class="queue-info">Ready to plot {{ getQueuedSize() }}</span>
+                </div>
+
+              } @else {
+                <!-- Complete State: Info -->
+                <div class="plotter-complete">
+                  <span class="complete-info">{{ drives().length }} drive{{ drives().length !== 1 ? 's' : '' }}</span>
+                </div>
+              }
+            </div>
           </div>
 
           <!-- Effective Capacity Card -->
@@ -136,7 +186,9 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           <div class="section">
             <div class="section-header">
               <span class="section-title">Active Chains</span>
-              <button class="gear-btn" routerLink="/mining/setup" [queryParams]="{step: 0}" title="Configure Chains">⚙</button>
+              <button class="icon-btn" (click)="navigateToSetup(0)" title="Configure Chains">
+                <mat-icon>link</mat-icon>
+              </button>
             </div>
             <div class="section-content">
               <table>
@@ -171,7 +223,19 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           <div class="section">
             <div class="section-header">
               <span class="section-title">Drives</span>
-              <button class="gear-btn" routerLink="/mining/setup" [queryParams]="{step: 2}" title="Configure Drives">⚙</button>
+              <div class="header-buttons">
+                @if (hasPendingTasks()) {
+                  <button class="icon-btn" (click)="openPlanViewer()" title="Plot Plan">
+                    <mat-icon>assignment</mat-icon>
+                  </button>
+                }
+                <button class="icon-btn" (click)="navigateToSetup(1)" title="Plotter Settings">
+                  <mat-icon>memory</mat-icon>
+                </button>
+                <button class="icon-btn" (click)="navigateToSetup(2)" title="Drive Settings">
+                  <mat-icon>storage</mat-icon>
+                </button>
+              </div>
             </div>
             <div class="section-content">
               <table>
@@ -194,10 +258,10 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                             <div class="mini-progress">
                               <div class="fill plotting" [style.width.%]="getDrivePlottingProgress(drive)"></div>
                             </div>
-                            <span>{{ formatDriveSize(drive.allocatedGib) }}</span>
+                            <span>{{ getDrivePlottedSize(drive) }}</span>
                           </div>
                         } @else {
-                          -
+                          {{ getDrivePlottedSize(drive) }}
                         }
                       </td>
                       <td>{{ formatDriveSize(drive.allocatedGib) }}</td>
@@ -318,6 +382,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       display: flex;
       flex-direction: column;
       gap: 12px;
+      position: relative;
     }
 
     /* Summary Cards Grid */
@@ -378,10 +443,12 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
 
     .gear-link {
       color: rgba(255, 255, 255, 0.6);
-      text-decoration: none;
+      background: transparent;
+      border: none;
       font-size: 14px;
       padding: 2px 4px;
       border-radius: 4px;
+      cursor: pointer;
       transition: all 0.2s;
     }
 
@@ -545,15 +612,187 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       color: #81c784;
     }
 
-    /* Plots Card */
-    .ready-dot { color: #2e7d32; }
-    .plotting-dot { color: #ff9800; }
-    .queued-dot { color: #9e9e9e; }
+    /* Capacity Card */
+    .capacity-card {
+      display: flex;
+      flex-direction: column;
+    }
 
-    .plotter-progress {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
+    .capacity-upper {
+      padding-bottom: 8px;
+    }
+
+    .capacity-value {
+      font-size: 26px;
+      font-weight: 600;
+      color: #81c784;
+      line-height: 1.2;
+    }
+
+    .capacity-status {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .status-item {
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-item .dot {
+      font-size: 10px;
+    }
+
+    .status-item.ready { color: #81c784; }
+    .status-item.plotted { color: #4fc3f7; }
+    .status-item.plotting { color: #ffb74d; }
+    .status-item.queued { color: rgba(255, 255, 255, 0.5); }
+    .status-item.to-plot { color: rgba(255, 255, 255, 0.5); }
+
+    .status-legend {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .capacity-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.15);
+      margin: 8px 0;
+    }
+
+    .capacity-lower {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Plotter Active State (plotting) */
+    .plotter-active {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .plotter-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .plotter-info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .task-info {
+      font-size: 11px;
+      color: #ffffff;
+      font-weight: 500;
+    }
+
+    .speed-info {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .eta-info {
+      font-size: 10px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: 4px;
+    }
+
+    /* Plotter Idle State (queued) */
+    .plotter-idle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .queue-info {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.8);
+      flex: 1;
+    }
+
+    /* Plotter Complete State */
+    .plotter-complete {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .complete-info {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.6);
+      flex: 1;
+    }
+
+    /* Gear link in lower section */
+    .capacity-lower .gear-link {
+      color: rgba(255, 255, 255, 0.5);
+      text-decoration: none;
+      font-size: 14px;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .capacity-lower .gear-link:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .header-buttons {
+      display: flex;
+      gap: 4px;
+    }
+
+    .icon-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: rgba(255, 255, 255, 0.8);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+
+    .icon-btn mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+
+    .info-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: rgba(255, 255, 255, 0.9);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .info-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
     }
 
     /* Effective Capacity Card */
@@ -871,7 +1110,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
     /* First-run overlay */
     .overlay {
       display: none;
-      position: fixed;
+      position: absolute;
       top: 0;
       left: 0;
       right: 0;
@@ -924,6 +1163,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private refreshInterval: ReturnType<typeof setInterval> | null = null;
+  private plotterEventUnlisteners: UnlistenFn[] = [];
+
+  // Progress tracking for speed calculation
+  private plotStartTime = 0;           // When plotting started (ms since epoch)
+  private lastSpeedUpdateTime = 0;     // For throttling UI updates
+  private totalWarpsForCurrentItem = 0; // Target warps to plot
+  private hashingWarps = 0;            // Warps hashed so far (0 → totalWarps)
+  private writingWarps = 0;            // Warps written so far (0 → totalWarps)
+  private currentPlottingProgress = signal(0); // Combined progress 0-100
 
   readonly miningStatus = signal<MiningStatus | null>(null);
   readonly plottingStatus = signal<PlottingStatus | null>(null);
@@ -940,17 +1188,213 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly effectiveCapacity = signal('0 GiB');
   readonly readyFiles = signal(0);
   readonly pendingFiles = signal(0);
+  readonly driveInfos = signal<Map<string, DriveInfo>>(new Map());
+
+  // Plot plan computed values from service
+  readonly plotPlan = this.miningService.plotPlan;
+  readonly planStats = this.miningService.planStats;
+  readonly planEta = this.miningService.planEta;
 
   chainFilter = 'all';
   logFilters = { all: true, info: true, warn: true, error: true };
 
   async ngOnInit(): Promise<void> {
     await this.loadState();
+    await this.setupPlotterEventListeners();
     this.startPolling();
   }
 
   ngOnDestroy(): void {
     this.stopPolling();
+    this.cleanupPlotterEventListeners();
+  }
+
+  private async setupPlotterEventListeners(): Promise<void> {
+    // Clean up any existing listeners
+    this.cleanupPlotterEventListeners();
+
+    // Listen for plotter started
+    const startedUnlisten = await listen<PlotterStartedEvent>('plotter:started', (event) => {
+      console.log('Plotter started:', event.payload);
+      this.totalWarpsForCurrentItem = event.payload.totalWarps;
+      this.hashingWarps = event.payload.resumeOffset;
+      this.writingWarps = 0;
+      this.plotStartTime = Date.now();
+      this.lastSpeedUpdateTime = 0;
+      this.currentPlottingProgress.set(0);
+
+      // Get current item path from plan and set plotting status
+      const plan = this.plotPlan();
+      const currentItem = plan?.items[plan.currentIndex];
+      const filePath = currentItem?.path || '';
+      this.plottingStatus.set({ type: 'plotting', filePath, progress: 0, speedMibS: 0 });
+    });
+    this.plotterEventUnlisteners.push(startedUnlisten);
+
+    // Listen for hashing progress (0-50% of total)
+    const hashingUnlisten = await listen<PlotterHashingProgressEvent>('plotter:hashing-progress', (event) => {
+      this.hashingWarps += event.payload.warpsDelta;
+      this.updatePlottingProgress();
+      this.calculateCombinedSpeed();
+    });
+    this.plotterEventUnlisteners.push(hashingUnlisten);
+
+    // Listen for writing progress (50-100% of total)
+    const writingUnlisten = await listen<PlotterWritingProgressEvent>('plotter:writing-progress', (event) => {
+      this.writingWarps += event.payload.warpsDelta;
+      this.updatePlottingProgress();
+      this.calculateCombinedSpeed();
+    });
+    this.plotterEventUnlisteners.push(writingUnlisten);
+
+    // Listen for plotter completion (from pocx_plotter callback) - for UI updates
+    const completeUnlisten = await listen<PlotterCompleteEvent>('plotter:complete', (event) => {
+      console.log('Plotter complete (callback):', event.payload);
+      // Set progress to 100% when complete
+      this.currentPlottingProgress.set(100);
+    });
+    this.plotterEventUnlisteners.push(completeUnlisten);
+
+    // Listen for errors from plotter callback
+    const errorUnlisten = await listen<PlotterErrorEvent>('plotter:error', (event) => {
+      console.error('Plotter error (callback):', event.payload.error);
+    });
+    this.plotterEventUnlisteners.push(errorUnlisten);
+
+    // Listen for item completion (from our wrapper) - for plan advancement
+    const itemCompleteUnlisten = await listen<PlotterItemCompleteEvent>('plotter:item-complete', async (event) => {
+      console.log('Plot item complete:', event.payload);
+
+      if (event.payload.success) {
+        // Add success to activity log
+        const durationMs = event.payload.durationMs || 1;
+        const warps = event.payload.warpsPlotted || 0;
+        const speedMibS = (warps * 1024 * 1000) / durationMs;
+        this.addActivityLog('plot', `Plotted ${warps} GiB at ${speedMibS.toFixed(0)} MiB/s`);
+      } else {
+        // Add error to activity log
+        this.addActivityLog('error', `Plotting failed: ${event.payload.error || 'Unknown error'}`);
+      }
+
+      // Refresh state to update UI (now with fresh drive info)
+      await this.loadState();
+
+      // Advance to next item (whether success or failure)
+      await this.executeNextPlanItem();
+    });
+    this.plotterEventUnlisteners.push(itemCompleteUnlisten);
+  }
+
+  private cleanupPlotterEventListeners(): void {
+    for (const unlisten of this.plotterEventUnlisteners) {
+      unlisten();
+    }
+    this.plotterEventUnlisteners = [];
+  }
+
+  private addActivityLog(type: string, message: string): void {
+    const logs = this.activityLogs();
+    const newLog = {
+      id: Date.now(),
+      timestamp: Date.now(),
+      type,
+      message,
+    };
+    this.activityLogs.set([newLog, ...logs].slice(0, 100));
+  }
+
+  /**
+   * Update combined plotting progress from hashing and writing phases.
+   * Hashing = 0-50%, Writing = 50-100%
+   */
+  private updatePlottingProgress(): void {
+    if (this.totalWarpsForCurrentItem === 0) {
+      this.currentPlottingProgress.set(0);
+      return;
+    }
+
+    // Hashing progress: 0-50%
+    const hashingPercent = (this.hashingWarps / this.totalWarpsForCurrentItem) * 50;
+    // Writing progress: 50-100%
+    const writingPercent = (this.writingWarps / this.totalWarpsForCurrentItem) * 50;
+
+    const total = Math.min(100, hashingPercent + writingPercent);
+    this.currentPlottingProgress.set(Math.round(total));
+  }
+
+  /**
+   * Calculate effective plotting speed since start.
+   * Formula: speedMibS = (effectiveWarps × 1024) / elapsedSinceStart
+   * Where: effectiveWarps = (hashingWarps + writingWarps) / 2
+   */
+  private calculateCombinedSpeed(): void {
+    const now = Date.now();
+
+    // Throttle UI updates to every 0.5 seconds
+    if (now - this.lastSpeedUpdateTime < 500) {
+      return;
+    }
+    this.lastSpeedUpdateTime = now;
+
+    const elapsedSinceStart = (now - this.plotStartTime) / 1000; // seconds
+    if (elapsedSinceStart <= 0) {
+      return;
+    }
+
+    // combinedWarps goes 0 → 2×totalWarps, effectiveWarps goes 0 → totalWarps
+    const combinedWarps = this.hashingWarps + this.writingWarps;
+    const effectiveWarps = combinedWarps / 2;
+
+    // Speed = effective GiB processed / time, converted to MiB/s
+    const speedMibS = (effectiveWarps * 1024) / elapsedSinceStart;
+
+    this.miningService.updatePlottingSpeed(speedMibS);
+
+    // Update plottingStatus with current progress and speed
+    this.syncPlottingStatus(speedMibS);
+  }
+
+  /**
+   * Sync the plottingStatus signal with current progress and speed.
+   * Called during progress events to keep UI in sync.
+   */
+  private syncPlottingStatus(speedMibS: number): void {
+    const plan = this.plotPlan();
+    const currentItem = plan?.items[plan.currentIndex];
+    const filePath = currentItem?.path || '';
+    const progress = this.currentPlottingProgress();
+
+    this.plottingStatus.set({ type: 'plotting', filePath, progress, speedMibS });
+  }
+
+  private async executeNextPlanItem(): Promise<void> {
+    // Get next item from plan
+    const nextItem = await this.miningService.completePlotPlanItem();
+
+    if (nextItem) {
+      // Check if stop was requested
+      const stopRequested = await this.miningService.isStopRequested();
+      if (stopRequested) {
+        console.log('Stop requested, pausing execution');
+        this.plottingStatus.set({ type: 'paused' });
+        await this.loadState();
+        return;
+      }
+
+      // Execute the next item
+      console.log('Executing next plan item:', nextItem);
+      this.addActivityLog('info', `Starting ${nextItem.type} task`);
+      await this.miningService.executePlotItem(nextItem);
+    } else {
+      // Plan is complete
+      console.log('Plan execution finished');
+      this.plottingStatus.set({ type: 'idle' });
+
+      // Add completion log
+      this.addActivityLog('info', 'Plot plan completed');
+
+      await this.loadState();
+    }
   }
 
   private startPolling(): void {
@@ -968,7 +1412,25 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     try {
       const state = await this.miningService.getState();
       this.miningStatus.set(state.miningStatus);
-      this.plottingStatus.set(state.plottingStatus);
+
+      // For plottingStatus: backend provides type (plotting/idle/paused),
+      // but progress/speed come from frontend events during active plotting.
+      // Preserve frontend progress/speed when both agree we're plotting.
+      const currentStatus = this.plottingStatus();
+      const backendStatus = state.plottingStatus;
+      if (currentStatus?.type === 'plotting' && backendStatus?.type === 'plotting') {
+        // Keep frontend's progress/speed (updated by events), use backend's filePath
+        this.plottingStatus.set({
+          type: 'plotting',
+          filePath: backendStatus.filePath || currentStatus.filePath,
+          progress: currentStatus.progress,
+          speedMibS: currentStatus.speedMibS,
+        });
+      } else {
+        // Not actively plotting or status changed - use backend state
+        this.plottingStatus.set(backendStatus);
+      }
+
       this.recentDeadlines.set(state.recentDeadlines || []);
       this.currentBlock.set(state.currentBlock || {});
       this.configured.set(state.isConfigured);
@@ -977,20 +1439,31 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         this.enabledChains.set((state.config.chains || []).filter(c => c.enabled));
         this.drives.set(state.config.drives || []);
 
-        let totalGib = 0;
+        // Fetch DriveInfo for each configured drive
+        const driveInfoMap = new Map<string, DriveInfo>();
+        let totalAllocated = 0;
+        let totalPlotted = 0;
+        let totalIncomplete = 0;
+        let pendingCount = 0;
 
         for (const drive of state.config.drives || []) {
-          totalGib += drive.allocatedGib;
+          totalAllocated += drive.allocatedGib;
+          const info = await this.miningService.getDriveInfo(drive.path);
+          if (info) {
+            driveInfoMap.set(drive.path, info);
+            totalPlotted += info.completeSizeGib;
+            totalIncomplete += info.incompleteSizeGib;
+            // Pending = allocated - already plotted
+            const remaining = drive.allocatedGib - info.completeSizeGib - info.incompleteSizeGib;
+            if (remaining > 0) pendingCount++;
+          }
         }
 
-        // Note: Ready/pending files require real-time drive scanning via DriveInfo
-        // For now, show total allocated and set ready/pending to 0
-        // TODO: Load DriveInfo for each drive to get complete/incomplete file counts
-        this.totalPlotSize.set(this.formatSize(totalGib));
-        this.readySize.set(this.formatSize(0));
-        this.effectiveCapacity.set(this.formatSize(0));
-        this.readyFiles.set(0);
-        this.pendingFiles.set(0);
+        this.driveInfos.set(driveInfoMap);
+        this.totalPlotSize.set(this.formatSize(totalAllocated));
+        this.readySize.set(this.formatSize(totalPlotted));
+        this.effectiveCapacity.set(this.formatSize(totalPlotted));
+        this.pendingFiles.set(pendingCount);
       }
 
       this.stateLoaded.set(true);
@@ -1125,7 +1598,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   getPlottingProgress(): number {
     const status = this.plottingStatus();
     if (status?.type === 'plotting') {
-      return status.progress;
+      // Use our locally tracked progress (combined hashing + writing)
+      return this.currentPlottingProgress();
     }
     return 0;
   }
@@ -1161,16 +1635,40 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return 'Queued';
   }
 
+  /**
+   * Get drive status class for styling.
+   * Simplified 3-status model:
+   * - ready: Drive is fully plotted, ready for mining
+   * - plotting: Drive is currently being plotted
+   * - queued: Drive needs more plotting before mining
+   */
   getDriveStatusClass(drive: DriveConfig): string {
     if (this.isDrivePlotting(drive)) return 'plotting';
-    if (drive.allocatedGib > 0) return 'active';
+    if (this.isDriveReady(drive)) return 'ready';
     return 'queued';
   }
 
+  /**
+   * Get human-readable drive status.
+   * Ready = will be in mining
+   * Plotting = currently being plotted
+   * Queued = not yet mining, needs more plotting
+   */
   getDriveStatus(drive: DriveConfig): string {
     if (this.isDrivePlotting(drive)) return 'Plotting';
-    if (drive.allocatedGib > 0) return 'Configured';
-    return 'Empty';
+    if (this.isDriveReady(drive)) return 'Ready';
+    return 'Queued';
+  }
+
+  /**
+   * Check if a drive is fully plotted and ready for mining.
+   * A drive is ready when plotted size >= allocated size.
+   */
+  private isDriveReady(drive: DriveConfig): boolean {
+    const info = this.driveInfos().get(drive.path);
+    if (!info) return false;
+    const plotted = info.completeSizeGib + info.incompleteSizeGib;
+    return plotted >= drive.allocatedGib;
   }
 
   isDrivePlotting(drive: DriveConfig): boolean {
@@ -1194,6 +1692,14 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       return `${(gib / 1024).toFixed(1)} TiB`;
     }
     return `${gib.toFixed(0)} GiB`;
+  }
+
+  getDrivePlottedSize(drive: DriveConfig): string {
+    const info = this.driveInfos().get(drive.path);
+    if (!info) return '—';
+    const plotted = info.completeSizeGib + info.incompleteSizeGib;
+    if (plotted === 0) return '0 GiB';
+    return this.formatDriveSize(plotted);
   }
 
   filteredDeadlines(): DeadlineEntry[] {
@@ -1255,6 +1761,40 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     await this.loadState();
   }
 
+  /**
+   * Navigate to setup wizard with preloaded data.
+   * Step 0 = Chains (needs devices for CPU info)
+   * Step 1 = Plotter/GPU (needs devices)
+   * Step 2 = Drives (needs drives + drive info)
+   */
+  async navigateToSetup(step: number): Promise<void> {
+    // Preload relevant data based on step
+    const loadPromises: Promise<void>[] = [this.miningService.refreshState()];
+
+    if (step === 0 || step === 1) {
+      // Chains and Plotter steps need device info (CPU/GPU)
+      loadPromises.push(this.miningService.refreshDevices());
+    }
+    if (step === 2) {
+      // Drives step needs drive info
+      loadPromises.push(this.miningService.refreshDrives());
+    }
+
+    // Wait for all data to load
+    await Promise.all(loadPromises);
+
+    // For drives step, also fetch drive info for configured drives
+    if (step === 2) {
+      const drivePaths = this.drives().map(d => d.path);
+      if (drivePaths.length > 0) {
+        await this.miningService.fetchDriveInfoBatch(drivePaths);
+      }
+    }
+
+    // Navigate to setup with step parameter
+    this.router.navigate(['/mining/setup'], { queryParams: { step } });
+  }
+
   // Plotter methods
   isPlotting(): boolean {
     const status = this.plottingStatus();
@@ -1276,29 +1816,305 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return 'Idle';
   }
 
+  /**
+   * Check if there are any drives that need plotting.
+   */
+  hasQueuedDrives(): boolean {
+    return this.drives().some(drive => !this.isDriveReady(drive));
+  }
+
+  /**
+   * Get queue items for mini-queue display in Plotter card.
+   * Returns drives with their status (ready/plotting/queued).
+   */
+  getDriveQueueItems(): { path: string; status: 'ready' | 'plotting' | 'queued' }[] {
+    return this.drives().map(drive => ({
+      path: drive.path,
+      status: this.isDrivePlotting(drive) ? 'plotting' :
+              this.isDriveReady(drive) ? 'ready' : 'queued',
+    }));
+  }
+
+  /**
+   * Format drive path for display (show drive letter or last segment).
+   */
+  formatDrivePath(path: string): string {
+    // Windows: "D:\PoCX_Plots" -> "D:"
+    // Unix: "/mnt/plots" -> "plots"
+    const parts = path.split(/[/\\]/);
+    if (parts[0].includes(':')) {
+      return parts[0]; // Windows drive letter
+    }
+    return parts[parts.length - 1] || path;
+  }
+
+  /**
+   * Get count of drives that need plotting.
+   */
+  getQueuedDriveCount(): number {
+    return this.drives().filter(drive => !this.isDriveReady(drive) && !this.isDrivePlotting(drive)).length;
+  }
+
+  /**
+   * Get total size of queued drives that need plotting.
+   */
+  getQueuedSize(): string {
+    let totalGib = 0;
+    for (const drive of this.drives()) {
+      if (!this.isDriveReady(drive) && !this.isDrivePlotting(drive)) {
+        const info = this.driveInfos().get(drive.path);
+        const plotted = info ? info.completeSizeGib + info.incompleteSizeGib : 0;
+        totalGib += drive.allocatedGib - plotted;
+      }
+    }
+    return this.formatSize(totalGib);
+  }
+
+  /**
+   * Check if all drives are complete (no queued work).
+   */
+  isAllComplete(): boolean {
+    return this.drives().length > 0 && !this.hasQueuedDrives() && !this.isPlotting();
+  }
+
+  /**
+   * Get TiB of ready (complete) drives.
+   */
+  getReadyTib(): number {
+    let totalGib = 0;
+    for (const drive of this.drives()) {
+      if (this.isDriveReady(drive)) {
+        totalGib += drive.allocatedGib;
+      }
+    }
+    return totalGib / 1024;
+  }
+
+  /**
+   * Get TiB of completed plots on drives that aren't fully done yet.
+   * (Plotted but drive still has more work to do)
+   */
+  getPlottedTib(): number {
+    let totalGib = 0;
+    for (const drive of this.drives()) {
+      if (!this.isDriveReady(drive)) {
+        const info = this.driveInfos().get(drive.path);
+        if (info) {
+          totalGib += info.completeSizeGib;
+        }
+      }
+    }
+    return totalGib / 1024;
+  }
+
+  /**
+   * Get TiB remaining to be plotted (allocated - ready - plotted).
+   * Combines plotting and queued into a single "to plot" value.
+   */
+  getToPlotTib(): number {
+    let totalGib = 0;
+    for (const drive of this.drives()) {
+      if (!this.isDriveReady(drive)) {
+        const info = this.driveInfos().get(drive.path);
+        const plotted = info ? info.completeSizeGib + info.incompleteSizeGib : 0;
+        const remaining = drive.allocatedGib - plotted;
+        totalGib += Math.max(0, remaining);
+      }
+    }
+    return totalGib / 1024;
+  }
+
+  /**
+   * Get TiB currently being actively plotted (in-progress file).
+   */
+  getPlottingTib(): number {
+    const status = this.plottingStatus();
+    if (status?.type === 'plotting') {
+      // Return the size of the current file being plotted
+      // Estimate based on progress if available
+      const stats = this.planStats();
+      if (stats && stats.totalTasks > 0) {
+        const currentItem = this.plotPlan()?.items[stats.completedTasks];
+        if (currentItem?.type === 'plot') {
+          return currentItem.warps / 1024; // warps = GiB
+        } else if (currentItem?.type === 'resume') {
+          return currentItem.sizeGib / 1024;
+        }
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Get TiB queued for plotting (not yet started).
+   */
+  getQueuedTib(): number {
+    let totalGib = 0;
+    for (const drive of this.drives()) {
+      if (!this.isDriveReady(drive)) {
+        const info = this.driveInfos().get(drive.path);
+        const plotted = info ? info.completeSizeGib : 0;
+        const remaining = drive.allocatedGib - plotted;
+        totalGib += remaining;
+      }
+    }
+    // Subtract what's currently being plotted
+    const plottingGib = this.getPlottingTib() * 1024;
+    return Math.max(0, totalGib - plottingGib) / 1024;
+  }
+
+  /**
+   * Format TiB value for display.
+   */
+  formatTib(tib: number): string {
+    if (tib >= 1) {
+      return `${tib.toFixed(1)} TiB`;
+    }
+    const gib = tib * 1024;
+    return `${gib.toFixed(0)} GiB`;
+  }
+
+  /**
+   * Get current task number (1-based).
+   */
+  getCurrentTask(): number {
+    const stats = this.planStats();
+    return stats ? stats.completedTasks + 1 : 1;
+  }
+
+  /**
+   * Get total number of tasks in plan.
+   */
+  getTotalTasks(): number {
+    const stats = this.planStats();
+    return stats ? stats.totalTasks : 0;
+  }
+
   async togglePlotting(): Promise<void> {
-    if (this.isPlotting()) {
+    if (this.isPlotting() || this.miningService.isPlanRunning()) {
       // Show confirmation dialog before stopping
       const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-        width: '400px',
+        width: '420px',
         data: {
           title: 'Stop Plotting?',
-          message: 'Stopping will leave incomplete plot files on disk. These files will need to be deleted manually or replotted later. Are you sure you want to stop?',
-          confirmText: 'Stop Plotting',
-          cancelText: 'Continue',
-          type: 'danger',
+          message: 'Soft Stop: Finish current file, then pause (can resume later)\n\nHard Stop: Stop immediately (progress saved as .tmp)',
+          confirmText: 'Soft Stop',
+          secondaryText: 'Hard Stop',
+          cancelText: 'Cancel',
+          type: 'warning',
         },
       });
 
-      dialogRef.afterClosed().subscribe(async (confirmed: boolean) => {
-        if (confirmed) {
-          await this.miningService.stopPlotting();
+      dialogRef.afterClosed().subscribe(async (result: boolean | string) => {
+        if (result === true) {
+          // Soft stop - finish current task, will pause after completion
+          await this.miningService.softStopPlotPlan();
+          this.addActivityLog('info', 'Soft stop requested - will pause after current file completes');
+          await this.loadState();
+        } else if (result === 'secondary') {
+          // Hard stop - abort immediately
+          await this.miningService.hardStopPlotPlan();
+          this.addActivityLog('warning', 'Hard stop - plotting aborted');
+          this.plottingStatus.set({ type: 'idle' });
           await this.loadState();
         }
       });
     } else {
-      await this.miningService.startAllPlotting();
-      await this.loadState();
+      // Start plotting with plan
+      await this.startPlottingWithPlan();
     }
+  }
+
+  private async startPlottingWithPlan(): Promise<void> {
+    // On Windows, check if running elevated (required for optimal disk I/O)
+    const platform = await this.miningService.getPlatform();
+    if (platform === 'win32') {
+      const isElevated = await this.miningService.isElevated();
+      if (!isElevated) {
+        // Ask user if they want to restart with elevation
+        const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+          data: {
+            title: 'Administrator Required',
+            message: 'For optimal plotting performance (especially direct I/O), the app needs to run as Administrator.\n\nWould you like to restart with elevated privileges?',
+            confirmText: 'Restart as Admin',
+            cancelText: 'Continue Anyway',
+          },
+        });
+
+        const result = await dialogRef.afterClosed().toPromise();
+        if (result) {
+          // User wants to restart elevated
+          const restarted = await this.miningService.restartElevated();
+          if (restarted) {
+            // App is restarting, this instance will close
+            return;
+          }
+          // Restart failed or was cancelled by UAC
+          this.addActivityLog('warning', 'Elevation cancelled - continuing without admin privileges');
+        } else {
+          this.addActivityLog('info', 'Continuing without admin privileges');
+        }
+      }
+    }
+
+    // Refresh drives to get latest state
+    await this.miningService.refreshDrives();
+
+    // Check if we need to generate/regenerate plan
+    if (this.miningService.needsPlanRegeneration()) {
+      const plan = await this.miningService.regeneratePlotPlan();
+      if (!plan) {
+        // No work to do or error
+        console.log('No plot plan generated - nothing to plot');
+        return;
+      }
+    }
+
+    // Check if plan is paused (can resume) or pending (start fresh)
+    const plan = this.plotPlan();
+    if (!plan || plan.items.length === 0) {
+      console.log('No items in plot plan');
+      return;
+    }
+
+    // Start the plan execution
+    const firstItem = await this.miningService.startPlotPlan();
+    if (firstItem) {
+      console.log('Starting plot plan, first item:', firstItem);
+      this.addActivityLog('info', `Starting ${firstItem.type} task`);
+
+      // Execute the first item - this will trigger events that drive the rest
+      // The plotter:complete event handler will call executeNextPlanItem()
+      await this.miningService.executePlotItem(firstItem);
+    }
+
+    await this.loadState();
+  }
+
+  // Plot plan methods
+  hasPlan(): boolean {
+    return this.plotPlan() !== null;
+  }
+
+  hasPendingTasks(): boolean {
+    const plan = this.plotPlan();
+    if (!plan) return false;
+    // Check if there are any incomplete tasks
+    return plan.items.length > 0 && plan.currentIndex < plan.items.length;
+  }
+
+  openPlanViewer(): void {
+    this.dialog.open(PlanViewerDialogComponent, {
+      width: '600px',
+      maxHeight: '80vh',
+    });
+  }
+
+  formatPlanRemaining(tib: number): string {
+    if (tib >= 1) {
+      return `${tib.toFixed(1)} TiB`;
+    }
+    const gib = tib * 1024;
+    return `${gib.toFixed(0)} GiB`;
   }
 }

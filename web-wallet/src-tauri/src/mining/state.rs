@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 /// Mining operation state
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum MiningStatus {
     #[default]
     Stopped,
@@ -26,7 +26,7 @@ pub enum MiningStatus {
 
 /// Plotting operation state
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum PlottingStatus {
     #[default]
     Idle,
@@ -90,6 +90,74 @@ pub struct PlotterDeviceConfig {
     pub threads: u32,
 }
 
+// ============================================================================
+// Plot Plan Types
+// ============================================================================
+
+/// Plot plan execution status
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum PlotPlanStatus {
+    #[default]
+    Pending,
+    Running,
+    Paused,
+    Completed,
+    Invalid,
+}
+
+/// Individual plot plan task
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum PlotPlanItem {
+    /// Resume an incomplete .tmp file
+    Resume {
+        path: String,
+        #[serde(rename = "fileIndex")]
+        file_index: u32,
+        #[serde(rename = "sizeGib")]
+        size_gib: u64,
+    },
+    /// Create new plot file (1024 warps = 1 TiB, or remainder)
+    Plot {
+        path: String,
+        warps: u64,
+        #[serde(rename = "batchId")]
+        batch_id: u32,
+    },
+    /// Add completed drive to miner config
+    AddToMiner {
+        path: String,
+    },
+}
+
+/// Full plot execution plan
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlotPlan {
+    pub version: u32,
+    pub generated_at: u64,
+    pub config_hash: String,
+    pub finished_drives: Vec<String>,
+    pub items: Vec<PlotPlanItem>,
+    pub current_index: usize,
+    pub status: PlotPlanStatus,
+}
+
+impl Default for PlotPlan {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            generated_at: 0,
+            config_hash: String::new(),
+            finished_drives: Vec::new(),
+            items: Vec::new(),
+            current_index: 0,
+            status: PlotPlanStatus::Pending,
+        }
+    }
+}
+
 /// Recent deadline entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -126,6 +194,8 @@ pub struct MiningConfig {
     #[serde(default = "default_parallel_drives")]
     pub parallel_drives: u32, // Number of drives to plot simultaneously (default 1)
     pub hdd_wakeup_seconds: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plot_plan: Option<PlotPlan>, // Current plot execution plan
 }
 
 fn default_escalation() -> u64 {
@@ -156,6 +226,7 @@ impl Default for MiningConfig {
             low_priority: false,
             parallel_drives: 1,
             hdd_wakeup_seconds: 30,
+            plot_plan: None,
         }
     }
 }
