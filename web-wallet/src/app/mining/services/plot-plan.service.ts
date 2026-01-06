@@ -354,30 +354,57 @@ export class PlotPlanService {
 
   /**
    * Calculate stats for a plan
+   * Counts batches (not individual items) for task progress
    */
   getPlanStats(plan: PlotPlan): PlotPlanStats {
-    const totalTasks = plan.items.length;
-    const completedTasks = plan.currentIndex;
-    const remainingTasks = totalTasks - completedTasks;
+    // Count batches instead of individual items
+    // Items with same batchId count as one batch
+    let totalTasks = 0;
+    let completedTasks = 0;
+    const seenBatchIds = new Set<number>();
+    const completedBatchIds = new Set<number>();
 
     let totalWarps = 0;
     let completedWarps = 0;
 
     for (let i = 0; i < plan.items.length; i++) {
       const item = plan.items[i];
+
       if (item.type === 'plot') {
         totalWarps += item.warps;
         if (i < plan.currentIndex) {
           completedWarps += item.warps;
+        }
+
+        // Count unique batches
+        if (!seenBatchIds.has(item.batchId)) {
+          seenBatchIds.add(item.batchId);
+          totalTasks++;
+        }
+        if (i < plan.currentIndex && !completedBatchIds.has(item.batchId)) {
+          completedBatchIds.add(item.batchId);
+          completedTasks++;
         }
       } else if (item.type === 'resume') {
         totalWarps += item.sizeGib;
         if (i < plan.currentIndex) {
           completedWarps += item.sizeGib;
         }
+        // Resume items are individual tasks
+        totalTasks++;
+        if (i < plan.currentIndex) {
+          completedTasks++;
+        }
+      } else if (item.type === 'add_to_miner') {
+        // add_to_miner items are individual tasks (but quick)
+        totalTasks++;
+        if (i < plan.currentIndex) {
+          completedTasks++;
+        }
       }
     }
 
+    const remainingTasks = totalTasks - completedTasks;
     const remainingWarps = totalWarps - completedWarps;
     const completedGib = completedWarps;
     const completedTib = completedGib / 1024;

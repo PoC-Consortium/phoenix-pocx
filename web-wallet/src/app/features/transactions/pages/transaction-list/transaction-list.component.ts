@@ -298,7 +298,7 @@ type TransactionFilter = 'all' | 'send' | 'receive' | 'immature' | 'generate';
             </div>
             <mat-paginator
               [length]="filteredTransactions().length"
-              [pageSize]="pageSize"
+              [pageSize]="pageSize()"
               [pageIndex]="pageIndex()"
               [pageSizeOptions]="pageSizeOptions"
               (page)="onPageChange($event)"
@@ -862,7 +862,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   transactions = signal<WalletTransaction[]>([]);
   activeFilter = signal<TransactionFilter>('all');
   pageIndex = signal(0);
-  pageSize = 10;
+  pageSize = signal(10);
   pageSizeOptions = [10, 25, 50];
   searchQuery = '';
   selectedType: TransactionFilter = 'all';
@@ -917,8 +917,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   paginatedTransactions = computed(() => {
     const txs = this.filteredTransactions();
-    const start = this.pageIndex() * this.pageSize;
-    return txs.slice(start, start + this.pageSize);
+    const start = this.pageIndex() * this.pageSize();
+    return txs.slice(start, start + this.pageSize());
   });
 
   oldestTransactionDate = computed(() => {
@@ -1006,7 +1006,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   onPageChange(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
-    this.pageSize = event.pageSize;
+    this.pageSize.set(event.pageSize);
   }
 
   // Transaction display methods

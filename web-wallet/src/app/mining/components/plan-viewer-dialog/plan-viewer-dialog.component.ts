@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, Signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { MiningService } from '../../services/mining.service';
-import { PlotPlanItem, PlotPlanStats } from '../../models/mining.models';
+import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.models';
 
 /**
  * Plan Viewer Dialog
@@ -55,13 +55,13 @@ import { PlotPlanItem, PlotPlanStats } from '../../models/mining.models';
         </div>
 
         <!-- Finished Drives Section -->
-        @if (plan.finishedDrives.length > 0) {
+        @if (allFinishedDrives().length > 0) {
           <div class="section-header">
             <mat-icon>check_circle</mat-icon>
-            Finished Drives ({{ plan.finishedDrives.length }})
+            Finished Drives ({{ allFinishedDrives().length }})
           </div>
           <div class="finished-drives">
-            @for (drive of plan.finishedDrives; track drive) {
+            @for (drive of allFinishedDrives(); track drive) {
               <div class="finished-drive">
                 <mat-icon class="done-icon">done</mat-icon>
                 {{ formatPath(drive) }}
@@ -80,17 +80,17 @@ import { PlotPlanItem, PlotPlanStats } from '../../models/mining.models';
             @for (item of plan.items; track $index; let i = $index) {
               <div
                 class="plan-item"
-                [class.current]="i === plan.currentIndex && plan.status === 'running'"
-                [class.completed]="i < plan.currentIndex"
-                [class.paused]="i === plan.currentIndex && plan.status === 'paused'"
+                [class.current]="isItemCurrent(i, plan)"
+                [class.completed]="i < plan.currentIndex && !isItemCurrent(i, plan)"
+                [class.paused]="isItemPaused(i, plan)"
               >
                 <div class="item-index">{{ i + 1 }}</div>
 
-                @if (i < plan.currentIndex) {
+                @if (i < plan.currentIndex && !isItemCurrent(i, plan)) {
                   <mat-icon class="status-icon done">check_circle</mat-icon>
-                } @else if (i === plan.currentIndex && plan.status === 'running') {
+                } @else if (isItemCurrent(i, plan)) {
                   <mat-icon class="status-icon running">play_circle</mat-icon>
-                } @else if (i === plan.currentIndex && plan.status === 'paused') {
+                } @else if (isItemPaused(i, plan)) {
                   <mat-icon class="status-icon paused">pause_circle</mat-icon>
                 } @else {
                   <mat-icon class="status-icon pending">radio_button_unchecked</mat-icon>
@@ -415,6 +415,37 @@ export class PlanViewerDialogComponent {
   readonly stats = this.miningService.planStats;
   readonly eta = this.miningService.planEta;
 
+  /**
+   * Compute all finished drives:
+   * - Original finishedDrives (complete at plan generation)
+   * - Drives with completed add_to_miner tasks
+   */
+  readonly allFinishedDrives = computed(() => {
+    const plan = this.plan();
+    if (!plan) return [];
+
+    const finished = new Set<string>(plan.finishedDrives);
+
+    // Add drives that have completed add_to_miner tasks
+    for (let i = 0; i < plan.currentIndex && i < plan.items.length; i++) {
+      const item = plan.items[i];
+      if (item.type === 'add_to_miner') {
+        finished.add(item.path);
+      }
+    }
+
+    return [...finished];
+  });
+
+  /**
+   * Get remaining items (not yet completed)
+   */
+  readonly remainingItems = computed(() => {
+    const plan = this.plan();
+    if (!plan) return [];
+    return plan.items.slice(plan.currentIndex);
+  });
+
   formatPath(path: string): string {
     // Show just the drive letter on Windows or last directory segment
     if (path.length <= 20) return path;
@@ -435,6 +466,55 @@ export class PlanViewerDialogComponent {
 
   formatStatus(status: string): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  /**
+   * Check if an item at the given index is part of the currently running batch.
+   * Returns true if:
+   * - The plan is running
+   * - The item is a 'plot' type with a batchId
+   * - The batchId matches the batchId of the item at currentIndex
+   */
+  isInCurrentBatch(index: number, plan: PlotPlan): boolean {
+    if (plan.status !== 'running') return false;
+
+    const currentItem = plan.items[plan.currentIndex];
+    const checkItem = plan.items[index];
+
+    // Both must be plot items with batchIds
+    if (currentItem?.type !== 'plot' || checkItem?.type !== 'plot') return false;
+    if (currentItem.batchId === undefined || checkItem.batchId === undefined) return false;
+
+    // Same batch ID means they're in the same batch
+    return currentItem.batchId === checkItem.batchId;
+  }
+
+  /**
+   * Check if item should show as "current" (running or in current batch)
+   */
+  isItemCurrent(index: number, plan: PlotPlan): boolean {
+    if (plan.status !== 'running') return false;
+    return index === plan.currentIndex || this.isInCurrentBatch(index, plan);
+  }
+
+  /**
+   * Check if item should show as "paused" (current index when paused, or in batch when paused)
+   */
+  isItemPaused(index: number, plan: PlotPlan): boolean {
+    if (plan.status !== 'paused') return false;
+
+    // Current item is paused
+    if (index === plan.currentIndex) return true;
+
+    // Check if in same batch as current item
+    const currentItem = plan.items[plan.currentIndex];
+    const checkItem = plan.items[index];
+    if (currentItem?.type === 'plot' && checkItem?.type === 'plot' &&
+        currentItem.batchId !== undefined && checkItem.batchId !== undefined) {
+      return currentItem.batchId === checkItem.batchId;
+    }
+
+    return false;
   }
 
   close(): void {

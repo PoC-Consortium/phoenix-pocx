@@ -104,6 +104,7 @@ export interface MiningConfig {
   parallelDrives?: number; // Number of drives to plot simultaneously (default 1)
   hddWakeupSeconds: number;
   plotPlan?: PlotPlan; // Current plot execution plan
+  simulationMode?: boolean; // Dev only: run plotter in benchmark mode (no disk writes)
 }
 
 // ============================================================================
@@ -160,13 +161,6 @@ export interface CommandResult<T> {
   error?: string;
 }
 
-export interface StartPlottingParams {
-  address: string;
-  drivePath: string;
-  allocatedGib: number; // Total GiB to allocate for this drive
-  compressionLevel: number;
-}
-
 export interface AddressInfo {
   valid: boolean;
   address: string;
@@ -220,30 +214,10 @@ export interface PlotterErrorEvent {
 }
 
 // ============================================================================
-// UI State Models
-// ============================================================================
-
-export interface WizardStep {
-  id: string;
-  title: string;
-  completed: boolean;
-  current: boolean;
-}
-
-export interface MiningDashboardStats {
-  totalPlotSize: string;
-  readyToMine: string;
-  toPlot: string;
-  activeChains: number;
-  bestDeadline?: number;
-  lastBlockHeight?: number;
-}
-
-// ============================================================================
 // Plot Plan Models
 // ============================================================================
 
-export type PlotPlanStatus = 'pending' | 'running' | 'paused' | 'completed' | 'invalid';
+export type PlotPlanStatus = 'pending' | 'running' | 'stopping' | 'paused' | 'completed' | 'invalid';
 
 export type PlotPlanItem =
   | { type: 'resume'; path: string; fileIndex: number; sizeGib: number }
@@ -291,4 +265,19 @@ export interface PlotterItemCompleteEvent {
   warpsPlotted?: number;
   durationMs?: number;
   error?: string;
+}
+
+// ============================================================================
+// Global Plotting Progress State (for service-level tracking)
+// ============================================================================
+
+export interface PlottingProgress {
+  hashingWarps: number;      // Warps completed in hashing phase (0→totalWarps)
+  writingWarps: number;      // Warps completed in writing phase (0→totalWarps)
+  totalWarps: number;        // Target warps for current batch
+  plotStartTime: number;     // Timestamp when current batch started (ms)
+  currentBatchSize: number;  // Number of items in current batch
+  completedInBatch: number;  // Items completed in current batch
+  progress: number;          // Combined progress 0-100%
+  speedMibS: number;         // Current plotting speed in MiB/s
 }

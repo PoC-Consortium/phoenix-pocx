@@ -364,7 +364,10 @@ fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::init();
+    // Initialize logger with info level by default (respects RUST_LOG env var if set)
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_millis()
+        .init();
 
     // Create shared mining state
     let mining_state = mining::state::create_mining_state();
@@ -559,6 +562,7 @@ pub fn run() {
             mining::commands::complete_plot_plan_item,
             // Plotter execution commands
             mining::commands::execute_plot_item,
+            mining::commands::execute_plot_batch,
             mining::commands::is_plotter_running,
             mining::commands::is_stop_requested,
             mining::commands::request_soft_stop,

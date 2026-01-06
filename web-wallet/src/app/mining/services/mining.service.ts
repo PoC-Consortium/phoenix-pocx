@@ -1,5 +1,6 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import {
   MiningState,
   MiningConfig,
@@ -11,7 +12,6 @@ import {
   DriveInfo,
   DeadlineEntry,
   CommandResult,
-  StartPlottingParams,
   AddressInfo,
   MiningStatus,
   PlottingStatus,
@@ -21,6 +21,13 @@ import {
   PlotPlanStatus,
   PlotPlanStats,
   PlotExecutionResult,
+  PlottingProgress,
+  PlotterStartedEvent,
+  PlotterHashingProgressEvent,
+  PlotterWritingProgressEvent,
+  PlotterCompleteEvent,
+  PlotterErrorEvent,
+  PlotterItemCompleteEvent,
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
 
@@ -38,24 +45,51 @@ export class MiningService {
   // Signals for reactive state
   private readonly _state = signal<MiningState | null>(null);
   private readonly _devices = signal<DeviceInfo | null>(null);
-  private readonly _drives = signal<DriveInfo[]>([]);
   private readonly _isLoading = signal(false);
   private readonly _error = signal<string | null>(null);
   private readonly _currentPlottingSpeed = signal<number>(0); // MiB/s for ETA calculation
 
+  // Global plotting progress state (persists across navigation)
+  private readonly _plottingProgress = signal<PlottingProgress>({
+    hashingWarps: 0,
+    writingWarps: 0,
+    totalWarps: 0,
+    plotStartTime: 0,
+    currentBatchSize: 1,
+    completedInBatch: 0,
+    progress: 0,
+    speedMibS: 0,
+  });
+  private _isPlotterListening = false;
+  private _plotterUnlisteners: UnlistenFn[] = [];
+  private _lastSpeedUpdateTime = 0;
+
+  // Callback for activity logging (set by dashboard)
+  private _onActivityLog: ((type: string, message: string) => void) | null = null;
+
+  // Cached drive info (scanned once, refreshed on config change or job complete)
+  private readonly _driveInfoCache = signal<Map<string, DriveInfo>>(new Map());
+  private _driveInfoLoaded = false;
+  readonly driveInfoCache = this._driveInfoCache.asReadonly();
+
+  // Dev mode detection (cached on init)
+  private readonly _isDevMode = signal<boolean>(false);
+
   // Public computed values
   readonly state = this._state.asReadonly();
   readonly devices = this._devices.asReadonly();
-  readonly drives = this._drives.asReadonly();
   readonly isLoading = this._isLoading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly currentPlottingSpeed = this._currentPlottingSpeed.asReadonly();
+  readonly plottingProgress = this._plottingProgress.asReadonly();
 
   readonly isConfigured = computed(() => this._state()?.isConfigured ?? false);
   readonly miningStatus = computed(() => this._state()?.miningStatus ?? { type: 'stopped' as const });
   readonly plottingStatus = computed(() => this._state()?.plottingStatus ?? { type: 'idle' as const });
   readonly config = computed(() => this._state()?.config ?? null);
   readonly recentDeadlines = computed(() => this._state()?.recentDeadlines ?? []);
+  readonly isDevMode = this._isDevMode.asReadonly();
+  readonly simulationMode = computed(() => this._state()?.config.simulationMode ?? false);
 
   // Plot plan computed values
   readonly plotPlan = computed(() => this._state()?.config.plotPlan ?? null);
@@ -75,7 +109,23 @@ export class MiningService {
     // Initialize state on construction
     this.refreshState();
     this.refreshDevices();
-    this.refreshDrives();
+    this.checkDevMode();
+  }
+
+  /**
+   * Check if running in dev mode (Tauri debug build)
+   */
+  private async checkDevMode(): Promise<void> {
+    try {
+      const result = await invoke<boolean>('is_dev');
+      this._isDevMode.set(result);
+      if (result) {
+        console.log('MiningService: Running in dev mode');
+      }
+    } catch (err) {
+      // Default to false if check fails
+      this._isDevMode.set(false);
+    }
   }
 
   // ============================================================================
@@ -115,6 +165,29 @@ export class MiningService {
     }
   }
 
+  /**
+   * Toggle simulation mode (dev only)
+   * When enabled, plotter runs in benchmark mode (no actual disk writes)
+   */
+  async toggleSimulationMode(enabled: boolean): Promise<boolean> {
+    const config = this.config();
+    if (!config) {
+      this._error.set('No config loaded');
+      return false;
+    }
+
+    const updatedConfig: MiningConfig = {
+      ...config,
+      simulationMode: enabled,
+    };
+
+    const success = await this.saveConfig(updatedConfig);
+    if (success) {
+      console.log(`MiningService: Simulation mode ${enabled ? 'enabled' : 'disabled'}`);
+    }
+    return success;
+  }
+
   // ============================================================================
   // Device Detection
   // ============================================================================
@@ -131,19 +204,8 @@ export class MiningService {
   }
 
   // ============================================================================
-  // Drive Detection
+  // Drive Info
   // ============================================================================
-
-  async refreshDrives(): Promise<void> {
-    try {
-      const result = await invoke<CommandResult<DriveInfo[]>>('list_plot_drives');
-      if (result.success && result.data) {
-        this._drives.set(result.data);
-      }
-    } catch (err) {
-      console.error('Failed to list drives:', err);
-    }
-  }
 
   async getDriveInfo(path: string): Promise<DriveInfo | null> {
     try {
@@ -164,6 +226,76 @@ export class MiningService {
   async fetchDriveInfoBatch(paths: string[]): Promise<void> {
     const promises = paths.map(path => this.getDriveInfo(path));
     await Promise.all(promises);
+  }
+
+  /**
+   * Load drive info cache (only if not already loaded)
+   */
+  async ensureDriveInfoLoaded(): Promise<Map<string, DriveInfo>> {
+    if (this._driveInfoLoaded) {
+      return this._driveInfoCache();
+    }
+
+    const state = this._state();
+    const drives = state?.config?.drives || [];
+    if (drives.length === 0) {
+      this._driveInfoLoaded = true;
+      return new Map();
+    }
+
+    const cache = new Map<string, DriveInfo>();
+    for (const drive of drives) {
+      const info = await this.getDriveInfo(drive.path);
+      if (info) {
+        cache.set(drive.path, info);
+      }
+    }
+
+    this._driveInfoCache.set(cache);
+    this._driveInfoLoaded = true;
+    return cache;
+  }
+
+  /**
+   * Refresh a single drive in cache (after plot job completes)
+   */
+  async refreshDriveInCache(path: string): Promise<void> {
+    const info = await this.getDriveInfo(path);
+    if (info) {
+      const cache = new Map(this._driveInfoCache());
+      cache.set(path, info);
+      this._driveInfoCache.set(cache);
+    }
+  }
+
+  /**
+   * Invalidate drive cache (call after drive config changes)
+   */
+  invalidateDriveCache(): void {
+    this._driveInfoLoaded = false;
+    this._driveInfoCache.set(new Map());
+  }
+
+  /**
+   * Refresh drive cache with fresh data for all configured drives
+   */
+  async refreshDriveCache(): Promise<void> {
+    const config = this.config();
+    if (!config?.drives?.length) {
+      this._driveInfoCache.set(new Map());
+      this._driveInfoLoaded = true;
+      return;
+    }
+
+    const cache = new Map<string, DriveInfo>();
+    for (const driveConfig of config.drives) {
+      const info = await this.getDriveInfo(driveConfig.path);
+      if (info) {
+        cache.set(info.path, info);
+      }
+    }
+    this._driveInfoCache.set(cache);
+    this._driveInfoLoaded = true;
   }
 
   // ============================================================================
@@ -239,6 +371,7 @@ export class MiningService {
       const result = await invoke<CommandResult<void>>('add_drive_config', { drive });
       if (result.success) {
         await this.refreshState();
+        this.invalidateDriveCache();
         return true;
       }
       this._error.set(result.error ?? 'Failed to add drive');
@@ -254,6 +387,7 @@ export class MiningService {
       const result = await invoke<CommandResult<void>>('update_drive_config', { drive });
       if (result.success) {
         await this.refreshState();
+        this.invalidateDriveCache();
         return true;
       }
       this._error.set(result.error ?? 'Failed to update drive');
@@ -269,6 +403,7 @@ export class MiningService {
       const result = await invoke<CommandResult<void>>('remove_drive_config', { path });
       if (result.success) {
         await this.refreshState();
+        this.invalidateDriveCache();
         return true;
       }
       this._error.set(result.error ?? 'Failed to remove drive');
@@ -347,104 +482,6 @@ export class MiningService {
       return false;
     } catch (err) {
       this._error.set(`Failed to stop mining: ${err}`);
-      return false;
-    }
-  }
-
-  // ============================================================================
-  // Plotting Control
-  // ============================================================================
-
-  async startPlotting(params: StartPlottingParams): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<void>>('start_plotting', { params });
-      if (result.success) {
-        await this.refreshState();
-        return true;
-      }
-      this._error.set(result.error ?? 'Failed to start plotting');
-      return false;
-    } catch (err) {
-      this._error.set(`Failed to start plotting: ${err}`);
-      return false;
-    }
-  }
-
-  /**
-   * Start plotting all pending drives using saved config
-   */
-  async startAllPlotting(): Promise<boolean> {
-    try {
-      const config = await this.getConfig();
-      if (!config) {
-        this._error.set('No mining configuration found');
-        return false;
-      }
-
-      // Find first enabled drive with allocated space
-      const pendingDrive = config.drives.find(d => d.enabled && d.allocatedGib > 0);
-
-      if (!pendingDrive) {
-        this._error.set('No drives configured for plotting');
-        return false;
-      }
-
-      // Start plotting the first pending drive
-      const params: StartPlottingParams = {
-        address: config.plottingAddress,
-        drivePath: pendingDrive.path,
-        allocatedGib: pendingDrive.allocatedGib,
-        compressionLevel: config.compressionLevel,
-      };
-
-      return this.startPlotting(params);
-    } catch (err) {
-      this._error.set(`Failed to start plotting: ${err}`);
-      return false;
-    }
-  }
-
-  async stopPlotting(): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<void>>('stop_plotting');
-      if (result.success) {
-        await this.refreshState();
-        return true;
-      }
-      this._error.set(result.error ?? 'Failed to stop plotting');
-      return false;
-    } catch (err) {
-      this._error.set(`Failed to stop plotting: ${err}`);
-      return false;
-    }
-  }
-
-  async pausePlotting(): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<void>>('pause_plotting');
-      if (result.success) {
-        await this.refreshState();
-        return true;
-      }
-      this._error.set(result.error ?? 'Failed to pause plotting');
-      return false;
-    } catch (err) {
-      this._error.set(`Failed to pause plotting: ${err}`);
-      return false;
-    }
-  }
-
-  async resumePlotting(): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<void>>('resume_plotting');
-      if (result.success) {
-        await this.refreshState();
-        return true;
-      }
-      this._error.set(result.error ?? 'Failed to resume plotting');
-      return false;
-    } catch (err) {
-      this._error.set(`Failed to resume plotting: ${err}`);
       return false;
     }
   }
@@ -547,19 +584,17 @@ export class MiningService {
     };
   }
 
-  async detectDrives(): Promise<DriveInfo[]> {
-    // Use cached data if available, otherwise fetch
-    if (this._drives().length === 0) {
-      await this.refreshDrives();
-    }
-    return this._drives();
-  }
-
   // ============================================================================
   // Reset and Delete Operations
   // ============================================================================
 
   async resetConfig(): Promise<boolean> {
+    // Block reset while plotting is active
+    if (this.isPlottingActive()) {
+      this._error.set('Cannot reset while plotting is active. Please stop plotting first.');
+      return false;
+    }
+
     try {
       const result = await invoke<CommandResult<void>>('reset_mining_config');
       if (result.success) {
@@ -579,7 +614,7 @@ export class MiningService {
       const result = await invoke<CommandResult<void>>('delete_all_plots');
       if (result.success) {
         await this.refreshState();
-        await this.refreshDrives();
+        await this.refreshDriveCache();
         return true;
       }
       this._error.set(result.error ?? 'Failed to delete plots');
@@ -595,7 +630,7 @@ export class MiningService {
       const result = await invoke<CommandResult<void>>('delete_drive_plots', { path });
       if (result.success) {
         await this.refreshState();
-        await this.refreshDrives();
+        await this.refreshDriveInCache(path);
         return true;
       }
       this._error.set(result.error ?? 'Failed to delete drive plots');
@@ -606,19 +641,342 @@ export class MiningService {
     }
   }
 
-  async cancelPlotting(): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<void>>('cancel_plotting');
-      if (result.success) {
-        await this.refreshState();
-        return true;
-      }
-      this._error.set(result.error ?? 'Failed to cancel plotting');
-      return false;
-    } catch (err) {
-      this._error.set(`Failed to cancel plotting: ${err}`);
-      return false;
+  // ============================================================================
+  // Plotter Event Management (Global - persists across navigation)
+  // ============================================================================
+
+  /**
+   * Set up plotter event listeners. This should be called when plotting starts.
+   * The listeners persist across navigation, maintaining progress state.
+   * Idempotent - safe to call multiple times.
+   */
+  async setupPlotterEventListeners(): Promise<void> {
+    if (this._isPlotterListening) {
+      return; // Already listening
     }
+
+    this._isPlotterListening = true;
+    console.log('MiningService: Setting up global plotter event listeners');
+
+    // Listen for plotter started
+    const startedUnlisten = await listen<PlotterStartedEvent>('plotter:started', (event) => {
+      console.log('MiningService: Plotter started:', event.payload);
+      const { totalWarps, resumeOffset } = event.payload;
+
+      this._plottingProgress.update(p => ({
+        ...p,
+        totalWarps,
+        hashingWarps: resumeOffset, // Resume from offset if resuming
+        writingWarps: 0,
+        plotStartTime: Date.now(),
+        progress: 0,
+      }));
+      this._lastSpeedUpdateTime = 0;
+
+      // Update plottingStatus with current item path
+      this.syncPlottingStatus();
+    });
+    this._plotterUnlisteners.push(startedUnlisten);
+
+    // Listen for hashing progress (0-50% of total)
+    const hashingUnlisten = await listen<PlotterHashingProgressEvent>('plotter:hashing-progress', (event) => {
+      this._plottingProgress.update(p => ({
+        ...p,
+        hashingWarps: p.hashingWarps + event.payload.warpsDelta,
+      }));
+      this.updatePlottingProgress();
+      this.calculateCombinedSpeed();
+    });
+    this._plotterUnlisteners.push(hashingUnlisten);
+
+    // Listen for writing progress (50-100% of total)
+    const writingUnlisten = await listen<PlotterWritingProgressEvent>('plotter:writing-progress', (event) => {
+      this._plottingProgress.update(p => ({
+        ...p,
+        writingWarps: p.writingWarps + event.payload.warpsDelta,
+      }));
+      this.updatePlottingProgress();
+      this.calculateCombinedSpeed();
+    });
+    this._plotterUnlisteners.push(writingUnlisten);
+
+    // Listen for plotter complete (from pocx_plotter callback)
+    const completeUnlisten = await listen<PlotterCompleteEvent>('plotter:complete', (event) => {
+      console.log('MiningService: Plotter complete:', event.payload);
+      this._plottingProgress.update(p => ({ ...p, progress: 100 }));
+    });
+    this._plotterUnlisteners.push(completeUnlisten);
+
+    // Listen for plotter error
+    const errorUnlisten = await listen<PlotterErrorEvent>('plotter:error', (event) => {
+      console.error('MiningService: Plotter error:', event.payload.error);
+      this._error.set(event.payload.error);
+    });
+    this._plotterUnlisteners.push(errorUnlisten);
+
+    // Listen for item complete (our wrapper event for plan advancement)
+    const itemCompleteUnlisten = await listen<PlotterItemCompleteEvent>('plotter:item-complete', async (event) => {
+      console.log('MiningService: Item complete:', event.payload);
+      await this.handleItemComplete(event.payload);
+    });
+    this._plotterUnlisteners.push(itemCompleteUnlisten);
+  }
+
+  /**
+   * Clean up plotter event listeners. Called when plotting is fully stopped.
+   */
+  cleanupPlotterEventListeners(): void {
+    console.log('MiningService: Cleaning up plotter event listeners');
+    for (const unlisten of this._plotterUnlisteners) {
+      unlisten();
+    }
+    this._plotterUnlisteners = [];
+    this._isPlotterListening = false;
+  }
+
+  /**
+   * Update combined plotting progress from hashing and writing phases.
+   * Hashing = 0-50%, Writing = 50-100%
+   */
+  private updatePlottingProgress(): void {
+    const p = this._plottingProgress();
+    if (p.totalWarps === 0) {
+      this._plottingProgress.update(prev => ({ ...prev, progress: 0 }));
+      return;
+    }
+
+    // Hashing progress: 0-50%
+    const hashingPercent = (p.hashingWarps / p.totalWarps) * 50;
+    // Writing progress: 50-100%
+    const writingPercent = (p.writingWarps / p.totalWarps) * 50;
+
+    const total = Math.min(100, hashingPercent + writingPercent);
+    this._plottingProgress.update(prev => ({ ...prev, progress: Math.round(total) }));
+  }
+
+  /**
+   * Calculate effective plotting speed since start.
+   * Formula: speedMibS = (effectiveWarps × 1024) / elapsedSinceStart
+   */
+  private calculateCombinedSpeed(): void {
+    const now = Date.now();
+
+    // Throttle UI updates to every 0.5 seconds
+    if (now - this._lastSpeedUpdateTime < 500) {
+      return;
+    }
+    this._lastSpeedUpdateTime = now;
+
+    const p = this._plottingProgress();
+    const elapsedSinceStart = (now - p.plotStartTime) / 1000; // seconds
+    if (elapsedSinceStart <= 0) {
+      return;
+    }
+
+    // combinedWarps goes 0 → 2×totalWarps, effectiveWarps goes 0 → totalWarps
+    const combinedWarps = p.hashingWarps + p.writingWarps;
+    const effectiveWarps = combinedWarps / 2;
+
+    // Speed = effective GiB processed / time, converted to MiB/s
+    const speedMibS = (effectiveWarps * 1024) / elapsedSinceStart;
+
+    this._currentPlottingSpeed.set(speedMibS);
+    this._plottingProgress.update(prev => ({ ...prev, speedMibS }));
+
+    // Update plottingStatus with current progress and speed
+    this.syncPlottingStatus();
+  }
+
+  /**
+   * Sync the internal plottingStatus with current progress.
+   */
+  private syncPlottingStatus(): void {
+    const plan = this.plotPlan();
+    const currentItem = plan?.items[plan.currentIndex];
+    const filePath = currentItem?.path || '';
+    const p = this._plottingProgress();
+
+    // Update backend plotting status
+    // Note: Backend status is refreshed separately, this is for local UI
+  }
+
+  /**
+   * Handle item complete event - advance plan index, batch tracking, and trigger next batch
+   */
+  private async handleItemComplete(event: PlotterItemCompleteEvent): Promise<void> {
+    // Log activity
+    if (this._onActivityLog) {
+      if (event.success) {
+        const duration = event.durationMs ? ` in ${(event.durationMs / 1000 / 60).toFixed(1)} min` : '';
+        this._onActivityLog('complete', `${event.type} completed: ${this.formatPath(event.path)}${duration}`);
+      } else {
+        this._onActivityLog('error', `${event.type} failed: ${event.path} - ${event.error}`);
+      }
+    }
+
+    // Refresh drive stats for the completed item's path
+    if (event.success) {
+      await this.refreshDriveInCache(event.path);
+    }
+
+    // CRITICAL: Advance the plan index for this completed item
+    // This increments currentIndex in the backend so the next execution picks up the next item
+    console.log('MiningService: Advancing plan index for completed item:', event.path);
+    await this.completePlotPlanItem();
+
+    // Update batch tracking
+    this._plottingProgress.update(p => ({
+      ...p,
+      completedInBatch: p.completedInBatch + 1,
+    }));
+
+    const progress = this._plottingProgress();
+
+    // Check if batch is complete
+    if (progress.completedInBatch >= progress.currentBatchSize) {
+      console.log('MiningService: Batch complete, advancing to next batch');
+
+      // Reset warps for next batch
+      this._plottingProgress.update(p => ({
+        ...p,
+        hashingWarps: 0,
+        writingWarps: 0,
+        progress: 0,
+        completedInBatch: 0,
+      }));
+
+      // Refresh state and execute next batch
+      await this.refreshState();
+      await this.executeNextBatch();
+    }
+  }
+
+  /**
+   * Execute the next batch in the plot plan.
+   * Groups items with same batchId together for parallel execution.
+   */
+  async executeNextBatch(): Promise<void> {
+    // Ensure event listeners are set up before executing (idempotent)
+    await this.setupPlotterEventListeners();
+
+    await this.refreshState();
+    const plan = this.plotPlan();
+
+    if (!plan || plan.currentIndex >= plan.items.length) {
+      console.log('MiningService: Plan complete or no plan');
+      this.cleanupPlotterEventListeners();
+      this.resetPlottingProgress();
+      return;
+    }
+
+    const currentItem = plan.items[plan.currentIndex];
+    console.log('MiningService: Executing item:', currentItem);
+
+    // For non-plot items, execute one at a time
+    if (currentItem.type !== 'plot') {
+      this._plottingProgress.update(p => ({
+        ...p,
+        currentBatchSize: 1,
+        completedInBatch: 0,
+      }));
+
+      if (currentItem.type === 'resume') {
+        // Execute resume item
+        await this.executePlotItem(currentItem);
+      } else if (currentItem.type === 'add_to_miner') {
+        // Add to miner is a no-op for now, just advance
+        await this.completePlotPlanItem();
+        await this.executeNextBatch();
+      }
+      return;
+    }
+
+    // For plot items, check stop request before starting new batch
+    const stopRequested = await this.isStopRequested();
+    if (stopRequested) {
+      console.log('MiningService: Stop requested, not starting new plot batch');
+      this.cleanupPlotterEventListeners();
+      this.resetPlottingProgress();
+      return;
+    }
+
+    // Group by batchId
+    const batchId = currentItem.batchId;
+    const batchItems: PlotPlanItem[] = [];
+    let totalBatchWarps = 0;
+
+    for (let i = plan.currentIndex; i < plan.items.length; i++) {
+      const item = plan.items[i];
+      if (item.type !== 'plot' || item.batchId !== batchId) {
+        break; // Different batch or non-plot item
+      }
+      batchItems.push(item);
+      totalBatchWarps += item.warps;
+    }
+
+    console.log(`MiningService: Executing batch ${batchId} with ${batchItems.length} items, ${totalBatchWarps} total warps`);
+
+    // Update batch tracking
+    this._plottingProgress.update(p => ({
+      ...p,
+      totalWarps: totalBatchWarps,
+      currentBatchSize: batchItems.length,
+      completedInBatch: 0,
+      hashingWarps: 0,
+      writingWarps: 0,
+      progress: 0,
+      plotStartTime: Date.now(),
+    }));
+
+    // Execute the batch
+    if (batchItems.length === 1) {
+      await this.executePlotItem(batchItems[0]);
+    } else {
+      await this.executePlotBatch(batchItems);
+    }
+  }
+
+  /**
+   * Reset plotting progress to initial state
+   */
+  resetPlottingProgress(): void {
+    this._plottingProgress.set({
+      hashingWarps: 0,
+      writingWarps: 0,
+      totalWarps: 0,
+      plotStartTime: 0,
+      currentBatchSize: 1,
+      completedInBatch: 0,
+      progress: 0,
+      speedMibS: 0,
+    });
+    this._currentPlottingSpeed.set(0);
+  }
+
+  /**
+   * Set activity log callback (called by dashboard to receive activity updates)
+   */
+  setActivityLogCallback(callback: ((type: string, message: string) => void) | null): void {
+    this._onActivityLog = callback;
+  }
+
+  /**
+   * Format path for display (truncate long paths)
+   */
+  private formatPath(path: string): string {
+    if (path.length <= 30) return path;
+    const parts = path.split(/[/\\]/);
+    if (parts.length >= 2) {
+      return `${parts[0]}\\...\\${parts[parts.length - 1]}`;
+    }
+    return path;
+  }
+
+  /**
+   * Check if plotter listeners are currently active
+   */
+  isListeningToPlotter(): boolean {
+    return this._isPlotterListening;
   }
 
   // ============================================================================
@@ -831,6 +1189,8 @@ export class MiningService {
       const result = await invoke<CommandResult<void>>('clear_plot_plan');
       if (result.success) {
         await this.refreshState();
+        // Refresh cache with fresh data
+        await this.refreshDriveCache();
         return true;
       }
       this._error.set(result.error ?? 'Failed to clear plan');
@@ -846,10 +1206,7 @@ export class MiningService {
    * This clears the old plan and generates a new one
    */
   async regeneratePlotPlan(): Promise<PlotPlan | null> {
-    // Refresh drives first to detect any .tmp files
-    await this.refreshDrives();
-
-    // Clear old plan
+    // Clear old plan (also refreshes drive cache)
     await this.clearPlotPlan();
 
     // Generate new plan
@@ -863,9 +1220,12 @@ export class MiningService {
   isPlanValid(): boolean {
     const plan = this.plotPlan();
     const config = this.config();
-    const drives = this._drives();
+    const cache = this._driveInfoCache();
 
     if (!plan || !config) return false;
+
+    // Convert cache Map to array (only configured drives)
+    const drives = Array.from(cache.values());
 
     const currentHash = this.plotPlanService.computeConfigHash(
       drives,
@@ -888,7 +1248,7 @@ export class MiningService {
    */
   isPlanRunning(): boolean {
     const plan = this.plotPlan();
-    return plan?.status === 'running';
+    return plan?.status === 'running' || plan?.status === 'stopping';
   }
 
   /**
@@ -936,6 +1296,26 @@ export class MiningService {
       return null;
     } catch (err) {
       this._error.set(`Failed to execute plot item: ${err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Execute a batch of plot plan items (parallel disk writes).
+   * Items with the same batchId are executed together in a single plotter run.
+   * The plotter handles multiple outputs internally for efficient parallel I/O.
+   */
+  async executePlotBatch(items: PlotPlanItem[]): Promise<PlotExecutionResult | null> {
+    try {
+      const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_batch', { items });
+      if (result.success && result.data) {
+        await this.refreshState();
+        return result.data;
+      }
+      this._error.set(result.error ?? 'Failed to execute plot batch');
+      return null;
+    } catch (err) {
+      this._error.set(`Failed to execute plot batch: ${err}`);
       return null;
     }
   }

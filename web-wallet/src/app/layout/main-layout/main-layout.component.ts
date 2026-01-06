@@ -339,6 +339,8 @@ interface NavGroup {
         flex: 1;
         overflow: auto;
         background: #eaf0f6;
+        display: flex;
+        flex-direction: column;
       }
 
       :host-context(.dark-theme) {

@@ -27,6 +27,13 @@ pub struct PlotExecutionResult {
     pub error: Option<String>,
 }
 
+/// A single output for batch plotting
+#[derive(Debug, Clone)]
+pub struct BatchPlotOutput {
+    pub path: String,
+    pub warps: u64,
+}
+
 /// Runtime state for the plotter (non-serializable)
 pub struct PlotterRuntime {
     /// Handle to the currently running plotter task
@@ -88,6 +95,214 @@ pub type SharedPlotterRuntime = Arc<PlotterRuntime>;
 /// Create a new shared plotter runtime
 pub fn create_plotter_runtime() -> SharedPlotterRuntime {
     Arc::new(PlotterRuntime::new())
+}
+
+/// Execute a batch of plot items (multiple outputs in single plotter run)
+///
+/// Items with the same batchId should be executed together for parallel disk writes.
+pub async fn execute_plot_batch<R: Runtime>(
+    app_handle: AppHandle<R>,
+    items: Vec<PlotPlanItem>,
+    config: &MiningConfig,
+    mining_state: SharedMiningState,
+    plotter_runtime: SharedPlotterRuntime,
+) -> Result<PlotExecutionResult, String> {
+    // Check if already running
+    if plotter_runtime.is_running() {
+        log::warn!("Plotter is already running, rejecting batch request");
+        return Err("Plotter is already running".to_string());
+    }
+
+    // Clear any previous stop request
+    plotter_runtime.clear_stop_request();
+
+    // Validate address
+    if config.plotting_address.is_empty() {
+        return Err("No plotting address configured".to_string());
+    }
+
+    // Collect outputs from all items
+    let mut outputs: Vec<BatchPlotOutput> = Vec::new();
+    let mut paths: Vec<String> = Vec::new();
+
+    for item in &items {
+        match item {
+            PlotPlanItem::Plot { path, warps, batch_id: _ } => {
+                outputs.push(BatchPlotOutput {
+                    path: path.clone(),
+                    warps: *warps,
+                });
+                paths.push(path.clone());
+            }
+            PlotPlanItem::Resume { path, file_index: _, size_gib } => {
+                // For resume, we still need to handle .tmp files
+                // But for batching, we treat it as a regular output
+                outputs.push(BatchPlotOutput {
+                    path: path.clone(),
+                    warps: *size_gib,
+                });
+                paths.push(path.clone());
+            }
+            PlotPlanItem::AddToMiner { path } => {
+                // Skip add_to_miner items in batch - they'll be handled after completion
+                log::info!("Skipping add_to_miner item in batch: {}", path);
+            }
+        }
+    }
+
+    if outputs.is_empty() {
+        return Err("No plot items in batch".to_string());
+    }
+
+    // Build the plotter task with all outputs
+    let task = build_plotter_task_batch(
+        &config.plotting_address,
+        &outputs,
+        config,
+    )?;
+
+    // Calculate total warps
+    let total_warps: u64 = outputs.iter().map(|o| o.warps).sum();
+
+    // Update plotting status (show first path)
+    {
+        if let Ok(mut state) = mining_state.lock() {
+            let status_path = if paths.len() > 1 {
+                format!("{} (+{} more)", paths[0], paths.len() - 1)
+            } else {
+                paths[0].clone()
+            };
+            state.plotting_status = PlottingStatus::Plotting {
+                file_path: status_path,
+                progress: 0.0,
+                speed_mib_s: 0.0,
+            };
+        }
+    }
+
+    // Register callback for progress events
+    TauriPlotterCallback::register(app_handle.clone());
+
+    // Mark as running
+    plotter_runtime.is_running.store(true, Ordering::SeqCst);
+
+    log::info!("Starting plotter: {} outputs, {} GiB", outputs.len(), total_warps);
+
+    // Clone values for the background task
+    let mining_state_clone = mining_state.clone();
+    let plotter_runtime_clone = plotter_runtime.clone();
+    let app_handle_clone = app_handle.clone();
+    let paths_clone = paths.clone();
+    let items_clone = items.clone();
+
+    // Spawn the plotter task in the background
+    tokio::spawn(async move {
+        let result = tokio::task::spawn_blocking(move || {
+            let start = std::time::Instant::now();
+            let plotter_result = pocx_plotter::run_plotter_safe(task);
+            let duration = start.elapsed();
+            (plotter_result, duration, paths_clone)
+        })
+        .await;
+
+        // Update state when done
+        if let Ok(mut state) = mining_state_clone.lock() {
+            state.plotting_status = PlottingStatus::Idle;
+        }
+        plotter_runtime_clone.is_running.store(false, Ordering::SeqCst);
+
+        // Process the result and emit events for each item
+        match result {
+            Ok((Ok(()), duration, _paths)) => {
+                log::info!("Plotter finished: {} GiB in {:?}", total_warps, duration);
+
+                // Emit completion event for each item in the batch
+                for item in &items_clone {
+                    match item {
+                        PlotPlanItem::Plot { path, warps, batch_id: _ } => {
+                            let _ = app_handle_clone.emit(
+                                "plotter:item-complete",
+                                serde_json::json!({
+                                    "type": "plot",
+                                    "path": path,
+                                    "success": true,
+                                    "warpsPlotted": warps,
+                                    "durationMs": duration.as_millis() as u64,
+                                    "batchSize": items_clone.len(),
+                                }),
+                            );
+                        }
+                        PlotPlanItem::Resume { path, file_index: _, size_gib } => {
+                            let _ = app_handle_clone.emit(
+                                "plotter:item-complete",
+                                serde_json::json!({
+                                    "type": "resume",
+                                    "path": path,
+                                    "success": true,
+                                    "warpsPlotted": size_gib,
+                                    "durationMs": duration.as_millis() as u64,
+                                    "batchSize": items_clone.len(),
+                                }),
+                            );
+                        }
+                        PlotPlanItem::AddToMiner { .. } => {
+                            // Skip - not part of batch execution
+                        }
+                    }
+                }
+            }
+            Ok((Err(e), duration, _paths)) => {
+                log::error!("Batch plot failed: {}", e);
+                // Emit failure for all items
+                for item in &items_clone {
+                    let (item_type, path) = match item {
+                        PlotPlanItem::Plot { path, .. } => ("plot", path.clone()),
+                        PlotPlanItem::Resume { path, .. } => ("resume", path.clone()),
+                        PlotPlanItem::AddToMiner { path } => ("add_to_miner", path.clone()),
+                    };
+                    let _ = app_handle_clone.emit(
+                        "plotter:item-complete",
+                        serde_json::json!({
+                            "type": item_type,
+                            "path": path,
+                            "success": false,
+                            "warpsPlotted": 0,
+                            "durationMs": duration.as_millis() as u64,
+                            "error": e.to_string(),
+                        }),
+                    );
+                }
+            }
+            Err(e) => {
+                log::error!("Batch plotter task panicked: {}", e);
+                for item in &items_clone {
+                    let (item_type, path) = match item {
+                        PlotPlanItem::Plot { path, .. } => ("plot", path.clone()),
+                        PlotPlanItem::Resume { path, .. } => ("resume", path.clone()),
+                        PlotPlanItem::AddToMiner { path } => ("add_to_miner", path.clone()),
+                    };
+                    let _ = app_handle_clone.emit(
+                        "plotter:item-complete",
+                        serde_json::json!({
+                            "type": item_type,
+                            "path": path,
+                            "success": false,
+                            "warpsPlotted": 0,
+                            "durationMs": 0,
+                            "error": format!("Task panicked: {}", e),
+                        }),
+                    );
+                }
+            }
+        }
+    });
+
+    Ok(PlotExecutionResult {
+        success: true,
+        warps_plotted: 0, // Actual value comes via events
+        duration_ms: 0,
+        error: None,
+    })
 }
 
 /// Execute a single plot plan item
@@ -356,11 +571,20 @@ async fn execute_plot_internal<R: Runtime>(
     })
 }
 
-/// Build a PlotterTask from configuration
+/// Build a PlotterTask from configuration (single output)
 fn build_plotter_task(
     address: &str,
     output_path: &str,
     warps: u64,
+    config: &MiningConfig,
+) -> Result<pocx_plotter::PlotterTask, String> {
+    build_plotter_task_batch(address, &[BatchPlotOutput { path: output_path.to_string(), warps }], config)
+}
+
+/// Build a PlotterTask from configuration with multiple outputs (batch mode)
+fn build_plotter_task_batch(
+    address: &str,
+    outputs: &[BatchPlotOutput],
     config: &MiningConfig,
 ) -> Result<pocx_plotter::PlotterTask, String> {
     // Collect enabled GPU devices
@@ -388,11 +612,17 @@ fn build_plotter_task(
         .map(|d| d.threads as u8)
         .unwrap_or(0);
 
+    // Calculate total warps for logging
+    let total_warps: u64 = outputs.iter().map(|o| o.warps).sum();
+
     // Log all plotter parameters
-    log::info!("=== Building Plotter Task ===");
+    log::info!("=== Building Plotter Task (Batch) ===");
     log::info!("  Address: {}", address);
-    log::info!("  Output path: {}", output_path);
-    log::info!("  Warps (GiB): {}", warps);
+    log::info!("  Outputs: {} paths", outputs.len());
+    for (i, output) in outputs.iter().enumerate() {
+        log::info!("    [{}] {} - {} GiB", i, output.path, output.warps);
+    }
+    log::info!("  Total warps (GiB): {}", total_warps);
     log::info!("  CPU threads: {}", cpu_threads);
     log::info!("  GPU devices: {:?}", gpu_ids);
     log::info!("  Compression level: {}", config.compression_level);
@@ -400,20 +630,24 @@ fn build_plotter_task(
     log::info!("  Direct I/O: {}", config.direct_io);
     log::info!("  Zero-copy buffers: {}", config.zero_copy_buffers);
     log::info!("  Low priority: {}", config.low_priority);
-    log::info!("  Memory limit: {} GiB (0=auto)", config.memory_limit_gib);
-    log::info!("=============================");
+    log::info!("  Simulation mode: {}", config.simulation_mode);
+    log::info!("=====================================");
 
     // Build the task
     let mut builder = pocx_plotter::PlotterTaskBuilder::new()
         .address(address)
         .map_err(|e| format!("Invalid address: {}", e))?
-        .add_output(output_path.to_string(), warps, 1)
         .cpu_threads(cpu_threads)
         .compression(config.compression_level)
         .escalate(config.escalation)
         .direct_io(config.direct_io)
         .quiet(false) // Allow plotter to log
         .line_progress(false); // Use callbacks instead
+
+    // Add all outputs
+    for output in outputs {
+        builder = builder.add_output(output.path.clone(), output.warps, 1);
+    }
 
     // Add GPUs if any
     if !gpu_ids.is_empty() {
@@ -433,9 +667,15 @@ fn build_plotter_task(
         builder = builder.memory(format!("{}G", config.memory_limit_gib));
     }
 
+    // Enable benchmark mode if simulation mode is active (no disk writes)
+    if config.simulation_mode {
+        log::info!("Simulation mode enabled: running in benchmark mode (no disk writes)");
+        builder = builder.benchmark(true);
+    }
+
     let task = builder.build().map_err(|e| format!("Failed to build task: {}", e))?;
 
-    log::info!("Plotter task built successfully");
+    log::info!("Plotter task built successfully with {} outputs", outputs.len());
     Ok(task)
 }
 

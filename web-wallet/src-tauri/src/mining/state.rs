@@ -101,6 +101,7 @@ pub enum PlotPlanStatus {
     #[default]
     Pending,
     Running,
+    Stopping,  // Soft stop requested, finishing current batch
     Paused,
     Completed,
     Invalid,
@@ -196,6 +197,8 @@ pub struct MiningConfig {
     pub hdd_wakeup_seconds: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plot_plan: Option<PlotPlan>, // Current plot execution plan
+    #[serde(default)]
+    pub simulation_mode: bool, // Dev only: run plotter in benchmark mode (no disk writes)
 }
 
 fn default_escalation() -> u64 {
@@ -227,6 +230,7 @@ impl Default for MiningConfig {
             parallel_drives: 1,
             hdd_wakeup_seconds: 30,
             plot_plan: None,
+            simulation_mode: false,
         }
     }
 }
@@ -304,8 +308,8 @@ pub fn load_config_from_file() -> Option<MiningConfig> {
     }
 }
 
-/// Save mining config to file
-pub fn save_config_to_file(config: &MiningConfig) -> Result<(), String> {
+/// Save mining config to file with reason for logging
+pub fn save_config(config: &MiningConfig, reason: &str) -> Result<(), String> {
     let path = get_config_file_path().ok_or("Could not determine config directory")?;
 
     // Ensure parent directory exists
@@ -318,8 +322,13 @@ pub fn save_config_to_file(config: &MiningConfig) -> Result<(), String> {
 
     fs::write(&path, content).map_err(|e| format!("Failed to write config file: {}", e))?;
 
-    log::info!("Saved mining config to {:?}", path);
+    log::info!("[CONFIG] {}", reason);
     Ok(())
+}
+
+/// Save mining config to file (legacy wrapper)
+pub fn save_config_to_file(config: &MiningConfig) -> Result<(), String> {
+    save_config(config, "config updated")
 }
 
 /// Create a new shared mining state, loading existing config if available
