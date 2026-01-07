@@ -35,6 +35,7 @@ pub enum PlottingStatus {
         progress: f64,
         speed_mib_s: f64,
     },
+    Stopping,
     Paused,
     Error(String),
 }

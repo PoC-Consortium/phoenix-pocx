@@ -121,6 +121,7 @@ export type MiningStatus =
 export type PlottingStatus =
   | { type: 'idle' }
   | { type: 'plotting'; filePath: string; progress: number; speedMibS: number }
+  | { type: 'stopping' }
   | { type: 'paused' }
   | { type: 'error'; message: string };
 

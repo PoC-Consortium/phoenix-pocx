@@ -1053,7 +1053,8 @@ pub async fn hard_stop_plot_plan(
 
     match state.lock() {
         Ok(mut state_guard) => {
-            state_guard.plotting_status = PlottingStatus::Idle;
+            // Set to Stopping - plotter completion handler will set to Idle when done
+            state_guard.plotting_status = PlottingStatus::Stopping;
             if let Some(ref mut plan) = state_guard.config.plot_plan {
                 plan.status = PlotPlanStatus::Invalid;
                 if let Err(e) = save_config(&state_guard.config, "plot plan invalidated (hard stop)") {

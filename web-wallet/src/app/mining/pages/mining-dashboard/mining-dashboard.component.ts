@@ -1785,7 +1785,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   isStopping(): boolean {
     const plan = this.plotPlan();
-    return plan?.status === 'stopping';
+    const status = this.plottingStatus();
+    // Check both plan status (soft stop) and plottingStatus (hard stop)
+    return plan?.status === 'stopping' || status?.type === 'stopping';
   }
 
   canResumePlan(): boolean {
@@ -1826,7 +1828,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     for (const drive of this.drives()) {
       if (!this.isDriveReady(drive) && !this.isDrivePlotting(drive)) {
         const info = this.driveInfos().get(drive.path);
-        const plotted = info ? info.completeSizeGib + info.incompleteSizeGib : 0;
+        const plotted = info ? info.completeSizeGib : 0; // Only complete files, .tmp needs resume
         totalGib += drive.allocatedGib - plotted;
       }
     }
@@ -1879,7 +1881,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     for (const drive of this.drives()) {
       if (!this.isDriveReady(drive)) {
         const info = this.driveInfos().get(drive.path);
-        const plotted = info ? info.completeSizeGib + info.incompleteSizeGib : 0;
+        const plotted = info ? info.completeSizeGib : 0; // Only complete files, .tmp needs resume
         const remaining = drive.allocatedGib - plotted;
         totalGib += Math.max(0, remaining);
       }
@@ -1948,7 +1950,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
           // Hard stop - abort immediately
           await this.miningService.hardStopPlotPlan();
           this.addActivityLog('warning', 'Hard stop - plotting aborted');
-          this.plottingStatus.set({ type: 'idle' });
+          // Status will be 'stopping' until plotter finishes current buffer
           await this.loadState();
           // Auto-regenerate plan (invalid → pending with resume task for .tmp file)
           if (this.miningService.needsPlanRegeneration()) {

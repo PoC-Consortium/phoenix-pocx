@@ -808,6 +808,22 @@ export class MiningService {
    * Handle item complete event - advance plan index, batch tracking, and trigger next batch
    */
   private async handleItemComplete(event: PlotterItemCompleteEvent): Promise<void> {
+    // Skip processing if this was a hard stop (user requested stop)
+    // The plan was already invalidated and possibly regenerated, don't advance it
+    if (!event.success && event.error === 'Stopped by user') {
+      console.log('MiningService: Skipping item-complete - hard stop by user');
+      // Still need to refresh state so UI sees plottingStatus change from 'stopping' to 'idle'
+      await this.refreshState();
+      return;
+    }
+
+    // Also skip if plan is invalid
+    const plan = this.plotPlan();
+    if (!plan || plan.status === 'invalid') {
+      console.log('MiningService: Skipping item-complete - plan is invalid or missing');
+      return;
+    }
+
     // Log activity
     if (this._onActivityLog) {
       if (event.success) {
@@ -1264,11 +1280,11 @@ export class MiningService {
   }
 
   /**
-   * Check if plan needs regeneration (invalid or missing)
+   * Check if plan needs regeneration (missing, invalid, or completed)
    */
   needsPlanRegeneration(): boolean {
     const plan = this.plotPlan();
-    return !plan || plan.status === 'invalid' || !this.isPlanValid();
+    return !plan || plan.status === 'invalid' || plan.status === 'completed' || !this.isPlanValid();
   }
 
   /**
