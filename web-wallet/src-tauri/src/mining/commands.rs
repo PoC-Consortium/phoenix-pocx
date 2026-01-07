@@ -1043,15 +1043,22 @@ pub async fn soft_stop_plot_plan(
 #[tauri::command]
 pub async fn hard_stop_plot_plan(
     state: State<'_, SharedMiningState>,
+    plotter_runtime: State<'_, SharedPlotterRuntime>,
 ) -> Result<CommandResult<()>, ()> {
+    log::info!("Hard stop plot plan requested");
+
+    // Signal plotter to stop immediately
+    pocx_plotter::request_stop();
+    plotter_runtime.abort_task().await;
+
     match state.lock() {
         Ok(mut state_guard) => {
+            state_guard.plotting_status = PlottingStatus::Idle;
             if let Some(ref mut plan) = state_guard.config.plot_plan {
                 plan.status = PlotPlanStatus::Invalid;
                 if let Err(e) = save_config(&state_guard.config, "plot plan invalidated (hard stop)") {
                     return Ok(CommandResult::err(format!("Failed to persist config: {}", e)));
                 }
-                state_guard.plotting_status = PlottingStatus::Idle;
                 Ok(CommandResult::ok(()))
             } else {
                 Ok(CommandResult::err("No plot plan exists"))
@@ -1280,28 +1287,3 @@ pub async fn request_soft_stop(
     Ok(CommandResult::ok(()))
 }
 
-/// Request hard stop (abort current task immediately)
-#[tauri::command]
-pub async fn request_hard_stop(
-    state: State<'_, SharedMiningState>,
-    plotter_runtime: State<'_, SharedPlotterRuntime>,
-) -> Result<CommandResult<()>, ()> {
-    log::info!("Hard stop requested");
-    pocx_plotter::request_stop();
-    plotter_runtime.abort_task().await;
-
-    match state.lock() {
-        Ok(mut state_guard) => {
-            state_guard.plotting_status = PlottingStatus::Idle;
-            if let Some(ref mut plan) = state_guard.config.plot_plan {
-                plan.status = PlotPlanStatus::Invalid;
-                if let Err(e) = save_config(&state_guard.config, "plot plan hard stop requested") {
-                    log::error!("Failed to persist config: {}", e);
-                }
-            }
-        }
-        Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
-    }
-
-    Ok(CommandResult::ok(()))
-}

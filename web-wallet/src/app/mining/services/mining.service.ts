@@ -1366,23 +1366,6 @@ export class MiningService {
     }
   }
 
-  /**
-   * Request hard stop - abort current task immediately
-   */
-  async requestHardStop(): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<void>>('request_hard_stop');
-      if (result.success) {
-        await this.refreshState();
-        return true;
-      }
-      this._error.set(result.error ?? 'Failed to request hard stop');
-      return false;
-    } catch (err) {
-      this._error.set(`Failed to request hard stop: ${err}`);
-      return false;
-    }
-  }
 
   // ============================================================================
   // Platform Methods

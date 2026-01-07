@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
@@ -45,7 +46,7 @@ interface ChainModalData {
 @Component({
   selector: 'app-setup-wizard',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatDialogModule, MatIconModule, MatButtonModule, CdkDropList, CdkDrag],
+  imports: [CommonModule, FormsModule, MatDialogModule, MatIconModule, MatButtonModule, MatSnackBarModule, CdkDropList, CdkDrag],
   template: `
     <div class="header">
       <div class="header-left">
@@ -2292,6 +2293,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly miningRpc = inject(MiningRpcService);
@@ -3203,6 +3205,21 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           continue;
         }
 
+        // Check for same-drive conflict (Windows: compare drive letters)
+        const newDriveLetter = this.getDriveLetter(path);
+        const conflictingConfig = this.driveConfigs().find(
+          c => this.getDriveLetter(c.path) === newDriveLetter
+        );
+
+        if (conflictingConfig) {
+          this.snackBar.open(
+            `Cannot add folder: Drive ${newDriveLetter} already has a plot folder configured (${conflictingConfig.path}). Multiple folders on the same drive would severely impact performance.`,
+            'Dismiss',
+            { duration: 6000 }
+          );
+          continue;
+        }
+
         // Get drive info from service (auto-caches)
         try {
           const driveInfo = await this.miningService.getDriveInfo(path);
@@ -3226,6 +3243,17 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     } catch (err) {
       console.error('Failed to open folder dialog:', err);
     }
+  }
+
+  private getDriveLetter(path: string): string {
+    // Windows: extract drive letter (e.g., "C:" from "C:\Plots")
+    // Unix: use root or first path segment
+    const match = path.match(/^([A-Za-z]:)/);
+    if (match) {
+      return match[1].toUpperCase();
+    }
+    // For Unix-like paths, use root
+    return path.startsWith('/') ? '/' : path.split(/[/\\]/)[0];
   }
 
   async refreshDrive(drive: DriveInfo): Promise<void> {

@@ -1930,7 +1930,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         width: '420px',
         data: {
           title: 'Stop Plotting?',
-          message: 'Soft Stop: Finish current file, then pause (can resume later)\n\nHard Stop: Stop immediately (progress saved as .tmp)',
+          message: 'Soft Stop: Finish current job, then pause (efficient resume)\n\nHard Stop: Stop immediately (file-by-file resume, less efficient for batches)',
           confirmText: 'Soft Stop',
           secondaryText: 'Hard Stop',
           cancelText: 'Cancel',
@@ -1950,6 +1950,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
           this.addActivityLog('warning', 'Hard stop - plotting aborted');
           this.plottingStatus.set({ type: 'idle' });
           await this.loadState();
+          // Auto-regenerate plan (invalid → pending with resume task for .tmp file)
+          if (this.miningService.needsPlanRegeneration()) {
+            await this.miningService.regeneratePlotPlan();
+            await this.loadState();
+          }
         }
       });
     } else {

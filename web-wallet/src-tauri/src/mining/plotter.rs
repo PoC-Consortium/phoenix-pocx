@@ -10,8 +10,6 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Runtime};
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
 
 use super::callback::TauriPlotterCallback;
 use super::state::{MiningConfig, PlotPlanItem, PlottingStatus, SharedMiningState};
@@ -36,9 +34,7 @@ pub struct BatchPlotOutput {
 
 /// Runtime state for the plotter (non-serializable)
 pub struct PlotterRuntime {
-    /// Handle to the currently running plotter task
-    task_handle: Mutex<Option<JoinHandle<PlotExecutionResult>>>,
-    /// Flag to request stop after current item
+    /// Flag to request stop after current item (soft stop)
     stop_requested: AtomicBool,
     /// Flag indicating if plotting is active
     is_running: AtomicBool,
@@ -47,7 +43,6 @@ pub struct PlotterRuntime {
 impl PlotterRuntime {
     pub fn new() -> Self {
         Self {
-            task_handle: Mutex::new(None),
             stop_requested: AtomicBool::new(false),
             is_running: AtomicBool::new(false),
         }
@@ -75,10 +70,8 @@ impl PlotterRuntime {
 
     /// Abort the currently running task (hard stop)
     pub async fn abort_task(&self) {
-        let mut handle = self.task_handle.lock().await;
-        if let Some(h) = handle.take() {
-            h.abort();
-        }
+        // Signal plotter to stop via global flag - it checks this in its loops
+        pocx_plotter::request_stop();
         self.is_running.store(false, Ordering::SeqCst);
     }
 }
@@ -215,39 +208,65 @@ pub async fn execute_plot_batch<R: Runtime>(
         // Process the result and emit events for each item
         match result {
             Ok((Ok(()), duration, _paths)) => {
-                log::info!("Plotter finished: {} GiB in {:?}", total_warps, duration);
+                // Check if plotter was stopped vs completed normally
+                let was_stopped = pocx_plotter::is_stop_requested();
 
-                // Emit completion event for each item in the batch
-                for item in &items_clone {
-                    match item {
-                        PlotPlanItem::Plot { path, warps, batch_id: _ } => {
-                            let _ = app_handle_clone.emit(
-                                "plotter:item-complete",
-                                serde_json::json!({
-                                    "type": "plot",
-                                    "path": path,
-                                    "success": true,
-                                    "warpsPlotted": warps,
-                                    "durationMs": duration.as_millis() as u64,
-                                    "batchSize": items_clone.len(),
-                                }),
-                            );
-                        }
-                        PlotPlanItem::Resume { path, file_index: _, size_gib } => {
-                            let _ = app_handle_clone.emit(
-                                "plotter:item-complete",
-                                serde_json::json!({
-                                    "type": "resume",
-                                    "path": path,
-                                    "success": true,
-                                    "warpsPlotted": size_gib,
-                                    "durationMs": duration.as_millis() as u64,
-                                    "batchSize": items_clone.len(),
-                                }),
-                            );
-                        }
-                        PlotPlanItem::AddToMiner { .. } => {
-                            // Skip - not part of batch execution
+                if was_stopped {
+                    log::info!("Batch plot stopped by user request");
+                    // Emit stopped event for all items
+                    for item in &items_clone {
+                        let (item_type, path) = match item {
+                            PlotPlanItem::Plot { path, .. } => ("plot", path.clone()),
+                            PlotPlanItem::Resume { path, .. } => ("resume", path.clone()),
+                            PlotPlanItem::AddToMiner { path } => ("add_to_miner", path.clone()),
+                        };
+                        let _ = app_handle_clone.emit(
+                            "plotter:item-complete",
+                            serde_json::json!({
+                                "type": item_type,
+                                "path": path,
+                                "success": false,
+                                "warpsPlotted": 0,
+                                "durationMs": duration.as_millis() as u64,
+                                "error": "Stopped by user",
+                            }),
+                        );
+                    }
+                } else {
+                    log::info!("Plotter finished: {} GiB in {:?}", total_warps, duration);
+
+                    // Emit completion event for each item in the batch
+                    for item in &items_clone {
+                        match item {
+                            PlotPlanItem::Plot { path, warps, batch_id: _ } => {
+                                let _ = app_handle_clone.emit(
+                                    "plotter:item-complete",
+                                    serde_json::json!({
+                                        "type": "plot",
+                                        "path": path,
+                                        "success": true,
+                                        "warpsPlotted": warps,
+                                        "durationMs": duration.as_millis() as u64,
+                                        "batchSize": items_clone.len(),
+                                    }),
+                                );
+                            }
+                            PlotPlanItem::Resume { path, file_index: _, size_gib } => {
+                                let _ = app_handle_clone.emit(
+                                    "plotter:item-complete",
+                                    serde_json::json!({
+                                        "type": "resume",
+                                        "path": path,
+                                        "success": true,
+                                        "warpsPlotted": size_gib,
+                                        "durationMs": duration.as_millis() as u64,
+                                        "batchSize": items_clone.len(),
+                                    }),
+                                );
+                            }
+                            PlotPlanItem::AddToMiner { .. } => {
+                                // Skip - not part of batch execution
+                            }
                         }
                     }
                 }
@@ -555,17 +574,34 @@ async fn execute_plot_internal<R: Runtime>(
         // Process the result and emit events
         match result {
             Ok((Ok(()), duration, path)) => {
-                log::info!("Plot completed successfully: {} warps", warps);
-                let _ = app_handle_clone.emit(
-                    "plotter:item-complete",
-                    serde_json::json!({
-                        "type": "plot",
-                        "path": path,
-                        "success": true,
-                        "warpsPlotted": warps,
-                        "durationMs": duration.as_millis() as u64,
-                    }),
-                );
+                // Check if plotter was stopped vs completed normally
+                let was_stopped = pocx_plotter::is_stop_requested();
+                if was_stopped {
+                    log::info!("Plot stopped by user request: {}", path);
+                    let _ = app_handle_clone.emit(
+                        "plotter:item-complete",
+                        serde_json::json!({
+                            "type": "plot",
+                            "path": path,
+                            "success": false,
+                            "warpsPlotted": 0,
+                            "durationMs": duration.as_millis() as u64,
+                            "error": "Stopped by user",
+                        }),
+                    );
+                } else {
+                    log::info!("Plot completed successfully: {} warps", warps);
+                    let _ = app_handle_clone.emit(
+                        "plotter:item-complete",
+                        serde_json::json!({
+                            "type": "plot",
+                            "path": path,
+                            "success": true,
+                            "warpsPlotted": warps,
+                            "durationMs": duration.as_millis() as u64,
+                        }),
+                    );
+                }
             }
             Ok((Err(e), duration, path)) => {
                 log::error!("Plot failed: {}", e);

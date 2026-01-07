@@ -566,7 +566,6 @@ pub fn run() {
             mining::commands::is_plotter_running,
             mining::commands::is_stop_requested,
             mining::commands::request_soft_stop,
-            mining::commands::request_hard_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
