@@ -352,13 +352,6 @@ pub fn update_mining_status(state: &SharedMiningState, status: MiningStatus) {
     }
 }
 
-/// Update plotting status
-pub fn update_plotting_status(state: &SharedMiningState, status: PlottingStatus) {
-    if let Ok(mut state) = state.lock() {
-        state.plotting_status = status;
-    }
-}
-
 /// Add a deadline entry
 pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) {
     if let Ok(mut state) = state.lock() {

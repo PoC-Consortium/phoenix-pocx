@@ -211,6 +211,10 @@ export class MiningService {
     try {
       const result = await invoke<CommandResult<DriveInfo>>('get_plot_drive_info', { path });
       if (result.success && result.data) {
+        // Auto-cache the result
+        const cache = new Map(this._driveInfoCache());
+        cache.set(path, result.data);
+        this._driveInfoCache.set(cache);
         return result.data;
       }
       return null;

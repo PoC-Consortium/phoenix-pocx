@@ -1327,6 +1327,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     // Load drive stats once on init (not during polling - interferes with mining)
     await this.loadDriveStats();
 
+    // Auto-generate/regenerate plan if needed (no plan, invalid, or config changed)
+    // This ensures user never sees stale "Invalid" status
+    if (this.miningService.needsPlanRegeneration()) {
+      await this.miningService.regeneratePlotPlan();
+    }
+
     // Set up activity log callback for service to report events
     this.miningService.setActivityLogCallback((type, message) => {
       this.addActivityLog(type, message);
@@ -1432,11 +1438,16 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Manual refresh of all drive stats (invalidates cache).
+   * Manual refresh of all drive stats and regenerate plan if needed.
    */
   async refreshDriveStats(): Promise<void> {
     this.miningService.invalidateDriveCache();
     await this.loadDriveStats();
+
+    // Regenerate plan if hash changed (e.g., files deleted externally)
+    if (this.miningService.needsPlanRegeneration()) {
+      await this.miningService.regeneratePlotPlan();
+    }
   }
 
   private formatSize(gib: number): string {
@@ -1617,13 +1628,13 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   /**
    * Check if a drive is fully plotted and ready for mining.
-   * A drive is ready when plotted size >= allocated size.
+   * A drive is ready when complete (.pocx) files >= allocated size.
+   * Incomplete (.tmp) files don't count - they're not usable for mining.
    */
   private isDriveReady(drive: DriveConfig): boolean {
     const info = this.driveInfos().get(drive.path);
     if (!info) return false;
-    const plotted = info.completeSizeGib + info.incompleteSizeGib;
-    return plotted >= drive.allocatedGib;
+    return info.completeSizeGib >= drive.allocatedGib;
   }
 
   isDrivePlotting(drive: DriveConfig): boolean {
@@ -1673,9 +1684,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   getDrivePlottedSize(drive: DriveConfig): string {
     const info = this.driveInfos().get(drive.path);
     if (!info) return '—';
-    const plotted = info.completeSizeGib + info.incompleteSizeGib;
-    if (plotted === 0) return '0 GiB';
-    return this.formatDriveSize(plotted);
+    // Only count complete (.pocx) files - incomplete (.tmp) don't count as plotted
+    if (info.completeSizeGib === 0) return '0 GiB';
+    return this.formatDriveSize(info.completeSizeGib);
   }
 
   filteredDeadlines(): DeadlineEntry[] {

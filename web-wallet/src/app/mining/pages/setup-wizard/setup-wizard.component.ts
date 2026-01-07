@@ -2321,8 +2321,16 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Device info
   readonly cpuInfo = signal<CpuInfo | null>(null);
   readonly gpus = signal<GpuInfo[]>([]);
-  readonly availableDrives = signal<DriveInfo[]>([]);
   readonly systemMemoryGib = signal(0); // Available system RAM
+
+  // Derive available drives from service cache based on driveConfigs
+  readonly availableDrives = computed(() => {
+    const configs = this.driveConfigs();
+    const cache = this.miningService.driveInfoCache();
+    return configs
+      .map(config => cache.get(config.path))
+      .filter((info): info is DriveInfo => info !== undefined);
+  });
 
   // Step 1: Chain + CPU Config
   readonly chainConfigs = signal<ChainConfig[]>([]);
@@ -2716,14 +2724,12 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         this.chainConfigs.set(config.chains || []);
         this.driveConfigs.set(config.drives || []);
 
-        // Load drive info for existing configured drives
+        // Load drive info for existing configured drives (auto-caches in service)
         if (config.drives?.length) {
-          const driveInfoPromises = config.drives.map(d =>
+          await Promise.all(config.drives.map(d =>
             this.miningService.getDriveInfo(d.path)
-          );
-          const driveInfos = await Promise.all(driveInfoPromises);
-          const validDrives = driveInfos.filter((d): d is DriveInfo => d !== null);
-          this.availableDrives.set(validDrives);
+          ));
+          // availableDrives computed signal auto-updates from cache
         }
 
         if (config.cpuConfig) {
@@ -3192,18 +3198,16 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       const paths = Array.isArray(selected) ? selected : [selected];
 
       for (const path of paths) {
-        // Skip if already exists
-        if (this.availableDrives().some(d => d.path === path)) {
+        // Skip if already in driveConfigs
+        if (this.driveConfigs().some(c => c.path === path)) {
           continue;
         }
 
-        // Get drive info from service
+        // Get drive info from service (auto-caches)
         try {
           const driveInfo = await this.miningService.getDriveInfo(path);
           if (driveInfo) {
-            this.availableDrives.update(drives => [...drives, driveInfo]);
-
-            // Also create a DriveConfig with default allocation (max allocatable)
+            // Create DriveConfig with default allocation (max allocatable)
             const defaultAllocation = this.getMaxAllocatable(driveInfo);
             if (defaultAllocation > 0) {
               const config: DriveConfig = {
@@ -3212,6 +3216,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
                 allocatedGib: defaultAllocation,
               };
               this.driveConfigs.update(configs => [...configs, config]);
+              // availableDrives computed signal auto-updates from cache
             }
           }
         } catch (error) {
@@ -3225,19 +3230,16 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   async refreshDrive(drive: DriveInfo): Promise<void> {
     try {
-      const driveInfo = await this.miningService.getDriveInfo(drive.path);
-      if (driveInfo) {
-        this.availableDrives.update(drives =>
-          drives.map(d => d.path === drive.path ? driveInfo : d)
-        );
-      }
+      // getDriveInfo auto-caches, computed signal auto-updates
+      await this.miningService.getDriveInfo(drive.path);
     } catch (error) {
       console.error('Failed to refresh drive info:', error);
     }
   }
 
   removeDrive(drive: DriveInfo): void {
-    this.availableDrives.update(drives => drives.filter(d => d.path !== drive.path));
+    // Only update driveConfigs - cache keeps entry (harmless orphan)
+    // availableDrives computed signal auto-updates when driveConfigs changes
     this.driveConfigs.update(configs => configs.filter(c => c.path !== drive.path));
   }
 

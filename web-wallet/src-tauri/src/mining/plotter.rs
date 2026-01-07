@@ -159,6 +159,7 @@ pub async fn execute_plot_batch<R: Runtime>(
         &config.plotting_address,
         &outputs,
         config,
+        None, // Batch mode doesn't support resume
     )?;
 
     // Calculate total warps
@@ -386,6 +387,35 @@ pub async fn execute_plot_item<R: Runtime>(
     }
 }
 
+/// Parse seed from .tmp filename
+/// Filename format: {account}_{seed}_{warps}_X{compression}.tmp
+fn parse_seed_from_tmp_filename(filename: &str) -> Option<[u8; 32]> {
+    // Get just the filename without path
+    let name = std::path::Path::new(filename)
+        .file_name()
+        .and_then(|n| n.to_str())?;
+
+    // Split by underscore: [account, seed, warps, X{compression}.tmp]
+    let parts: Vec<&str> = name.split('_').collect();
+    if parts.len() < 2 {
+        log::warn!("Invalid .tmp filename format: {}", name);
+        return None;
+    }
+
+    let seed_hex = parts[1];
+
+    // Parse hex string to bytes
+    let seed_bytes = hex::decode(seed_hex).ok()?;
+    if seed_bytes.len() != 32 {
+        log::warn!("Invalid seed length in filename: {} bytes (expected 32)", seed_bytes.len());
+        return None;
+    }
+
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&seed_bytes);
+    Some(seed)
+}
+
 /// Execute a resume task (resume incomplete .tmp file)
 async fn execute_resume<R: Runtime>(
     app_handle: AppHandle<R>,
@@ -406,7 +436,14 @@ async fn execute_resume<R: Runtime>(
     let tmp_file = &tmp_files[0];
     log::info!("Resuming plot from: {}", tmp_file);
 
-    // Execute the plot with resume
+    // Parse seed from filename for resume
+    let seed = parse_seed_from_tmp_filename(tmp_file);
+    if seed.is_none() {
+        return Err(format!("Failed to parse seed from .tmp filename: {}", tmp_file));
+    }
+    log::info!("Extracted seed for resume: {:?}", seed);
+
+    // Execute the plot with resume seed
     execute_plot_internal(
         app_handle,
         drive_path,
@@ -414,7 +451,7 @@ async fn execute_resume<R: Runtime>(
         config,
         mining_state,
         plotter_runtime,
-        Some(tmp_file.clone()),
+        seed,
     )
     .await
 }
@@ -448,7 +485,7 @@ async fn execute_plot_internal<R: Runtime>(
     config: &MiningConfig,
     mining_state: SharedMiningState,
     plotter_runtime: SharedPlotterRuntime,
-    _resume_file: Option<String>,
+    resume_seed: Option<[u8; 32]>,
 ) -> Result<PlotExecutionResult, String> {
     // Validate address
     if config.plotting_address.is_empty() {
@@ -461,6 +498,7 @@ async fn execute_plot_internal<R: Runtime>(
         &drive_path,
         warps,
         config,
+        resume_seed,
     );
 
     let task = match builder_result {
@@ -577,8 +615,9 @@ fn build_plotter_task(
     output_path: &str,
     warps: u64,
     config: &MiningConfig,
+    resume_seed: Option<[u8; 32]>,
 ) -> Result<pocx_plotter::PlotterTask, String> {
-    build_plotter_task_batch(address, &[BatchPlotOutput { path: output_path.to_string(), warps }], config)
+    build_plotter_task_batch(address, &[BatchPlotOutput { path: output_path.to_string(), warps }], config, resume_seed)
 }
 
 /// Build a PlotterTask from configuration with multiple outputs (batch mode)
@@ -586,6 +625,7 @@ fn build_plotter_task_batch(
     address: &str,
     outputs: &[BatchPlotOutput],
     config: &MiningConfig,
+    resume_seed: Option<[u8; 32]>,
 ) -> Result<pocx_plotter::PlotterTask, String> {
     // Collect enabled GPU devices
     let gpu_ids: Vec<String> = config
@@ -631,6 +671,7 @@ fn build_plotter_task_batch(
     log::info!("  Zero-copy buffers: {}", config.zero_copy_buffers);
     log::info!("  Low priority: {}", config.low_priority);
     log::info!("  Simulation mode: {}", config.simulation_mode);
+    log::info!("  Resume seed: {:?}", resume_seed.map(|s| hex::encode(s)));
     log::info!("=====================================");
 
     // Build the task
@@ -643,6 +684,12 @@ fn build_plotter_task_batch(
         .direct_io(config.direct_io)
         .quiet(false) // Allow plotter to log
         .line_progress(false); // Use callbacks instead
+
+    // Add seed for resume (required to continue from .tmp file)
+    if let Some(seed) = resume_seed {
+        log::info!("Setting resume seed: {}", hex::encode(seed));
+        builder = builder.seed(seed);
+    }
 
     // Add all outputs
     for output in outputs {
