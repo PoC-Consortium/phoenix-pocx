@@ -901,6 +901,14 @@ export class MiningService {
       }));
 
       if (currentItem.type === 'resume') {
+        // Check stop request before starting resume (same as plot items)
+        const stopRequested = await this.isStopRequested();
+        if (stopRequested) {
+          console.log('MiningService: Stop requested, not starting resume');
+          this.cleanupPlotterEventListeners();
+          this.resetPlottingProgress();
+          return;
+        }
         // Execute resume item
         await this.executePlotItem(currentItem);
       } else if (currentItem.type === 'add_to_miner') {

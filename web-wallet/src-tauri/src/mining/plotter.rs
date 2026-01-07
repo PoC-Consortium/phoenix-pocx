@@ -200,8 +200,13 @@ pub async fn execute_plot_batch<R: Runtime>(
         .await;
 
         // Update state when done
-        if let Ok(mut state) = mining_state_clone.lock() {
-            state.plotting_status = PlottingStatus::Idle;
+        match mining_state_clone.lock() {
+            Ok(mut state) => {
+                state.plotting_status = PlottingStatus::Idle;
+            }
+            Err(e) => {
+                log::error!("Failed to lock mining state to update status: {} - UI may show stale state", e);
+            }
         }
         plotter_runtime_clone.is_running.store(false, Ordering::SeqCst);
 
@@ -465,6 +470,7 @@ async fn execute_resume<R: Runtime>(
     // Execute the plot with resume seed
     execute_plot_internal(
         app_handle,
+        "resume",
         drive_path,
         size_gib, // warps = GiB
         config,
@@ -486,6 +492,7 @@ async fn execute_plot<R: Runtime>(
 ) -> Result<PlotExecutionResult, String> {
     execute_plot_internal(
         app_handle,
+        "plot",
         drive_path,
         warps,
         config,
@@ -499,6 +506,7 @@ async fn execute_plot<R: Runtime>(
 /// Internal plot execution
 async fn execute_plot_internal<R: Runtime>(
     app_handle: AppHandle<R>,
+    item_type: &str, // "plot" or "resume"
     drive_path: String,
     warps: u64,
     config: &MiningConfig,
@@ -549,6 +557,7 @@ async fn execute_plot_internal<R: Runtime>(
     let plotter_runtime_clone = plotter_runtime.clone();
     let app_handle_clone = app_handle.clone();
     let drive_path_clone = drive_path.clone();
+    let item_type_owned = item_type.to_string();
 
     // Spawn the plotter task in the background - don't wait for it!
     // Completion is handled via events (plotter:complete, plotter:error)
@@ -566,8 +575,13 @@ async fn execute_plot_internal<R: Runtime>(
         .await;
 
         // Update state when done
-        if let Ok(mut state) = mining_state_clone.lock() {
-            state.plotting_status = PlottingStatus::Idle;
+        match mining_state_clone.lock() {
+            Ok(mut state) => {
+                state.plotting_status = PlottingStatus::Idle;
+            }
+            Err(e) => {
+                log::error!("Failed to lock mining state to update status: {} - UI may show stale state", e);
+            }
         }
         plotter_runtime_clone.is_running.store(false, Ordering::SeqCst);
 
@@ -581,7 +595,7 @@ async fn execute_plot_internal<R: Runtime>(
                     let _ = app_handle_clone.emit(
                         "plotter:item-complete",
                         serde_json::json!({
-                            "type": "plot",
+                            "type": item_type_owned,
                             "path": path,
                             "success": false,
                             "warpsPlotted": 0,
@@ -594,7 +608,7 @@ async fn execute_plot_internal<R: Runtime>(
                     let _ = app_handle_clone.emit(
                         "plotter:item-complete",
                         serde_json::json!({
-                            "type": "plot",
+                            "type": item_type_owned,
                             "path": path,
                             "success": true,
                             "warpsPlotted": warps,
@@ -608,7 +622,7 @@ async fn execute_plot_internal<R: Runtime>(
                 let _ = app_handle_clone.emit(
                     "plotter:item-complete",
                     serde_json::json!({
-                        "type": "plot",
+                        "type": item_type_owned,
                         "path": path,
                         "success": false,
                         "warpsPlotted": 0,
@@ -622,7 +636,7 @@ async fn execute_plot_internal<R: Runtime>(
                 let _ = app_handle_clone.emit(
                     "plotter:item-complete",
                     serde_json::json!({
-                        "type": "plot",
+                        "type": item_type_owned,
                         "path": drive_path,
                         "success": false,
                         "warpsPlotted": 0,

@@ -108,8 +108,3 @@ impl<R: Runtime> PlotterCallback for TauriPlotterCallback<R> {
         );
     }
 }
-
-// Ensure the callback is Send + Sync (required by PlotterCallback trait)
-// AppHandle<R> is already Send + Sync when R: Runtime
-unsafe impl<R: Runtime> Send for TauriPlotterCallback<R> {}
-unsafe impl<R: Runtime> Sync for TauriPlotterCallback<R> {}
