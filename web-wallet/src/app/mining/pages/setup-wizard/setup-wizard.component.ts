@@ -3206,18 +3206,21 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         }
 
         // Check for same-drive conflict (Windows: compare drive letters)
-        const newDriveLetter = this.getDriveLetter(path);
-        const conflictingConfig = this.driveConfigs().find(
-          c => this.getDriveLetter(c.path) === newDriveLetter
-        );
-
-        if (conflictingConfig) {
-          this.snackBar.open(
-            `Cannot add folder: Drive ${newDriveLetter} already has a plot folder configured (${conflictingConfig.path}). Multiple folders on the same drive would severely impact performance.`,
-            'Dismiss',
-            { duration: 6000 }
+        // Skip this check in dev mode to allow testing with multiple folders
+        if (!this.miningService.isDevMode()) {
+          const newDriveLetter = this.getDriveLetter(path);
+          const conflictingConfig = this.driveConfigs().find(
+            c => this.getDriveLetter(c.path) === newDriveLetter
           );
-          continue;
+
+          if (conflictingConfig) {
+            this.snackBar.open(
+              `Cannot add folder: Drive ${newDriveLetter} already has a plot folder configured (${conflictingConfig.path}). Multiple folders on the same drive would severely impact performance.`,
+              'Dismiss',
+              { duration: 6000 }
+            );
+            continue;
+          }
         }
 
         // Get drive info from service (auto-caches)

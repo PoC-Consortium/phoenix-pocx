@@ -158,18 +158,18 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                   </div>
                 </div>
 
-              } @else if (canResumePlan() || hasQueuedDrives()) {
-                <!-- Queued/Resume State: Button | Info -->
+              } @else if (canStartPlan() || hasQueuedDrives()) {
+                <!-- Ready State: Start Button | Info -->
                 <div class="plotter-idle">
                   <button
                     class="btn btn-icon btn-start"
                     (click)="togglePlotting()"
                     title="Start Plotting"
                   >
-                    <span class="btn-label">{{ canResumePlan() ? 'Resume' : 'Start' }}</span>
+                    <span class="btn-label">Start</span>
                     <span class="btn-icon-glyph">▶</span>
                   </button>
-                  <span class="queue-info">{{ canResumePlan() ? 'Paused - ' + getRemainingSize() + ' remaining' : 'Ready to plot ' + getQueuedSize() }}</span>
+                  <span class="queue-info">{{ canStartPlan() ? getRemainingSize() + ' in plan' : 'Ready to plot ' + getQueuedSize() }}</span>
                 </div>
 
               } @else {
@@ -297,7 +297,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
               <div class="section-header">
                 <span class="section-title">Drives</span>
                 <div class="header-buttons">
-                  @if (hasPendingTasks()) {
+                  @if (hasActivePlan()) {
                     <button class="icon-btn" (click)="openPlanViewer()" title="Plot Plan">
                       <mat-icon>assignment</mat-icon>
                     </button>
@@ -1062,6 +1062,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
     .status-dot.active { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
     .status-dot.plotting { background: #ff9800; box-shadow: 0 0 4px #ff9800; }
+    .status-dot.stopping { background: #ff5722; box-shadow: 0 0 4px #ff5722; }
     .status-dot.queued { background: #9e9e9e; }
     .status-dot.scanning { background: #42a5f5; box-shadow: 0 0 4px #42a5f5; }
     .status-dot.ready { background: #4caf50; }
@@ -1327,11 +1328,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     // Load drive stats once on init (not during polling - interferes with mining)
     await this.loadDriveStats();
 
-    // Auto-generate/regenerate plan if needed (no plan, invalid, or config changed)
-    // This ensures user never sees stale "Invalid" status
-    if (this.miningService.needsPlanRegeneration()) {
-      await this.miningService.regeneratePlotPlan();
-    }
+    // Initialize plotting (first start flow - generates plan if needed)
+    await this.miningService.initializePlotting();
 
     // Set up activity log callback for service to report events
     this.miningService.setActivityLogCallback((type, message) => {
@@ -1339,7 +1337,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     });
 
     // Ensure service is listening to plotter events (idempotent)
-    if (this.miningService.isPlottingActive()) {
+    if (this.miningService.plotterRunning()) {
       await this.miningService.setupPlotterEventListeners();
     }
 
@@ -1443,11 +1441,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   async refreshDriveStats(): Promise<void> {
     this.miningService.invalidateDriveCache();
     await this.loadDriveStats();
-
-    // Regenerate plan if hash changed (e.g., files deleted externally)
-    if (this.miningService.needsPlanRegeneration()) {
-      await this.miningService.regeneratePlotPlan();
-    }
+    await this.miningService.refreshPlotterState();
   }
 
   private formatSize(gib: number): string {
@@ -1603,13 +1597,16 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   /**
    * Get drive status class for styling.
-   * Simplified 3-status model:
    * - ready: Drive is fully plotted, ready for mining
    * - plotting: Drive is currently being plotted
+   * - stopping: Drive is finishing before stop
    * - queued: Drive needs more plotting before mining
    */
   getDriveStatusClass(drive: DriveConfig): string {
-    if (this.isDrivePlotting(drive)) return 'plotting';
+    if (this.isDrivePlotting(drive)) {
+      if (this.miningService.plotterUIState() === 'stopping') return 'stopping';
+      return 'plotting';
+    }
     if (this.isDriveReady(drive)) return 'ready';
     return 'queued';
   }
@@ -1618,10 +1615,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
    * Get human-readable drive status.
    * Ready = will be in mining
    * Plotting = currently being plotted
+   * Stopping = finishing current task before stopping
    * Queued = not yet mining, needs more plotting
    */
   getDriveStatus(drive: DriveConfig): string {
-    if (this.isDrivePlotting(drive)) return 'Plotting';
+    if (this.isDrivePlotting(drive)) {
+      // Show "Stopping" if we're in stopping state
+      if (this.miningService.plotterUIState() === 'stopping') return 'Stopping';
+      return 'Plotting';
+    }
     if (this.isDriveReady(drive)) return 'Ready';
     return 'Queued';
   }
@@ -1638,14 +1640,16 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   isDrivePlotting(drive: DriveConfig): boolean {
-    const status = this.plottingStatus();
-    if (status?.type !== 'plotting') return false;
+    // Use new simplified state - drive is "plotting" in both plotting and stopping states
+    const uiState = this.miningService.plotterUIState();
+    if (uiState !== 'plotting' && uiState !== 'stopping') return false;
 
     const plan = this.plotPlan();
-    if (!plan || plan.currentIndex >= plan.items.length) return false;
+    const currentIndex = this.miningService.currentPlanIndex();
+    if (!plan || currentIndex >= plan.items.length) return false;
 
     // Get current item
-    const currentItem = plan.items[plan.currentIndex];
+    const currentItem = plan.items[currentIndex];
 
     // For non-plot items, check path directly
     if (currentItem.type !== 'plot') {
@@ -1654,7 +1658,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
     // For plot items, check all items in the same batch
     const batchId = currentItem.batchId;
-    for (let i = plan.currentIndex; i < plan.items.length; i++) {
+    for (let i = currentIndex; i < plan.items.length; i++) {
       const item = plan.items[i];
       if (item.type === 'plot' && item.batchId === batchId) {
         if (item.path === drive.path || drive.path.startsWith(item.path)) {
@@ -1779,27 +1783,30 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   // Plotter methods
   isPlotting(): boolean {
-    const status = this.plottingStatus();
-    return status?.type === 'plotting';
+    // Use new simplified state from PlotterRuntime instead of MiningState.plottingStatus
+    // This is consistent with isStopping() which also uses plotterUIState()
+    return this.miningService.plotterUIState() === 'plotting';
   }
 
   isStopping(): boolean {
-    const plan = this.plotPlan();
-    const status = this.plottingStatus();
-    // Check both plan status (soft stop) and plottingStatus (hard stop)
-    return plan?.status === 'stopping' || status?.type === 'stopping';
+    // Use new simplified state
+    return this.miningService.plotterUIState() === 'stopping';
   }
 
-  canResumePlan(): boolean {
-    const plan = this.plotPlan();
-    return plan?.status === 'paused' && plan.currentIndex < plan.items.length;
+  /**
+   * Check if user can start plotting.
+   * Returns true if plan exists and plotter is not running (ready state).
+   */
+  canStartPlan(): boolean {
+    return this.miningService.plotterUIState() === 'ready';
   }
 
   getRemainingSize(): string {
     const plan = this.plotPlan();
+    const currentIndex = this.miningService.currentPlanIndex();
     if (!plan) return '0 GiB';
     let remaining = 0;
-    for (let i = plan.currentIndex; i < plan.items.length; i++) {
+    for (let i = currentIndex; i < plan.items.length; i++) {
       const item = plan.items[i];
       if (item.type === 'plot') {
         remaining += item.warps;
@@ -1926,13 +1933,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   async togglePlotting(): Promise<void> {
-    if (this.isPlotting() || this.miningService.isPlanRunning()) {
+    const uiState = this.miningService.plotterUIState();
+
+    if (uiState === 'plotting' || uiState === 'stopping') {
       // Show confirmation dialog before stopping
       const dialogRef = this.dialog.open(ConfirmDialogComponent, {
         width: '420px',
         data: {
           title: 'Stop Plotting?',
-          message: 'Soft Stop: Finish current job, then pause (efficient resume)\n\nHard Stop: Stop immediately (file-by-file resume, less efficient for batches)',
+          message: 'Soft Stop: Finish current batch, then pause (efficient resume)\n\nHard Stop: Stop immediately (file-by-file resume, less efficient for batches)',
           confirmText: 'Soft Stop',
           secondaryText: 'Hard Stop',
           cancelText: 'Cancel',
@@ -1942,21 +1951,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
       dialogRef.afterClosed().subscribe(async (result: boolean | string) => {
         if (result === true) {
-          // Soft stop - finish current task, will pause after completion
+          // Soft stop - finish current batch, keep plan
           await this.miningService.softStopPlotPlan();
-          this.addActivityLog('info', 'Soft stop requested - will pause after current file completes');
-          await this.loadState();
+          this.addActivityLog('info', 'Soft stop requested - will pause after current batch completes');
+          await this.miningService.refreshPlotterState();
         } else if (result === 'secondary') {
-          // Hard stop - abort immediately
+          // Hard stop - finish current item, clear plan, regenerate
           await this.miningService.hardStopPlotPlan();
           this.addActivityLog('warning', 'Hard stop - plotting aborted');
-          // Status will be 'stopping' until plotter finishes current buffer
-          await this.loadState();
-          // Auto-regenerate plan (invalid → pending with resume task for .tmp file)
-          if (this.miningService.needsPlanRegeneration()) {
-            await this.miningService.regeneratePlotPlan();
-            await this.loadState();
-          }
+          await this.miningService.refreshPlotterState();
         }
       });
     } else {
@@ -2042,30 +2045,25 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Check if we need to generate/regenerate plan
-    if (this.miningService.needsPlanRegeneration()) {
-      const plan = await this.miningService.regeneratePlotPlan();
+    // Ensure we have a plan (generate if needed)
+    let plan = this.plotPlan();
+    if (!plan) {
+      plan = await this.miningService.generatePlotPlan();
       if (!plan) {
         // No work to do or error
-        console.log('No plot plan generated - nothing to plot');
         return;
       }
     }
 
-    // Check if plan is paused (can resume) or pending (start fresh)
-    const plan = this.plotPlan();
-    if (!plan || plan.items.length === 0) {
-      console.log('No items in plot plan');
+    // Check if plan has items
+    if (plan.items.length === 0) {
       return;
     }
 
-    // Start the plan execution (sets status to running)
+    // Start the plan execution
     const firstItem = await this.miningService.startPlotPlan();
     if (firstItem) {
-      console.log('Starting plot plan execution');
-
-      // Reload state to get updated plan status
-      await this.loadState();
+      await this.miningService.refreshPlotterState();
 
       // Execute the first batch - this will trigger events that drive the rest
       // The plotter:item-complete event handler in service will call executeNextBatch()
@@ -2075,10 +2073,17 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   // Plot plan methods
   hasPendingTasks(): boolean {
-    const plan = this.plotPlan();
-    if (!plan) return false;
-    // Check if there are any incomplete tasks
-    return plan.items.length > 0 && plan.currentIndex < plan.items.length;
+    // Use new simplified state
+    return this.miningService.plotterUIState() === 'ready';
+  }
+
+  /**
+   * Check if there's an active plan (ready, plotting, or stopping)
+   * Used to show the plan viewer button
+   */
+  hasActivePlan(): boolean {
+    const state = this.miningService.plotterUIState();
+    return state === 'ready' || state === 'plotting' || state === 'stopping';
   }
 
   openPlanViewer(): void {

@@ -14,21 +14,11 @@ pub struct DriveInfo {
     pub label: String,
     pub total_gib: f64,
     pub free_gib: f64,
-    pub drive_type: DriveType,
     pub is_system_drive: bool,
     pub complete_files: u32,       // .pocx files (ready for mining)
     pub complete_size_gib: f64,    // Size of complete files
     pub incomplete_files: u32,     // .tmp files (can resume)
     pub incomplete_size_gib: f64,  // Size of incomplete files
-}
-
-/// Drive type classification
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum DriveType {
-    Ssd,
-    Hdd,
-    Unknown,
 }
 
 /// Plot file scan results
@@ -92,14 +82,6 @@ fn is_system_drive_path(mount_point: &str) -> bool {
 #[cfg(not(target_os = "windows"))]
 fn is_system_drive_path(mount_point: &str) -> bool {
     mount_point == "/"
-}
-
-/// Detect drive type (SSD vs HDD)
-fn detect_drive_type(_mount_point: &str) -> DriveType {
-    // TODO: Implement actual drive type detection
-    // On Windows, use WMI or DeviceIoControl
-    // On Linux, check /sys/block/*/queue/rotational
-    DriveType::Unknown
 }
 
 /// Check if filename matches PoCX plot file pattern
@@ -188,7 +170,6 @@ pub fn list_drives() -> Vec<DriveInfo> {
                 label: d.name().to_string_lossy().to_string(),
                 total_gib: total_bytes / gib,
                 free_gib: free_bytes / gib,
-                drive_type: detect_drive_type(&mount_point),
                 is_system_drive: is_system,
                 complete_files: scan.complete_count,
                 complete_size_gib: scan.complete_bytes as f64 / gib,
@@ -222,7 +203,6 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
                 label: disk.name().to_string_lossy().to_string(),
                 total_gib: total_bytes / gib,
                 free_gib: free_bytes / gib,
-                drive_type: detect_drive_type(&mount_str),
                 is_system_drive: is_system,
                 complete_files: scan.complete_count,
                 complete_size_gib: scan.complete_bytes as f64 / gib,

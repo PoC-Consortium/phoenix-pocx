@@ -533,39 +533,30 @@ pub fn run() {
             // Mining control commands
             mining::commands::start_mining,
             mining::commands::stop_mining,
-            // Plotting control commands
-            mining::commands::start_plotting,
-            mining::commands::stop_plotting,
-            mining::commands::pause_plotting,
-            mining::commands::resume_plotting,
-            mining::commands::cancel_plotting,
             // Benchmark commands
             mining::commands::run_device_benchmark,
-            // Reset and delete commands
+            // Reset command
             mining::commands::reset_mining_config,
-            mining::commands::delete_all_plots,
-            mining::commands::delete_drive_plots,
             // Deadline commands
             mining::commands::get_recent_deadlines,
             // Address validation commands
             mining::commands::validate_pocx_address,
             mining::commands::get_address_info,
+            // Plotter state commands
+            mining::commands::get_plotter_state,
+            mining::commands::is_plotter_running,
+            mining::commands::get_stop_type,
             // Plot plan commands
             mining::commands::get_plot_plan,
-            mining::commands::save_plot_plan,
-            mining::commands::update_plot_plan_status,
-            mining::commands::advance_plot_plan,
+            mining::commands::set_plot_plan,
             mining::commands::clear_plot_plan,
             mining::commands::start_plot_plan,
             mining::commands::soft_stop_plot_plan,
             mining::commands::hard_stop_plot_plan,
-            mining::commands::complete_plot_plan_item,
+            mining::commands::advance_plot_plan,
             // Plotter execution commands
             mining::commands::execute_plot_item,
             mining::commands::execute_plot_batch,
-            mining::commands::is_plotter_running,
-            mining::commands::is_stop_requested,
-            mining::commands::request_soft_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

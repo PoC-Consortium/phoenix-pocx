@@ -2,17 +2,84 @@
 //!
 //! Handles the actual execution of plot plan items using pocx_plotter.
 //!
+//! This module contains PlotterRuntime which is the single source of truth for:
+//! - Whether the plotter is running
+//! - Stop type (none/soft/hard)
+//! - Current plan (in memory only, not persisted)
+//! - Current execution index
+//! - Plotting progress
+//!
 //! Note: For optimal disk I/O performance (especially direct I/O), run the app as administrator.
 //! This can be done by right-clicking the app and selecting "Run as administrator".
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Runtime};
 
 use super::callback::TauriPlotterCallback;
 use super::state::{MiningConfig, PlotPlanItem, PlottingStatus, SharedMiningState};
+
+// ============================================================================
+// Types
+// ============================================================================
+
+/// Stop type for plotter
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StopType {
+    #[default]
+    None,
+    /// Soft stop: finish current batch, keep plan
+    Soft,
+    /// Hard stop: finish current item, clear plan and regenerate
+    Hard,
+}
+
+/// Plotting progress tracking
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlottingProgress {
+    pub hashing_warps: u64,
+    pub writing_warps: u64,
+    pub total_warps: u64,
+    pub plot_start_time: u64,
+    pub current_batch_size: usize,
+    pub completed_in_batch: usize,
+    pub progress: f64,
+    pub speed_mib_s: f64,
+}
+
+/// Plot plan (in-memory only, not persisted)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlotPlan {
+    pub items: Vec<PlotPlanItem>,
+    pub config_hash: String,
+    pub generated_at: u64,
+}
+
+impl Default for PlotPlan {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            config_hash: String::new(),
+            generated_at: 0,
+        }
+    }
+}
+
+/// Plotter runtime state (returned to frontend)
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlotterState {
+    pub running: bool,
+    pub stop_type: StopType,
+    pub plan: Option<PlotPlan>,
+    pub current_index: usize,
+    pub progress: PlottingProgress,
+}
 
 /// Result of executing a plot item
 #[derive(Debug, Clone, Serialize)]
@@ -32,48 +99,246 @@ pub struct BatchPlotOutput {
     pub warps: u64,
 }
 
-/// Runtime state for the plotter (non-serializable)
+// ============================================================================
+// PlotterRuntime - Single source of truth for plotter state
+// ============================================================================
+
+/// Runtime state for the plotter
+///
+/// This is the single source of truth for all plotter state:
+/// - Running status
+/// - Stop type (none/soft/hard)
+/// - Current plan (in memory only)
+/// - Execution index
+/// - Progress tracking
 pub struct PlotterRuntime {
-    /// Flag to request stop after current item (soft stop)
-    stop_requested: AtomicBool,
     /// Flag indicating if plotting is active
     is_running: AtomicBool,
+    /// Stop type (none/soft/hard)
+    stop_type: Mutex<StopType>,
+    /// Current plan (in memory only, not persisted)
+    plan: Mutex<Option<PlotPlan>>,
+    /// Current execution index within plan
+    current_index: AtomicUsize,
+    /// Progress tracking
+    progress: Mutex<PlottingProgress>,
 }
 
 impl PlotterRuntime {
     pub fn new() -> Self {
+        log::debug!("[PLOTTER] PlotterRuntime created");
         Self {
-            stop_requested: AtomicBool::new(false),
             is_running: AtomicBool::new(false),
+            stop_type: Mutex::new(StopType::None),
+            plan: Mutex::new(None),
+            current_index: AtomicUsize::new(0),
+            progress: Mutex::new(PlottingProgress::default()),
         }
     }
+
+    // ========================================================================
+    // Running state
+    // ========================================================================
 
     /// Check if plotting is currently running
     pub fn is_running(&self) -> bool {
         self.is_running.load(Ordering::SeqCst)
     }
 
-    /// Check if stop has been requested
-    pub fn is_stop_requested(&self) -> bool {
-        self.stop_requested.load(Ordering::SeqCst)
+    /// Set running state
+    pub fn set_running(&self, running: bool) {
+        let old = self.is_running.swap(running, Ordering::SeqCst);
+        log::debug!("[PLOTTER] is_running: {} → {}", old, running);
     }
 
-    /// Request stop after current item completes
-    pub fn request_stop(&self) {
-        self.stop_requested.store(true, Ordering::SeqCst);
+    // ========================================================================
+    // Stop type
+    // ========================================================================
+
+    /// Get current stop type
+    pub fn get_stop_type(&self) -> StopType {
+        *self.stop_type.lock().unwrap()
     }
 
-    /// Clear stop request (when starting new execution)
-    pub fn clear_stop_request(&self) {
-        self.stop_requested.store(false, Ordering::SeqCst);
+    /// Request soft stop (finish batch, keep plan)
+    pub fn request_soft_stop(&self) {
+        let mut stop = self.stop_type.lock().unwrap();
+        let old = *stop;
+        *stop = StopType::Soft;
+        log::debug!("[PLOTTER] stop_type: {:?} → {:?}", old, StopType::Soft);
     }
 
-    /// Abort the currently running task (hard stop)
-    pub async fn abort_task(&self) {
-        // Signal plotter to stop via global flag - it checks this in its loops
+    /// Request hard stop (finish item, clear plan)
+    pub fn request_hard_stop(&self) {
+        let mut stop = self.stop_type.lock().unwrap();
+        let old = *stop;
+        *stop = StopType::Hard;
+        log::debug!("[PLOTTER] stop_type: {:?} → {:?}", old, StopType::Hard);
+        // Signal pocx_plotter to stop its internal loops
         pocx_plotter::request_stop();
-        self.is_running.store(false, Ordering::SeqCst);
     }
+
+    /// Clear stop request
+    pub fn clear_stop(&self) {
+        let mut stop = self.stop_type.lock().unwrap();
+        let old = *stop;
+        *stop = StopType::None;
+        if old != StopType::None {
+            log::debug!("[PLOTTER] stop_type: {:?} → {:?}", old, StopType::None);
+        }
+        // Also clear pocx_plotter's internal stop flag
+        pocx_plotter::clear_stop_request();
+    }
+
+    /// Check if any stop is requested
+    pub fn is_stop_requested(&self) -> bool {
+        self.get_stop_type() != StopType::None
+    }
+
+    // ========================================================================
+    // Plan management
+    // ========================================================================
+
+    /// Set the current plan
+    pub fn set_plan(&self, plan: PlotPlan) {
+        log::debug!("[PLOTTER] plan set: {} items, hash={}", plan.items.len(), plan.config_hash);
+        *self.plan.lock().unwrap() = Some(plan);
+        self.current_index.store(0, Ordering::SeqCst);
+    }
+
+    /// Get the current plan (cloned)
+    pub fn get_plan(&self) -> Option<PlotPlan> {
+        self.plan.lock().unwrap().clone()
+    }
+
+    /// Clear the current plan
+    pub fn clear_plan(&self) {
+        log::debug!("[PLOTTER] plan cleared");
+        *self.plan.lock().unwrap() = None;
+        self.current_index.store(0, Ordering::SeqCst);
+    }
+
+    /// Check if plan exists
+    pub fn has_plan(&self) -> bool {
+        self.plan.lock().unwrap().is_some()
+    }
+
+    // ========================================================================
+    // Index management
+    // ========================================================================
+
+    /// Get current execution index
+    pub fn get_current_index(&self) -> usize {
+        self.current_index.load(Ordering::SeqCst)
+    }
+
+    /// Advance to next index, returns new index
+    pub fn advance_index(&self) -> usize {
+        let old = self.current_index.fetch_add(1, Ordering::SeqCst);
+        let new = old + 1;
+        log::debug!("[PLOTTER] index advanced: {} → {}", old, new);
+        new
+    }
+
+    /// Set index (for resuming)
+    pub fn set_index(&self, index: usize) {
+        let old = self.current_index.swap(index, Ordering::SeqCst);
+        log::debug!("[PLOTTER] index set: {} → {}", old, index);
+    }
+
+    /// Get current item from plan
+    pub fn get_current_item(&self) -> Option<PlotPlanItem> {
+        let plan = self.plan.lock().unwrap();
+        let index = self.current_index.load(Ordering::SeqCst);
+        plan.as_ref().and_then(|p| p.items.get(index).cloned())
+    }
+
+    /// Check if there are more items to execute
+    pub fn has_more_items(&self) -> bool {
+        let plan = self.plan.lock().unwrap();
+        let index = self.current_index.load(Ordering::SeqCst);
+        plan.as_ref().map(|p| index < p.items.len()).unwrap_or(false)
+    }
+
+    // ========================================================================
+    // Progress tracking
+    // ========================================================================
+
+    /// Get current progress (cloned)
+    pub fn get_progress(&self) -> PlottingProgress {
+        self.progress.lock().unwrap().clone()
+    }
+
+    /// Update progress
+    pub fn update_progress(&self, progress: PlottingProgress) {
+        *self.progress.lock().unwrap() = progress;
+    }
+
+    /// Reset progress for new batch
+    pub fn reset_progress(&self, total_warps: u64, batch_size: usize) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        *self.progress.lock().unwrap() = PlottingProgress {
+            hashing_warps: 0,
+            writing_warps: 0,
+            total_warps,
+            plot_start_time: now,
+            current_batch_size: batch_size,
+            completed_in_batch: 0,
+            progress: 0.0,
+            speed_mib_s: 0.0,
+        };
+        log::debug!("[PLOTTER] progress reset: {} warps, batch_size={}", total_warps, batch_size);
+    }
+
+    /// Update hashing progress
+    pub fn add_hashing_warps(&self, warps: u64) {
+        let mut progress = self.progress.lock().unwrap();
+        progress.hashing_warps += warps;
+        self.recalculate_progress(&mut progress);
+    }
+
+    /// Update writing progress
+    pub fn add_writing_warps(&self, warps: u64) {
+        let mut progress = self.progress.lock().unwrap();
+        progress.writing_warps += warps;
+        self.recalculate_progress(&mut progress);
+    }
+
+    /// Recalculate overall progress percentage
+    fn recalculate_progress(&self, progress: &mut PlottingProgress) {
+        if progress.total_warps > 0 {
+            // Combined progress: hashing is ~50%, writing is ~50%
+            let hashing_pct = (progress.hashing_warps as f64 / progress.total_warps as f64) * 50.0;
+            let writing_pct = (progress.writing_warps as f64 / progress.total_warps as f64) * 50.0;
+            progress.progress = (hashing_pct + writing_pct).min(100.0);
+        }
+    }
+
+    /// Update speed
+    pub fn update_speed(&self, speed_mib_s: f64) {
+        self.progress.lock().unwrap().speed_mib_s = speed_mib_s;
+    }
+
+    // ========================================================================
+    // State snapshot
+    // ========================================================================
+
+    /// Get complete plotter state for frontend
+    pub fn get_state(&self) -> PlotterState {
+        log::debug!("[PLOTTER] get_state called");
+        PlotterState {
+            running: self.is_running(),
+            stop_type: self.get_stop_type(),
+            plan: self.get_plan(),
+            current_index: self.get_current_index(),
+            progress: self.get_progress(),
+        }
+    }
+
 }
 
 impl Default for PlotterRuntime {
@@ -107,7 +372,7 @@ pub async fn execute_plot_batch<R: Runtime>(
     }
 
     // Clear any previous stop request
-    plotter_runtime.clear_stop_request();
+    plotter_runtime.clear_stop();
 
     // Validate address
     if config.plotting_address.is_empty() {
@@ -178,7 +443,7 @@ pub async fn execute_plot_batch<R: Runtime>(
     TauriPlotterCallback::register(app_handle.clone());
 
     // Mark as running
-    plotter_runtime.is_running.store(true, Ordering::SeqCst);
+    plotter_runtime.set_running(true);
 
     log::info!("Starting plotter: {} outputs, {} GiB", outputs.len(), total_warps);
 
@@ -208,7 +473,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                 log::error!("Failed to lock mining state to update status: {} - UI may show stale state", e);
             }
         }
-        plotter_runtime_clone.is_running.store(false, Ordering::SeqCst);
+        plotter_runtime_clone.set_running(false);
 
         // Process the result and emit events for each item
         match result {
@@ -351,18 +616,17 @@ pub async fn execute_plot_item<R: Runtime>(
     }
 
     // Clear any previous stop request
-    plotter_runtime.clear_stop_request();
+    plotter_runtime.clear_stop();
 
     match item {
         PlotPlanItem::Resume {
             path,
-            file_index,
+            file_index: _,
             size_gib,
         } => {
             execute_resume(
                 app_handle,
                 path,
-                file_index,
                 size_gib,
                 config,
                 mining_state,
@@ -444,21 +708,25 @@ fn parse_seed_from_tmp_filename(filename: &str) -> Option<[u8; 32]> {
 async fn execute_resume<R: Runtime>(
     app_handle: AppHandle<R>,
     drive_path: String,
-    _file_index: u32,
     size_gib: u64,
     config: &MiningConfig,
     mining_state: SharedMiningState,
     plotter_runtime: SharedPlotterRuntime,
 ) -> Result<PlotExecutionResult, String> {
+    log::info!("[RESUME] Looking for .tmp files in: {}", drive_path);
+
     // Find .tmp files in the drive path
     let tmp_files = find_tmp_files(&drive_path)?;
+    log::info!("[RESUME] Found {} .tmp files", tmp_files.len());
+
     if tmp_files.is_empty() {
+        log::error!("[RESUME] No .tmp files found in {} - returning error", drive_path);
         return Err(format!("No .tmp files found in {}", drive_path));
     }
 
     // Use the first .tmp file (in practice, should match file_index)
     let tmp_file = &tmp_files[0];
-    log::info!("Resuming plot from: {}", tmp_file);
+    log::info!("[RESUME] Resuming plot from: {}", tmp_file);
 
     // Parse seed from filename for resume
     let seed = parse_seed_from_tmp_filename(tmp_file);
@@ -548,9 +816,10 @@ async fn execute_plot_internal<R: Runtime>(
     TauriPlotterCallback::register(app_handle.clone());
 
     // Mark as running
-    plotter_runtime.is_running.store(true, Ordering::SeqCst);
+    plotter_runtime.set_running(true);
 
-    log::info!("Starting plotter execution for {} warps at {}", warps, drive_path);
+    log::info!("[EXEC] Starting plotter execution for {} warps at {}", warps, drive_path);
+    log::info!("[EXEC] is_running set to TRUE");
 
     // Clone values for the background task
     let mining_state_clone = mining_state.clone();
@@ -575,15 +844,18 @@ async fn execute_plot_internal<R: Runtime>(
         .await;
 
         // Update state when done
+        log::info!("[EXEC] Plotter task finished, updating state...");
         match mining_state_clone.lock() {
             Ok(mut state) => {
                 state.plotting_status = PlottingStatus::Idle;
+                log::info!("[EXEC] plotting_status set to Idle");
             }
             Err(e) => {
-                log::error!("Failed to lock mining state to update status: {} - UI may show stale state", e);
+                log::error!("[EXEC] Failed to lock mining state: {}", e);
             }
         }
-        plotter_runtime_clone.is_running.store(false, Ordering::SeqCst);
+        plotter_runtime_clone.set_running(false);
+        log::info!("[EXEC] is_running set to FALSE");
 
         // Process the result and emit events
         match result {
@@ -591,7 +863,8 @@ async fn execute_plot_internal<R: Runtime>(
                 // Check if plotter was stopped vs completed normally
                 let was_stopped = pocx_plotter::is_stop_requested();
                 if was_stopped {
-                    log::info!("Plot stopped by user request: {}", path);
+                    log::info!("[EVENT] Plot stopped by user request: {}", path);
+                    log::info!("[EVENT] Emitting plotter:item-complete (stopped)");
                     let _ = app_handle_clone.emit(
                         "plotter:item-complete",
                         serde_json::json!({
@@ -604,7 +877,8 @@ async fn execute_plot_internal<R: Runtime>(
                         }),
                     );
                 } else {
-                    log::info!("Plot completed successfully: {} warps", warps);
+                    log::info!("[EVENT] Plot completed successfully: {} warps", warps);
+                    log::info!("[EVENT] Emitting plotter:item-complete (success)");
                     let _ = app_handle_clone.emit(
                         "plotter:item-complete",
                         serde_json::json!({
@@ -618,7 +892,8 @@ async fn execute_plot_internal<R: Runtime>(
                 }
             }
             Ok((Err(e), duration, path)) => {
-                log::error!("Plot failed: {}", e);
+                log::error!("[EVENT] Plot failed: {}", e);
+                log::info!("[EVENT] Emitting plotter:item-complete (error)");
                 let _ = app_handle_clone.emit(
                     "plotter:item-complete",
                     serde_json::json!({
@@ -632,7 +907,8 @@ async fn execute_plot_internal<R: Runtime>(
                 );
             }
             Err(e) => {
-                log::error!("Plotter task panicked: {}", e);
+                log::error!("[EVENT] Plotter task panicked: {}", e);
+                log::info!("[EVENT] Emitting plotter:item-complete (panic)");
                 let _ = app_handle_clone.emit(
                     "plotter:item-complete",
                     serde_json::json!({

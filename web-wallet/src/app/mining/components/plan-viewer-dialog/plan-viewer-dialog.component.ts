@@ -1,4 +1,4 @@
-import { Component, inject, computed, Signal } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { MiningService } from '../../services/mining.service';
-import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.models';
+import { PlotPlan } from '../../models/mining.models';
 
 /**
  * Plan Viewer Dialog
@@ -49,26 +49,10 @@ import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.model
             <span class="stat-label">ETA</span>
             <span class="stat-value">{{ eta() }}</span>
           </div>
-          <div class="stat status-badge" [class]="plan.status">
-            {{ formatStatus(plan.status) }}
+          <div class="stat status-badge" [class]="uiState()">
+            {{ formatStatus(uiState()) }}
           </div>
         </div>
-
-        <!-- Finished Drives Section -->
-        @if (allFinishedDrives().length > 0) {
-          <div class="section-header">
-            <mat-icon>check_circle</mat-icon>
-            Finished Drives ({{ allFinishedDrives().length }})
-          </div>
-          <div class="finished-drives">
-            @for (drive of allFinishedDrives(); track drive) {
-              <div class="finished-drive">
-                <mat-icon class="done-icon">done</mat-icon>
-                {{ formatPath(drive) }}
-              </div>
-            }
-          </div>
-        }
 
         <!-- Plan Items Section -->
         @if (plan.items.length > 0) {
@@ -81,17 +65,17 @@ import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.model
               <div
                 class="plan-item"
                 [class.current]="isItemCurrent(i, plan)"
-                [class.completed]="i < plan.currentIndex && !isItemCurrent(i, plan)"
-                [class.paused]="isItemPaused(i, plan)"
+                [class.completed]="i < currentIndex() && !isItemCurrent(i, plan)"
+                [class.stopping]="isItemStopping(i, plan)"
               >
                 <div class="item-index">{{ i + 1 }}</div>
 
-                @if (i < plan.currentIndex && !isItemCurrent(i, plan)) {
+                @if (i < currentIndex() && !isItemCurrent(i, plan)) {
                   <mat-icon class="status-icon done">check_circle</mat-icon>
                 } @else if (isItemCurrent(i, plan)) {
                   <mat-icon class="status-icon running">play_circle</mat-icon>
-                } @else if (isItemPaused(i, plan)) {
-                  <mat-icon class="status-icon paused">pause_circle</mat-icon>
+                } @else if (isItemStopping(i, plan)) {
+                  <mat-icon class="status-icon stopping">stop_circle</mat-icon>
                 } @else {
                   <mat-icon class="status-icon pending">radio_button_unchecked</mat-icon>
                 }
@@ -196,7 +180,7 @@ import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.model
 
       &.pending { background: #e3f2fd; color: #1976d2; }
       &.running { background: #e8f5e9; color: #388e3c; }
-      &.paused { background: #fff3e0; color: #f57c00; }
+      &.stopping { background: #fff3e0; color: #f57c00; }
       &.completed { background: #e8f5e9; color: #2e7d32; }
       &.invalid { background: #ffebee; color: #c62828; }
     }
@@ -211,30 +195,6 @@ import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.model
       letter-spacing: 0.5px;
       color: rgba(0, 0, 0, 0.6);
       margin: 16px 0 8px;
-    }
-
-    .finished-drives {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .finished-drive {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      padding: 4px 12px;
-      background: #e8f5e9;
-      border-radius: 16px;
-      font-size: 13px;
-      color: #2e7d32;
-    }
-
-    .done-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
     }
 
     .plan-items {
@@ -264,7 +224,7 @@ import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.model
         opacity: 0.6;
       }
 
-      &.paused {
+      &.stopping {
         background: rgba(255, 152, 0, 0.12);
         border-left: 3px solid #ff9800;
       }
@@ -284,7 +244,7 @@ import { PlotPlanItem, PlotPlanStats, PlotPlan } from '../../models/mining.model
 
       &.done { color: #4caf50; }
       &.running { color: #4caf50; }
-      &.paused { color: #ff9800; }
+      &.stopping { color: #ff9800; }
       &.pending { color: rgba(0, 0, 0, 0.26); }
     }
 
@@ -414,37 +374,8 @@ export class PlanViewerDialogComponent {
   readonly plan = this.miningService.plotPlan;
   readonly stats = this.miningService.planStats;
   readonly eta = this.miningService.planEta;
-
-  /**
-   * Compute all finished drives:
-   * - Original finishedDrives (complete at plan generation)
-   * - Drives with completed add_to_miner tasks
-   */
-  readonly allFinishedDrives = computed(() => {
-    const plan = this.plan();
-    if (!plan) return [];
-
-    const finished = new Set<string>(plan.finishedDrives);
-
-    // Add drives that have completed add_to_miner tasks
-    for (let i = 0; i < plan.currentIndex && i < plan.items.length; i++) {
-      const item = plan.items[i];
-      if (item.type === 'add_to_miner') {
-        finished.add(item.path);
-      }
-    }
-
-    return [...finished];
-  });
-
-  /**
-   * Get remaining items (not yet completed)
-   */
-  readonly remainingItems = computed(() => {
-    const plan = this.plan();
-    if (!plan) return [];
-    return plan.items.slice(plan.currentIndex);
-  });
+  readonly currentIndex = this.miningService.currentPlanIndex;
+  readonly uiState = this.miningService.plotterUIState;
 
   formatPath(path: string): string {
     // Show just the drive letter on Windows or last directory segment
@@ -471,14 +402,15 @@ export class PlanViewerDialogComponent {
   /**
    * Check if an item at the given index is part of the currently running batch.
    * Returns true if:
-   * - The plan is running
+   * - The plotter is running (plotting state)
    * - The item is a 'plot' type with a batchId
    * - The batchId matches the batchId of the item at currentIndex
    */
   isInCurrentBatch(index: number, plan: PlotPlan): boolean {
-    if (plan.status !== 'running') return false;
+    if (this.uiState() !== 'plotting') return false;
 
-    const currentItem = plan.items[plan.currentIndex];
+    const idx = this.currentIndex();
+    const currentItem = plan.items[idx];
     const checkItem = plan.items[index];
 
     // Both must be plot items with batchIds
@@ -493,21 +425,24 @@ export class PlanViewerDialogComponent {
    * Check if item should show as "current" (running or in current batch)
    */
   isItemCurrent(index: number, plan: PlotPlan): boolean {
-    if (plan.status !== 'running') return false;
-    return index === plan.currentIndex || this.isInCurrentBatch(index, plan);
+    if (this.uiState() !== 'plotting') return false;
+    return index === this.currentIndex() || this.isInCurrentBatch(index, plan);
   }
 
   /**
-   * Check if item should show as "paused" (current index when paused, or in batch when paused)
+   * Check if item should show as "stopping" (in current batch when stopping)
+   * This is only visible briefly while the batch finishes after soft stop.
    */
-  isItemPaused(index: number, plan: PlotPlan): boolean {
-    if (plan.status !== 'paused') return false;
+  isItemStopping(index: number, plan: PlotPlan): boolean {
+    if (this.uiState() !== 'stopping') return false;
 
-    // Current item is paused
-    if (index === plan.currentIndex) return true;
+    const idx = this.currentIndex();
+
+    // Current item is stopping
+    if (index === idx) return true;
 
     // Check if in same batch as current item
-    const currentItem = plan.items[plan.currentIndex];
+    const currentItem = plan.items[idx];
     const checkItem = plan.items[index];
     if (currentItem?.type === 'plot' && checkItem?.type === 'plot' &&
         currentItem.batchId !== undefined && checkItem.batchId !== undefined) {

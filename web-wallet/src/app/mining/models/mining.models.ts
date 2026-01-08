@@ -38,14 +38,11 @@ export interface DeviceInfo {
 // Drive Models
 // ============================================================================
 
-export type DriveType = 'ssd' | 'hdd' | 'unknown';
-
 export interface DriveInfo {
   path: string;
   label: string;
   totalGib: number;
   freeGib: number;
-  driveType: DriveType;
   isSystemDrive: boolean;
   completeFiles: number;     // .pocx files (ready for mining)
   completeSizeGib: number;   // Size of complete files
@@ -103,7 +100,7 @@ export interface MiningConfig {
   lowPriority?: boolean;
   parallelDrives?: number; // Number of drives to plot simultaneously (default 1)
   hddWakeupSeconds: number;
-  plotPlan?: PlotPlan; // Current plot execution plan
+  // Note: plotPlan has been removed - plan is now runtime-only in PlotterState
   simulationMode?: boolean; // Dev only: run plotter in benchmark mode (no disk writes)
 }
 
@@ -121,9 +118,8 @@ export type MiningStatus =
 export type PlottingStatus =
   | { type: 'idle' }
   | { type: 'plotting'; filePath: string; progress: number; speedMibS: number }
-  | { type: 'stopping' }
-  | { type: 'paused' }
   | { type: 'error'; message: string };
+// Note: 'stopping' state removed - now derived from PlotterState.stopType
 
 export interface BlockInfo {
   height: number;
@@ -215,24 +211,61 @@ export interface PlotterErrorEvent {
 }
 
 // ============================================================================
-// Plot Plan Models
+// Plotter Runtime State (new simplified model)
 // ============================================================================
 
-export type PlotPlanStatus = 'pending' | 'running' | 'stopping' | 'paused' | 'completed' | 'invalid';
+/**
+ * Stop type for plotter
+ * - none: Not stopping, running normally
+ * - soft: Finish current batch, keep plan for resume
+ * - hard: Finish current item, clear plan
+ */
+export type StopType = 'none' | 'soft' | 'hard';
+
+/**
+ * UI State derived from PlotterState
+ * - plotting: Plotter is running, no stop requested
+ * - stopping: Plotter is running but stop requested
+ * - ready: Plan exists, not running, can start
+ * - complete: No plan, all drives plotted
+ */
+export type PlotterUIState = 'plotting' | 'stopping' | 'ready' | 'complete';
+
+// ============================================================================
+// Plot Plan Models (simplified - runtime only, not persisted)
+// ============================================================================
 
 export type PlotPlanItem =
   | { type: 'resume'; path: string; fileIndex: number; sizeGib: number }
   | { type: 'plot'; path: string; warps: number; batchId: number }
   | { type: 'add_to_miner'; path: string };
 
+/**
+ * Plot plan - now runtime-only (not persisted to config)
+ *
+ * Plan is generated on demand:
+ * - First start: When entering mining section after app launch
+ * - Config saved: When user saves in setup wizard
+ * - Hard stop done: When hard stop completes (to detect .tmp files)
+ */
 export interface PlotPlan {
-  version: number;           // Schema version
-  generatedAt: number;       // Timestamp when plan was generated
-  configHash: string;        // Hash of drive configs for change detection
-  finishedDrives: string[];  // Drives already complete (no work needed)
   items: PlotPlanItem[];     // Ordered list of tasks to execute
+  configHash: string;        // Hash of drive configs for change detection
+  generatedAt: number;       // Timestamp when plan was generated
+}
+
+/**
+ * Plotter runtime state - the single source of truth
+ *
+ * This replaces the complex persisted plan with a simple runtime state.
+ * All UI state is derived from these values.
+ */
+export interface PlotterState {
+  running: boolean;          // Whether plotter is actively running
+  stopType: StopType;        // Current stop request (none/soft/hard)
+  plan: PlotPlan | null;     // Current plan (null = no work or complete)
   currentIndex: number;      // Current execution position (0-based)
-  status: PlotPlanStatus;    // Execution status
+  progress: PlottingProgress; // Current plotting progress
 }
 
 export interface PlotPlanStats {
@@ -276,6 +309,7 @@ export interface PlottingProgress {
   hashingWarps: number;      // Warps completed in hashing phase (0→totalWarps)
   writingWarps: number;      // Warps completed in writing phase (0→totalWarps)
   totalWarps: number;        // Target warps for current batch
+  resumeOffset: number;      // Warps already completed before this session (for resume)
   plotStartTime: number;     // Timestamp when current batch started (ms)
   currentBatchSize: number;  // Number of items in current batch
   completedInBatch: number;  // Items completed in current batch

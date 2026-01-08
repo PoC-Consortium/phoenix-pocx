@@ -140,34 +140,3 @@ pub fn detect_devices() -> DeviceInfo {
     }
 }
 
-/// Run a benchmark for devices
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BenchmarkResult {
-    pub device_id: String,
-    pub device_name: String,
-    pub hashes_per_second: f64,
-    pub duration_ms: u64,
-}
-
-/// Run CPU benchmark (placeholder)
-pub fn benchmark_cpu(_threads: u32) -> BenchmarkResult {
-    // TODO: Implement actual benchmark using pocx_hashlib
-    BenchmarkResult {
-        device_id: "cpu".to_string(),
-        device_name: detect_cpu().name,
-        hashes_per_second: 0.0,
-        duration_ms: 0,
-    }
-}
-
-/// Run GPU benchmark (placeholder)
-pub fn benchmark_gpu(_device_id: &str) -> BenchmarkResult {
-    // TODO: Implement actual benchmark using OpenCL
-    BenchmarkResult {
-        device_id: "gpu:0".to_string(),
-        device_name: "Unknown GPU".to_string(),
-        hashes_per_second: 0.0,
-        duration_ms: 0,
-    }
-}

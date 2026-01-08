@@ -5,13 +5,13 @@
 use super::callback::TauriPlotterCallback;
 use super::devices::{detect_devices, DeviceInfo};
 use super::drives::{get_drive_info, list_drives, DriveInfo};
-use super::plotter::{self, PlotExecutionResult, SharedPlotterRuntime};
+use super::plotter::{self, PlotExecutionResult, PlotPlan, PlotterState, SharedPlotterRuntime, StopType};
 use super::state::{
     get_config_file_path, save_config, ChainConfig, CpuConfig, DeadlineEntry, DriveConfig,
-    MiningConfig, MiningState, MiningStatus, PlotPlan, PlotPlanItem, PlotPlanStatus,
+    MiningConfig, MiningState, MiningStatus, PlotPlanItem,
     PlotterDeviceConfig, PlottingStatus, SharedMiningState,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{AppHandle, State};
 
 /// Result wrapper for commands
@@ -79,12 +79,39 @@ pub fn get_plot_drive_info(path: String) -> CommandResult<DriveInfo> {
 // ============================================================================
 
 /// Get current mining state
+///
+/// Returns config and basic state. For plotter-specific state (plan, progress),
+/// use get_plotter_state instead.
 #[tauri::command]
-pub fn get_mining_state(state: State<SharedMiningState>) -> CommandResult<MiningState> {
+pub fn get_mining_state(
+    state: State<SharedMiningState>,
+) -> CommandResult<MiningState> {
+    log::debug!("[CMD] get_mining_state called");
     match state.lock() {
         Ok(state) => CommandResult::ok(state.clone()),
         Err(e) => CommandResult::err(format!("Failed to get mining state: {}", e)),
     }
+}
+
+/// Get plotter runtime state
+///
+/// Returns the current state of the plotter including:
+/// - running: whether plotter is active
+/// - stop_type: none | soft | hard
+/// - plan: current plot plan (if any)
+/// - current_index: which item we're on
+/// - progress: current plotting progress
+#[tauri::command]
+pub fn get_plotter_state(
+    plotter_runtime: State<SharedPlotterRuntime>,
+) -> CommandResult<PlotterState> {
+    let state = plotter_runtime.get_state();
+    log::info!("[CMD] get_plotter_state: running={}, stop_type={:?}, plan_items={}, current_index={}",
+        state.running,
+        state.stop_type,
+        state.plan.as_ref().map(|p| p.items.len()).unwrap_or(0),
+        state.current_index);
+    CommandResult::ok(state)
 }
 
 /// Get mining configuration
@@ -444,104 +471,6 @@ pub async fn stop_mining(state: State<'_, SharedMiningState>) -> Result<CommandR
 }
 
 // ============================================================================
-// Plotting Control Commands
-// ============================================================================
-
-/// Start plotting input parameters
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StartPlottingParams {
-    pub address: String,
-    pub drive_path: String,
-    pub target_files: u32,
-    pub file_size_gib: u64,
-    pub compression_level: u8,
-}
-
-/// Start plotting
-#[tauri::command]
-pub async fn start_plotting(
-    params: StartPlottingParams,
-    state: State<'_, SharedMiningState>,
-) -> Result<CommandResult<()>, ()> {
-    // Update state
-    if let Ok(mut state_guard) = state.lock() {
-        if state_guard.plotting_status != PlottingStatus::Idle {
-            return Ok(CommandResult::err("Plotting is already in progress"));
-        }
-        state_guard.plotting_status = PlottingStatus::Plotting {
-            file_path: params.drive_path.clone(),
-            progress: 0.0,
-            speed_mib_s: 0.0,
-        };
-    }
-
-    // TODO: Actually start the plotter using pocx_plotter
-    // This would spawn a background task that runs the plotter
-    // and updates state via callbacks
-
-    Ok(CommandResult::ok(()))
-}
-
-/// Stop plotting
-#[tauri::command]
-pub async fn stop_plotting(state: State<'_, SharedMiningState>) -> Result<CommandResult<()>, ()> {
-    // TODO: Actually stop the plotter
-
-    if let Ok(mut state_guard) = state.lock() {
-        state_guard.plotting_status = PlottingStatus::Idle;
-    }
-
-    Ok(CommandResult::ok(()))
-}
-
-/// Pause plotting
-#[tauri::command]
-pub async fn pause_plotting(state: State<'_, SharedMiningState>) -> Result<CommandResult<()>, ()> {
-    // TODO: Actually pause the plotter
-
-    if let Ok(mut state_guard) = state.lock() {
-        state_guard.plotting_status = PlottingStatus::Paused;
-    }
-
-    Ok(CommandResult::ok(()))
-}
-
-/// Resume plotting
-#[tauri::command]
-pub async fn resume_plotting(
-    state: State<'_, SharedMiningState>,
-) -> Result<CommandResult<()>, ()> {
-    // TODO: Actually resume the plotter
-
-    if let Ok(mut state_guard) = state.lock() {
-        if let PlottingStatus::Paused = state_guard.plotting_status {
-            state_guard.plotting_status = PlottingStatus::Plotting {
-                file_path: String::new(),
-                progress: 0.0,
-                speed_mib_s: 0.0,
-            };
-        }
-    }
-
-    Ok(CommandResult::ok(()))
-}
-
-/// Cancel plotting
-#[tauri::command]
-pub async fn cancel_plotting(
-    state: State<'_, SharedMiningState>,
-) -> Result<CommandResult<()>, ()> {
-    // TODO: Actually cancel the plotter (with cleanup)
-
-    if let Ok(mut state_guard) = state.lock() {
-        state_guard.plotting_status = PlottingStatus::Idle;
-    }
-
-    Ok(CommandResult::ok(()))
-}
-
-// ============================================================================
 // Benchmark Commands
 // ============================================================================
 
@@ -715,14 +644,11 @@ pub fn reset_mining_config(state: State<SharedMiningState>) -> CommandResult<()>
     // Check if plotting is active before allowing reset
     match state.lock() {
         Ok(state_guard) => {
-            match &state_guard.plotting_status {
-                PlottingStatus::Plotting { .. } | PlottingStatus::Paused => {
-                    return CommandResult::err(
-                        "Cannot reset while plotting is active. Please stop plotting first."
-                            .to_string(),
-                    );
-                }
-                _ => {}
+            if let PlottingStatus::Plotting { .. } = &state_guard.plotting_status {
+                return CommandResult::err(
+                    "Cannot reset while plotting is active. Please stop plotting first."
+                        .to_string(),
+                );
             }
         }
         Err(e) => {
@@ -750,44 +676,6 @@ pub fn reset_mining_config(state: State<SharedMiningState>) -> CommandResult<()>
         }
         Err(e) => CommandResult::err(format!("Failed to reset config: {}", e)),
     }
-}
-
-/// Delete all plot files from all configured drives
-#[tauri::command]
-pub async fn delete_all_plots(
-    state: State<'_, SharedMiningState>,
-) -> Result<CommandResult<()>, ()> {
-    let drives: Vec<DriveConfig> = {
-        match state.lock() {
-            Ok(state_guard) => state_guard.config.drives.clone(),
-            Err(e) => return Ok(CommandResult::err(format!("Failed to get drives: {}", e))),
-        }
-    };
-
-    for drive in drives {
-        // TODO: Delete plot files from drive.path
-        // For now, just log it
-        log::info!("Would delete plots from: {}", drive.path);
-    }
-
-    // Note: Plot file counts are now obtained via real-time scanning in DriveInfo,
-    // no longer stored in DriveConfig
-
-    Ok(CommandResult::ok(()))
-}
-
-/// Delete plot files from a specific drive
-#[tauri::command]
-pub async fn delete_drive_plots(
-    path: String,
-    _state: State<'_, SharedMiningState>,
-) -> Result<CommandResult<()>, ()> {
-    // TODO: Delete plot files from the specified path
-    log::info!("Would delete plots from: {}", path);
-
-    // Note: Plot file counts are obtained via real-time scanning in DriveInfo
-
-    Ok(CommandResult::ok(()))
 }
 
 // ============================================================================
@@ -857,301 +745,192 @@ pub fn get_address_info(address: String) -> CommandResult<AddressInfo> {
 // Plot Plan Commands
 // ============================================================================
 
-/// Get the current plot plan
+/// Get the current plot plan from runtime
 #[tauri::command]
-pub fn get_plot_plan(state: State<SharedMiningState>) -> CommandResult<Option<PlotPlan>> {
-    match state.lock() {
-        Ok(state) => CommandResult::ok(state.config.plot_plan.clone()),
-        Err(e) => CommandResult::err(format!("Failed to get plot plan: {}", e)),
-    }
+pub fn get_plot_plan(
+    plotter_runtime: State<SharedPlotterRuntime>,
+) -> CommandResult<Option<PlotPlan>> {
+    log::debug!("[CMD] get_plot_plan called");
+    CommandResult::ok(plotter_runtime.get_plan())
 }
 
-/// Save a plot plan to the config
+/// Set a plot plan in runtime (used by frontend after generation)
 #[tauri::command]
-pub fn save_plot_plan(
+pub fn set_plot_plan(
     plan: PlotPlan,
-    state: State<SharedMiningState>,
+    plotter_runtime: State<SharedPlotterRuntime>,
 ) -> CommandResult<()> {
-    match state.lock() {
-        Ok(mut state_guard) => {
-            state_guard.config.plot_plan = Some(plan);
-            if let Err(e) = save_config(&state_guard.config, "plot plan created") {
-                return CommandResult::err(format!("Failed to persist config: {}", e));
-            }
-            CommandResult::ok(())
-        }
-        Err(e) => CommandResult::err(format!("Failed to save plot plan: {}", e)),
+    log::info!("[CMD] set_plot_plan: {} items, hash={}", plan.items.len(), plan.config_hash);
+    for (i, item) in plan.items.iter().enumerate() {
+        log::info!("[CMD]   item[{}]: {:?}", i, item);
     }
+    plotter_runtime.set_plan(plan);
+    CommandResult::ok(())
 }
 
-/// Update plot plan status
+/// Clear the plot plan from runtime
+/// Also clears any pending stop request
 #[tauri::command]
-pub fn update_plot_plan_status(
-    status: PlotPlanStatus,
-    state: State<SharedMiningState>,
+pub fn clear_plot_plan(
+    plotter_runtime: State<SharedPlotterRuntime>,
 ) -> CommandResult<()> {
-    match state.lock() {
-        Ok(mut state_guard) => {
-            if let Some(ref mut plan) = state_guard.config.plot_plan {
-                plan.status = status.clone();
-                if let Err(e) = save_config(&state_guard.config, &format!("plot plan status update: {:?}", status)) {
-                    return CommandResult::err(format!("Failed to persist config: {}", e));
-                }
-                CommandResult::ok(())
-            } else {
-                CommandResult::err("No plot plan exists")
-            }
-        }
-        Err(e) => CommandResult::err(format!("Failed to update status: {}", e)),
-    }
-}
-
-/// Advance the plot plan to the next item
-#[tauri::command]
-pub fn advance_plot_plan(state: State<SharedMiningState>) -> CommandResult<Option<PlotPlanItem>> {
-    match state.lock() {
-        Ok(mut state_guard) => {
-            if let Some(ref mut plan) = state_guard.config.plot_plan {
-                if plan.current_index < plan.items.len() {
-                    let item = plan.items[plan.current_index].clone();
-                    plan.current_index += 1;
-
-                    // Check if completed
-                    if plan.current_index >= plan.items.len() {
-                        plan.status = PlotPlanStatus::Completed;
-                    }
-
-                    let current = plan.current_index;
-                    let total = plan.items.len();
-                    if let Err(e) = save_config(&state_guard.config, &format!("plot plan advanced to {}/{}", current, total)) {
-                        return CommandResult::err(format!("Failed to persist config: {}", e));
-                    }
-                    CommandResult::ok(Some(item))
-                } else {
-                    CommandResult::ok(None) // Plan completed
-                }
-            } else {
-                CommandResult::err("No plot plan exists")
-            }
-        }
-        Err(e) => CommandResult::err(format!("Failed to advance plan: {}", e)),
-    }
-}
-
-/// Clear the plot plan (used after hard stop or when regenerating)
-#[tauri::command]
-pub fn clear_plot_plan(state: State<SharedMiningState>) -> CommandResult<()> {
-    match state.lock() {
-        Ok(mut state_guard) => {
-            state_guard.config.plot_plan = None;
-            if let Err(e) = save_config(&state_guard.config, "plot plan cleared") {
-                return CommandResult::err(format!("Failed to persist config: {}", e));
-            }
-            CommandResult::ok(())
-        }
-        Err(e) => CommandResult::err(format!("Failed to clear plan: {}", e)),
-    }
+    log::info!("[CMD] clear_plot_plan called");
+    plotter_runtime.clear_plan();
+    plotter_runtime.clear_stop();
+    CommandResult::ok(())
 }
 
 /// Start executing the plot plan
+///
 /// This command:
-/// 1. Validates a plan exists and is in pending/paused state
-/// 2. Sets status to Running
+/// 1. Validates a plan exists in runtime
+/// 2. Clears any previous stop request
 /// 3. Returns the current item to execute
 #[tauri::command]
 pub async fn start_plot_plan(
-    state: State<'_, SharedMiningState>,
     plotter_runtime: State<'_, SharedPlotterRuntime>,
 ) -> Result<CommandResult<PlotPlanItem>, ()> {
-    log::info!("========== START PLOTTING REQUESTED ==========");
+    log::info!("[CMD] start_plot_plan called");
 
-    // Clear any previous stop request so executeNextBatch doesn't bail out
-    plotter_runtime.clear_stop_request();
+    // Clear any previous stop request
+    plotter_runtime.clear_stop();
 
-    let current_item = {
-        let mut state_guard = match state.lock() {
-            Ok(guard) => guard,
-            Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
-        };
-
-        let plan = match state_guard.config.plot_plan.as_mut() {
-            Some(p) => p,
-            None => return Ok(CommandResult::err("No plot plan exists")),
-        };
-
-        // Validate status
-        match plan.status {
-            PlotPlanStatus::Pending | PlotPlanStatus::Paused => {}
-            PlotPlanStatus::Running => return Ok(CommandResult::err("Plan is already running")),
-            PlotPlanStatus::Stopping => return Ok(CommandResult::err("Plan is stopping, please wait")),
-            PlotPlanStatus::Completed => return Ok(CommandResult::err("Plan is already completed")),
-            PlotPlanStatus::Invalid => return Ok(CommandResult::err("Plan is invalid, regenerate first")),
-        }
-
-        // Check if there are items to execute
-        if plan.current_index >= plan.items.len() {
-            plan.status = PlotPlanStatus::Completed;
-            return Ok(CommandResult::err("No more items to execute"));
-        }
-
-        // Set status to running
-        plan.status = PlotPlanStatus::Running;
-
-        // Get current item
-        let item = plan.items[plan.current_index].clone();
-
-        if let Err(e) = save_config(&state_guard.config, "plot plan started") {
-            log::error!("Failed to persist config: {}", e);
-        }
-
-        item
+    // Get plan from runtime
+    let plan = match plotter_runtime.get_plan() {
+        Some(p) => p,
+        None => return Ok(CommandResult::err("No plot plan exists. Generate a plan first.")),
     };
 
-    Ok(CommandResult::ok(current_item))
+    // Check if already running
+    if plotter_runtime.is_running() {
+        return Ok(CommandResult::err("Plotter is already running"));
+    }
+
+    // Check if there are items to execute
+    let current_index = plotter_runtime.get_current_index();
+    if current_index >= plan.items.len() {
+        return Ok(CommandResult::err("No more items to execute"));
+    }
+
+    // Get current item
+    let item = plan.items[current_index].clone();
+    log::debug!("[CMD] start_plot_plan: starting at index {}, item: {:?}", current_index, item);
+
+    Ok(CommandResult::ok(item))
 }
 
-/// Soft stop plotting - finish current item, then pause
+/// Soft stop plotting - finish current batch, keep plan
 #[tauri::command]
 pub async fn soft_stop_plot_plan(
-    state: State<'_, SharedMiningState>,
     plotter_runtime: State<'_, SharedPlotterRuntime>,
 ) -> Result<CommandResult<()>, ()> {
-    plotter_runtime.request_stop();
-    log::info!("Soft stop requested");
-
-    match state.lock() {
-        Ok(mut state_guard) => {
-            if let Some(ref mut plan) = state_guard.config.plot_plan {
-                if plan.status == PlotPlanStatus::Running {
-                    plan.status = PlotPlanStatus::Stopping;
-                    if let Err(e) = save_config(&state_guard.config, "plot plan stopping (soft stop requested)") {
-                        return Ok(CommandResult::err(format!("Failed to persist config: {}", e)));
-                    }
-                    Ok(CommandResult::ok(()))
-                } else {
-                    Ok(CommandResult::err("Plan is not running"))
-                }
-            } else {
-                Ok(CommandResult::err("No plot plan exists"))
-            }
-        }
-        Err(e) => Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
-    }
+    log::info!("[CMD] soft_stop_plot_plan called");
+    plotter_runtime.request_soft_stop();
+    Ok(CommandResult::ok(()))
 }
 
-/// Hard stop plotting - abort immediately, mark plan invalid
+/// Hard stop plotting - finish current item, clear plan
 #[tauri::command]
 pub async fn hard_stop_plot_plan(
-    state: State<'_, SharedMiningState>,
     plotter_runtime: State<'_, SharedPlotterRuntime>,
 ) -> Result<CommandResult<()>, ()> {
-    log::info!("Hard stop plot plan requested");
+    log::info!("[CMD] hard_stop_plot_plan called");
 
     // Signal plotter to stop immediately
     pocx_plotter::request_stop();
-    plotter_runtime.abort_task().await;
+    plotter_runtime.request_hard_stop();
 
-    match state.lock() {
-        Ok(mut state_guard) => {
-            // Set to Stopping - plotter completion handler will set to Idle when done
-            state_guard.plotting_status = PlottingStatus::Stopping;
-            if let Some(ref mut plan) = state_guard.config.plot_plan {
-                plan.status = PlotPlanStatus::Invalid;
-                if let Err(e) = save_config(&state_guard.config, "plot plan invalidated (hard stop)") {
-                    return Ok(CommandResult::err(format!("Failed to persist config: {}", e)));
-                }
-                Ok(CommandResult::ok(()))
-            } else {
-                Ok(CommandResult::err("No plot plan exists"))
-            }
-        }
-        Err(e) => Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
-    }
+    Ok(CommandResult::ok(()))
 }
 
-/// Mark current plan item as completed and advance to next
+/// Advance to next plan item and return it
+///
+/// Called after an item completes. Handles stop logic:
+/// - Soft stop: returns None at batch boundary (plan kept)
+/// - Hard stop: clears plan, returns None
+/// - Normal: returns next item
 #[tauri::command]
-pub async fn complete_plot_plan_item(
-    state: State<'_, SharedMiningState>,
+pub async fn advance_plot_plan(
+    plotter_runtime: State<'_, SharedPlotterRuntime>,
 ) -> Result<CommandResult<Option<PlotPlanItem>>, ()> {
-    match state.lock() {
-        Ok(mut state_guard) => {
-            if let Some(ref mut plan) = state_guard.config.plot_plan {
-                let is_stopping = plan.status == PlotPlanStatus::Stopping;
+    log::info!("[CMD] advance_plot_plan called");
 
-                // Advance to next item (always, even when stopping)
-                plan.current_index += 1;
-                let current = plan.current_index;
-                let total = plan.items.len();
+    let plan = match plotter_runtime.get_plan() {
+        Some(p) => p,
+        None => {
+            log::info!("[CMD] advance_plot_plan: no plan exists - returning None");
+            return Ok(CommandResult::ok(None));
+        }
+    };
 
-                // Check if plan is complete
-                if current >= total {
-                    plan.status = PlotPlanStatus::Completed;
-                    if let Err(e) = save_config(&state_guard.config, "plot plan completed") {
-                        log::error!("Failed to persist config: {}", e);
-                    }
+    let stop_type = plotter_runtime.get_stop_type();
+    let current_index = plotter_runtime.advance_index();
+    let total = plan.items.len();
+
+    log::info!("[CMD] advance_plot_plan: index {} → {}, total {}, stop_type {:?}",
+        current_index.saturating_sub(1), current_index, total, stop_type);
+
+    // Check if plan is complete
+    if current_index >= total {
+        log::info!("[EXEC] all items complete, clearing plan");
+        plotter_runtime.clear_plan();
+        plotter_runtime.clear_stop();
+        return Ok(CommandResult::ok(None));
+    }
+
+    // Handle stop logic
+    match stop_type {
+        StopType::Hard => {
+            // Hard stop: clear plan immediately
+            log::info!("[EXEC] hard stop: clearing plan");
+            plotter_runtime.clear_plan();
+            plotter_runtime.clear_stop();
+            return Ok(CommandResult::ok(None));
+        }
+        StopType::Soft => {
+            // Soft stop: check if at batch boundary
+            let prev_item = &plan.items[current_index - 1];
+            let next_item = &plan.items[current_index];
+
+            // Get batch IDs
+            let prev_batch = match prev_item {
+                PlotPlanItem::Plot { batch_id, .. } => Some(*batch_id),
+                _ => None,
+            };
+            let next_batch = match next_item {
+                PlotPlanItem::Plot { batch_id, .. } => Some(*batch_id),
+                PlotPlanItem::AddToMiner { .. } => {
+                    // Always execute AddToMiner even when stopping
+                    log::debug!("[EXEC] soft stop: executing AddToMiner before stopping");
+                    return Ok(CommandResult::ok(Some(next_item.clone())));
+                }
+                PlotPlanItem::Resume { .. } => {
+                    // Stop before resume items
+                    log::info!("[EXEC] soft stop: at resume boundary, stopping");
+                    plotter_runtime.clear_stop();
                     return Ok(CommandResult::ok(None));
                 }
+            };
 
-                // If stopping, check if current batch is done and what's next
-                if is_stopping {
-                    let prev_item = &plan.items[current - 1];
-                    let next_item = plan.items[current].clone();
-
-                    let prev_batch = match prev_item {
-                        PlotPlanItem::Plot { batch_id, .. } => Some(*batch_id),
-                        _ => None,
-                    };
-
-                    // Check what the next item is
-                    match next_item {
-                        PlotPlanItem::AddToMiner { .. } => {
-                            // Always execute AddToMiner even when stopping
-                            if let Err(e) = save_config(&state_guard.config, &format!("plot item {}/{} complete (stopping, add_to_miner next)", current, total)) {
-                                log::error!("Failed to persist config: {}", e);
-                            }
-                            return Ok(CommandResult::ok(Some(next_item)));
-                        }
-                        PlotPlanItem::Plot { batch_id, .. } => {
-                            // Check if same batch or different
-                            if prev_batch == Some(batch_id) {
-                                // Still in same batch, continue completing items
-                                if let Err(e) = save_config(&state_guard.config, &format!("plot item {}/{} complete (stopping)", current, total)) {
-                                    log::error!("Failed to persist config: {}", e);
-                                }
-                                return Ok(CommandResult::ok(None));
-                            } else {
-                                // Different batch - pause here
-                                plan.status = PlotPlanStatus::Paused;
-                                if let Err(e) = save_config(&state_guard.config, &format!("plot item {}/{} complete, paused", current, total)) {
-                                    log::error!("Failed to persist config: {}", e);
-                                }
-                                return Ok(CommandResult::ok(None));
-                            }
-                        }
-                        PlotPlanItem::Resume { .. } => {
-                            // Pause before resume items too
-                            plan.status = PlotPlanStatus::Paused;
-                            if let Err(e) = save_config(&state_guard.config, &format!("plot item {}/{} complete, paused", current, total)) {
-                                log::error!("Failed to persist config: {}", e);
-                            }
-                            return Ok(CommandResult::ok(None));
-                        }
-                    }
-                }
-
-                // Normal running state - return next item
-                let next_item = plan.items[current].clone();
-                if let Err(e) = save_config(&state_guard.config, &format!("plot item {}/{} complete", current, total)) {
-                    log::error!("Failed to persist config: {}", e);
-                }
-                Ok(CommandResult::ok(Some(next_item)))
-            } else {
-                Ok(CommandResult::err("No plot plan exists"))
+            // Check if same batch or different
+            if prev_batch != next_batch {
+                log::info!("[EXEC] soft stop: at batch boundary, stopping");
+                plotter_runtime.clear_stop();
+                return Ok(CommandResult::ok(None));
             }
+
+            // Still in same batch but soft stop requested - continue
+            log::debug!("[EXEC] soft stop: still in batch {}, continuing", prev_batch.unwrap_or(0));
         }
-        Err(e) => Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
+        StopType::None => {
+            // Normal execution
+        }
     }
+
+    // Return next item
+    let next_item = plan.items[current_index].clone();
+    log::debug!("[CMD] advance_plot_plan: returning item {:?}", next_item);
+    Ok(CommandResult::ok(Some(next_item)))
 }
 
 // ============================================================================
@@ -1160,9 +939,8 @@ pub async fn complete_plot_plan_item(
 
 /// Execute a single plot plan item
 /// This is the main entry point for actual plotting.
-/// Spawns the plotter task and waits for completion.
-/// Emits progress events: plotter:started, plotter:hashing-progress, plotter:writing-progress, plotter:complete, plotter:error
-/// Also emits plotter:item-complete when the item finishes.
+/// Spawns the plotter task and returns immediately.
+/// The plotter runs async and emits events: plotter:item-complete when done.
 #[tauri::command]
 pub async fn execute_plot_item(
     app_handle: AppHandle,
@@ -1170,15 +948,20 @@ pub async fn execute_plot_item(
     state: State<'_, SharedMiningState>,
     plotter_runtime: State<'_, SharedPlotterRuntime>,
 ) -> Result<CommandResult<PlotExecutionResult>, ()> {
+    log::info!("[CMD] execute_plot_item: {:?}", item);
+
     // Get config from state
     let config = match state.lock() {
         Ok(state_guard) => state_guard.config.clone(),
-        Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
+        Err(e) => {
+            log::error!("[CMD] execute_plot_item: failed to lock state: {}", e);
+            return Ok(CommandResult::err(format!("Failed to lock state: {}", e)));
+        }
     };
 
-    log::info!("Executing plot item: {:?}", item);
+    log::info!("[CMD] execute_plot_item: calling plotter::execute_plot_item...");
 
-    // Execute the item
+    // Execute the item (spawns async task, returns immediately)
     match plotter::execute_plot_item(
         app_handle,
         item,
@@ -1189,19 +972,12 @@ pub async fn execute_plot_item(
     .await
     {
         Ok(result) => {
-            if result.success {
-                log::info!(
-                    "Plot item completed: {} warps in {}ms",
-                    result.warps_plotted,
-                    result.duration_ms
-                );
-            } else {
-                log::error!("Plot item failed: {:?}", result.error);
-            }
+            log::info!("[CMD] execute_plot_item: plotter::execute_plot_item returned success={}, is_running={}",
+                result.success, plotter_runtime.is_running());
             Ok(CommandResult::ok(result))
         }
         Err(e) => {
-            log::error!("Failed to execute plot item: {}", e);
+            log::error!("[CMD] execute_plot_item: plotter::execute_plot_item returned error: {}", e);
             Ok(CommandResult::err(e))
         }
     }
@@ -1254,37 +1030,11 @@ pub fn is_plotter_running(
     CommandResult::ok(plotter_runtime.is_running())
 }
 
-/// Check if stop has been requested
+/// Get the current stop type
 #[tauri::command]
-pub fn is_stop_requested(
+pub fn get_stop_type(
     plotter_runtime: State<'_, SharedPlotterRuntime>,
-) -> CommandResult<bool> {
-    CommandResult::ok(plotter_runtime.is_stop_requested())
-}
-
-/// Request soft stop (finish current item, then pause)
-#[tauri::command]
-pub async fn request_soft_stop(
-    state: State<'_, SharedMiningState>,
-    plotter_runtime: State<'_, SharedPlotterRuntime>,
-) -> Result<CommandResult<()>, ()> {
-    log::info!("Soft stop requested");
-
-    // Set stop request flag
-    plotter_runtime.request_stop();
-
-    match state.lock() {
-        Ok(mut state_guard) => {
-            if let Some(ref mut plan) = state_guard.config.plot_plan {
-                plan.status = PlotPlanStatus::Paused;
-                if let Err(e) = save_config(&state_guard.config, "plot plan soft stop requested") {
-                    log::error!("Failed to persist config: {}", e);
-                }
-            }
-        }
-        Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
-    }
-
-    Ok(CommandResult::ok(()))
+) -> CommandResult<StopType> {
+    CommandResult::ok(plotter_runtime.get_stop_type())
 }
 

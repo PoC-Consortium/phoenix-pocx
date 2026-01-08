@@ -25,6 +25,9 @@ pub enum MiningStatus {
 }
 
 /// Plotting operation state
+///
+/// Note: "Stopping" state is now derived from PlotterRuntime.stop_type
+/// in the frontend. This enum only tracks the actual plotter state.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum PlottingStatus {
@@ -35,8 +38,6 @@ pub enum PlottingStatus {
         progress: f64,
         speed_mib_s: f64,
     },
-    Stopping,
-    Paused,
     Error(String),
 }
 
@@ -95,20 +96,9 @@ pub struct PlotterDeviceConfig {
 // Plot Plan Types
 // ============================================================================
 
-/// Plot plan execution status
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum PlotPlanStatus {
-    #[default]
-    Pending,
-    Running,
-    Stopping,  // Soft stop requested, finishing current batch
-    Paused,
-    Completed,
-    Invalid,
-}
-
 /// Individual plot plan task
+///
+/// These items are used by PlotPlan (in plotter.rs) to define work to be done.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PlotPlanItem {
@@ -133,32 +123,8 @@ pub enum PlotPlanItem {
     },
 }
 
-/// Full plot execution plan
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PlotPlan {
-    pub version: u32,
-    pub generated_at: u64,
-    pub config_hash: String,
-    pub finished_drives: Vec<String>,
-    pub items: Vec<PlotPlanItem>,
-    pub current_index: usize,
-    pub status: PlotPlanStatus,
-}
-
-impl Default for PlotPlan {
-    fn default() -> Self {
-        Self {
-            version: 1,
-            generated_at: 0,
-            config_hash: String::new(),
-            finished_drives: Vec::new(),
-            items: Vec::new(),
-            current_index: 0,
-            status: PlotPlanStatus::Pending,
-        }
-    }
-}
+// Note: PlotPlan and PlotPlanStatus have been moved to plotter.rs
+// Plan is now runtime-only (not persisted) and managed by PlotterRuntime.
 
 /// Recent deadline entry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +141,10 @@ pub struct DeadlineEntry {
 }
 
 /// Full mining configuration
+///
+/// Note: plot_plan has been removed. Plan is now runtime-only and managed
+/// by PlotterRuntime in plotter.rs. This keeps the config file clean and
+/// avoids stale plan state issues.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiningConfig {
@@ -196,8 +166,6 @@ pub struct MiningConfig {
     #[serde(default = "default_parallel_drives")]
     pub parallel_drives: u32, // Number of drives to plot simultaneously (default 1)
     pub hdd_wakeup_seconds: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plot_plan: Option<PlotPlan>, // Current plot execution plan
     #[serde(default)]
     pub simulation_mode: bool, // Dev only: run plotter in benchmark mode (no disk writes)
 }
@@ -230,7 +198,6 @@ impl Default for MiningConfig {
             low_priority: false,
             parallel_drives: 1,
             hdd_wakeup_seconds: 30,
-            plot_plan: None,
             simulation_mode: false,
         }
     }

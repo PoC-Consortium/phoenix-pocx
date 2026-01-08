@@ -304,14 +304,11 @@ export class PlotPlanService {
       }
     }
 
+    // Return simplified plan (runtime-only, not persisted)
     return {
-      version: 1,
-      generatedAt: Date.now(),
-      configHash: this.computeConfigHash(drives, driveConfigs, config),
-      finishedDrives,
       items: plan,
-      currentIndex: 0,
-      status: 'pending',
+      configHash: this.computeConfigHash(drives, driveConfigs, config),
+      generatedAt: Date.now(),
     };
   }
 
@@ -349,14 +346,17 @@ export class PlotPlanService {
    * Validate if existing plan is still valid
    */
   validatePlan(plan: PlotPlan, currentHash: string): boolean {
-    return plan.configHash === currentHash && plan.status !== 'invalid';
+    return plan.configHash === currentHash;
   }
 
   /**
    * Calculate stats for a plan
    * Counts batches (not individual items) for task progress
+   *
+   * @param plan The plot plan
+   * @param currentIndex The current execution index (from PlotterState)
    */
-  getPlanStats(plan: PlotPlan): PlotPlanStats {
+  getPlanStats(plan: PlotPlan, currentIndex: number = 0): PlotPlanStats {
     // Count batches instead of individual items
     // Items with same batchId count as one batch
     let totalTasks = 0;
@@ -372,7 +372,7 @@ export class PlotPlanService {
 
       if (item.type === 'plot') {
         totalWarps += item.warps;
-        if (i < plan.currentIndex) {
+        if (i < currentIndex) {
           completedWarps += item.warps;
         }
 
@@ -381,24 +381,24 @@ export class PlotPlanService {
           seenBatchIds.add(item.batchId);
           totalTasks++;
         }
-        if (i < plan.currentIndex && !completedBatchIds.has(item.batchId)) {
+        if (i < currentIndex && !completedBatchIds.has(item.batchId)) {
           completedBatchIds.add(item.batchId);
           completedTasks++;
         }
       } else if (item.type === 'resume') {
         totalWarps += item.sizeGib;
-        if (i < plan.currentIndex) {
+        if (i < currentIndex) {
           completedWarps += item.sizeGib;
         }
         // Resume items are individual tasks
         totalTasks++;
-        if (i < plan.currentIndex) {
+        if (i < currentIndex) {
           completedTasks++;
         }
       } else if (item.type === 'add_to_miner') {
         // add_to_miner items are individual tasks (but quick)
         totalTasks++;
-        if (i < plan.currentIndex) {
+        if (i < currentIndex) {
           completedTasks++;
         }
       }

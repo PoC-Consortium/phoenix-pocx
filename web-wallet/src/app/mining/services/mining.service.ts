@@ -18,7 +18,6 @@ import {
   BenchmarkResult,
   PlotPlan,
   PlotPlanItem,
-  PlotPlanStatus,
   PlotPlanStats,
   PlotExecutionResult,
   PlottingProgress,
@@ -28,6 +27,9 @@ import {
   PlotterCompleteEvent,
   PlotterErrorEvent,
   PlotterItemCompleteEvent,
+  PlotterState,
+  StopType,
+  PlotterUIState,
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
 
@@ -54,6 +56,7 @@ export class MiningService {
     hashingWarps: 0,
     writingWarps: 0,
     totalWarps: 0,
+    resumeOffset: 0,
     plotStartTime: 0,
     currentBatchSize: 1,
     completedInBatch: 0,
@@ -63,6 +66,10 @@ export class MiningService {
   private _isPlotterListening = false;
   private _plotterUnlisteners: UnlistenFn[] = [];
   private _lastSpeedUpdateTime = 0;
+
+  // Plotter runtime state (single source of truth)
+  private readonly _plotterState = signal<PlotterState | null>(null);
+  private _plotterInitialized = false; // First start flag
 
   // Callback for activity logging (set by dashboard)
   private _onActivityLog: ((type: string, message: string) => void) | null = null;
@@ -91,12 +98,34 @@ export class MiningService {
   readonly isDevMode = this._isDevMode.asReadonly();
   readonly simulationMode = computed(() => this._state()?.config.simulationMode ?? false);
 
-  // Plot plan computed values
-  readonly plotPlan = computed(() => this._state()?.config.plotPlan ?? null);
+  // Plotter runtime state (new simplified model)
+  readonly plotterState = this._plotterState.asReadonly();
+  readonly plotterRunning = computed(() => this._plotterState()?.running ?? false);
+  readonly stopType = computed(() => this._plotterState()?.stopType ?? 'none');
+  readonly plotPlan = computed(() => this._plotterState()?.plan ?? null);
+  readonly currentPlanIndex = computed(() => this._plotterState()?.currentIndex ?? 0);
+
+  // UI state derived from plotter runtime state
+  readonly plotterUIState = computed((): PlotterUIState => {
+    const plotter = this._plotterState();
+
+    if (plotter?.running) {
+      if (plotter.stopType !== 'none') return 'stopping';
+      return 'plotting';
+    }
+
+    if (plotter?.plan && plotter.currentIndex < plotter.plan.items.length) {
+      return 'ready';
+    }
+
+    return 'complete';
+  });
+
+  // Plan stats computed from runtime state
   readonly planStats = computed(() => {
     const plan = this.plotPlan();
     if (!plan) return null;
-    return this.plotPlanService.getPlanStats(plan);
+    return this.plotPlanService.getPlanStats(plan, this.currentPlanIndex());
   });
   readonly planEta = computed(() => {
     const stats = this.planStats();
@@ -147,6 +176,71 @@ export class MiningService {
       this._error.set(`Failed to get mining state: ${err}`);
     } finally {
       this._isLoading.set(false);
+    }
+  }
+
+  /**
+   * Refresh plotter runtime state from backend
+   */
+  async refreshPlotterState(): Promise<void> {
+    try {
+      const result = await invoke<CommandResult<PlotterState>>('get_plotter_state');
+      console.log('MiningService: refreshPlotterState result:', result);
+      if (result.success && result.data) {
+        this._plotterState.set(result.data);
+        console.log('MiningService: Plotter state updated, plan:', result.data.plan?.items?.length ?? 0, 'items');
+      } else {
+        console.warn('MiningService: get_plotter_state failed:', result.error);
+      }
+    } catch (err) {
+      console.error('Failed to get plotter state:', err);
+    }
+  }
+
+  /**
+   * Initialize plotting - called on first entry to mining section
+   *
+   * This implements the "first start" flow:
+   * 1. Refresh mining state (to get config)
+   * 2. Refresh plotter state from backend
+   * 3. If no plan exists, scan disks and generate one
+   * 4. If plan exists, UI will show Ready or Complete state
+   */
+  async initializePlotting(): Promise<void> {
+    if (this._plotterInitialized) {
+      // Just refresh state on subsequent visits
+      await this.refreshPlotterState();
+      return;
+    }
+
+    this._plotterInitialized = true;
+    console.log('MiningService: First start - initializing plotting');
+
+    // Refresh both states
+    await this.refreshState();
+    await this.refreshPlotterState();
+
+    // If plotter is already running, set up listeners
+    const plotter = this._plotterState();
+    if (plotter?.running) {
+      console.log('MiningService: Plotter already running, setting up listeners');
+      await this.setupPlotterEventListeners();
+      return;
+    }
+
+    // If no plan exists and drives are configured, generate one
+    if (!plotter?.plan) {
+      const config = this.config();
+      console.log('MiningService: Checking config for drives:', config?.drives?.length ?? 0);
+      if (config?.drives?.length) {
+        console.log('MiningService: No plan, generating...');
+        const plan = await this.generatePlotPlan();
+        console.log('MiningService: Plan generated:', plan?.items?.length ?? 0, 'items');
+      } else {
+        console.log('MiningService: No drives configured, skipping plan generation');
+      }
+    } else {
+      console.log('MiningService: Plan already exists:', plotter.plan.items.length, 'items');
     }
   }
 
@@ -670,15 +764,13 @@ export class MiningService {
       this._plottingProgress.update(p => ({
         ...p,
         totalWarps,
-        hashingWarps: resumeOffset, // Resume from offset if resuming
-        writingWarps: 0,
+        resumeOffset,                 // Store offset for speed calculation
+        hashingWarps: resumeOffset,   // Already hashed (for progress)
+        writingWarps: resumeOffset,   // Already written (for progress)
         plotStartTime: Date.now(),
         progress: 0,
       }));
       this._lastSpeedUpdateTime = 0;
-
-      // Update plottingStatus with current item path
-      this.syncPlottingStatus();
     });
     this._plotterUnlisteners.push(startedUnlisten);
 
@@ -777,50 +869,40 @@ export class MiningService {
       return;
     }
 
-    // combinedWarps goes 0 → 2×totalWarps, effectiveWarps goes 0 → totalWarps
-    const combinedWarps = p.hashingWarps + p.writingWarps;
-    const effectiveWarps = combinedWarps / 2;
+    // Subtract resume offset - only count NEW work for speed calculation
+    const newHashingWarps = p.hashingWarps - p.resumeOffset;
+    const newWritingWarps = p.writingWarps - p.resumeOffset;
+    const combinedNewWarps = newHashingWarps + newWritingWarps;
+    const effectiveNewWarps = combinedNewWarps / 2;
 
     // Speed = effective GiB processed / time, converted to MiB/s
-    const speedMibS = (effectiveWarps * 1024) / elapsedSinceStart;
+    const speedMibS = (effectiveNewWarps * 1024) / elapsedSinceStart;
 
     this._currentPlottingSpeed.set(speedMibS);
     this._plottingProgress.update(prev => ({ ...prev, speedMibS }));
-
-    // Update plottingStatus with current progress and speed
-    this.syncPlottingStatus();
-  }
-
-  /**
-   * Sync the internal plottingStatus with current progress.
-   */
-  private syncPlottingStatus(): void {
-    const plan = this.plotPlan();
-    const currentItem = plan?.items[plan.currentIndex];
-    const filePath = currentItem?.path || '';
-    const p = this._plottingProgress();
-
-    // Update backend plotting status
-    // Note: Backend status is refreshed separately, this is for local UI
   }
 
   /**
    * Handle item complete event - advance plan index, batch tracking, and trigger next batch
    */
   private async handleItemComplete(event: PlotterItemCompleteEvent): Promise<void> {
-    // Skip processing if this was a hard stop (user requested stop)
-    // The plan was already invalidated and possibly regenerated, don't advance it
+    // Handle hard stop: clear plan, regenerate (will detect .tmp files)
     if (!event.success && event.error === 'Stopped by user') {
-      console.log('MiningService: Skipping item-complete - hard stop by user');
-      // Still need to refresh state so UI sees plottingStatus change from 'stopping' to 'idle'
-      await this.refreshState();
+      console.log('MiningService: Hard stop completed - clearing plan and regenerating');
+      // Clear old plan and stop type
+      await this.clearPlotPlan();
+      // Regenerate plan (will detect incomplete .tmp files)
+      await this.generatePlotPlan();
+      // Clean up event listeners
+      this.cleanupPlotterEventListeners();
+      this.resetPlottingProgress();
       return;
     }
 
-    // Also skip if plan is invalid
+    // Skip if plan is missing (cleared by stop)
     const plan = this.plotPlan();
-    if (!plan || plan.status === 'invalid') {
-      console.log('MiningService: Skipping item-complete - plan is invalid or missing');
+    if (!plan) {
+      console.log('MiningService: Skipping item-complete - no plan');
       return;
     }
 
@@ -840,9 +922,8 @@ export class MiningService {
     }
 
     // CRITICAL: Advance the plan index for this completed item
-    // This increments currentIndex in the backend so the next execution picks up the next item
     console.log('MiningService: Advancing plan index for completed item:', event.path);
-    await this.completePlotPlanItem();
+    await this.advancePlotPlan();
 
     // Update batch tracking
     this._plottingProgress.update(p => ({
@@ -861,12 +942,13 @@ export class MiningService {
         ...p,
         hashingWarps: 0,
         writingWarps: 0,
+        resumeOffset: 0,
         progress: 0,
         completedInBatch: 0,
       }));
 
       // Refresh state and execute next batch
-      await this.refreshState();
+      await this.refreshPlotterState();
       await this.executeNextBatch();
     }
   }
@@ -879,18 +961,17 @@ export class MiningService {
     // Ensure event listeners are set up before executing (idempotent)
     await this.setupPlotterEventListeners();
 
-    await this.refreshState();
+    await this.refreshPlotterState();
     const plan = this.plotPlan();
+    const currentIndex = this.currentPlanIndex();
 
-    if (!plan || plan.currentIndex >= plan.items.length) {
-      console.log('MiningService: Plan complete or no plan');
+    if (!plan || currentIndex >= plan.items.length) {
       this.cleanupPlotterEventListeners();
       this.resetPlottingProgress();
       return;
     }
 
-    const currentItem = plan.items[plan.currentIndex];
-    console.log('MiningService: Executing item:', currentItem);
+    const currentItem = plan.items[currentIndex];
 
     // For non-plot items, execute one at a time
     if (currentItem.type !== 'plot') {
@@ -901,10 +982,8 @@ export class MiningService {
       }));
 
       if (currentItem.type === 'resume') {
-        // Check stop request before starting resume (same as plot items)
-        const stopRequested = await this.isStopRequested();
-        if (stopRequested) {
-          console.log('MiningService: Stop requested, not starting resume');
+        // Check stop request before starting resume
+        if (this.stopType() !== 'none') {
           this.cleanupPlotterEventListeners();
           this.resetPlottingProgress();
           return;
@@ -913,16 +992,20 @@ export class MiningService {
         await this.executePlotItem(currentItem);
       } else if (currentItem.type === 'add_to_miner') {
         // Add to miner is a no-op for now, just advance
-        await this.completePlotPlanItem();
+        const nextItem = await this.advancePlotPlan();
+        // If null, plan is complete or soft stop at batch boundary
+        if (nextItem === null) {
+          this.cleanupPlotterEventListeners();
+          this.resetPlottingProgress();
+          return;
+        }
         await this.executeNextBatch();
       }
       return;
     }
 
     // For plot items, check stop request before starting new batch
-    const stopRequested = await this.isStopRequested();
-    if (stopRequested) {
-      console.log('MiningService: Stop requested, not starting new plot batch');
+    if (this.stopType() !== 'none') {
       this.cleanupPlotterEventListeners();
       this.resetPlottingProgress();
       return;
@@ -933,7 +1016,7 @@ export class MiningService {
     const batchItems: PlotPlanItem[] = [];
     let totalBatchWarps = 0;
 
-    for (let i = plan.currentIndex; i < plan.items.length; i++) {
+    for (let i = currentIndex; i < plan.items.length; i++) {
       const item = plan.items[i];
       if (item.type !== 'plot' || item.batchId !== batchId) {
         break; // Different batch or non-plot item
@@ -952,6 +1035,7 @@ export class MiningService {
       completedInBatch: 0,
       hashingWarps: 0,
       writingWarps: 0,
+      resumeOffset: 0,
       progress: 0,
       plotStartTime: Date.now(),
     }));
@@ -972,6 +1056,7 @@ export class MiningService {
       hashingWarps: 0,
       writingWarps: 0,
       totalWarps: 0,
+      resumeOffset: 0,
       plotStartTime: 0,
       currentBatchSize: 1,
       completedInBatch: 0,
@@ -1050,7 +1135,7 @@ export class MiningService {
 
   isPlottingActive(): boolean {
     const status = this.plottingStatus();
-    return status.type === 'plotting' || status.type === 'paused';
+    return status.type === 'plotting';
   }
 
   // ============================================================================
@@ -1059,19 +1144,18 @@ export class MiningService {
 
   /**
    * Generate a new plot plan based on current drive configurations
+   * Plan is stored in runtime (not persisted to config)
    */
   async generatePlotPlan(): Promise<PlotPlan | null> {
     const config = this.config();
 
     if (!config || !config.drives?.length) {
-      this._error.set('Cannot generate plan: no drives configured');
+      console.log('MiningService: No drives configured, skipping plan generation');
       return null;
     }
 
-    // Get DriveInfo ONLY for configured drives (not all system drives)
-    const configuredPaths = new Set(config.drives.map(d => d.path));
+    // Get DriveInfo for configured drives
     const driveInfos: DriveInfo[] = [];
-
     for (const driveConfig of config.drives) {
       const info = await this.getDriveInfo(driveConfig.path);
       if (info) {
@@ -1091,36 +1175,45 @@ export class MiningService {
       { parallelDrives: config.parallelDrives ?? 1 }
     );
 
-    // Save to backend
-    const saved = await this.savePlotPlan(plan);
+    // Check if there's any work to do
+    if (plan.items.length === 0) {
+      console.log('MiningService: No work needed, all drives complete');
+      return null;
+    }
+
+    // Save to backend runtime
+    const saved = await this.setPlotPlan(plan);
     if (!saved) {
       return null;
     }
 
-    await this.refreshState();
+    await this.refreshPlotterState();
     return plan;
   }
 
   /**
-   * Save a plot plan to the backend
+   * Set a plot plan in runtime (not persisted)
    */
-  async savePlotPlan(plan: PlotPlan): Promise<boolean> {
+  async setPlotPlan(plan: PlotPlan): Promise<boolean> {
     try {
-      const result = await invoke<CommandResult<void>>('save_plot_plan', { plan });
+      console.log('MiningService: setPlotPlan called with', plan.items.length, 'items');
+      const result = await invoke<CommandResult<void>>('set_plot_plan', { plan });
+      console.log('MiningService: setPlotPlan result:', result);
       if (result.success) {
-        await this.refreshState();
+        await this.refreshPlotterState();
         return true;
       }
-      this._error.set(result.error ?? 'Failed to save plot plan');
+      this._error.set(result.error ?? 'Failed to set plot plan');
       return false;
     } catch (err) {
-      this._error.set(`Failed to save plot plan: ${err}`);
+      console.error('MiningService: setPlotPlan error:', err);
+      this._error.set(`Failed to set plot plan: ${err}`);
       return false;
     }
   }
 
   /**
-   * Get the current plot plan from backend
+   * Get the current plot plan from backend runtime
    */
   async getPlotPlan(): Promise<PlotPlan | null> {
     try {
@@ -1143,7 +1236,7 @@ export class MiningService {
     try {
       const result = await invoke<CommandResult<PlotPlanItem>>('start_plot_plan');
       if (result.success && result.data) {
-        await this.refreshState();
+        await this.refreshPlotterState();
         return result.data;
       }
       this._error.set(result.error ?? 'Failed to start plot plan');
@@ -1155,13 +1248,13 @@ export class MiningService {
   }
 
   /**
-   * Soft stop - finish current task, then pause
+   * Soft stop - finish current batch, keep plan
    */
   async softStopPlotPlan(): Promise<boolean> {
     try {
       const result = await invoke<CommandResult<void>>('soft_stop_plot_plan');
       if (result.success) {
-        await this.refreshState();
+        await this.refreshPlotterState();
         return true;
       }
       this._error.set(result.error ?? 'Failed to soft stop');
@@ -1173,14 +1266,16 @@ export class MiningService {
   }
 
   /**
-   * Hard stop - abort immediately, mark plan invalid
-   * The .tmp file is kept on disk for later resume
+   * Hard stop - finish current item, clear plan
+   * Plan regeneration happens AFTER plotter finishes (in handleItemComplete)
    */
   async hardStopPlotPlan(): Promise<boolean> {
     try {
       const result = await invoke<CommandResult<void>>('hard_stop_plot_plan');
       if (result.success) {
-        await this.refreshState();
+        await this.refreshPlotterState();
+        // Don't regenerate plan here - plotter is still running!
+        // Plan will be regenerated in handleItemComplete when plotter finishes
         return true;
       }
       this._error.set(result.error ?? 'Failed to hard stop');
@@ -1192,13 +1287,14 @@ export class MiningService {
   }
 
   /**
-   * Mark current item as complete and get next item
+   * Advance to next plan item (called after item completes)
+   * Returns next item or null if plan complete/stopped
    */
-  async completePlotPlanItem(): Promise<PlotPlanItem | null> {
+  async advancePlotPlan(): Promise<PlotPlanItem | null> {
     try {
-      const result = await invoke<CommandResult<PlotPlanItem | null>>('complete_plot_plan_item');
+      const result = await invoke<CommandResult<PlotPlanItem | null>>('advance_plot_plan');
       if (result.success) {
-        await this.refreshState();
+        await this.refreshPlotterState();
         return result.data ?? null;
       }
       this._error.set(result.error ?? 'Failed to advance plan');
@@ -1210,15 +1306,14 @@ export class MiningService {
   }
 
   /**
-   * Clear the current plan (used before regenerating)
+   * Clear the current plan from runtime
+   * Note: Does NOT refresh drive cache - caller should do that if needed
    */
   async clearPlotPlan(): Promise<boolean> {
     try {
       const result = await invoke<CommandResult<void>>('clear_plot_plan');
       if (result.success) {
-        await this.refreshState();
-        // Refresh cache with fresh data
-        await this.refreshDriveCache();
+        await this.refreshPlotterState();
         return true;
       }
       this._error.set(result.error ?? 'Failed to clear plan');
@@ -1230,7 +1325,7 @@ export class MiningService {
   }
 
   /**
-   * Regenerate the plot plan (used after hard stop or config changes)
+   * Regenerate the plot plan
    * This clears the old plan and generates a new one
    */
   async regeneratePlotPlan(): Promise<PlotPlan | null> {
@@ -1242,29 +1337,6 @@ export class MiningService {
   }
 
   /**
-   * Check if the current plan is still valid
-   * Returns false if config has changed since plan was generated
-   */
-  isPlanValid(): boolean {
-    const plan = this.plotPlan();
-    const config = this.config();
-    const cache = this._driveInfoCache();
-
-    if (!plan || !config) return false;
-
-    // Convert cache Map to array (only configured drives)
-    const drives = Array.from(cache.values());
-
-    const currentHash = this.plotPlanService.computeConfigHash(
-      drives,
-      config.drives,
-      { parallelDrives: config.parallelDrives ?? 1 }
-    );
-
-    return this.plotPlanService.validatePlan(plan, currentHash);
-  }
-
-  /**
    * Update the current plotting speed (called from progress events)
    */
   updatePlottingSpeed(speedMibS: number): void {
@@ -1272,36 +1344,13 @@ export class MiningService {
   }
 
   /**
-   * Check if plan execution is active
-   */
-  isPlanRunning(): boolean {
-    const plan = this.plotPlan();
-    return plan?.status === 'running' || plan?.status === 'stopping';
-  }
-
-  /**
-   * Check if plan is paused
-   */
-  isPlanPaused(): boolean {
-    const plan = this.plotPlan();
-    return plan?.status === 'paused';
-  }
-
-  /**
-   * Check if plan needs regeneration (missing, invalid, or completed)
-   */
-  needsPlanRegeneration(): boolean {
-    const plan = this.plotPlan();
-    return !plan || plan.status === 'invalid' || plan.status === 'completed' || !this.isPlanValid();
-  }
-
-  /**
    * Get current plan item being executed
    */
   getCurrentPlanItem(): PlotPlanItem | null {
     const plan = this.plotPlan();
-    if (!plan || plan.currentIndex >= plan.items.length) return null;
-    return plan.items[plan.currentIndex];
+    const index = this.currentPlanIndex();
+    if (!plan || index >= plan.items.length) return null;
+    return plan.items[index];
   }
 
   // ============================================================================
@@ -1311,13 +1360,16 @@ export class MiningService {
   /**
    * Execute a single plot plan item.
    * This is the main entry point for actual plotting.
-   * The command will block until the item is complete.
+   * The command returns immediately (spawns async task), so refresh state right after.
    */
   async executePlotItem(item: PlotPlanItem): Promise<PlotExecutionResult | null> {
     try {
       const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_item', { item });
+
+      // Refresh plotter state immediately to show running status
+      await this.refreshPlotterState();
+
       if (result.success && result.data) {
-        await this.refreshState();
         return result.data;
       }
       this._error.set(result.error ?? 'Failed to execute plot item');
@@ -1331,13 +1383,14 @@ export class MiningService {
   /**
    * Execute a batch of plot plan items (parallel disk writes).
    * Items with the same batchId are executed together in a single plotter run.
-   * The plotter handles multiple outputs internally for efficient parallel I/O.
+   * The command returns immediately (spawns async task), so refresh state right after.
    */
   async executePlotBatch(items: PlotPlanItem[]): Promise<PlotExecutionResult | null> {
     try {
       const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_batch', { items });
+      // Refresh plotter state immediately to show running status
+      await this.refreshPlotterState();
       if (result.success && result.data) {
-        await this.refreshState();
         return result.data;
       }
       this._error.set(result.error ?? 'Failed to execute plot batch');
@@ -1359,37 +1412,6 @@ export class MiningService {
       return false;
     }
   }
-
-  /**
-   * Check if stop has been requested
-   */
-  async isStopRequested(): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<boolean>>('is_stop_requested');
-      return result.success && result.data === true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Request soft stop - finish current item, then pause
-   */
-  async requestSoftStop(): Promise<boolean> {
-    try {
-      const result = await invoke<CommandResult<void>>('request_soft_stop');
-      if (result.success) {
-        await this.refreshState();
-        return true;
-      }
-      this._error.set(result.error ?? 'Failed to request soft stop');
-      return false;
-    } catch (err) {
-      this._error.set(`Failed to request soft stop: ${err}`);
-      return false;
-    }
-  }
-
 
   // ============================================================================
   // Platform Methods
