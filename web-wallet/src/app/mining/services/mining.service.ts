@@ -11,6 +11,7 @@ import {
   DeviceInfo,
   DriveInfo,
   DeadlineEntry,
+  ActivityLogEntry,
   CommandResult,
   AddressInfo,
   MiningStatus,
@@ -30,6 +31,21 @@ import {
   PlotterState,
   StopType,
   PlotterUIState,
+  // Miner event types
+  MinerStartedEvent,
+  MinerCapacityLoadedEvent,
+  MinerNewBlockEvent,
+  MinerQueueUpdateEvent,
+  MinerQueueItem,
+  MinerScanStartedEvent,
+  MinerScanProgressEvent,
+  MinerScanStatusEvent,
+  MinerDeadlineAcceptedEvent,
+  MinerDeadlineRetryEvent,
+  MinerDeadlineRejectedEvent,
+  MinerRuntimeState,
+  MinerBlockInfo,
+  MinerScanProgress,
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
 
@@ -71,7 +87,11 @@ export class MiningService {
   private readonly _plotterState = signal<PlotterState | null>(null);
   private _plotterInitialized = false; // First start flag
 
-  // Callback for activity logging (set by dashboard)
+  // Activity logs (persisted in service, survives navigation)
+  private readonly _activityLogs = signal<ActivityLogEntry[]>([]);
+  private static readonly MAX_LOG_AGE_MS = 24 * 60 * 60 * 1000; // 1 day
+
+  // Legacy callback for activity logging (deprecated, use addActivityLog directly)
   private _onActivityLog: ((type: string, message: string) => void) | null = null;
 
   // Cached drive info (scanned once, refreshed on config change or job complete)
@@ -81,6 +101,29 @@ export class MiningService {
 
   // Dev mode detection (cached on init)
   private readonly _isDevMode = signal<boolean>(false);
+
+  // Miner runtime state
+  private readonly _minerState = signal<MinerRuntimeState>({
+    running: false,
+    chains: [],
+    totalWarps: 0,
+    capacityTib: 0,
+    currentBlock: {},
+    scanProgress: {
+      chain: '',
+      height: 0,
+      totalWarps: 0,
+      scannedWarps: 0,
+      progress: 0,
+      startTime: 0,
+      resuming: false,
+    },
+    queue: [],
+    recentDeadlines: [],
+  });
+  private _isMinerListening = false;
+  private _minerUnlisteners: UnlistenFn[] = [];
+  private _minerInitialized = false; // First start flag for miner
 
   // Public computed values
   readonly state = this._state.asReadonly();
@@ -97,6 +140,18 @@ export class MiningService {
   readonly recentDeadlines = computed(() => this._state()?.recentDeadlines ?? []);
   readonly isDevMode = this._isDevMode.asReadonly();
   readonly simulationMode = computed(() => this._state()?.config.simulationMode ?? false);
+
+  // Miner state computed values
+  readonly minerState = this._minerState.asReadonly();
+  readonly minerRunning = computed(() => this._minerState().running);
+  readonly minerCapacityTib = computed(() => this._minerState().capacityTib);
+  readonly minerQueue = computed(() => this._minerState().queue);
+  readonly minerCurrentBlock = computed(() => this._minerState().currentBlock);
+  readonly minerScanProgress = computed(() => this._minerState().scanProgress);
+  readonly minerDeadlines = computed(() => this._minerState().recentDeadlines);
+
+  // Activity logs (survives navigation, auto-cleanup of entries > 1 day old)
+  readonly activityLogs = this._activityLogs.asReadonly();
 
   // Plotter runtime state (new simplified model)
   readonly plotterState = this._plotterState.asReadonly();
@@ -241,6 +296,51 @@ export class MiningService {
       }
     } else {
       console.log('MiningService: Plan already exists:', plotter.plan.items.length, 'items');
+    }
+  }
+
+  /**
+   * Initialize mining - called on first entry to mining section
+   *
+   * This recovers miner state if the app was reloaded while mining was active:
+   * 1. Check if miner is running (not stopped)
+   * 2. If so, set up event listeners to receive miner events
+   * 3. Sync persisted deadlines from backend state
+   */
+  async initializeMining(): Promise<void> {
+    if (this._minerInitialized) {
+      return;
+    }
+
+    this._minerInitialized = true;
+    console.log('MiningService: Initializing mining');
+
+    // Refresh state to get current mining status
+    await this.refreshState();
+
+    const state = this._state();
+    if (!state) {
+      console.log('MiningService: No state available');
+      return;
+    }
+
+    // Check if miner is running (anything except 'stopped')
+    const isRunning = state.miningStatus.type !== 'stopped';
+    if (isRunning) {
+      console.log('MiningService: Miner already running, setting up listeners');
+      await this.setupMinerEventListeners();
+
+      // Update miner runtime state to reflect running status
+      this._minerState.update(s => ({ ...s, running: true }));
+    }
+
+    // Sync persisted deadlines from backend state to miner runtime state
+    if (state.recentDeadlines.length > 0) {
+      console.log('MiningService: Syncing', state.recentDeadlines.length, 'persisted deadlines');
+      this._minerState.update(s => ({
+        ...s,
+        recentDeadlines: state.recentDeadlines,
+      }));
     }
   }
 
@@ -907,13 +1007,11 @@ export class MiningService {
     }
 
     // Log activity
-    if (this._onActivityLog) {
-      if (event.success) {
-        const duration = event.durationMs ? ` in ${(event.durationMs / 1000 / 60).toFixed(1)} min` : '';
-        this._onActivityLog('complete', `${event.type} completed: ${this.formatPath(event.path)}${duration}`);
-      } else {
-        this._onActivityLog('error', `${event.type} failed: ${event.path} - ${event.error}`);
-      }
+    if (event.success) {
+      const duration = event.durationMs ? ` in ${(event.durationMs / 1000 / 60).toFixed(1)} min` : '';
+      this.addActivityLog('complete', `${event.type} completed: ${this.formatPath(event.path)}${duration}`);
+    } else {
+      this.addActivityLog('error', `${event.type} failed: ${event.path} - ${event.error}`);
     }
 
     // Refresh drive stats for the completed item's path
@@ -1071,6 +1169,51 @@ export class MiningService {
    */
   setActivityLogCallback(callback: ((type: string, message: string) => void) | null): void {
     this._onActivityLog = callback;
+  }
+
+  /**
+   * Add an activity log entry (stored in service, survives navigation)
+   * Automatically cleans up entries older than 1 day
+   */
+  addActivityLog(type: string, message: string): void {
+    const now = Date.now();
+    const newEntry: ActivityLogEntry = {
+      id: now,
+      timestamp: now,
+      type,
+      message,
+    };
+
+    this._activityLogs.update(logs => {
+      // Add new entry and filter out entries older than 1 day
+      const cutoff = now - MiningService.MAX_LOG_AGE_MS;
+      return [newEntry, ...logs.filter(log => log.timestamp > cutoff)];
+    });
+
+    // Also call legacy callback if set (for backward compatibility)
+    this._onActivityLog?.(type, message);
+  }
+
+  /**
+   * Convert hex account payload to bech32 address
+   * Uses the network from the mining config (testnet/mainnet/regtest)
+   */
+  async hexToBech32(payloadHex: string): Promise<string> {
+    const config = this.config();
+    const network = config?.walletNetwork ?? 'testnet';
+    try {
+      const result = await invoke<CommandResult<string>>('hex_to_bech32', {
+        payloadHex,
+        network,
+      });
+      if (result.success && result.data) {
+        return result.data;
+      }
+      return payloadHex; // Fallback to hex if conversion fails
+    } catch (err) {
+      console.warn('Failed to convert to bech32:', err);
+      return payloadHex; // Fallback to hex
+    }
   }
 
   /**
@@ -1459,5 +1602,346 @@ export class MiningService {
       console.error('Failed to restart elevated:', err);
       return false;
     }
+  }
+
+  // ============================================================================
+  // Miner Control Methods
+  // ============================================================================
+
+  /**
+   * Start the miner with current configuration
+   */
+  async startMiner(): Promise<void> {
+    try {
+      await this.setupMinerEventListeners();
+
+      const result = await invoke<CommandResult<void>>('start_mining');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to start miner');
+      }
+
+      this._minerState.update(s => ({ ...s, running: true }));
+      await this.refreshState();
+    } catch (err) {
+      this._error.set(`Failed to start miner: ${err}`);
+      throw err;
+    }
+  }
+
+  /**
+   * Stop the miner
+   */
+  async stopMiner(): Promise<void> {
+    try {
+      const result = await invoke<CommandResult<void>>('stop_mining');
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to stop miner');
+      }
+
+      this._minerState.update(s => ({ ...s, running: false }));
+      this.cleanupMinerEventListeners();
+      await this.refreshState();
+    } catch (err) {
+      this._error.set(`Failed to stop miner: ${err}`);
+      throw err;
+    }
+  }
+
+  /**
+   * Set up miner event listeners for real-time updates
+   */
+  async setupMinerEventListeners(): Promise<void> {
+    if (this._isMinerListening) {
+      return; // Already listening
+    }
+
+    this._isMinerListening = true;
+    console.log('MiningService: Setting up miner event listeners');
+
+    // miner:started
+    const startedUnlisten = await listen<MinerStartedEvent>('miner:started', (event) => {
+      console.log('MiningService: Miner started:', event.payload);
+      this._minerState.update(s => ({
+        ...s,
+        running: true,
+        chains: event.payload.chains,
+      }));
+      this.addActivityLog('info', `Miner started v${event.payload.version}`);
+    });
+    this._minerUnlisteners.push(startedUnlisten);
+
+    // miner:capacity-loaded
+    const capacityUnlisten = await listen<MinerCapacityLoadedEvent>('miner:capacity-loaded', (event) => {
+      console.log('MiningService: Capacity loaded:', event.payload);
+      this._minerState.update(s => ({
+        ...s,
+        totalWarps: event.payload.totalWarps,
+        capacityTib: event.payload.capacityTib,
+      }));
+      this.addActivityLog('info', `Loaded ${event.payload.capacityTib.toFixed(2)} TiB from ${event.payload.drives} drives`);
+    });
+    this._minerUnlisteners.push(capacityUnlisten);
+
+    // miner:new-block
+    const blockUnlisten = await listen<MinerNewBlockEvent>('miner:new-block', (event) => {
+      const block = event.payload;
+      this._minerState.update(s => ({
+        ...s,
+        currentBlock: {
+          ...s.currentBlock,
+          [block.chain]: {
+            height: block.height,
+            baseTarget: block.baseTarget,
+            genSig: block.genSig,
+            networkCapacity: block.networkCapacity,
+            compressionRange: block.compressionRange,
+            scoop: block.scoop,
+          },
+        },
+      }));
+      this.addActivityLog('block', `[${block.chain}] Block ${block.height}, capacity=${block.networkCapacity}`);
+    });
+    this._minerUnlisteners.push(blockUnlisten);
+
+    // miner:queue-updated
+    const queueUnlisten = await listen<MinerQueueUpdateEvent>('miner:queue-updated', (event) => {
+      this._minerState.update(s => ({
+        ...s,
+        queue: event.payload.queue,
+      }));
+    });
+    this._minerUnlisteners.push(queueUnlisten);
+
+    // miner:idle
+    const idleUnlisten = await listen('miner:idle', () => {
+      this._minerState.update(s => ({ ...s, queue: [] }));
+    });
+    this._minerUnlisteners.push(idleUnlisten);
+
+    // miner:scan-started
+    const scanStartedUnlisten = await listen<MinerScanStartedEvent>('miner:scan-started', (event) => {
+      const info = event.payload;
+      this._minerState.update(s => ({
+        ...s,
+        scanProgress: {
+          chain: info.chain,
+          height: info.height,
+          totalWarps: info.totalWarps,
+          scannedWarps: 0,
+          progress: 0,
+          startTime: Date.now(),
+          resuming: info.resuming,
+        },
+      }));
+      const action = info.resuming ? 'Resuming' : 'Scanning';
+      this.addActivityLog('scan', `${action} [${info.chain}:${info.height}]`);
+    });
+    this._minerUnlisteners.push(scanStartedUnlisten);
+
+    // miner:scan-progress
+    const scanProgressUnlisten = await listen<MinerScanProgressEvent>('miner:scan-progress', (event) => {
+      this._minerState.update(s => {
+        const scannedWarps = s.scanProgress.scannedWarps + event.payload.warpsDelta;
+        const progress = s.scanProgress.totalWarps > 0
+          ? (scannedWarps / s.scanProgress.totalWarps) * 100
+          : 0;
+        return {
+          ...s,
+          scanProgress: {
+            ...s.scanProgress,
+            scannedWarps,
+            progress,
+          },
+        };
+      });
+    });
+    this._minerUnlisteners.push(scanProgressUnlisten);
+
+    // miner:scan-status
+    const scanStatusUnlisten = await listen<MinerScanStatusEvent>('miner:scan-status', (event) => {
+      const status = event.payload;
+      if (status.status === 'finished') {
+        const duration = status.durationSecs != null ? `${status.durationSecs.toFixed(1)}s` : '';
+        this.addActivityLog('scan', `Finished [${status.chain}:${status.height}]${duration ? ' in ' + duration : ''}`);
+      } else if (status.status === 'paused') {
+        const progress = status.progressPercent != null ? `${status.progressPercent.toFixed(1)}%` : '';
+        this.addActivityLog('scan', `Paused [${status.chain}:${status.height}]${progress ? ' at ' + progress : ''}`);
+      } else if (status.status === 'interrupted') {
+        const progress = status.progressPercent != null ? `${status.progressPercent.toFixed(1)}%` : '';
+        this.addActivityLog('warn', `Interrupted [${status.chain}:${status.height}]${progress ? ' at ' + progress : ''}`);
+      }
+    });
+    this._minerUnlisteners.push(scanStatusUnlisten);
+
+    // miner:deadline-accepted
+    const deadlineAcceptedUnlisten = await listen<MinerDeadlineAcceptedEvent>('miner:deadline-accepted', async (event) => {
+      const d = event.payload;
+      const timeStr = d.pocTime < 86400 ? d.pocTime.toString() : '∞';
+      const accountShort = d.account.slice(-8);
+      this.addActivityLog('success', `accepted: height=${d.height}, account=...${accountShort}, nonce=${d.nonce}, X=${d.compression}, quality=${d.qualityRaw}, time=${timeStr}`);
+
+      // Convert account to bech32 with correct HRP
+      const bech32Account = await this.hexToBech32(d.account);
+
+      // Update deadline history and best deadline
+      // Use poc_time as the deadline value (lower = better)
+      // Only keep best deadline per chain+height
+      this._minerState.update(s => {
+        const MAX_PER_CHAIN = 720;
+        const pocTime = d.pocTime < 86400 ? d.pocTime : Number.MAX_SAFE_INTEGER;
+
+        // Get baseTarget from current block for this chain
+        const baseTarget = s.currentBlock[d.chain]?.baseTarget ?? 0;
+
+        // Check if we already have an entry for this chain+height
+        const existingIdx = s.recentDeadlines.findIndex(
+          dl => dl.chainName === d.chain && dl.height === d.height
+        );
+
+        let updatedDeadlines: DeadlineEntry[];
+
+        if (existingIdx >= 0) {
+          // Entry exists - only update if this deadline is better (lower poc_time)
+          const existing = s.recentDeadlines[existingIdx];
+          if (pocTime < existing.deadline) {
+            // Better deadline - replace
+            updatedDeadlines = [...s.recentDeadlines];
+            updatedDeadlines[existingIdx] = {
+              ...existing,
+              account: bech32Account,
+              nonce: d.nonce,
+              deadline: pocTime,
+              qualityRaw: d.qualityRaw,
+              baseTarget,
+              timestamp: Date.now(),
+            };
+          } else {
+            // Not better - keep existing
+            updatedDeadlines = s.recentDeadlines;
+          }
+        } else {
+          // New entry for this chain+height
+          const entry: DeadlineEntry = {
+            id: Date.now(),
+            chainName: d.chain,
+            account: bech32Account,
+            height: d.height,
+            nonce: d.nonce,
+            deadline: pocTime, // Use poc_time as deadline value
+            qualityRaw: d.qualityRaw, // Raw quality for effective capacity
+            baseTarget, // Block's base target for capacity calculations
+            submitted: true,
+            timestamp: Date.now(),
+          };
+
+          // Add and enforce per-chain limit
+          const allDeadlines = [entry, ...s.recentDeadlines];
+          const chainCounts = new Map<string, number>();
+          updatedDeadlines = allDeadlines.filter(dl => {
+            const count = (chainCounts.get(dl.chainName) ?? 0) + 1;
+            chainCounts.set(dl.chainName, count);
+            return count <= MAX_PER_CHAIN;
+          });
+        }
+
+        // Update best deadline for this chain (for the card)
+        const currentBlock = s.currentBlock[d.chain];
+        if (currentBlock && (!currentBlock.bestDeadline || pocTime < currentBlock.bestDeadline)) {
+          return {
+            ...s,
+            recentDeadlines: updatedDeadlines,
+            currentBlock: {
+              ...s.currentBlock,
+              [d.chain]: {
+                ...currentBlock,
+                bestDeadline: pocTime,
+              },
+            },
+          };
+        }
+
+        return {
+          ...s,
+          recentDeadlines: updatedDeadlines,
+        };
+      });
+    });
+    this._minerUnlisteners.push(deadlineAcceptedUnlisten);
+
+    // miner:deadline-retry
+    const deadlineRetryUnlisten = await listen<MinerDeadlineRetryEvent>('miner:deadline-retry', (event) => {
+      const d = event.payload;
+      this.addActivityLog('warn', `Retrying deadline for [${d.chain}:${d.height}]: ${d.reason}`);
+    });
+    this._minerUnlisteners.push(deadlineRetryUnlisten);
+
+    // miner:deadline-rejected
+    const deadlineRejectedUnlisten = await listen<MinerDeadlineRejectedEvent>('miner:deadline-rejected', (event) => {
+      const d = event.payload;
+      this.addActivityLog('error', `Deadline rejected [${d.chain}:${d.height}]: ${d.code} - ${d.message}`);
+    });
+    this._minerUnlisteners.push(deadlineRejectedUnlisten);
+
+    // miner:hdd-wakeup
+    const hddWakeupUnlisten = await listen('miner:hdd-wakeup', () => {
+      this.addActivityLog('info', 'HDD wakeup performed');
+    });
+    this._minerUnlisteners.push(hddWakeupUnlisten);
+
+    // miner:stopped
+    const stoppedUnlisten = await listen('miner:stopped', () => {
+      console.log('MiningService: Miner stopped');
+      this._minerState.update(s => ({
+        ...s,
+        running: false,
+        queue: [],
+      }));
+      this.addActivityLog('info', 'Miner stopped');
+      this.cleanupMinerEventListeners();
+    });
+    this._minerUnlisteners.push(stoppedUnlisten);
+  }
+
+  /**
+   * Clean up miner event listeners
+   */
+  cleanupMinerEventListeners(): void {
+    console.log('MiningService: Cleaning up miner event listeners');
+    for (const unlisten of this._minerUnlisteners) {
+      unlisten();
+    }
+    this._minerUnlisteners = [];
+    this._isMinerListening = false;
+  }
+
+  /**
+   * Check if miner listeners are currently active
+   */
+  isListeningToMiner(): boolean {
+    return this._isMinerListening;
+  }
+
+  /**
+   * Reset miner state to initial values
+   */
+  resetMinerState(): void {
+    this._minerState.set({
+      running: false,
+      chains: [],
+      totalWarps: 0,
+      capacityTib: 0,
+      currentBlock: {},
+      scanProgress: {
+        chain: '',
+        height: 0,
+        totalWarps: 0,
+        scannedWarps: 0,
+        progress: 0,
+        startTime: 0,
+        resuming: false,
+      },
+      queue: [],
+      recentDeadlines: [],
+    });
   }
 }

@@ -41,20 +41,45 @@ pub enum PlottingStatus {
     Error(String),
 }
 
+/// RPC transport protocol
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum RpcTransport {
+    #[default]
+    Http,
+    Https,
+}
+
+/// RPC authentication method
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RpcAuth {
+    #[default]
+    None,
+    UserPass {
+        username: String,
+        password: String,
+    },
+    Cookie {
+        #[serde(default)]
+        cookie_path: Option<String>,
+    },
+}
+
 /// Chain configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainConfig {
     pub id: String,
     pub name: String,
-    pub url: String,
-    pub api_path: String,
+    pub rpc_transport: RpcTransport,
+    pub rpc_host: String,
+    pub rpc_port: u16,
+    pub rpc_auth: RpcAuth,
     pub block_time_seconds: u64,
     pub mode: SubmissionMode,
     pub enabled: bool,
     pub priority: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -136,6 +161,8 @@ pub struct DeadlineEntry {
     pub height: u64,
     pub nonce: u64,
     pub deadline: u64,
+    pub quality_raw: u64,  // Raw quality for effective capacity calculations
+    pub base_target: u64,  // Block's base target for capacity calculations
     pub submitted: bool,
     pub timestamp: i64,
 }
@@ -168,6 +195,29 @@ pub struct MiningConfig {
     pub hdd_wakeup_seconds: i64,
     #[serde(default)]
     pub simulation_mode: bool, // Dev only: run plotter in benchmark mode (no disk writes)
+
+    // Wallet RPC settings for solo mining
+    // These mirror the wallet's connection settings for deadline submission
+    #[serde(default = "default_wallet_rpc_host")]
+    pub wallet_rpc_host: String,
+    #[serde(default = "default_wallet_rpc_port")]
+    pub wallet_rpc_port: u16,
+    #[serde(default)]
+    pub wallet_data_directory: String, // For cookie auth
+    #[serde(default = "default_wallet_network")]
+    pub wallet_network: String, // testnet/mainnet/regtest
+}
+
+fn default_wallet_rpc_host() -> String {
+    "127.0.0.1".to_string()
+}
+
+fn default_wallet_rpc_port() -> u16 {
+    18332 // Bitcoin testnet RPC port
+}
+
+fn default_wallet_network() -> String {
+    "testnet".to_string()
 }
 
 fn default_escalation() -> u64 {
@@ -199,6 +249,10 @@ impl Default for MiningConfig {
             parallel_drives: 1,
             hdd_wakeup_seconds: 30,
             simulation_mode: false,
+            wallet_rpc_host: default_wallet_rpc_host(),
+            wallet_rpc_port: default_wallet_rpc_port(),
+            wallet_data_directory: String::new(),
+            wallet_network: default_wallet_network(),
         }
     }
 }
@@ -320,12 +374,52 @@ pub fn update_mining_status(state: &SharedMiningState, status: MiningStatus) {
     }
 }
 
-/// Add a deadline entry
+/// Maximum deadlines to keep per chain (720 blocks ≈ 1 day at 2min block time)
+const MAX_DEADLINES_PER_CHAIN: usize = 720;
+
+/// Add or update a deadline entry
+/// - Only one entry per chain+height (best deadline wins)
+/// - Lower deadline value (poc_time) is better
 pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) {
     if let Ok(mut state) = state.lock() {
+        let chain_name = deadline.chain_name.clone();
+        let height = deadline.height;
+
+        // Check if we already have an entry for this chain+height
+        if let Some(existing) = state.recent_deadlines.iter_mut().find(|d| {
+            d.chain_name == chain_name && d.height == height
+        }) {
+            // Only update if new deadline is better (lower)
+            if deadline.deadline < existing.deadline {
+                existing.account = deadline.account;
+                existing.nonce = deadline.nonce;
+                existing.deadline = deadline.deadline;
+                existing.quality_raw = deadline.quality_raw;
+                existing.base_target = deadline.base_target;
+                existing.timestamp = deadline.timestamp;
+            }
+            return;
+        }
+
+        // New entry - add to front
         state.recent_deadlines.insert(0, deadline);
-        // Keep only last 100 deadlines in memory
-        state.recent_deadlines.truncate(100);
+
+        // Enforce per-chain limit (remove oldest entries for this chain)
+        let mut chain_count = 0;
+        let mut remove_idx = None;
+        for (idx, d) in state.recent_deadlines.iter().enumerate() {
+            if d.chain_name == chain_name {
+                chain_count += 1;
+                if chain_count > MAX_DEADLINES_PER_CHAIN {
+                    remove_idx = Some(idx);
+                    break;
+                }
+            }
+        }
+
+        if let Some(idx) = remove_idx {
+            state.recent_deadlines.remove(idx);
+        }
     }
 }
 

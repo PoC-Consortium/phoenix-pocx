@@ -11,11 +11,16 @@ import {
   MiningStatus,
   PlottingStatus,
   DeadlineEntry,
-  BlockInfo,
+  MinerBlockInfo,
   ChainConfig,
   DriveConfig,
   DriveInfo,
   PlotPlanItem,
+  CapacityDataPoint,
+  calculateNetworkCapacityTib,
+  calculateEffectiveCapacity,
+  generateEffectiveCapacityHistory,
+  formatCapacity,
 } from '../../models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/plan-viewer-dialog.component';
@@ -69,11 +74,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
             </div>
             <div class="deadline-value">{{ getBestDeadline() }}</div>
             <div class="card-sub">{{ getBestDeadlineInfo() }}</div>
-            @if (recentDeadlines().length > 0) {
+            @if (getCurrentRoundDeadlines().length > 0) {
               <div class="account-list">
-                @for (deadline of recentDeadlines().slice(0, 2); track deadline.id) {
+                @for (deadline of getCurrentRoundDeadlines(); track deadline.id) {
                   <div class="account-item">
-                    <span class="account-id">{{ truncateAccount(deadline.account) }}</span>
+                    <span class="account-id" [title]="deadline.account">{{ deadline.account }}</span>
                     <span class="account-deadline">{{ formatDeadline(deadline.deadline) }}</span>
                   </div>
                 }
@@ -185,20 +190,49 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <div class="summary-card effective-capacity-card">
             <div class="card-header">
               <span class="card-title"><mat-icon>trending_up</mat-icon>Effective Capacity</span>
+              <span class="capacity-value">{{ calculatedEffectiveCapacity() }}</span>
             </div>
-            <div class="chart-container">
-              <svg viewBox="0 0 120 60" preserveAspectRatio="none" class="sparkline-chart">
-                <line x1="0" y1="10" x2="120" y2="10" stroke="rgba(255,255,255,0.3)" stroke-width="1" stroke-dasharray="3,3"/>
-                <path d="M0,42 L15,38 L30,45 L45,40 L60,48 L75,42 L90,34 L105,26 L120,18 L120,60 L0,60 Z"
-                      fill="rgba(129, 199, 132, 0.3)" stroke="none"/>
-                <path d="M0,42 L15,38 L30,45 L45,40 L60,48 L75,42 L90,34 L105,26 L120,18"
-                      fill="none" stroke="#81c784" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <div class="chart-overlay">
-                <div class="overlay-value">{{ effectiveCapacity() }}</div>
-                <div class="overlay-sub">of {{ totalPlotSize() }}</div>
+            @if (sparklineData().length > 1) {
+              <div class="eff-chart-container">
+                <div class="y-axis-labels">
+                  @for (label of capacityYAxisLabels(); track $index) {
+                    <span class="y-label">{{ label }}</span>
+                  }
+                </div>
+                <div class="chart-area">
+                  <svg viewBox="0 0 280 100" preserveAspectRatio="none" class="capacity-chart">
+                    <defs>
+                      <linearGradient id="capacityGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:rgba(129, 199, 132, 0.3)" />
+                        <stop offset="100%" style="stop-color:rgba(129, 199, 132, 0.02)" />
+                      </linearGradient>
+                    </defs>
+                    <!-- Grid lines -->
+                    @for (y of [20, 40, 60, 80]; track y) {
+                      <line [attr.x1]="0" [attr.y1]="y" [attr.x2]="280" [attr.y2]="y"
+                            stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                    }
+                    <!-- Chart area and line -->
+                    <path [attr.d]="getCapacityAreaPath()" fill="url(#capacityGradient)" />
+                    <path [attr.d]="getCapacityLinePath()" fill="none" stroke="#81c784" stroke-width="2"/>
+                  </svg>
+                  <div class="chart-labels">
+                    @for (label of capacityXAxisLabels(); track $index) {
+                      <span class="chart-label">{{ label }}</span>
+                    }
+                  </div>
+                </div>
               </div>
-            </div>
+            } @else if (sparklineData().length === 1) {
+              <div class="chart-placeholder">
+                <span class="single-value">{{ calculatedEffectiveCapacity() }}</span>
+                <span class="placeholder-text">Collecting data...</span>
+              </div>
+            } @else {
+              <div class="chart-placeholder">
+                <span class="placeholder-text">No deadline data yet</span>
+              </div>
+            }
           </div>
         </div>
 
@@ -215,27 +249,29 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 </button>
               </div>
               <div class="section-content">
-                <table>
+                <table class="chains-table">
                   <thead>
                     <tr>
                       <th>Chain</th>
                       <th>Height</th>
                       <th>Difficulty</th>
+                      <th>PoW Scale</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     @for (chain of enabledChains(); track chain.name) {
                       <tr>
-                        <td>{{ chain.name }}</td>
+                        <td [matTooltip]="getChainTooltip(chain.name)" matTooltipClass="chain-tooltip">{{ chain.name }}</td>
                         <td>{{ getChainHeight(chain.name) }}</td>
                         <td>{{ getChainDifficulty(chain.name) }}</td>
+                        <td>{{ getChainCompression(chain.name) }}</td>
                         <td><span class="status-dot" [class]="getChainStatusClass(chain.name)"></span>{{ getChainStatus(chain.name) }}</td>
                       </tr>
                     }
                     @if (enabledChains().length === 0) {
                       <tr>
-                        <td colspan="4" class="empty-row">No chains configured</td>
+                        <td colspan="5" class="empty-row">No chains configured</td>
                       </tr>
                     }
                   </tbody>
@@ -276,7 +312,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                         <td class="time-col">{{ formatTime(deadline.timestamp) }}</td>
                         <td>#{{ deadline.height.toLocaleString() }}</td>
                         <td>{{ deadline.chainName }}</td>
-                        <td class="account-col">{{ truncateAccount(deadline.account) }}</td>
+                        <td class="account-col" [title]="deadline.account">{{ deadline.account }}</td>
                         <td class="deadline-col" [class.best]="isBestDeadline(deadline)">{{ formatDeadline(deadline.deadline) }}</td>
                       </tr>
                     }
@@ -360,10 +396,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <div class="section-header">
             <span class="section-title">Recent Activity</span>
             <div class="log-filters">
-              <button class="log-filter" [class.active]="logFilters.all" (click)="toggleLogFilter('all')">All</button>
-              <button class="log-filter" [class.active]="logFilters.info" data-filter="info" (click)="toggleLogFilter('info')">Info</button>
-              <button class="log-filter" [class.active]="logFilters.warn" data-filter="warn" (click)="toggleLogFilter('warn')">Warn</button>
-              <button class="log-filter" [class.active]="logFilters.error" data-filter="error" (click)="toggleLogFilter('error')">Error</button>
+              <button class="log-filter" [class.active]="logFilters().all" (click)="toggleLogFilter('all')">All</button>
+              <button class="log-filter" [class.active]="logFilters().info" data-filter="info" (click)="toggleLogFilter('info')">Info</button>
+              <button class="log-filter" [class.active]="logFilters().success" data-filter="success" (click)="toggleLogFilter('success')">Success</button>
+              <button class="log-filter" [class.active]="logFilters().warn" data-filter="warn" (click)="toggleLogFilter('warn')">Warn</button>
+              <button class="log-filter" [class.active]="logFilters().error" data-filter="error" (click)="toggleLogFilter('error')">Error</button>
             </div>
           </div>
           <div class="section-content">
@@ -702,11 +739,16 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
     .account-id {
       font-family: 'Consolas', monospace;
       color: #64b5f6;
+      word-break: break-all;
+      flex: 1;
+      min-width: 0;
     }
 
     .account-deadline {
       font-weight: 500;
       color: #81c784;
+      flex-shrink: 0;
+      margin-left: 8px;
     }
 
     /* Capacity Card */
@@ -894,39 +936,87 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
     /* Effective Capacity Card */
     .effective-capacity-card {
-      padding-bottom: 0;
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .capacity-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #81c784;
+      }
     }
 
-    .chart-container {
-      position: relative;
-      margin: -8px -16px -16px -16px;
-      height: 80px;
+    .eff-chart-container {
+      display: flex;
+      flex-direction: row;
+      min-height: 80px;
+      gap: 4px;
+      margin-top: 8px;
+      padding: 0 8px 0 0; /* Add right padding to balance y-axis labels */
+
+      .y-axis-labels {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 2px 0;
+        width: 28px; /* Fixed width, just enough for labels like "2.5T" */
+        flex-shrink: 0;
+
+        .y-label {
+          font-size: 9px;
+          color: rgba(255, 255, 255, 0.5);
+          text-align: right;
+          line-height: 1;
+        }
+      }
+
+      .chart-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+
+        .capacity-chart {
+          flex: 1;
+          width: 100%;
+          min-height: 60px;
+        }
+
+        .chart-labels {
+          display: flex;
+          justify-content: space-between;
+          padding: 2px 0 0 0;
+
+          .chart-label {
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.5);
+          }
+        }
+      }
     }
 
-    .sparkline-chart {
-      width: 100%;
-      height: 100%;
-    }
+    .chart-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 80px;
+      margin-top: 8px;
 
-    .chart-overlay {
-      position: absolute;
-      top: 4px;
-      left: 8px;
-      text-align: left;
-    }
+      .single-value {
+        font-size: 24px;
+        font-weight: 600;
+        color: #81c784;
+      }
 
-    .overlay-value {
-      font-size: 18px;
-      font-weight: 600;
-      color: #81c784;
-      line-height: 1;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
-    }
-
-    .overlay-sub {
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.7);
-      margin-top: 2px;
+      .placeholder-text {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 4px;
+      }
     }
 
     /* Detail Sections Row - Two Column Layout aligned with summary cards */
@@ -1023,6 +1113,17 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       width: 100%;
       border-collapse: collapse;
     }
+
+    /* Fixed column widths for Active Chains table */
+    table.chains-table {
+      table-layout: fixed;
+    }
+
+    table.chains-table th:nth-child(1) { width: 35%; }  /* Chain */
+    table.chains-table th:nth-child(2) { width: 15%; }  /* Height */
+    table.chains-table th:nth-child(3) { width: 15%; }  /* Difficulty */
+    table.chains-table th:nth-child(4) { width: 15%; }  /* PoW Scale */
+    table.chains-table th:nth-child(5) { width: 20%; }  /* Status */
 
     th {
       text-align: left;
@@ -1140,6 +1241,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       font-family: 'Consolas', monospace;
       color: #1565c0;
       font-size: 10px;
+      word-break: break-all;
+      max-width: 280px;
     }
 
     .deadline-table .deadline-col {
@@ -1195,6 +1298,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
     .log-filter[data-filter="info"].active {
       background: rgba(100, 181, 246, 0.3);
       color: #64b5f6;
+    }
+
+    .log-filter[data-filter="success"].active {
+      background: rgba(129, 199, 132, 0.3);
+      color: #81c784;
     }
 
     .log-filter[data-filter="warn"].active {
@@ -1289,6 +1397,14 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
     .btn-primary:hover {
       background: #1565c0;
     }
+
+    /* Chain tooltip styling - needs ::ng-deep for Material overlay */
+    ::ng-deep .chain-tooltip {
+      white-space: pre-line;
+      font-family: 'Consolas', monospace;
+      font-size: 11px;
+      max-width: 500px;
+    }
   `],
 })
 export class MiningDashboardComponent implements OnInit, OnDestroy {
@@ -1299,17 +1415,50 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   readonly miningStatus = signal<MiningStatus | null>(null);
   readonly plottingStatus = signal<PlottingStatus | null>(null);
-  readonly recentDeadlines = signal<DeadlineEntry[]>([]);
-  readonly currentBlock = signal<Record<string, BlockInfo>>({});
+  // Use service signals directly for real-time miner event updates
+  readonly recentDeadlines = this.miningService.minerDeadlines;
+  readonly currentBlock = this.miningService.minerCurrentBlock;
   readonly configured = signal(false);
   readonly stateLoaded = signal(false);
   readonly enabledChains = signal<ChainConfig[]>([]);
   readonly drives = signal<DriveConfig[]>([]);
-  readonly activityLogs = signal<{ id: number; timestamp: number; type: string; message: string }[]>([]);
+  // Activity logs from service (survives navigation, auto-cleanup > 1 day)
+  private readonly _allActivityLogs = this.miningService.activityLogs;
+
+  // Log filter state (reactive)
+  readonly logFilters = signal({ all: true, info: true, success: true, warn: true, error: true });
+
+  // Map log types to filter categories
+  private readonly LOG_TYPE_TO_CATEGORY: Record<string, string> = {
+    'info': 'info',
+    'block': 'info',
+    'scan': 'info',
+    'complete': 'success',
+    'success': 'success',
+    'deadline': 'info',  // Found deadlines are informational
+    'warn': 'warn',
+    'error': 'error',
+  };
+
+  // Filtered activity logs
+  readonly activityLogs = computed(() => {
+    const filters = this.logFilters();
+    const logs = this._allActivityLogs();
+
+    // If 'all' is active, show everything
+    if (filters.all) {
+      return logs;
+    }
+
+    // Filter based on category
+    return logs.filter(log => {
+      const category = this.LOG_TYPE_TO_CATEGORY[log.type] || 'info';
+      return (filters as Record<string, boolean>)[category] ?? true;
+    });
+  });
 
   readonly totalPlotSize = signal('0 GiB');
   readonly readySize = signal('0 GiB');
-  readonly effectiveCapacity = signal('0 GiB');
   readonly readyFiles = signal(0);
   readonly pendingFiles = signal(0);
   // Use service's cache directly so updates propagate automatically
@@ -1320,8 +1469,64 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly planStats = this.miningService.planStats;
   readonly planEta = this.miningService.planEta;
 
+  // Effective capacity computed from deadline history
+  // Lookback capped at chainCount * 120 data points (scales with parallel chains)
+  readonly sparklineData = computed(() => {
+    const deadlines = this.recentDeadlines();
+    const chainCount = Math.max(1, this.enabledChains().length);
+    const maxDataPoints = chainCount * 120;
+    return generateEffectiveCapacityHistory(deadlines, maxDataPoints, 50);
+  });
+
+  readonly calculatedEffectiveCapacity = computed(() => {
+    const deadlines = this.recentDeadlines();
+    const capacityTib = calculateEffectiveCapacity(deadlines);
+    if (capacityTib === 0) return '--';
+    return formatCapacity(capacityTib);
+  });
+
+  // Chart axis labels
+  readonly capacityYAxisLabels = computed(() => {
+    const data = this.sparklineData();
+    if (data.length < 2) return [];
+
+    const capacities = data.map(d => d.capacity);
+    const min = Math.min(...capacities);
+    const max = Math.max(...capacities);
+    const range = max - min || 0.1;
+
+    return [
+      this.formatCapacityShort(max),
+      this.formatCapacityShort(min + range * 0.5),
+      this.formatCapacityShort(min),
+    ];
+  });
+
+  readonly capacityXAxisLabels = computed(() => {
+    const data = this.sparklineData();
+    if (data.length < 2) return [];
+
+    // Use actual timestamps from deadline history
+    const oldestTs = data[0].timestamp;
+    const newestTs = data[data.length - 1].timestamp;
+    const totalMs = newestTs - oldestTs;
+
+    const formatTimeAgo = (ms: number): string => {
+      const minutes = Math.round(ms / 60000);
+      if (minutes >= 1440) return `${Math.round(minutes / 1440)}d`;
+      if (minutes >= 60) return `${Math.round(minutes / 60)}h`;
+      if (minutes > 0) return `${minutes}m`;
+      return 'Now';
+    };
+
+    const oldest = formatTimeAgo(totalMs);
+    const middle = formatTimeAgo(Math.round(totalMs / 2));
+
+    if (data.length <= 10) return [oldest, 'Now'];
+    return [oldest, middle, 'Now'];
+  });
+
   chainFilter = 'all';
-  logFilters = { all: true, info: true, warn: true, error: true };
 
   async ngOnInit(): Promise<void> {
     await this.loadState();
@@ -1331,10 +1536,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     // Initialize plotting (first start flow - generates plan if needed)
     await this.miningService.initializePlotting();
 
-    // Set up activity log callback for service to report events
-    this.miningService.setActivityLogCallback((type, message) => {
-      this.addActivityLog(type, message);
-    });
+    // Initialize mining (recovers listeners if miner already running)
+    await this.miningService.initializeMining();
 
     // Ensure service is listening to plotter events (idempotent)
     if (this.miningService.plotterRunning()) {
@@ -1346,18 +1549,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPolling();
-    this.miningService.setActivityLogCallback(null);
-  }
-
-  private addActivityLog(type: string, message: string): void {
-    const logs = this.activityLogs();
-    const newLog = {
-      id: Date.now(),
-      timestamp: Date.now(),
-      type,
-      message,
-    };
-    this.activityLogs.set([newLog, ...logs].slice(0, 100));
   }
 
   private startPolling(): void {
@@ -1382,8 +1573,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       // read from the service's global state.
       this.plottingStatus.set(state.plottingStatus);
 
-      this.recentDeadlines.set(state.recentDeadlines || []);
-      this.currentBlock.set(state.currentBlock || {});
+      // Note: recentDeadlines and currentBlock now read from service's miner event signals
+      // (minerDeadlines, minerCurrentBlock) for real-time updates instead of polling
       this.configured.set(state.isConfigured);
 
       if (state.config) {
@@ -1431,7 +1622,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     }
 
     this.readySize.set(this.formatSize(totalPlotted));
-    this.effectiveCapacity.set(this.formatSize(totalPlotted));
+    // Note: effectiveCapacity is now calculated from deadline history (not plotted size)
     this.pendingFiles.set(pendingCount);
   }
 
@@ -1513,18 +1704,31 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return 0;
   }
 
-  getBestDeadline(): string {
+  /**
+   * Get deadlines for the current round only (matching current block height per chain)
+   */
+  getCurrentRoundDeadlines(): DeadlineEntry[] {
+    const currentBlocks = this.currentBlock();
     const deadlines = this.recentDeadlines();
+
+    return deadlines.filter(d => {
+      const block = currentBlocks[d.chainName];
+      return block && d.height === block.height;
+    });
+  }
+
+  getBestDeadline(): string {
+    const deadlines = this.getCurrentRoundDeadlines();
     if (deadlines.length === 0) return '--';
     const best = deadlines.reduce((a, b) => a.deadline < b.deadline ? a : b);
     return this.formatDeadline(best.deadline);
   }
 
   getBestDeadlineInfo(): string {
-    const deadlines = this.recentDeadlines();
-    if (deadlines.length === 0) return 'No deadlines found';
+    const deadlines = this.getCurrentRoundDeadlines();
+    if (deadlines.length === 0) return 'No deadlines this round';
     const best = deadlines.reduce((a, b) => a.deadline < b.deadline ? a : b);
-    return `${best.chainName} • Quality ${best.nonce.toLocaleString()}`;
+    return `${best.chainName} • Block ${best.height.toLocaleString()}`;
   }
 
   formatDeadline(seconds: number): string {
@@ -1550,6 +1754,90 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return `${account.slice(0, 8)}...${account.slice(-6)}`;
   }
 
+  /**
+   * Format capacity value for Y-axis labels (short format)
+   * e.g., 2.5T, 500G, 100M
+   */
+  formatCapacityShort(tib: number): string {
+    if (tib >= 1) {
+      return `${tib.toFixed(1)}T`;
+    }
+    const gib = tib * 1024;
+    if (gib >= 1) {
+      return `${gib.toFixed(0)}G`;
+    }
+    const mib = gib * 1024;
+    return `${mib.toFixed(0)}M`;
+  }
+
+  /**
+   * Generate SVG path for effective capacity line with bezier curves.
+   * SVG viewBox is 0 0 280 100, with data area from y=10 to y=90
+   */
+  getCapacityLinePath(): string {
+    const data = this.sparklineData();
+    if (data.length < 2) return '';
+
+    const width = 280;
+    const minY = 10;
+    const maxY = 90;
+    const dataRange = maxY - minY;
+
+    // Find min/max for scaling
+    const capacities = data.map(d => d.capacity);
+    const min = Math.min(...capacities);
+    const max = Math.max(...capacities);
+    const range = max - min || 0.1; // Avoid division by zero
+
+    // Calculate points
+    const points = data.map((d, i) => {
+      const x = (i / (data.length - 1)) * width;
+      // Invert Y because SVG Y increases downward
+      const y = maxY - ((d.capacity - min) / range) * dataRange;
+      return { x, y };
+    });
+
+    // Generate bezier curve path (matching main dashboard style)
+    const tension = 0.3;
+    let path = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+
+      // Control points for cubic bezier
+      const cp1x = p1.x + (p2.x - p0.x) * tension;
+      const cp1y = p1.y + (p2.y - p0.y) * tension;
+      const cp2x = p2.x - (p3.x - p1.x) * tension;
+      const cp2y = p2.y - (p3.y - p1.y) * tension;
+
+      path += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+
+    return path;
+  }
+
+  /**
+   * Generate SVG path for effective capacity area fill with bezier curves.
+   * Extends the line path to close the area at the bottom.
+   */
+  getCapacityAreaPath(): string {
+    const linePath = this.getCapacityLinePath();
+    if (!linePath) return '';
+
+    const data = this.sparklineData();
+    const width = 280;
+    const bottomY = 100;
+
+    // Get the last X coordinate (should be width)
+    const lastX = (data.length - 1) / (data.length - 1) * width;
+
+    // Close the path by going to bottom-right, bottom-left, then back to start
+    return `${linePath} L${lastX.toFixed(1)},${bottomY} L0,${bottomY} Z`;
+  }
+
   getPlottingSpeed(): string {
     // Use the service's global plotting progress (persists across navigation)
     const progress = this.miningService.plottingProgress();
@@ -1572,27 +1860,65 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   getChainDifficulty(chainName: string): string {
     const block = this.currentBlock()[chainName];
     if (!block) return '--';
-    const tib = block.baseTarget / (1024 * 1024 * 1024 * 1024);
-    if (tib >= 1) return `${tib.toFixed(1)} TiB`;
-    return `${(tib * 1024).toFixed(0)} GiB`;
+
+    // Look up chain config to get blockTimeSeconds
+    const chain = this.enabledChains().find(c => c.name === chainName);
+    if (!chain) return '--';
+
+    const capacityTib = calculateNetworkCapacityTib(block.baseTarget, chain.blockTimeSeconds);
+    return formatCapacity(capacityTib);
   }
 
   getChainStatusClass(chainName: string): string {
-    const status = this.miningStatus();
-    if (status?.type === 'scanning' && status.chainName === chainName) {
+    // Use miner event signals for real-time status
+    if (!this.miningService.minerRunning()) {
+      return 'queued'; // Miner not running
+    }
+
+    const scanProgress = this.miningService.minerScanProgress();
+    if (scanProgress.chain === chainName && scanProgress.progress < 100 && scanProgress.totalWarps > 0) {
       return 'scanning';
     }
-    if (status?.type === 'idle') return 'active';
-    return 'queued';
+
+    // Check if chain is in queue
+    const queue = this.miningService.minerQueue();
+    if (queue.some(q => q.chain === chainName)) {
+      return 'queued';
+    }
+
+    return 'active'; // Ready for mining
   }
 
   getChainStatus(chainName: string): string {
-    const status = this.miningStatus();
-    if (status?.type === 'scanning' && status.chainName === chainName) {
-      return 'Scanning';
+    // Use miner event signals for real-time status
+    if (!this.miningService.minerRunning()) {
+      return 'Stopped';
     }
-    if (status?.type === 'idle') return 'Ready';
-    return 'Queued';
+
+    const scanProgress = this.miningService.minerScanProgress();
+    if (scanProgress.chain === chainName && scanProgress.progress < 100 && scanProgress.totalWarps > 0) {
+      return `Scanning ${scanProgress.progress.toFixed(0)}%`;
+    }
+
+    // Check if chain is in queue
+    const queue = this.miningService.minerQueue();
+    if (queue.some(q => q.chain === chainName)) {
+      return 'Queued';
+    }
+
+    return 'Ready';
+  }
+
+  getChainCompression(chainName: string): string {
+    const block = this.currentBlock()[chainName];
+    return block?.compressionRange || '--';
+  }
+
+  getChainTooltip(chainName: string): string {
+    const block = this.currentBlock()[chainName];
+    if (!block) return '';
+
+    return `GenSig: ${block.genSig}\nBase Target: ${block.baseTarget}\nScoop: ${block.scoop}`;
   }
 
   /**
@@ -1735,19 +2061,22 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   toggleLogFilter(filter: string): void {
+    const current = this.logFilters();
     if (filter === 'all') {
-      const newState = !this.logFilters.all;
-      this.logFilters = { all: newState, info: newState, warn: newState, error: newState };
+      const newState = !current.all;
+      this.logFilters.set({ all: newState, info: newState, success: newState, warn: newState, error: newState });
     } else {
-      (this.logFilters as Record<string, boolean>)[filter] = !(this.logFilters as Record<string, boolean>)[filter];
+      const updated = { ...current, all: false };
+      (updated as Record<string, boolean>)[filter] = !(current as Record<string, boolean>)[filter];
+      this.logFilters.set(updated);
     }
   }
 
   async toggleMining(): Promise<void> {
     if (this.isRunning()) {
-      await this.miningService.stopMining();
+      await this.miningService.stopMiner();
     } else {
-      await this.miningService.startMining();
+      await this.miningService.startMiner();
     }
     await this.loadState();
   }
@@ -1926,9 +2255,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   async toggleSimulationMode(enabled: boolean): Promise<void> {
     await this.miningService.toggleSimulationMode(enabled);
     if (enabled) {
-      this.addActivityLog('info', 'Simulation mode enabled - plotter will not write to disk');
+      this.miningService.addActivityLog('info', 'Simulation mode enabled - plotter will not write to disk');
     } else {
-      this.addActivityLog('info', 'Simulation mode disabled');
+      this.miningService.addActivityLog('info', 'Simulation mode disabled');
     }
   }
 
@@ -1953,12 +2282,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         if (result === true) {
           // Soft stop - finish current batch, keep plan
           await this.miningService.softStopPlotPlan();
-          this.addActivityLog('info', 'Soft stop requested - will pause after current batch completes');
+          this.miningService.addActivityLog('info', 'Soft stop requested - will pause after current batch completes');
           await this.miningService.refreshPlotterState();
         } else if (result === 'secondary') {
           // Hard stop - finish current item, clear plan, regenerate
           await this.miningService.hardStopPlotPlan();
-          this.addActivityLog('warning', 'Hard stop - plotting aborted');
+          this.miningService.addActivityLog('warning', 'Hard stop - plotting aborted');
           await this.miningService.refreshPlotterState();
         }
       });
@@ -2035,9 +2364,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
             return;
           }
           // Restart failed or was cancelled by UAC
-          this.addActivityLog('warning', 'Elevation cancelled - continuing without admin privileges');
+          this.miningService.addActivityLog('warning', 'Elevation cancelled - continuing without admin privileges');
         } else if (result === 'secondary') {
-          this.addActivityLog('info', 'Continuing without admin privileges');
+          this.miningService.addActivityLog('info', 'Continuing without admin privileges');
         } else {
           // User cancelled - don't start plotting
           return;

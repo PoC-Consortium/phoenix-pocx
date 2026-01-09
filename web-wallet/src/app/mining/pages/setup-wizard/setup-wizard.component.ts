@@ -9,10 +9,18 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { Store } from '@ngrx/store';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MiningService } from '../../services';
 import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletRpcService } from '../../../bitcoin/services/rpc/wallet-rpc.service';
 import { MiningRpcService } from '../../../bitcoin/services/rpc/mining-rpc.service';
+import {
+  selectRpcHost,
+  selectRpcPort,
+  selectDataDirectory,
+  selectNetwork,
+} from '../../../store/settings/settings.selectors';
 import {
   DriveInfo,
   DriveConfig,
@@ -127,7 +135,7 @@ interface ChainModalData {
                   <div class="priority-slot" [title]="'Priority ' + (i + 1)">{{ i + 1 }}</div>
                   <div class="chain-info">
                     <div class="chain-name">{{ chain.name }}</div>
-                    <div class="chain-url">{{ chain.mode === 'solo' ? 'Solo mining via wallet node' : chain.url }}</div>
+                    <div class="chain-url">{{ chain.mode === 'solo' ? 'Solo mining via wallet node' : chain.rpcTransport + '://' + chain.rpcHost + ':' + chain.rpcPort }}</div>
                   </div>
                   <span class="chain-mode" [class]="chain.mode">
                     {{ chain.mode === 'solo' ? 'Solo' : 'Pool' }}
@@ -2297,6 +2305,13 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly miningRpc = inject(MiningRpcService);
+  private readonly store = inject(Store);
+
+  // Wallet settings for solo mining (synced to mining config)
+  private readonly walletRpcHost = toSignal(this.store.select(selectRpcHost), { initialValue: '127.0.0.1' });
+  private readonly walletRpcPort = toSignal(this.store.select(selectRpcPort), { initialValue: 18332 });
+  private readonly walletDataDirectory = toSignal(this.store.select(selectDataDirectory), { initialValue: '' });
+  private readonly walletNetwork = toSignal(this.store.select(selectNetwork), { initialValue: 'testnet' });
 
   // Event listener cleanup
   private plotterEventUnlisteners: UnlistenFn[] = [];
@@ -2813,18 +2828,22 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   editChain(chain: ChainConfig): void {
     this.editingChain.set(chain);
+    // Build URL from chain config for display
+    const chainUrl = `${chain.rpcTransport}://${chain.rpcHost}:${chain.rpcPort}`;
     // Determine if this is a "custom" chain (user-defined pool endpoint)
-    const isCustomPool = chain.mode === 'pool' && chain.url && !chain.url.includes('pocx.io');
+    const isCustomPool = chain.mode === 'pool' && chain.rpcHost && !chain.rpcHost.includes('pocx.io');
+    // Extract token from auth
+    const authToken = chain.rpcAuth.type === 'user_pass' ? chain.rpcAuth.password : '';
     this.chainModalData.set({
       mode: isCustomPool ? 'custom' : chain.mode,
       chainName: chain.name,
-      poolUrl: chain.mode === 'pool' && !isCustomPool ? chain.url : '',
-      poolToken: chain.authToken || '',
-      customUrl: isCustomPool ? chain.url : '',
-      customApiPath: chain.apiPath || '',
+      poolUrl: chain.mode === 'pool' && !isCustomPool ? chainUrl : '',
+      poolToken: authToken,
+      customUrl: isCustomPool ? chainUrl : '',
+      customApiPath: '',  // API path no longer used
       customMode: chain.mode,
       customBlockTime: chain.blockTimeSeconds || 120,
-      customToken: chain.authToken || '',
+      customToken: authToken,
     });
     this.chainModalOpen.set(true);
   }
@@ -2850,16 +2869,19 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     const id = editing?.id || crypto.randomUUID();
 
     if (data.mode === 'solo') {
+      // Solo mode uses wallet RPC settings (host/port read from wallet config)
+      // rpcAuth is cookie with no path - backend reads cookie from wallet settings
       chain = {
         id,
         name: 'PoCX Testnet (Local)',
-        url: '',
-        apiPath: '',
+        rpcTransport: 'http',
+        rpcHost: '127.0.0.1',  // Will be overridden from wallet settings
+        rpcPort: 18332,        // Will be overridden from wallet settings
+        rpcAuth: { type: 'cookie' },  // Backend reads cookie from wallet settings
         blockTimeSeconds: 120,
         mode: 'solo',
         enabled: true,
         priority: editing?.priority ?? this.chainConfigs().length + 1,
-        authToken: undefined,
       };
     } else if (data.mode === 'pool') {
       const poolName = data.poolUrl.includes('pool.pocx.io')
@@ -2867,29 +2889,41 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         : data.poolUrl.includes('pool2.pocx.io')
           ? 'PoCX Pool Beta'
           : 'Community Pool';
+
+      // Parse pool URL to extract host and port
+      const { transport, host, port } = this.parseUrl(data.poolUrl);
+
       chain = {
         id,
         name: poolName,
-        url: data.poolUrl,
-        apiPath: '/api',
+        rpcTransport: transport,
+        rpcHost: host,
+        rpcPort: port,
+        rpcAuth: data.poolToken
+          ? { type: 'user_pass', username: 'pool', password: data.poolToken }
+          : { type: 'none' },
         blockTimeSeconds: 120,
         mode: 'pool',
         enabled: true,
         priority: editing?.priority ?? this.chainConfigs().length + 1,
-        authToken: data.poolToken || undefined,
       };
     } else {
-      // Custom mode - treat as pool mode with custom URL
+      // Custom mode - parse URL and set auth
+      const { transport, host, port } = this.parseUrl(data.customUrl);
+
       chain = {
         id,
         name: data.chainName || 'Custom Chain',
-        url: data.customUrl,
-        apiPath: data.customApiPath || '/api',
+        rpcTransport: transport,
+        rpcHost: host,
+        rpcPort: port,
+        rpcAuth: data.customToken
+          ? { type: 'user_pass', username: 'user', password: data.customToken }
+          : { type: 'none' },
         blockTimeSeconds: data.customBlockTime,
         mode: data.customMode,
         enabled: true,
         priority: editing?.priority ?? this.chainConfigs().length + 1,
-        authToken: data.customToken || undefined,
       };
     }
 
@@ -2900,6 +2934,20 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     }
 
     this.closeChainModal();
+  }
+
+  /** Parse URL into transport, host, port */
+  private parseUrl(urlStr: string): { transport: 'http' | 'https'; host: string; port: number } {
+    try {
+      const url = new URL(urlStr);
+      const transport = url.protocol === 'https:' ? 'https' : 'http';
+      const host = url.hostname;
+      const port = url.port ? parseInt(url.port, 10) : (transport === 'https' ? 443 : 80);
+      return { transport, host, port };
+    } catch {
+      // Default if URL parsing fails
+      return { transport: 'http', host: '127.0.0.1', port: 8080 };
+    }
   }
 
   removeChain(chain: ChainConfig): void {
@@ -3299,6 +3347,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         lowPriority: this.lowPriority(),
         parallelDrives: this.parallelDrives(),
         hddWakeupSeconds: this.hddWakeup(),
+        // Wallet RPC settings for solo mining
+        walletRpcHost: this.walletRpcHost(),
+        walletRpcPort: this.walletRpcPort(),
+        walletDataDirectory: this.walletDataDirectory(),
+        walletNetwork: this.walletNetwork(),
       });
 
       if (!success) {

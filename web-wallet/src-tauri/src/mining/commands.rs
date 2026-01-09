@@ -12,7 +12,64 @@ use super::state::{
     PlotterDeviceConfig, PlottingStatus, SharedMiningState,
 };
 use serde::Serialize;
+use std::path::PathBuf;
 use tauri::{AppHandle, State};
+
+/// Build cookie file path from wallet settings
+///
+/// Constructs the full path to the Bitcoin Core cookie file based on
+/// the wallet data directory and network settings. The miner will
+/// read the cookie file itself.
+fn build_cookie_path(data_directory: &str, network: &str) -> Option<String> {
+    if data_directory.is_empty() {
+        log::warn!("Wallet data directory not configured for solo mining");
+        return None;
+    }
+
+    // Expand path (similar to lib.rs expand_path)
+    let mut expanded = data_directory.to_string();
+    #[cfg(windows)]
+    {
+        // Expand %VAR% style environment variables on Windows
+        while let Some(start) = expanded.find('%') {
+            if let Some(end) = expanded[start + 1..].find('%') {
+                let var_name = &expanded[start + 1..start + 1 + end];
+                if let Ok(value) = std::env::var(var_name) {
+                    expanded = format!("{}{}{}", &expanded[..start], value, &expanded[start + 2 + end..]);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        // Expand ~ to HOME directory on Unix
+        if expanded.starts_with("~/") {
+            if let Some(home) = dirs::home_dir() {
+                expanded = format!("{}{}", home.display(), &expanded[1..]);
+            }
+        } else if expanded == "~" {
+            if let Some(home) = dirs::home_dir() {
+                expanded = home.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    // Build cookie path
+    let mut path = PathBuf::from(expanded);
+    if network == "mainnet" {
+        path.push(".cookie");
+    } else {
+        // testnet or regtest - cookie is in subdirectory
+        path.push(network);
+        path.push(".cookie");
+    }
+
+    Some(path.to_string_lossy().to_string())
+}
 
 /// Result wrapper for commands
 #[derive(Debug, Serialize)]
@@ -337,7 +394,16 @@ pub fn update_plotter_device(
 
 /// Start mining
 #[tauri::command]
-pub async fn start_mining(state: State<'_, SharedMiningState>) -> Result<CommandResult<()>, ()> {
+pub async fn start_mining(
+    app_handle: AppHandle,
+    state: State<'_, SharedMiningState>,
+) -> Result<CommandResult<()>, ()> {
+    // Clear any previous stop request
+    pocx_miner::clear_stop_request();
+
+    // Register miner callback to emit events to frontend (with state for deadline persistence)
+    super::callback::TauriMinerCallback::register(app_handle, state.inner().clone());
+
     // Get config and validate
     let config = {
         let state_guard = match state.lock() {
@@ -372,12 +438,41 @@ pub async fn start_mining(state: State<'_, SharedMiningState>) -> Result<Command
             continue;
         }
 
-        // Parse URL
-        let base_url = match url::Url::parse(&chain_config.url) {
-            Ok(url) => url,
-            Err(e) => {
-                log::error!("Failed to parse URL for chain {}: {}", chain_config.name, e);
-                continue;
+        // Map transport
+        let rpc_transport = match chain_config.rpc_transport {
+            super::state::RpcTransport::Http => pocx_miner::RpcTransport::Http,
+            super::state::RpcTransport::Https => pocx_miner::RpcTransport::Https,
+        };
+
+        // Map auth - for cookie auth with no explicit path, use wallet settings to build path
+        let rpc_auth = match &chain_config.rpc_auth {
+            super::state::RpcAuth::None => pocx_miner::RpcAuth::None,
+            super::state::RpcAuth::UserPass { username, password } => {
+                pocx_miner::RpcAuth::UserPass {
+                    username: username.clone(),
+                    password: password.clone(),
+                }
+            }
+            super::state::RpcAuth::Cookie { cookie_path } => {
+                // Cookie auth: pass cookie path to miner (miner reads the cookie itself)
+                let path = if cookie_path.is_some() {
+                    // Explicit cookie path provided
+                    cookie_path.clone()
+                } else {
+                    // No explicit path - build from wallet settings
+                    build_cookie_path(&config.wallet_data_directory, &config.wallet_network)
+                };
+
+                if path.is_some() {
+                    log::info!("Chain {}: using cookie path {:?}", chain_config.name, path);
+                } else {
+                    log::warn!(
+                        "Chain {}: cookie auth requires wallet data directory to be configured",
+                        chain_config.name
+                    );
+                }
+
+                pocx_miner::RpcAuth::Cookie { cookie_path: path }
             }
         };
 
@@ -386,16 +481,28 @@ pub async fn start_mining(state: State<'_, SharedMiningState>) -> Result<Command
             super::state::SubmissionMode::Pool => pocx_miner::SubmissionMode::Pool,
         };
 
+        log::info!(
+            "Chain {}: {}://{}:{} auth={:?} mode={:?}",
+            chain_config.name,
+            match rpc_transport {
+                pocx_miner::RpcTransport::Http => "http",
+                pocx_miner::RpcTransport::Https => "https",
+            },
+            chain_config.rpc_host,
+            chain_config.rpc_port,
+            rpc_auth,
+            submission_mode
+        );
+
         let chain = pocx_miner::Chain {
             name: chain_config.name.clone(),
-            base_url,
-            api_path: chain_config.api_path.clone(),
+            rpc_transport,
+            rpc_host: chain_config.rpc_host.clone(),
+            rpc_port: chain_config.rpc_port,
+            rpc_auth,
             block_time_seconds: chain_config.block_time_seconds,
-            auth_token: chain_config.auth_token.clone(),
-            target_quality: None,
-            headers: std::collections::HashMap::new(),
-            accounts: Vec::new(),
             submission_mode,
+            target_quality: None,
         };
 
         chains.push(chain);
@@ -439,6 +546,10 @@ pub async fn start_mining(state: State<'_, SharedMiningState>) -> Result<Command
     tokio::spawn(async move {
         log::info!("Miner task starting...");
 
+        // Note: We don't call init_logger here because Tauri already has a logger set up.
+        // Log forwarding to Recent Activity happens via structured callbacks (on_new_block, etc.)
+        // which are registered via TauriMinerCallback.
+
         // Update state to idle (scanning will happen automatically)
         if let Ok(mut state_guard) = state_clone.lock() {
             state_guard.mining_status = MiningStatus::Idle;
@@ -461,8 +572,12 @@ pub async fn start_mining(state: State<'_, SharedMiningState>) -> Result<Command
 /// Stop mining
 #[tauri::command]
 pub async fn stop_mining(state: State<'_, SharedMiningState>) -> Result<CommandResult<()>, ()> {
-    // TODO: Actually stop the miner
+    log::info!("Stopping miner...");
 
+    // Request miner to stop
+    pocx_miner::request_stop();
+
+    // Update state immediately (miner will also update when it stops)
     if let Ok(mut state_guard) = state.lock() {
         state_guard.mining_status = MiningStatus::Stopped;
     }
@@ -738,6 +853,32 @@ pub fn get_address_info(address: String) -> CommandResult<AddressInfo> {
             })
         }
         Err(e) => CommandResult::err(format!("Invalid address: {:?}", e)),
+    }
+}
+
+/// Convert hex payload to bech32 address
+/// network: "mainnet", "testnet", or "regtest"
+#[tauri::command]
+pub fn hex_to_bech32(payload_hex: String, network: String) -> CommandResult<String> {
+    // Parse hex payload
+    let payload = match hex::decode(&payload_hex) {
+        Ok(p) => p,
+        Err(e) => return CommandResult::err(format!("Invalid hex: {}", e)),
+    };
+
+    // Determine HRP from network
+    let hrp = match network.to_lowercase().as_str() {
+        "mainnet" => "pocx",
+        "testnet" => "tpocx",
+        "regtest" => "rpocx",
+        _ => return CommandResult::err(format!("Unknown network: {}", network)),
+    };
+
+    // Encode to bech32
+    let network_id = pocx_address::NetworkId::Bech32(hrp.to_string());
+    match pocx_address::encode_address(&payload, network_id) {
+        Ok(address) => CommandResult::ok(address),
+        Err(e) => CommandResult::err(format!("Failed to encode: {:?}", e)),
     }
 }
 

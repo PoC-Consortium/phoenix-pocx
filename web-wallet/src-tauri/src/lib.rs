@@ -393,6 +393,10 @@ pub fn run() {
             let menu = create_menu(app)?;
             app.set_menu(menu)?;
 
+            // Register miner callback for mining events (with state for deadline persistence)
+            let state = app.state::<mining::state::SharedMiningState>().inner().clone();
+            mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
+
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -542,6 +546,7 @@ pub fn run() {
             // Address validation commands
             mining::commands::validate_pocx_address,
             mining::commands::get_address_info,
+            mining::commands::hex_to_bech32,
             // Plotter state commands
             mining::commands::get_plotter_state,
             mining::commands::is_plotter_running,
