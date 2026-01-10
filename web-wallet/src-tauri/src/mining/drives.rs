@@ -19,6 +19,7 @@ pub struct DriveInfo {
     pub complete_size_gib: f64,    // Size of complete files
     pub incomplete_files: u32,     // .tmp files (can resume)
     pub incomplete_size_gib: f64,  // Size of incomplete files
+    pub volume_id: Option<String>, // Volume GUID for same-drive detection (handles mount points)
 }
 
 /// Plot file scan results
@@ -30,40 +31,49 @@ struct PlotFileScan {
     incomplete_bytes: u64,
 }
 
+/// Get the volume GUID for a given path (Windows only)
+/// This correctly identifies the actual physical volume even for mount points
+#[cfg(target_os = "windows")]
+fn get_volume_guid(path: &str) -> Option<String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetVolumeNameForVolumeMountPointW;
+
+    let mut path_wide: Vec<u16> = OsStr::new(path).encode_wide().collect();
+    // Ensure path ends with backslash
+    if !path.ends_with('\\') {
+        path_wide.push('\\' as u16);
+    }
+    path_wide.push(0); // null terminator
+
+    let mut volume_name: [u16; 50] = [0; 50];
+
+    let result = unsafe {
+        GetVolumeNameForVolumeMountPointW(
+            path_wide.as_ptr(),
+            volume_name.as_mut_ptr(),
+            volume_name.len() as u32,
+        )
+    };
+
+    if result != 0 {
+        let len = volume_name.iter().position(|&c| c == 0).unwrap_or(volume_name.len());
+        Some(String::from_utf16_lossy(&volume_name[..len]))
+    } else {
+        None
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn get_volume_guid(_path: &str) -> Option<String> {
+    // On Unix, we don't have volume GUIDs - use None
+    // The frontend will fall back to path-based comparison
+    None
+}
+
 /// Check if this path is on the actual system volume (not a mountpoint to another drive)
 #[cfg(target_os = "windows")]
 fn is_system_drive_path(mount_point: &str) -> bool {
-    // Get the volume GUID for the given path
-    fn get_volume_guid(path: &str) -> Option<String> {
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-        use windows_sys::Win32::Storage::FileSystem::GetVolumeNameForVolumeMountPointW;
-
-        let mut path_wide: Vec<u16> = OsStr::new(path).encode_wide().collect();
-        // Ensure path ends with backslash
-        if !path.ends_with('\\') {
-            path_wide.push('\\' as u16);
-        }
-        path_wide.push(0); // null terminator
-
-        let mut volume_name: [u16; 50] = [0; 50];
-
-        let result = unsafe {
-            GetVolumeNameForVolumeMountPointW(
-                path_wide.as_ptr(),
-                volume_name.as_mut_ptr(),
-                volume_name.len() as u32,
-            )
-        };
-
-        if result != 0 {
-            let len = volume_name.iter().position(|&c| c == 0).unwrap_or(volume_name.len());
-            Some(String::from_utf16_lossy(&volume_name[..len]))
-        } else {
-            None
-        }
-    }
-
     // Get system volume GUID (C:\)
     let system_volume = get_volume_guid("C:\\");
     // Get volume GUID for the given path
@@ -175,6 +185,7 @@ pub fn list_drives() -> Vec<DriveInfo> {
                 complete_size_gib: scan.complete_bytes as f64 / gib,
                 incomplete_files: scan.incomplete_count,
                 incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+                volume_id: get_volume_guid(&mount_point),
             }
         })
         .collect()
@@ -208,6 +219,7 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
                 complete_size_gib: scan.complete_bytes as f64 / gib,
                 incomplete_files: scan.incomplete_count,
                 incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+                volume_id: get_volume_guid(path),
             });
         }
     }

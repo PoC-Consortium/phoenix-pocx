@@ -14,12 +14,9 @@ import {
   ActivityLogEntry,
   CommandResult,
   AddressInfo,
-  MiningStatus,
-  PlottingStatus,
   BenchmarkResult,
   PlotPlan,
   PlotPlanItem,
-  PlotPlanStats,
   PlotExecutionResult,
   PlottingProgress,
   PlotterStartedEvent,
@@ -29,23 +26,20 @@ import {
   PlotterErrorEvent,
   PlotterItemCompleteEvent,
   PlotterState,
-  StopType,
   PlotterUIState,
   // Miner event types
   MinerStartedEvent,
   MinerCapacityLoadedEvent,
   MinerNewBlockEvent,
   MinerQueueUpdateEvent,
-  MinerQueueItem,
   MinerScanStartedEvent,
   MinerScanProgressEvent,
   MinerScanStatusEvent,
   MinerDeadlineAcceptedEvent,
   MinerDeadlineRetryEvent,
   MinerDeadlineRejectedEvent,
+  MinerLogEvent,
   MinerRuntimeState,
-  MinerBlockInfo,
-  MinerScanProgress,
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
 
@@ -124,6 +118,8 @@ export class MiningService {
   private _isMinerListening = false;
   private _minerUnlisteners: UnlistenFn[] = [];
   private _minerInitialized = false; // First start flag for miner
+  private readonly _capacityChartVersion = signal(0); // Bumped on scan finish to trigger chart update
+  private readonly _capacityDeadlines = signal<DeadlineEntry[]>([]); // Snapshot updated only on scan finish
 
   // Public computed values
   readonly state = this._state.asReadonly();
@@ -134,8 +130,12 @@ export class MiningService {
   readonly plottingProgress = this._plottingProgress.asReadonly();
 
   readonly isConfigured = computed(() => this._state()?.isConfigured ?? false);
-  readonly miningStatus = computed(() => this._state()?.miningStatus ?? { type: 'stopped' as const });
-  readonly plottingStatus = computed(() => this._state()?.plottingStatus ?? { type: 'idle' as const });
+  readonly miningStatus = computed(
+    () => this._state()?.miningStatus ?? { type: 'stopped' as const }
+  );
+  readonly plottingStatus = computed(
+    () => this._state()?.plottingStatus ?? { type: 'idle' as const }
+  );
   readonly config = computed(() => this._state()?.config ?? null);
   readonly recentDeadlines = computed(() => this._state()?.recentDeadlines ?? []);
   readonly isDevMode = this._isDevMode.asReadonly();
@@ -149,6 +149,8 @@ export class MiningService {
   readonly minerCurrentBlock = computed(() => this._minerState().currentBlock);
   readonly minerScanProgress = computed(() => this._minerState().scanProgress);
   readonly minerDeadlines = computed(() => this._minerState().recentDeadlines);
+  readonly capacityChartVersion = this._capacityChartVersion.asReadonly();
+  readonly capacityDeadlines = this._capacityDeadlines.asReadonly(); // Snapshot for chart (updates on scan finish)
 
   // Activity logs (survives navigation, auto-cleanup of entries > 1 day old)
   readonly activityLogs = this._activityLogs.asReadonly();
@@ -206,7 +208,7 @@ export class MiningService {
       if (result) {
         console.log('MiningService: Running in dev mode');
       }
-    } catch (err) {
+    } catch {
       // Default to false if check fails
       this._isDevMode.set(false);
     }
@@ -243,7 +245,11 @@ export class MiningService {
       console.log('MiningService: refreshPlotterState result:', result);
       if (result.success && result.data) {
         this._plotterState.set(result.data);
-        console.log('MiningService: Plotter state updated, plan:', result.data.plan?.items?.length ?? 0, 'items');
+        console.log(
+          'MiningService: Plotter state updated, plan:',
+          result.data.plan?.items?.length ?? 0,
+          'items'
+        );
       } else {
         console.warn('MiningService: get_plotter_state failed:', result.error);
       }
@@ -742,23 +748,25 @@ export class MiningService {
     if (!this._state()) {
       await this.refreshState();
     }
-    return this._state() ?? {
-      miningStatus: { type: 'stopped' },
-      plottingStatus: { type: 'idle' },
-      currentBlock: {},
-      recentDeadlines: [],
-      config: {
-        chains: [],
-        drives: [],
-        cpuConfig: { miningThreads: 8, plottingThreads: 16, maxThreads: 16 },
-        plotterDevices: [],
-        plottingAddress: '',
-        compressionLevel: 0,
-        directIo: true,
-        hddWakeupSeconds: 60,
-      },
-      isConfigured: false,
-    };
+    return (
+      this._state() ?? {
+        miningStatus: { type: 'stopped' },
+        plottingStatus: { type: 'idle' },
+        currentBlock: {},
+        recentDeadlines: [],
+        config: {
+          chains: [],
+          drives: [],
+          cpuConfig: { miningThreads: 8, plottingThreads: 16, maxThreads: 16 },
+          plotterDevices: [],
+          plottingAddress: '',
+          compressionLevel: 0,
+          directIo: true,
+          hddWakeupSeconds: 60,
+        },
+        isConfigured: false,
+      }
+    );
   }
 
   async getConfig(): Promise<MiningConfig | null> {
@@ -774,12 +782,14 @@ export class MiningService {
     if (!this._devices()) {
       await this.refreshDevices();
     }
-    return this._devices() ?? {
-      cpu: { name: 'Unknown CPU', cores: 1, threads: 1, features: [] },
-      gpus: [],
-      totalMemoryMb: 0,
-      availableMemoryMb: 0,
-    };
+    return (
+      this._devices() ?? {
+        cpu: { name: 'Unknown CPU', cores: 1, threads: 1, features: [] },
+        gpus: [],
+        totalMemoryMb: 0,
+        availableMemoryMb: 0,
+      }
+    );
   }
 
   // ============================================================================
@@ -857,16 +867,16 @@ export class MiningService {
     console.log('MiningService: Setting up global plotter event listeners');
 
     // Listen for plotter started
-    const startedUnlisten = await listen<PlotterStartedEvent>('plotter:started', (event) => {
+    const startedUnlisten = await listen<PlotterStartedEvent>('plotter:started', event => {
       console.log('MiningService: Plotter started:', event.payload);
       const { totalWarps, resumeOffset } = event.payload;
 
       this._plottingProgress.update(p => ({
         ...p,
         totalWarps,
-        resumeOffset,                 // Store offset for speed calculation
-        hashingWarps: resumeOffset,   // Already hashed (for progress)
-        writingWarps: resumeOffset,   // Already written (for progress)
+        resumeOffset, // Store offset for speed calculation
+        hashingWarps: resumeOffset, // Already hashed (for progress)
+        writingWarps: resumeOffset, // Already written (for progress)
         plotStartTime: Date.now(),
         progress: 0,
       }));
@@ -875,46 +885,55 @@ export class MiningService {
     this._plotterUnlisteners.push(startedUnlisten);
 
     // Listen for hashing progress (0-50% of total)
-    const hashingUnlisten = await listen<PlotterHashingProgressEvent>('plotter:hashing-progress', (event) => {
-      this._plottingProgress.update(p => ({
-        ...p,
-        hashingWarps: p.hashingWarps + event.payload.warpsDelta,
-      }));
-      this.updatePlottingProgress();
-      this.calculateCombinedSpeed();
-    });
+    const hashingUnlisten = await listen<PlotterHashingProgressEvent>(
+      'plotter:hashing-progress',
+      event => {
+        this._plottingProgress.update(p => ({
+          ...p,
+          hashingWarps: p.hashingWarps + event.payload.warpsDelta,
+        }));
+        this.updatePlottingProgress();
+        this.calculateCombinedSpeed();
+      }
+    );
     this._plotterUnlisteners.push(hashingUnlisten);
 
     // Listen for writing progress (50-100% of total)
-    const writingUnlisten = await listen<PlotterWritingProgressEvent>('plotter:writing-progress', (event) => {
-      this._plottingProgress.update(p => ({
-        ...p,
-        writingWarps: p.writingWarps + event.payload.warpsDelta,
-      }));
-      this.updatePlottingProgress();
-      this.calculateCombinedSpeed();
-    });
+    const writingUnlisten = await listen<PlotterWritingProgressEvent>(
+      'plotter:writing-progress',
+      event => {
+        this._plottingProgress.update(p => ({
+          ...p,
+          writingWarps: p.writingWarps + event.payload.warpsDelta,
+        }));
+        this.updatePlottingProgress();
+        this.calculateCombinedSpeed();
+      }
+    );
     this._plotterUnlisteners.push(writingUnlisten);
 
     // Listen for plotter complete (from pocx_plotter callback)
-    const completeUnlisten = await listen<PlotterCompleteEvent>('plotter:complete', (event) => {
+    const completeUnlisten = await listen<PlotterCompleteEvent>('plotter:complete', event => {
       console.log('MiningService: Plotter complete:', event.payload);
       this._plottingProgress.update(p => ({ ...p, progress: 100 }));
     });
     this._plotterUnlisteners.push(completeUnlisten);
 
     // Listen for plotter error
-    const errorUnlisten = await listen<PlotterErrorEvent>('plotter:error', (event) => {
+    const errorUnlisten = await listen<PlotterErrorEvent>('plotter:error', event => {
       console.error('MiningService: Plotter error:', event.payload.error);
       this._error.set(event.payload.error);
     });
     this._plotterUnlisteners.push(errorUnlisten);
 
     // Listen for item complete (our wrapper event for plan advancement)
-    const itemCompleteUnlisten = await listen<PlotterItemCompleteEvent>('plotter:item-complete', async (event) => {
-      console.log('MiningService: Item complete:', event.payload);
-      await this.handleItemComplete(event.payload);
-    });
+    const itemCompleteUnlisten = await listen<PlotterItemCompleteEvent>(
+      'plotter:item-complete',
+      async event => {
+        console.log('MiningService: Item complete:', event.payload);
+        await this.handleItemComplete(event.payload);
+      }
+    );
     this._plotterUnlisteners.push(itemCompleteUnlisten);
   }
 
@@ -1008,15 +1027,35 @@ export class MiningService {
 
     // Log activity
     if (event.success) {
-      const duration = event.durationMs ? ` in ${(event.durationMs / 1000 / 60).toFixed(1)} min` : '';
-      this.addActivityLog('complete', `${event.type} completed: ${this.formatPath(event.path)}${duration}`);
+      const duration = event.durationMs
+        ? ` in ${(event.durationMs / 1000 / 60).toFixed(1)} min`
+        : '';
+      const pathInfo = event.path ? `: ${this.formatPath(event.path)}` : '';
+      this.addActivityLog('info', `${event.type} completed${pathInfo}${duration}`);
     } else {
-      this.addActivityLog('error', `${event.type} failed: ${event.path} - ${event.error}`);
+      const pathInfo = event.path ? `${event.path} - ` : '';
+      this.addActivityLog('error', `${event.type} failed: ${pathInfo}${event.error}`);
     }
 
-    // Refresh drive stats for the completed item's path
-    if (event.success) {
+    // Refresh drive stats for the completed item's path (if available)
+    if (event.success && event.path) {
       await this.refreshDriveInCache(event.path);
+    }
+
+    // When a drive finishes plotting (add_to_miner), restart miner to pick up new plots
+    if (event.success && event.type === 'add_to_miner' && this.isMiningActive()) {
+      console.log('MiningService: Drives ready for mining, restarting miner to add new plots');
+      this.addActivityLog('info', 'Restarting miner to add newly plotted drives');
+      try {
+        await this.stopMiner();
+        // Small delay to ensure clean shutdown
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await this.startMiner();
+        this.addActivityLog('success', 'Miner restarted with new plots');
+      } catch (err) {
+        console.error('Failed to restart miner:', err);
+        this.addActivityLog('error', `Failed to restart miner: ${err}`);
+      }
     }
 
     // CRITICAL: Advance the plan index for this completed item
@@ -1089,15 +1128,8 @@ export class MiningService {
         // Execute resume item
         await this.executePlotItem(currentItem);
       } else if (currentItem.type === 'add_to_miner') {
-        // Add to miner is a no-op for now, just advance
-        const nextItem = await this.advancePlotPlan();
-        // If null, plan is complete or soft stop at batch boundary
-        if (nextItem === null) {
-          this.cleanupPlotterEventListeners();
-          this.resetPlottingProgress();
-          return;
-        }
-        await this.executeNextBatch();
+        // Execute add_to_miner item - this triggers miner restart via event handler
+        await this.executePlotItem(currentItem);
       }
       return;
     }
@@ -1123,7 +1155,9 @@ export class MiningService {
       totalBatchWarps += item.warps;
     }
 
-    console.log(`MiningService: Executing batch ${batchId} with ${batchItems.length} items, ${totalBatchWarps} total warps`);
+    console.log(
+      `MiningService: Executing batch ${batchId} with ${batchItems.length} items, ${totalBatchWarps} total warps`
+    );
 
     // Update batch tracking
     this._plottingProgress.update(p => ({
@@ -1312,11 +1346,9 @@ export class MiningService {
     }
 
     // Generate plan using the service
-    const plan = this.plotPlanService.generatePlan(
-      driveInfos,
-      config.drives,
-      { parallelDrives: config.parallelDrives ?? 1 }
-    );
+    const plan = this.plotPlanService.generatePlan(driveInfos, config.drives, {
+      parallelDrives: config.parallelDrives ?? 1,
+    });
 
     // Check if there's any work to do
     if (plan.items.length === 0) {
@@ -1507,7 +1539,9 @@ export class MiningService {
    */
   async executePlotItem(item: PlotPlanItem): Promise<PlotExecutionResult | null> {
     try {
-      const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_item', { item });
+      const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_item', {
+        item,
+      });
 
       // Refresh plotter state immediately to show running status
       await this.refreshPlotterState();
@@ -1530,7 +1564,9 @@ export class MiningService {
    */
   async executePlotBatch(items: PlotPlanItem[]): Promise<PlotExecutionResult | null> {
     try {
-      const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_batch', { items });
+      const result = await invoke<CommandResult<PlotExecutionResult>>('execute_plot_batch', {
+        items,
+      });
       // Refresh plotter state immediately to show running status
       await this.refreshPlotterState();
       if (result.success && result.data) {
@@ -1659,31 +1695,34 @@ export class MiningService {
     console.log('MiningService: Setting up miner event listeners');
 
     // miner:started
-    const startedUnlisten = await listen<MinerStartedEvent>('miner:started', (event) => {
+    const startedUnlisten = await listen<MinerStartedEvent>('miner:started', event => {
       console.log('MiningService: Miner started:', event.payload);
       this._minerState.update(s => ({
         ...s,
         running: true,
         chains: event.payload.chains,
       }));
-      this.addActivityLog('info', `Miner started v${event.payload.version}`);
+      // Log comes through miner:log hook
     });
     this._minerUnlisteners.push(startedUnlisten);
 
     // miner:capacity-loaded
-    const capacityUnlisten = await listen<MinerCapacityLoadedEvent>('miner:capacity-loaded', (event) => {
-      console.log('MiningService: Capacity loaded:', event.payload);
-      this._minerState.update(s => ({
-        ...s,
-        totalWarps: event.payload.totalWarps,
-        capacityTib: event.payload.capacityTib,
-      }));
-      this.addActivityLog('info', `Loaded ${event.payload.capacityTib.toFixed(2)} TiB from ${event.payload.drives} drives`);
-    });
+    const capacityUnlisten = await listen<MinerCapacityLoadedEvent>(
+      'miner:capacity-loaded',
+      event => {
+        console.log('MiningService: Capacity loaded:', event.payload);
+        this._minerState.update(s => ({
+          ...s,
+          totalWarps: event.payload.totalWarps,
+          capacityTib: event.payload.capacityTib,
+        }));
+        // Log comes through miner:log hook
+      }
+    );
     this._minerUnlisteners.push(capacityUnlisten);
 
     // miner:new-block
-    const blockUnlisten = await listen<MinerNewBlockEvent>('miner:new-block', (event) => {
+    const blockUnlisten = await listen<MinerNewBlockEvent>('miner:new-block', event => {
       const block = event.payload;
       this._minerState.update(s => ({
         ...s,
@@ -1699,12 +1738,12 @@ export class MiningService {
           },
         },
       }));
-      this.addActivityLog('block', `[${block.chain}] Block ${block.height}, capacity=${block.networkCapacity}`);
+      // Log comes through miner:log hook
     });
     this._minerUnlisteners.push(blockUnlisten);
 
     // miner:queue-updated
-    const queueUnlisten = await listen<MinerQueueUpdateEvent>('miner:queue-updated', (event) => {
+    const queueUnlisten = await listen<MinerQueueUpdateEvent>('miner:queue-updated', event => {
       this._minerState.update(s => ({
         ...s,
         queue: event.payload.queue,
@@ -1719,7 +1758,7 @@ export class MiningService {
     this._minerUnlisteners.push(idleUnlisten);
 
     // miner:scan-started
-    const scanStartedUnlisten = await listen<MinerScanStartedEvent>('miner:scan-started', (event) => {
+    const scanStartedUnlisten = await listen<MinerScanStartedEvent>('miner:scan-started', event => {
       const info = event.payload;
       this._minerState.update(s => ({
         ...s,
@@ -1733,160 +1772,174 @@ export class MiningService {
           resuming: info.resuming,
         },
       }));
-      const action = info.resuming ? 'Resuming' : 'Scanning';
-      this.addActivityLog('scan', `${action} [${info.chain}:${info.height}]`);
+      // Log comes through miner:log hook
     });
     this._minerUnlisteners.push(scanStartedUnlisten);
 
     // miner:scan-progress
-    const scanProgressUnlisten = await listen<MinerScanProgressEvent>('miner:scan-progress', (event) => {
-      this._minerState.update(s => {
-        const scannedWarps = s.scanProgress.scannedWarps + event.payload.warpsDelta;
-        const progress = s.scanProgress.totalWarps > 0
-          ? (scannedWarps / s.scanProgress.totalWarps) * 100
-          : 0;
-        return {
-          ...s,
-          scanProgress: {
-            ...s.scanProgress,
-            scannedWarps,
-            progress,
-          },
-        };
-      });
-    });
+    const scanProgressUnlisten = await listen<MinerScanProgressEvent>(
+      'miner:scan-progress',
+      event => {
+        this._minerState.update(s => {
+          const scannedWarps = s.scanProgress.scannedWarps + event.payload.warpsDelta;
+          const progress =
+            s.scanProgress.totalWarps > 0 ? (scannedWarps / s.scanProgress.totalWarps) * 100 : 0;
+          return {
+            ...s,
+            scanProgress: {
+              ...s.scanProgress,
+              scannedWarps,
+              progress,
+            },
+          };
+        });
+      }
+    );
     this._minerUnlisteners.push(scanProgressUnlisten);
 
-    // miner:scan-status
-    const scanStatusUnlisten = await listen<MinerScanStatusEvent>('miner:scan-status', (event) => {
-      const status = event.payload;
-      if (status.status === 'finished') {
-        const duration = status.durationSecs != null ? `${status.durationSecs.toFixed(1)}s` : '';
-        this.addActivityLog('scan', `Finished [${status.chain}:${status.height}]${duration ? ' in ' + duration : ''}`);
-      } else if (status.status === 'paused') {
-        const progress = status.progressPercent != null ? `${status.progressPercent.toFixed(1)}%` : '';
-        this.addActivityLog('scan', `Paused [${status.chain}:${status.height}]${progress ? ' at ' + progress : ''}`);
-      } else if (status.status === 'interrupted') {
-        const progress = status.progressPercent != null ? `${status.progressPercent.toFixed(1)}%` : '';
-        this.addActivityLog('warn', `Interrupted [${status.chain}:${status.height}]${progress ? ' at ' + progress : ''}`);
+    // miner:scan-status - triggers capacity chart update on round finish
+    const scanStatusUnlisten = await listen<MinerScanStatusEvent>('miner:scan-status', event => {
+      if (event.payload.status === 'finished') {
+        // Snapshot deadlines for capacity chart (only update on round finish)
+        this._capacityDeadlines.set([...this._minerState().recentDeadlines]);
+        this._capacityChartVersion.update(v => v + 1);
       }
     });
     this._minerUnlisteners.push(scanStatusUnlisten);
 
     // miner:deadline-accepted
-    const deadlineAcceptedUnlisten = await listen<MinerDeadlineAcceptedEvent>('miner:deadline-accepted', async (event) => {
-      const d = event.payload;
-      const timeStr = d.pocTime < 86400 ? d.pocTime.toString() : '∞';
-      const accountShort = d.account.slice(-8);
-      this.addActivityLog('success', `accepted: height=${d.height}, account=...${accountShort}, nonce=${d.nonce}, X=${d.compression}, quality=${d.qualityRaw}, time=${timeStr}`);
+    const deadlineAcceptedUnlisten = await listen<MinerDeadlineAcceptedEvent>(
+      'miner:deadline-accepted',
+      async event => {
+        const d = event.payload;
+        // Log comes through miner:log hook
 
-      // Convert account to bech32 with correct HRP
-      const bech32Account = await this.hexToBech32(d.account);
+        // Convert account to bech32 with correct HRP
+        const bech32Account = await this.hexToBech32(d.account);
 
-      // Update deadline history and best deadline
-      // Use poc_time as the deadline value (lower = better)
-      // Only keep best deadline per chain+height
-      this._minerState.update(s => {
-        const MAX_PER_CHAIN = 720;
-        const pocTime = d.pocTime < 86400 ? d.pocTime : Number.MAX_SAFE_INTEGER;
+        // Update deadline history and best deadline
+        // Use poc_time as the deadline value (lower = better)
+        // Only keep best deadline per chain+height
+        this._minerState.update(s => {
+          const MAX_PER_CHAIN = 720;
+          const pocTime = d.pocTime < 86400 ? d.pocTime : Number.MAX_SAFE_INTEGER;
 
-        // Get baseTarget from current block for this chain
-        const baseTarget = s.currentBlock[d.chain]?.baseTarget ?? 0;
+          // Get baseTarget from current block for this chain
+          const baseTarget = s.currentBlock[d.chain]?.baseTarget ?? 0;
 
-        // Check if we already have an entry for this chain+height
-        const existingIdx = s.recentDeadlines.findIndex(
-          dl => dl.chainName === d.chain && dl.height === d.height
-        );
+          // Check if we already have an entry for this chain+height
+          const existingIdx = s.recentDeadlines.findIndex(
+            dl => dl.chainName === d.chain && dl.height === d.height
+          );
 
-        let updatedDeadlines: DeadlineEntry[];
+          let updatedDeadlines: DeadlineEntry[];
 
-        if (existingIdx >= 0) {
-          // Entry exists - only update if this deadline is better (lower poc_time)
-          const existing = s.recentDeadlines[existingIdx];
-          if (pocTime < existing.deadline) {
-            // Better deadline - replace
-            updatedDeadlines = [...s.recentDeadlines];
-            updatedDeadlines[existingIdx] = {
-              ...existing,
+          if (existingIdx >= 0) {
+            // Entry exists - only update if this deadline is better (lower poc_time)
+            const existing = s.recentDeadlines[existingIdx];
+            if (pocTime < existing.deadline) {
+              // Better deadline - replace
+              updatedDeadlines = [...s.recentDeadlines];
+              updatedDeadlines[existingIdx] = {
+                ...existing,
+                account: bech32Account,
+                nonce: d.nonce,
+                deadline: pocTime,
+                qualityRaw: d.qualityRaw,
+                baseTarget,
+                timestamp: Date.now(),
+              };
+            } else {
+              // Not better - keep existing
+              updatedDeadlines = s.recentDeadlines;
+            }
+          } else {
+            // New entry for this chain+height
+            const entry: DeadlineEntry = {
+              id: Date.now(),
+              chainName: d.chain,
               account: bech32Account,
+              height: d.height,
               nonce: d.nonce,
-              deadline: pocTime,
-              qualityRaw: d.qualityRaw,
-              baseTarget,
+              deadline: pocTime, // Use poc_time as deadline value
+              qualityRaw: d.qualityRaw, // Raw quality for effective capacity
+              baseTarget, // Block's base target for capacity calculations
+              submitted: true,
               timestamp: Date.now(),
             };
-          } else {
-            // Not better - keep existing
-            updatedDeadlines = s.recentDeadlines;
+
+            // Add and enforce per-chain limit
+            const allDeadlines = [entry, ...s.recentDeadlines];
+            const chainCounts = new Map<string, number>();
+            updatedDeadlines = allDeadlines.filter(dl => {
+              const count = (chainCounts.get(dl.chainName) ?? 0) + 1;
+              chainCounts.set(dl.chainName, count);
+              return count <= MAX_PER_CHAIN;
+            });
           }
-        } else {
-          // New entry for this chain+height
-          const entry: DeadlineEntry = {
-            id: Date.now(),
-            chainName: d.chain,
-            account: bech32Account,
-            height: d.height,
-            nonce: d.nonce,
-            deadline: pocTime, // Use poc_time as deadline value
-            qualityRaw: d.qualityRaw, // Raw quality for effective capacity
-            baseTarget, // Block's base target for capacity calculations
-            submitted: true,
-            timestamp: Date.now(),
-          };
 
-          // Add and enforce per-chain limit
-          const allDeadlines = [entry, ...s.recentDeadlines];
-          const chainCounts = new Map<string, number>();
-          updatedDeadlines = allDeadlines.filter(dl => {
-            const count = (chainCounts.get(dl.chainName) ?? 0) + 1;
-            chainCounts.set(dl.chainName, count);
-            return count <= MAX_PER_CHAIN;
-          });
-        }
+          // Update best deadline for this chain (for the card)
+          const currentBlock = s.currentBlock[d.chain];
+          if (currentBlock && (!currentBlock.bestDeadline || pocTime < currentBlock.bestDeadline)) {
+            return {
+              ...s,
+              recentDeadlines: updatedDeadlines,
+              currentBlock: {
+                ...s.currentBlock,
+                [d.chain]: {
+                  ...currentBlock,
+                  bestDeadline: pocTime,
+                },
+              },
+            };
+          }
 
-        // Update best deadline for this chain (for the card)
-        const currentBlock = s.currentBlock[d.chain];
-        if (currentBlock && (!currentBlock.bestDeadline || pocTime < currentBlock.bestDeadline)) {
           return {
             ...s,
             recentDeadlines: updatedDeadlines,
-            currentBlock: {
-              ...s.currentBlock,
-              [d.chain]: {
-                ...currentBlock,
-                bestDeadline: pocTime,
-              },
-            },
           };
-        }
-
-        return {
-          ...s,
-          recentDeadlines: updatedDeadlines,
-        };
-      });
-    });
+        });
+      }
+    );
     this._minerUnlisteners.push(deadlineAcceptedUnlisten);
 
     // miner:deadline-retry
-    const deadlineRetryUnlisten = await listen<MinerDeadlineRetryEvent>('miner:deadline-retry', (event) => {
-      const d = event.payload;
-      this.addActivityLog('warn', `Retrying deadline for [${d.chain}:${d.height}]: ${d.reason}`);
-    });
+    const deadlineRetryUnlisten = await listen<MinerDeadlineRetryEvent>(
+      'miner:deadline-retry',
+      () => {
+        // Log comes through miner:log hook
+      }
+    );
     this._minerUnlisteners.push(deadlineRetryUnlisten);
 
     // miner:deadline-rejected
-    const deadlineRejectedUnlisten = await listen<MinerDeadlineRejectedEvent>('miner:deadline-rejected', (event) => {
-      const d = event.payload;
-      this.addActivityLog('error', `Deadline rejected [${d.chain}:${d.height}]: ${d.code} - ${d.message}`);
-    });
+    const deadlineRejectedUnlisten = await listen<MinerDeadlineRejectedEvent>(
+      'miner:deadline-rejected',
+      () => {
+        // Log comes through miner:log hook
+      }
+    );
     this._minerUnlisteners.push(deadlineRejectedUnlisten);
 
     // miner:hdd-wakeup
     const hddWakeupUnlisten = await listen('miner:hdd-wakeup', () => {
-      this.addActivityLog('info', 'HDD wakeup performed');
+      // Log comes through miner:log hook
     });
     this._minerUnlisteners.push(hddWakeupUnlisten);
+
+    // miner:log - forwarded log messages from pocx_miner via log4rs
+    const logUnlisten = await listen<MinerLogEvent>('miner:log', event => {
+      const { level, message } = event.payload;
+      // Map log levels to activity log types
+      const type = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info';
+      this.addActivityLog(type, message);
+      // Also log errors to console and update error state
+      if (level === 'error') {
+        console.error('MiningService: Miner error:', message);
+        this._error.set(message);
+      }
+    });
+    this._minerUnlisteners.push(logUnlisten);
 
     // miner:stopped
     const stoppedUnlisten = await listen('miner:stopped', () => {
@@ -1896,7 +1949,7 @@ export class MiningService {
         running: false,
         queue: [],
       }));
-      this.addActivityLog('info', 'Miner stopped');
+      // Log comes through miner:log hook
       this.cleanupMinerEventListeners();
     });
     this._minerUnlisteners.push(stoppedUnlisten);

@@ -11,12 +11,8 @@ import {
   MiningStatus,
   PlottingStatus,
   DeadlineEntry,
-  MinerBlockInfo,
   ChainConfig,
   DriveConfig,
-  DriveInfo,
-  PlotPlanItem,
-  CapacityDataPoint,
   calculateNetworkCapacityTib,
   calculateEffectiveCapacity,
   generateEffectiveCapacityHistory,
@@ -28,7 +24,15 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 @Component({
   selector: 'app-mining-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, MatDialogModule, MatTooltipModule, MatIconModule, MatCheckboxModule],
+  imports: [
+    CommonModule,
+    RouterModule,
+    FormsModule,
+    MatDialogModule,
+    MatTooltipModule,
+    MatIconModule,
+    MatCheckboxModule,
+  ],
   template: `
     <div class="dashboard">
       <div class="main-content">
@@ -78,7 +82,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
               <div class="account-list">
                 @for (deadline of getCurrentRoundDeadlines(); track deadline.id) {
                   <div class="account-item">
-                    <span class="account-id" [title]="deadline.account">{{ deadline.account }}</span>
+                    <span class="account-id" [title]="deadline.account">{{
+                      deadline.account
+                    }}</span>
                     <span class="account-deadline">{{ formatDeadline(deadline.deadline) }}</span>
                   </div>
                 }
@@ -96,7 +102,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                   [checked]="miningService.simulationMode()"
                   (change)="toggleSimulationMode($event.checked)"
                   matTooltip="Simulation mode: plotter runs in benchmark mode (no disk writes)"
-                >Sim</mat-checkbox>
+                  >Sim</mat-checkbox
+                >
               }
             </div>
 
@@ -107,9 +114,15 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 @if (isAllComplete()) {
                   <span class="status-legend">ready for mining</span>
                 } @else {
-                  <span class="status-item ready"><span class="dot">●</span> {{ formatTib(getReadyTib()) }} ready</span>
-                  <span class="status-item plotted"><span class="dot">●</span> {{ formatTib(getPlottedTib()) }} plotted</span>
-                  <span class="status-item to-plot"><span class="dot">○</span> {{ formatTib(getToPlotTib()) }} to plot</span>
+                  <span class="status-item ready"
+                    ><span class="dot">●</span> {{ formatTib(getReadyTib()) }} ready</span
+                  >
+                  <span class="status-item plotted"
+                    ><span class="dot">●</span> {{ formatTib(getPlottedTib()) }} plotted</span
+                  >
+                  <span class="status-item to-plot"
+                    ><span class="dot">○</span> {{ formatTib(getToPlotTib()) }} to plot</span
+                  >
                 }
               </div>
             </div>
@@ -135,11 +148,13 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                       <span class="speed-info">{{ getPlottingSpeed() }}</span>
                     </div>
                     <div class="progress-bar-sm">
-                      <div class="progress-fill stopping" [style.width.%]="getPlottingProgress()"></div>
+                      <div
+                        class="progress-fill stopping"
+                        [style.width.%]="getPlottingProgress()"
+                      ></div>
                     </div>
                   </div>
                 </div>
-
               } @else if (isPlotting()) {
                 <!-- Plotting State: Button | Progress -->
                 <div class="plotter-active">
@@ -153,16 +168,20 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                   </button>
                   <div class="plotter-info">
                     <div class="plotter-info-row">
-                      <span class="task-info">Task {{ getCurrentTask() }}/{{ getTotalTasks() }}</span>
+                      <span class="task-info"
+                        >Task {{ getCurrentTask() }}/{{ getTotalTasks() }}</span
+                      >
                       <span class="speed-info">{{ getPlottingSpeed() }}</span>
                     </div>
                     <div class="progress-bar-sm">
-                      <div class="progress-fill plotting" [style.width.%]="getPlottingProgress()"></div>
+                      <div
+                        class="progress-fill plotting"
+                        [style.width.%]="getPlottingProgress()"
+                      ></div>
                     </div>
                     <div class="eta-info">ETA: {{ planEta() }}</div>
                   </div>
                 </div>
-
               } @else if (canStartPlan() || hasQueuedDrives()) {
                 <!-- Ready State: Start Button | Info -->
                 <div class="plotter-idle">
@@ -174,13 +193,18 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                     <span class="btn-label">Start</span>
                     <span class="btn-icon-glyph">▶</span>
                   </button>
-                  <span class="queue-info">{{ canStartPlan() ? getRemainingSize() + ' in plan' : 'Ready to plot ' + getQueuedSize() }}</span>
+                  <span class="queue-info">{{
+                    canStartPlan()
+                      ? getRemainingSize() + ' in plan'
+                      : 'Ready to plot ' + getQueuedSize()
+                  }}</span>
                 </div>
-
               } @else {
                 <!-- Complete State: Info -->
                 <div class="plotter-complete">
-                  <span class="complete-info">{{ drives().length }} drive{{ drives().length !== 1 ? 's' : '' }}</span>
+                  <span class="complete-info"
+                    >{{ drives().length }} drive{{ drives().length !== 1 ? 's' : '' }}</span
+                  >
                 </div>
               }
             </div>
@@ -209,12 +233,23 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                     </defs>
                     <!-- Grid lines -->
                     @for (y of [20, 40, 60, 80]; track y) {
-                      <line [attr.x1]="0" [attr.y1]="y" [attr.x2]="280" [attr.y2]="y"
-                            stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                      <line
+                        [attr.x1]="0"
+                        [attr.y1]="y"
+                        [attr.x2]="280"
+                        [attr.y2]="y"
+                        stroke="rgba(255,255,255,0.1)"
+                        stroke-width="1"
+                      />
                     }
                     <!-- Chart area and line -->
                     <path [attr.d]="getCapacityAreaPath()" fill="url(#capacityGradient)" />
-                    <path [attr.d]="getCapacityLinePath()" fill="none" stroke="#81c784" stroke-width="2"/>
+                    <path
+                      [attr.d]="getCapacityLinePath()"
+                      fill="none"
+                      stroke="#81c784"
+                      stroke-width="2"
+                    />
                   </svg>
                   <div class="chart-labels">
                     @for (label of capacityXAxisLabels(); track $index) {
@@ -262,11 +297,19 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                   <tbody>
                     @for (chain of enabledChains(); track chain.name) {
                       <tr>
-                        <td [matTooltip]="getChainTooltip(chain.name)" matTooltipClass="chain-tooltip">{{ chain.name }}</td>
+                        <td
+                          [matTooltip]="getChainTooltip(chain.name)"
+                          matTooltipClass="chain-tooltip"
+                        >
+                          {{ chain.name }}
+                        </td>
                         <td>{{ getChainHeight(chain.name) }}</td>
                         <td>{{ getChainDifficulty(chain.name) }}</td>
                         <td>{{ getChainCompression(chain.name) }}</td>
-                        <td><span class="status-dot" [class]="getChainStatusClass(chain.name)"></span>{{ getChainStatus(chain.name) }}</td>
+                        <td>
+                          <span class="status-dot" [class]="getChainStatusClass(chain.name)"></span
+                          >{{ getChainStatus(chain.name) }}
+                        </td>
                       </tr>
                     }
                     @if (enabledChains().length === 0) {
@@ -292,7 +335,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                       }
                     </select>
                   </div>
-                  <button class="export-btn" (click)="exportCSV()" title="Export to CSV">Export CSV</button>
+                  <button class="export-btn" (click)="exportCSV()" title="Export to CSV">
+                    Export CSV
+                  </button>
                 </div>
               </div>
               <div class="section-content">
@@ -312,8 +357,12 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                         <td class="time-col">{{ formatTime(deadline.timestamp) }}</td>
                         <td>#{{ deadline.height.toLocaleString() }}</td>
                         <td>{{ deadline.chainName }}</td>
-                        <td class="account-col" [title]="deadline.account">{{ deadline.account }}</td>
-                        <td class="deadline-col" [class.best]="isBestDeadline(deadline)">{{ formatDeadline(deadline.deadline) }}</td>
+                        <td class="account-col" [title]="deadline.account">
+                          {{ deadline.account }}
+                        </td>
+                        <td class="deadline-col" [class.best]="isBestDeadline(deadline)">
+                          {{ formatDeadline(deadline.deadline) }}
+                        </td>
                       </tr>
                     }
                     @if (filteredDeadlines().length === 0) {
@@ -338,7 +387,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                       <mat-icon>assignment</mat-icon>
                     </button>
                   }
-                  <button class="icon-btn" (click)="refreshDriveStats()" title="Refresh Drive Stats">
+                  <button
+                    class="icon-btn"
+                    (click)="refreshDriveStats()"
+                    title="Refresh Drive Stats"
+                  >
                     <mat-icon>refresh</mat-icon>
                   </button>
                   <button class="icon-btn" (click)="navigateToSetup(1)" title="Plotter Settings">
@@ -363,12 +416,18 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                     @for (drive of drives(); track drive.path) {
                       <tr>
                         <td>{{ drive.path }}</td>
-                        <td><span class="status-dot" [class]="getDriveStatusClass(drive)"></span>{{ getDriveStatus(drive) }}</td>
+                        <td>
+                          <span class="status-dot" [class]="getDriveStatusClass(drive)"></span
+                          >{{ getDriveStatus(drive) }}
+                        </td>
                         <td>
                           @if (isDrivePlotting(drive)) {
                             <div class="mini-progress-wrapper">
                               <div class="mini-progress">
-                                <div class="fill plotting" [style.width.%]="getDrivePlottingProgress(drive)"></div>
+                                <div
+                                  class="fill plotting"
+                                  [style.width.%]="getDrivePlottingProgress(drive)"
+                                ></div>
                               </div>
                               <span>{{ getDrivePlottedSize(drive) }}</span>
                             </div>
@@ -396,11 +455,37 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <div class="section-header">
             <span class="section-title">Recent Activity</span>
             <div class="log-filters">
-              <button class="log-filter" [class.active]="logFilters().all" (click)="toggleLogFilter('all')">All</button>
-              <button class="log-filter" [class.active]="logFilters().info" data-filter="info" (click)="toggleLogFilter('info')">Info</button>
-              <button class="log-filter" [class.active]="logFilters().success" data-filter="success" (click)="toggleLogFilter('success')">Success</button>
-              <button class="log-filter" [class.active]="logFilters().warn" data-filter="warn" (click)="toggleLogFilter('warn')">Warn</button>
-              <button class="log-filter" [class.active]="logFilters().error" data-filter="error" (click)="toggleLogFilter('error')">Error</button>
+              <button
+                class="log-filter"
+                [class.active]="logFilters().all"
+                (click)="toggleLogFilter('all')"
+              >
+                All
+              </button>
+              <button
+                class="log-filter"
+                [class.active]="logFilters().info"
+                data-filter="info"
+                (click)="toggleLogFilter('info')"
+              >
+                Info
+              </button>
+              <button
+                class="log-filter"
+                [class.active]="logFilters().warn"
+                data-filter="warn"
+                (click)="toggleLogFilter('warn')"
+              >
+                Warn
+              </button>
+              <button
+                class="log-filter"
+                [class.active]="logFilters().error"
+                data-filter="error"
+                (click)="toggleLogFilter('error')"
+              >
+                Error
+              </button>
             </div>
           </div>
           <div class="section-content">
@@ -434,978 +519,1042 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       </div>
     </div>
   `,
-  styles: [`
-    :host {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
-    }
+  styles: [
+    `
+      :host {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
 
-    .dashboard {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-      min-height: 0;
-    }
+      .dashboard {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+        min-height: 0;
+      }
 
-    .main-content {
-      flex: 1;
-      padding: 16px;
-      overflow: hidden;  /* Don't scroll main content - sections scroll internally */
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      position: relative;
-      min-height: 0;  /* Allow flex children to shrink */
-    }
+      .main-content {
+        flex: 1;
+        padding: 16px;
+        overflow: hidden; /* Don't scroll main content - sections scroll internally */
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        position: relative;
+        min-height: 0; /* Allow flex children to shrink */
+      }
 
-    /* Summary Cards Grid */
-    .summary-cards {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-      flex-shrink: 0;
-    }
-
-    @media (max-width: 1100px) {
+      /* Summary Cards Grid */
       .summary-cards {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    @media (max-width: 600px) {
-      .summary-cards {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .summary-card {
-      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-      border-radius: 8px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      position: relative;
-    }
-
-    .summary-card .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 10px;
-    }
-
-    .summary-card .card-title {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    .summary-card .card-title mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    .sim-checkbox {
-      position: absolute;
-      right: 0;
-      top: 0;
-      font-size: 11px;
-      margin: 0 !important;
-      padding: 0 !important;
-      height: auto !important;
-      line-height: 1 !important;
-    }
-
-    .sim-checkbox ::ng-deep {
-      .mdc-form-field {
-        height: auto !important;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        flex-shrink: 0;
       }
 
-      .mdc-form-field > label {
-        color: rgba(255, 255, 255, 0.8) !important;
-        font-size: 11px;
+      @media (max-width: 1100px) {
+        .summary-cards {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      @media (max-width: 600px) {
+        .summary-cards {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .summary-card {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        position: relative;
+      }
+
+      .summary-card .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+      }
+
+      .summary-card .card-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
         letter-spacing: 0.5px;
-        padding-left: 4px !important;
+        color: rgba(255, 255, 255, 0.7);
       }
 
-      .mdc-checkbox {
-        padding: 0 !important;
+      .summary-card .card-title mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .sim-checkbox {
+        position: absolute;
+        right: 0;
+        top: 0;
+        font-size: 11px;
         margin: 0 !important;
-        width: 16px !important;
-        height: 16px !important;
+        padding: 0 !important;
+        height: auto !important;
+        line-height: 1 !important;
       }
 
-      .mdc-checkbox__background {
-        border-color: rgba(255, 255, 255, 0.6) !important;
-        width: 14px !important;
-        height: 14px !important;
-        top: 1px !important;
-        left: 1px !important;
+      .sim-checkbox ::ng-deep {
+        .mdc-form-field {
+          height: auto !important;
+        }
+
+        .mdc-form-field > label {
+          color: rgba(255, 255, 255, 0.8) !important;
+          font-size: 11px;
+          letter-spacing: 0.5px;
+          padding-left: 4px !important;
+        }
+
+        .mdc-checkbox {
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 16px !important;
+          height: 16px !important;
+        }
+
+        .mdc-checkbox__background {
+          border-color: rgba(255, 255, 255, 0.6) !important;
+          width: 14px !important;
+          height: 14px !important;
+          top: 1px !important;
+          left: 1px !important;
+        }
+
+        .mdc-checkbox--selected .mdc-checkbox__background {
+          background-color: #4caf50 !important;
+          border-color: #4caf50 !important;
+        }
       }
 
-      .mdc-checkbox--selected .mdc-checkbox__background {
-        background-color: #4caf50 !important;
-        border-color: #4caf50 !important;
+      .capacity-card .card-header {
+        position: relative;
       }
-    }
 
-    .capacity-card .card-header {
-      position: relative;
-    }
+      .summary-card .card-value {
+        font-size: 26px;
+        font-weight: 600;
+        color: #ffffff;
+        line-height: 1;
+      }
 
-    .summary-card .card-value {
-      font-size: 26px;
-      font-weight: 600;
-      color: #ffffff;
-      line-height: 1;
-    }
+      .summary-card .card-sub {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-top: 4px;
+      }
 
-    .summary-card .card-sub {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.7);
-      margin-top: 4px;
-    }
+      .gear-link {
+        color: rgba(255, 255, 255, 0.6);
+        background: transparent;
+        border: none;
+        font-size: 14px;
+        padding: 2px 4px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
 
-    .gear-link {
-      color: rgba(255, 255, 255, 0.6);
-      background: transparent;
-      border: none;
-      font-size: 14px;
-      padding: 2px 4px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+      .gear-link:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.1);
+      }
 
-    .gear-link:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
-    }
+      /* Mining Status Card */
+      .mining-status-card .status-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
 
-    /* Mining Status Card */
-    .mining-status-card .status-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 6px;
-    }
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
 
-    .status-indicator {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+      .status-indicator.active {
+        background: #4caf50;
+        box-shadow: 0 0 8px #4caf50;
+        animation: pulse 2s infinite;
+      }
+      .status-indicator.idle {
+        background: #9e9e9e;
+      }
+      .status-indicator.scanning {
+        background: #42a5f5;
+        box-shadow: 0 0 8px #42a5f5;
+      }
+      .status-indicator.plotting {
+        background: #ff9800;
+        box-shadow: 0 0 8px #ff9800;
+        animation: pulse 2s infinite;
+      }
+      .status-indicator.stopped {
+        background: #9e9e9e;
+      }
+      .status-indicator.error {
+        background: #f44336;
+      }
 
-    .status-indicator.active {
-      background: #4caf50;
-      box-shadow: 0 0 8px #4caf50;
-      animation: pulse 2s infinite;
-    }
-    .status-indicator.idle { background: #9e9e9e; }
-    .status-indicator.scanning {
-      background: #42a5f5;
-      box-shadow: 0 0 8px #42a5f5;
-    }
-    .status-indicator.plotting {
-      background: #ff9800;
-      box-shadow: 0 0 8px #ff9800;
-      animation: pulse 2s infinite;
-    }
-    .status-indicator.stopped { background: #9e9e9e; }
-    .status-indicator.error { background: #f44336; }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
+      }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
-    }
+      .status-text {
+        font-size: 14px;
+        font-weight: 500;
+        color: #ffffff;
+      }
 
-    .status-text {
-      font-size: 14px;
-      font-weight: 500;
-      color: #ffffff;
-    }
+      .btn {
+        padding: 8px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
 
-    .btn {
-      padding: 8px 20px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: all 0.2s;
-    }
+      .btn-start {
+        background: #4caf50;
+        color: white;
+      }
 
-    .btn-start {
-      background: #4caf50;
-      color: white;
-    }
+      .btn-start:hover {
+        background: #43a047;
+      }
 
-    .btn-start:hover {
-      background: #43a047;
-    }
+      .btn-stop {
+        background: #d32f2f;
+        color: white;
+      }
 
-    .btn-stop {
-      background: #d32f2f;
-      color: white;
-    }
+      .btn-stop:hover {
+        background: #c62828;
+      }
 
-    .btn-stop:hover {
-      background: #c62828;
-    }
+      .btn-icon {
+        padding: 4px 10px;
+        margin-left: auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        gap: 2px;
+      }
 
-    .btn-icon {
-      padding: 4px 10px;
-      margin-left: auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border-radius: 6px;
-      gap: 2px;
-    }
+      .btn-label {
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
 
-    .btn-label {
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
+      .btn-icon-glyph {
+        font-size: 14px;
+        line-height: 1;
+      }
 
-    .btn-icon-glyph {
-      font-size: 14px;
-      line-height: 1;
-    }
+      .progress-container {
+        margin-top: 8px;
+      }
 
-    .progress-container {
-      margin-top: 8px;
-    }
+      .progress-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.7);
+        margin-bottom: 4px;
+      }
 
-    .progress-label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.7);
-      margin-bottom: 4px;
-    }
+      .progress-bar-sm {
+        height: 5px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+        overflow: hidden;
+      }
 
-    .progress-bar-sm {
-      height: 5px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
-      overflow: hidden;
-    }
+      .progress-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s;
+      }
 
-    .progress-fill {
-      height: 100%;
-      border-radius: 3px;
-      transition: width 0.3s;
-    }
+      .progress-fill.scanning {
+        background: linear-gradient(90deg, #42a5f5, #1976d2);
+      }
+      .progress-fill.mining {
+        background: linear-gradient(90deg, #4caf50, #2e7d32);
+      }
+      .progress-fill.plotting {
+        background: linear-gradient(90deg, #ff9800, #e65100);
+      }
 
-    .progress-fill.scanning { background: linear-gradient(90deg, #42a5f5, #1976d2); }
-    .progress-fill.mining { background: linear-gradient(90deg, #4caf50, #2e7d32); }
-    .progress-fill.plotting { background: linear-gradient(90deg, #ff9800, #e65100); }
+      /* Best Deadline Card */
+      .best-deadline-card .deadline-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: #81c784;
+      }
 
-    /* Best Deadline Card */
-    .best-deadline-card .deadline-value {
-      font-size: 28px;
-      font-weight: 700;
-      color: #81c784;
-    }
+      .account-list {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+      }
 
-    .account-list {
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255, 255, 255, 0.15);
-    }
-
-    .account-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 3px 0;
-      font-size: 10px;
-    }
-
-    .account-id {
-      font-family: 'Consolas', monospace;
-      color: #64b5f6;
-      word-break: break-all;
-      flex: 1;
-      min-width: 0;
-    }
-
-    .account-deadline {
-      font-weight: 500;
-      color: #81c784;
-      flex-shrink: 0;
-      margin-left: 8px;
-    }
-
-    /* Capacity Card */
-    .capacity-card {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .capacity-upper {
-      padding-bottom: 8px;
-    }
-
-    .capacity-value {
-      font-size: 26px;
-      font-weight: 600;
-      color: #81c784;
-      line-height: 1.2;
-    }
-
-    .capacity-status {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-top: 6px;
-    }
-
-    .status-item {
-      font-size: 11px;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .status-item .dot {
-      font-size: 10px;
-    }
-
-    .status-item.ready { color: #81c784; }
-    .status-item.plotted { color: #4fc3f7; }
-    .status-item.plotting { color: #ffb74d; }
-    .status-item.queued { color: rgba(255, 255, 255, 0.5); }
-    .status-item.to-plot { color: rgba(255, 255, 255, 0.5); }
-
-    .status-legend {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    .capacity-divider {
-      height: 1px;
-      background: rgba(255, 255, 255, 0.15);
-      margin: 8px 0;
-    }
-
-    .capacity-lower {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* Plotter Active State (plotting) */
-    .plotter-active {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex: 1;
-    }
-
-    .plotter-info {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .plotter-info-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 4px;
-    }
-
-    .task-info {
-      font-size: 11px;
-      color: #ffffff;
-      font-weight: 500;
-    }
-
-    .speed-info {
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    .eta-info {
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.6);
-      margin-top: 4px;
-    }
-
-    /* Plotter Idle State (queued) */
-    .plotter-idle {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex: 1;
-    }
-
-    .queue-info {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.8);
-      flex: 1;
-    }
-
-    /* Plotter Complete State */
-    .plotter-complete {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex: 1;
-    }
-
-    .complete-info {
-      font-size: 11px;
-      color: rgba(255, 255, 255, 0.6);
-      flex: 1;
-    }
-
-    /* Gear link in lower section */
-    .capacity-lower .gear-link {
-      color: rgba(255, 255, 255, 0.5);
-      text-decoration: none;
-      font-size: 14px;
-      padding: 4px;
-      border-radius: 4px;
-      transition: all 0.2s;
-      flex-shrink: 0;
-    }
-
-    .capacity-lower .gear-link:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .header-buttons {
-      display: flex;
-      gap: 4px;
-    }
-
-    .icon-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: rgba(255, 255, 255, 0.8);
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .icon-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #ffffff;
-    }
-
-    .icon-btn mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-
-    .info-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: rgba(255, 255, 255, 0.9);
-      cursor: pointer;
-      font-size: 14px;
-      padding: 3px 8px;
-      border-radius: 4px;
-      transition: all 0.2s;
-    }
-
-    .info-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-    /* Effective Capacity Card */
-    .effective-capacity-card {
-      .card-header {
+      .account-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        padding: 3px 0;
+        font-size: 10px;
+      }
+
+      .account-id {
+        font-family: 'Consolas', monospace;
+        color: #64b5f6;
+        word-break: break-all;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .account-deadline {
+        font-weight: 500;
+        color: #81c784;
+        flex-shrink: 0;
+        margin-left: 8px;
+      }
+
+      /* Capacity Card */
+      .capacity-card {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .capacity-upper {
+        padding-bottom: 8px;
       }
 
       .capacity-value {
-        font-size: 16px;
+        font-size: 26px;
         font-weight: 600;
         color: #81c784;
+        line-height: 1.2;
       }
-    }
 
-    .eff-chart-container {
-      display: flex;
-      flex-direction: row;
-      min-height: 80px;
-      gap: 4px;
-      margin-top: 8px;
-      padding: 0 8px 0 0; /* Add right padding to balance y-axis labels */
-
-      .y-axis-labels {
+      .capacity-status {
         display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        padding: 2px 0;
-        width: 28px; /* Fixed width, just enough for labels like "2.5T" */
-        flex-shrink: 0;
-
-        .y-label {
-          font-size: 9px;
-          color: rgba(255, 255, 255, 0.5);
-          text-align: right;
-          line-height: 1;
-        }
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 6px;
       }
 
-      .chart-area {
+      .status-item {
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .status-item .dot {
+        font-size: 10px;
+      }
+
+      .status-item.ready {
+        color: #81c784;
+      }
+      .status-item.plotted {
+        color: #4fc3f7;
+      }
+      .status-item.plotting {
+        color: #ffb74d;
+      }
+      .status-item.queued {
+        color: rgba(255, 255, 255, 0.5);
+      }
+      .status-item.to-plot {
+        color: rgba(255, 255, 255, 0.5);
+      }
+
+      .status-legend {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .capacity-divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.15);
+        margin: 8px 0;
+      }
+
+      .capacity-lower {
         flex: 1;
         display: flex;
         flex-direction: column;
+      }
+
+      /* Plotter Active State (plotting) */
+      .plotter-active {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex: 1;
+      }
+
+      .plotter-info {
+        flex: 1;
         min-width: 0;
+      }
 
-        .capacity-chart {
-          flex: 1;
-          width: 100%;
-          min-height: 60px;
-        }
+      .plotter-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+      }
 
-        .chart-labels {
+      .task-info {
+        font-size: 11px;
+        color: #ffffff;
+        font-weight: 500;
+      }
+
+      .speed-info {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .eta-info {
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.6);
+        margin-top: 4px;
+      }
+
+      /* Plotter Idle State (queued) */
+      .plotter-idle {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+      }
+
+      .queue-info {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.8);
+        flex: 1;
+      }
+
+      /* Plotter Complete State */
+      .plotter-complete {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+      }
+
+      .complete-info {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.6);
+        flex: 1;
+      }
+
+      /* Gear link in lower section */
+      .capacity-lower .gear-link {
+        color: rgba(255, 255, 255, 0.5);
+        text-decoration: none;
+        font-size: 14px;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        flex-shrink: 0;
+      }
+
+      .capacity-lower .gear-link:hover {
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .header-buttons {
+        display: flex;
+        gap: 4px;
+      }
+
+      .icon-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: rgba(255, 255, 255, 0.8);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .icon-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+      }
+
+      .icon-btn mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+
+      .info-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        font-size: 14px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
+
+      .info-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      /* Effective Capacity Card */
+      .effective-capacity-card {
+        .card-header {
           display: flex;
           justify-content: space-between;
-          padding: 2px 0 0 0;
+          align-items: center;
+        }
 
-          .chart-label {
+        .capacity-value {
+          font-size: 16px;
+          font-weight: 600;
+          color: #81c784;
+        }
+      }
+
+      .eff-chart-container {
+        display: flex;
+        flex-direction: row;
+        min-height: 80px;
+        gap: 4px;
+        margin-top: 8px;
+        padding: 0 8px 0 0; /* Add right padding to balance y-axis labels */
+
+        .y-axis-labels {
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          padding: 2px 0;
+          width: 28px; /* Fixed width, just enough for labels like "2.5T" */
+          flex-shrink: 0;
+
+          .y-label {
             font-size: 9px;
             color: rgba(255, 255, 255, 0.5);
+            text-align: right;
+            line-height: 1;
+          }
+        }
+
+        .chart-area {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+
+          .capacity-chart {
+            flex: 1;
+            width: 100%;
+            min-height: 60px;
+          }
+
+          .chart-labels {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0 0 0;
+
+            .chart-label {
+              font-size: 9px;
+              color: rgba(255, 255, 255, 0.5);
+            }
           }
         }
       }
-    }
 
-    .chart-placeholder {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 80px;
-      margin-top: 8px;
+      .chart-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 80px;
+        margin-top: 8px;
 
-      .single-value {
-        font-size: 24px;
-        font-weight: 600;
-        color: #81c784;
+        .single-value {
+          font-size: 24px;
+          font-weight: 600;
+          color: #81c784;
+        }
+
+        .placeholder-text {
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.5);
+          margin-top: 4px;
+        }
       }
 
-      .placeholder-text {
-        font-size: 11px;
-        color: rgba(255, 255, 255, 0.5);
-        margin-top: 4px;
-      }
-    }
-
-    /* Detail Sections Row - Two Column Layout aligned with summary cards */
-    .detail-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;  /* Match 2+2 of 4-column summary cards */
-      gap: 16px;  /* Same gap as summary-cards */
-      flex: 5;  /* Take 5x space compared to activity section's 3x */
-      min-height: 0;
-    }
-
-    .left-stack {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-height: 0;
-    }
-
-    .left-stack .section:first-child {
-      flex: 2;  /* Active Chains: 40% */
-      min-height: 0;
-    }
-
-    .left-stack .deadline-history-section {
-      flex: 3;  /* Best Deadline: 60% */
-      min-height: 0;
-    }
-
-    .right-column {
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-
-    .right-column .drives-section {
-      flex: 1;
-      min-height: 0;
-    }
-
-    @media (max-width: 900px) {
+      /* Detail Sections Row - Two Column Layout aligned with summary cards */
       .detail-row {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: 1fr 1fr; /* Match 2+2 of 4-column summary cards */
+        gap: 16px; /* Same gap as summary-cards */
+        flex: 5; /* Take 5x space compared to activity section's 3x */
+        min-height: 0;
       }
-    }
 
-    .section {
-      background: #ffffff;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-      display: flex;
-      flex-direction: column;
-    }
+      .left-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0;
+      }
 
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 16px;
-      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-      flex-shrink: 0;
-    }
+      .left-stack .section:first-child {
+        flex: 2; /* Active Chains: 40% */
+        min-height: 0;
+      }
 
-    .section-title {
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #ffffff;
-    }
+      .left-stack .deadline-history-section {
+        flex: 3; /* Best Deadline: 60% */
+        min-height: 0;
+      }
 
-    .section-header .gear-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: rgba(255, 255, 255, 0.9);
-      cursor: pointer;
-      font-size: 14px;
-      padding: 3px 6px;
-      border-radius: 4px;
-      transition: all 0.2s;
-    }
+      .right-column {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
 
-    .section-header .gear-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
+      .right-column .drives-section {
+        flex: 1;
+        min-height: 0;
+      }
 
-    .section-content {
-      padding: 10px 14px;
-      flex: 1;
-      overflow-y: auto;
-    }
+      @media (max-width: 900px) {
+        .detail-row {
+          grid-template-columns: 1fr;
+        }
+      }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+      .section {
+        background: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+      }
 
-    /* Fixed column widths for Active Chains table */
-    table.chains-table {
-      table-layout: fixed;
-    }
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        flex-shrink: 0;
+      }
 
-    table.chains-table th:nth-child(1) { width: 35%; }  /* Chain */
-    table.chains-table th:nth-child(2) { width: 15%; }  /* Height */
-    table.chains-table th:nth-child(3) { width: 15%; }  /* Difficulty */
-    table.chains-table th:nth-child(4) { width: 15%; }  /* PoW Scale */
-    table.chains-table th:nth-child(5) { width: 20%; }  /* Status */
+      .section-title {
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #ffffff;
+      }
 
-    th {
-      text-align: left;
-      padding: 5px 6px;
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgb(0, 35, 65);
-      border-bottom: 1px solid #e0e0e0;
-    }
+      .section-header .gear-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: rgba(255, 255, 255, 0.9);
+        cursor: pointer;
+        font-size: 14px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        transition: all 0.2s;
+      }
 
-    td {
-      padding: 5px 6px;
-      font-size: 11px;
-      border-bottom: 1px solid #f0f0f0;
-      color: rgb(0, 35, 65);
-    }
+      .section-header .gear-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
 
-    tr:last-child td {
-      border-bottom: none;
-    }
+      .section-content {
+        padding: 10px 14px;
+        flex: 1;
+        overflow-y: auto;
+      }
 
-    .empty-row {
-      text-align: center;
-      color: #888;
-      padding: 16px !important;
-    }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
 
-    .status-dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      margin-right: 5px;
-    }
+      /* Fixed column widths for Active Chains table */
+      table.chains-table {
+        table-layout: fixed;
+      }
 
-    .status-dot.active { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
-    .status-dot.plotting { background: #ff9800; box-shadow: 0 0 4px #ff9800; }
-    .status-dot.stopping { background: #ff5722; box-shadow: 0 0 4px #ff5722; }
-    .status-dot.queued { background: #9e9e9e; }
-    .status-dot.scanning { background: #42a5f5; box-shadow: 0 0 4px #42a5f5; }
-    .status-dot.ready { background: #4caf50; }
+      table.chains-table th:nth-child(1) {
+        width: 35%;
+      } /* Chain */
+      table.chains-table th:nth-child(2) {
+        width: 15%;
+      } /* Height */
+      table.chains-table th:nth-child(3) {
+        width: 15%;
+      } /* Difficulty */
+      table.chains-table th:nth-child(4) {
+        width: 15%;
+      } /* PoW Scale */
+      table.chains-table th:nth-child(5) {
+        width: 20%;
+      } /* Status */
 
-    .mini-progress-wrapper {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
+      th {
+        text-align: left;
+        padding: 5px 6px;
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgb(0, 35, 65);
+        border-bottom: 1px solid #e0e0e0;
+      }
 
-    .mini-progress {
-      width: 40px;
-      height: 4px;
-      background: #e0e0e0;
-      border-radius: 2px;
-      overflow: hidden;
-    }
+      td {
+        padding: 5px 6px;
+        font-size: 11px;
+        border-bottom: 1px solid #f0f0f0;
+        color: rgb(0, 35, 65);
+      }
 
-    .mini-progress .fill {
-      height: 100%;
-      border-radius: 2px;
-    }
+      tr:last-child td {
+        border-bottom: none;
+      }
 
-    .mini-progress .fill.mining { background: #4caf50; }
-    .mini-progress .fill.plotting { background: #ff9800; }
+      .empty-row {
+        text-align: center;
+        color: #888;
+        padding: 16px !important;
+      }
 
-    /* Deadline History */
-    .deadline-history-section .section-content {
-      overflow-y: auto;
-    }
+      .status-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        margin-right: 5px;
+      }
 
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+      .status-dot.active {
+        background: #4caf50;
+        box-shadow: 0 0 4px #4caf50;
+      }
+      .status-dot.plotting {
+        background: #ff9800;
+        box-shadow: 0 0 4px #ff9800;
+      }
+      .status-dot.stopping {
+        background: #ff5722;
+        box-shadow: 0 0 4px #ff5722;
+      }
+      .status-dot.queued {
+        background: #9e9e9e;
+      }
+      .status-dot.scanning {
+        background: #42a5f5;
+        box-shadow: 0 0 4px #42a5f5;
+      }
+      .status-dot.ready {
+        background: #4caf50;
+      }
 
-    .chain-filter select {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: #ffffff;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      cursor: pointer;
-    }
+      .mini-progress-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
 
-    .chain-filter select option {
-      background: #1e3a5f;
-      color: #ffffff;
-    }
+      .mini-progress {
+        width: 40px;
+        height: 4px;
+        background: #e0e0e0;
+        border-radius: 2px;
+        overflow: hidden;
+      }
 
-    .export-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: rgba(255, 255, 255, 0.9);
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+      .mini-progress .fill {
+        height: 100%;
+        border-radius: 2px;
+      }
 
-    .export-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
+      .mini-progress .fill.mining {
+        background: #4caf50;
+      }
+      .mini-progress .fill.plotting {
+        background: #ff9800;
+      }
 
-    .deadline-table .time-col {
-      font-family: 'Consolas', monospace;
-      color: #888888;
-      font-size: 10px;
-    }
+      /* Deadline History */
+      .deadline-history-section .section-content {
+        overflow-y: auto;
+      }
 
-    .deadline-table .account-col {
-      font-family: 'Consolas', monospace;
-      color: #1565c0;
-      font-size: 10px;
-      word-break: break-all;
-      max-width: 280px;
-    }
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
 
-    .deadline-table .deadline-col {
-      font-weight: 500;
-    }
+      .chain-filter select {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+      }
 
-    .deadline-table .deadline-col.best {
-      color: #2e7d32;
-    }
+      .chain-filter select option {
+        background: #1e3a5f;
+        color: #ffffff;
+      }
 
-    /* Activity Section */
-    .activity-section {
-      flex: 3;  /* Take 3x space compared to detail-row's 5x (~37.5%) */
-      min-height: 100px;
-    }
+      .export-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.9);
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
 
-    .activity-section .section-content {
-      overflow-y: auto;
-    }
+      .export-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
 
-    /* Drives section scrollable */
-    .drives-section .section-content {
-      overflow-y: auto;
-    }
+      .deadline-table .time-col {
+        font-family: 'Consolas', monospace;
+        color: #888888;
+        font-size: 10px;
+      }
 
-    .log-filters {
-      display: flex;
-      gap: 4px;
-    }
+      .deadline-table .account-col {
+        font-family: 'Consolas', monospace;
+        color: #1565c0;
+        font-size: 10px;
+        word-break: break-all;
+        max-width: 280px;
+      }
 
-    .log-filter {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: rgba(255, 255, 255, 0.5);
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
+      .deadline-table .deadline-col {
+        font-weight: 500;
+      }
 
-    .log-filter:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: rgba(255, 255, 255, 0.8);
-    }
+      .deadline-table .deadline-col.best {
+        color: #2e7d32;
+      }
 
-    .log-filter.active {
-      background: rgba(255, 255, 255, 0.2);
-      color: #ffffff;
-    }
+      /* Activity Section */
+      .activity-section {
+        flex: 3; /* Take 3x space compared to detail-row's 5x (~37.5%) */
+        min-height: 100px;
+      }
 
-    .log-filter[data-filter="info"].active {
-      background: rgba(100, 181, 246, 0.3);
-      color: #64b5f6;
-    }
+      .activity-section .section-content {
+        overflow-y: auto;
+      }
 
-    .log-filter[data-filter="success"].active {
-      background: rgba(129, 199, 132, 0.3);
-      color: #81c784;
-    }
+      /* Drives section scrollable */
+      .drives-section .section-content {
+        overflow-y: auto;
+      }
 
-    .log-filter[data-filter="warn"].active {
-      background: rgba(255, 183, 77, 0.3);
-      color: #ffb74d;
-    }
+      .log-filters {
+        display: flex;
+        gap: 4px;
+      }
 
-    .log-filter[data-filter="error"].active {
-      background: rgba(229, 115, 115, 0.3);
-      color: #e57373;
-    }
+      .log-filter {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: rgba(255, 255, 255, 0.5);
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
 
-    .activity-log {
-      flex: 1;
-      overflow-y: auto;
-      max-height: 200px;
-    }
+      .log-filter:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.8);
+      }
 
-    .log-entry {
-      display: flex;
-      gap: 10px;
-      padding: 3px 0;
-      font-size: 10px;
-      border-bottom: 1px solid #f0f0f0;
-    }
+      .log-filter.active {
+        background: rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+      }
 
-    .log-entry:last-child {
-      border-bottom: none;
-    }
+      .log-filter[data-filter='info'].active {
+        background: rgba(100, 181, 246, 0.3);
+        color: #64b5f6;
+      }
 
-    .log-time {
-      color: #888888;
-      font-family: 'Consolas', monospace;
-      min-width: 50px;
-      font-size: 9px;
-    }
+      .log-filter[data-filter='warn'].active {
+        background: rgba(255, 183, 77, 0.3);
+        color: #ffb74d;
+      }
 
-    .log-message {
-      color: #555555;
-    }
+      .log-filter[data-filter='error'].active {
+        background: rgba(229, 115, 115, 0.3);
+        color: #e57373;
+      }
 
-    .log-message.deadline { color: #2e7d32; }
-    .log-message.block { color: #1565c0; }
-    .log-message.plot { color: #e65100; }
+      .activity-log {
+        flex: 1;
+        overflow-y: auto;
+        max-height: 200px;
+      }
 
-    /* First-run overlay */
-    .overlay {
-      display: none;
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 100;
-      justify-content: center;
-      align-items: center;
-    }
+      .log-entry {
+        display: flex;
+        gap: 10px;
+        padding: 4px 0;
+        font-size: 11px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
 
-    .overlay.show {
-      display: flex;
-    }
+      .log-entry:last-child {
+        border-bottom: none;
+      }
 
-    .first-run-card {
-      background: #ffffff;
-      border-radius: 12px;
-      padding: 32px;
-      max-width: 450px;
-      text-align: center;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    }
+      .log-time {
+        color: #888888;
+        font-family: 'Consolas', monospace;
+        min-width: 55px;
+        font-size: 11px;
+      }
 
-    .first-run-card h2 {
-      font-size: 22px;
-      font-weight: 500;
-      margin-bottom: 10px;
-      color: rgb(0, 35, 65);
-    }
+      .log-message {
+        color: #999999;
+        font-family: 'Consolas', monospace;
+      }
 
-    .first-run-card p {
-      color: #666666;
-      margin-bottom: 20px;
-      line-height: 1.5;
-      font-size: 14px;
-    }
+      .log-message.info {
+        color: #999999;
+      }
+      .log-message.warn {
+        color: #ffb74d;
+      }
+      .log-message.warning {
+        color: #ffb74d;
+      }
+      .log-message.error {
+        color: #e57373;
+      }
 
-    .btn-primary {
-      background: #1976d2;
-      color: white;
-    }
+      /* First-run overlay */
+      .overlay {
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 100;
+        justify-content: center;
+        align-items: center;
+      }
 
-    .btn-primary:hover {
-      background: #1565c0;
-    }
+      .overlay.show {
+        display: flex;
+      }
 
-    /* Chain tooltip styling - needs ::ng-deep for Material overlay */
-    ::ng-deep .chain-tooltip {
-      white-space: pre-line;
-      font-family: 'Consolas', monospace;
-      font-size: 11px;
-      max-width: 500px;
-    }
-  `],
+      .first-run-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 32px;
+        max-width: 450px;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      }
+
+      .first-run-card h2 {
+        font-size: 22px;
+        font-weight: 500;
+        margin-bottom: 10px;
+        color: rgb(0, 35, 65);
+      }
+
+      .first-run-card p {
+        color: #666666;
+        margin-bottom: 20px;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .btn-primary {
+        background: #1976d2;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #1565c0;
+      }
+
+      /* Chain tooltip styling - needs ::ng-deep for Material overlay */
+      ::ng-deep .chain-tooltip {
+        white-space: pre-line;
+        font-family: 'Consolas', monospace;
+        font-size: 11px;
+        max-width: 500px;
+      }
+    `,
+  ],
 })
 export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly miningService = inject(MiningService);
@@ -1426,18 +1575,13 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   private readonly _allActivityLogs = this.miningService.activityLogs;
 
   // Log filter state (reactive)
-  readonly logFilters = signal({ all: true, info: true, success: true, warn: true, error: true });
+  readonly logFilters = signal({ all: true, info: true, warn: true, error: true });
 
   // Map log types to filter categories
   private readonly LOG_TYPE_TO_CATEGORY: Record<string, string> = {
-    'info': 'info',
-    'block': 'info',
-    'scan': 'info',
-    'complete': 'success',
-    'success': 'success',
-    'deadline': 'info',  // Found deadlines are informational
-    'warn': 'warn',
-    'error': 'error',
+    info: 'info',
+    warn: 'warn',
+    error: 'error',
   };
 
   // Filtered activity logs
@@ -1469,17 +1613,17 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly planStats = this.miningService.planStats;
   readonly planEta = this.miningService.planEta;
 
-  // Effective capacity computed from deadline history
-  // Lookback capped at chainCount * 120 data points (scales with parallel chains)
+  // Effective capacity computed from deadline snapshot
+  // Only recalculates on scan round finish (not every deadline update)
   readonly sparklineData = computed(() => {
-    const deadlines = this.recentDeadlines();
+    const deadlines = this.miningService.capacityDeadlines(); // Snapshot, updates on scan finish
     const chainCount = Math.max(1, this.enabledChains().length);
     const maxDataPoints = chainCount * 120;
     return generateEffectiveCapacityHistory(deadlines, maxDataPoints, 50);
   });
 
   readonly calculatedEffectiveCapacity = computed(() => {
-    const deadlines = this.recentDeadlines();
+    const deadlines = this.miningService.capacityDeadlines(); // Snapshot, updates on scan finish
     const capacityTib = calculateEffectiveCapacity(deadlines);
     if (capacityTib === 0) return '--';
     return formatCapacity(capacityTib);
@@ -1662,12 +1806,18 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const status = this.miningStatus();
     if (!status) return 'idle';
     switch (status.type) {
-      case 'scanning': return 'scanning';
-      case 'idle': return 'active';
-      case 'starting': return 'scanning';
-      case 'stopped': return 'stopped';
-      case 'error': return 'error';
-      default: return 'idle';
+      case 'scanning':
+        return 'scanning';
+      case 'idle':
+        return 'active';
+      case 'starting':
+        return 'scanning';
+      case 'stopped':
+        return 'stopped';
+      case 'error':
+        return 'error';
+      default:
+        return 'idle';
     }
   }
 
@@ -1675,12 +1825,18 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const status = this.miningStatus();
     if (!status) return 'Idle';
     switch (status.type) {
-      case 'scanning': return 'Scanning Plots';
-      case 'idle': return 'Mining Active';
-      case 'starting': return 'Starting...';
-      case 'stopped': return 'Stopped';
-      case 'error': return 'Error';
-      default: return 'Idle';
+      case 'scanning':
+        return 'Scanning Plots';
+      case 'idle':
+        return 'Mining Active';
+      case 'starting':
+        return 'Starting...';
+      case 'stopped':
+        return 'Stopped';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Idle';
     }
   }
 
@@ -1720,14 +1876,14 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   getBestDeadline(): string {
     const deadlines = this.getCurrentRoundDeadlines();
     if (deadlines.length === 0) return '--';
-    const best = deadlines.reduce((a, b) => a.deadline < b.deadline ? a : b);
+    const best = deadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
     return this.formatDeadline(best.deadline);
   }
 
   getBestDeadlineInfo(): string {
     const deadlines = this.getCurrentRoundDeadlines();
     if (deadlines.length === 0) return 'No deadlines this round';
-    const best = deadlines.reduce((a, b) => a.deadline < b.deadline ? a : b);
+    const best = deadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
     return `${best.chainName} • Block ${best.height.toLocaleString()}`;
   }
 
@@ -1832,7 +1988,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const bottomY = 100;
 
     // Get the last X coordinate (should be width)
-    const lastX = (data.length - 1) / (data.length - 1) * width;
+    const lastX = ((data.length - 1) / (data.length - 1)) * width;
 
     // Close the path by going to bottom-right, bottom-left, then back to start
     return `${linePath} L${lastX.toFixed(1)},${bottomY} L0,${bottomY} Z`;
@@ -1876,7 +2032,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     }
 
     const scanProgress = this.miningService.minerScanProgress();
-    if (scanProgress.chain === chainName && scanProgress.progress < 100 && scanProgress.totalWarps > 0) {
+    if (
+      scanProgress.chain === chainName &&
+      scanProgress.progress < 100 &&
+      scanProgress.totalWarps > 0
+    ) {
       return 'scanning';
     }
 
@@ -1896,7 +2056,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     }
 
     const scanProgress = this.miningService.minerScanProgress();
-    if (scanProgress.chain === chainName && scanProgress.progress < 100 && scanProgress.totalWarps > 0) {
+    if (
+      scanProgress.chain === chainName &&
+      scanProgress.progress < 100 &&
+      scanProgress.totalWarps > 0
+    ) {
       return `Scanning ${scanProgress.progress.toFixed(0)}%`;
     }
 
@@ -1977,8 +2141,13 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     // Get current item
     const currentItem = plan.items[currentIndex];
 
-    // For non-plot items, check path directly
-    if (currentItem.type !== 'plot') {
+    // For add_to_miner, no specific drive is active
+    if (currentItem.type === 'add_to_miner') {
+      return false;
+    }
+
+    // For resume items, check path directly
+    if (currentItem.type === 'resume') {
       return currentItem.path === drive.path || drive.path.startsWith(currentItem.path);
     }
 
@@ -2026,15 +2195,22 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   isBestDeadline(deadline: DeadlineEntry): boolean {
-    const chainDeadlines = this.recentDeadlines().filter(d => d.chainName === deadline.chainName && d.height === deadline.height);
+    const chainDeadlines = this.recentDeadlines().filter(
+      d => d.chainName === deadline.chainName && d.height === deadline.height
+    );
     if (chainDeadlines.length === 0) return false;
-    const best = chainDeadlines.reduce((a, b) => a.deadline < b.deadline ? a : b);
+    const best = chainDeadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
     return best.id === deadline.id;
   }
 
   formatTime(timestamp: number): string {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return date.toLocaleTimeString('en-US', {
+      hour12: false,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   }
 
   filterDeadlines(): void {
@@ -2049,7 +2225,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       `#${d.height}`,
       d.chainName,
       d.account,
-      this.formatDeadline(d.deadline)
+      this.formatDeadline(d.deadline),
     ]);
 
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -2064,7 +2240,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const current = this.logFilters();
     if (filter === 'all') {
       const newState = !current.all;
-      this.logFilters.set({ all: newState, info: newState, success: newState, warn: newState, error: newState });
+      this.logFilters.set({ all: newState, info: newState, warn: newState, error: newState });
     } else {
       const updated = { ...current, all: false };
       (updated as Record<string, boolean>)[filter] = !(current as Record<string, boolean>)[filter];
@@ -2255,7 +2431,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   async toggleSimulationMode(enabled: boolean): Promise<void> {
     await this.miningService.toggleSimulationMode(enabled);
     if (enabled) {
-      this.miningService.addActivityLog('info', 'Simulation mode enabled - plotter will not write to disk');
+      this.miningService.addActivityLog(
+        'info',
+        'Simulation mode enabled - plotter will not write to disk'
+      );
     } else {
       this.miningService.addActivityLog('info', 'Simulation mode disabled');
     }
@@ -2270,7 +2449,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         width: '420px',
         data: {
           title: 'Stop Plotting?',
-          message: 'Soft Stop: Finish current batch, then pause (efficient resume)\n\nHard Stop: Stop immediately (file-by-file resume, less efficient for batches)',
+          message:
+            'Soft Stop: Finish current batch, then pause (efficient resume)\n\nHard Stop: Stop immediately (file-by-file resume, less efficient for batches)',
           confirmText: 'Soft Stop',
           secondaryText: 'Hard Stop',
           cancelText: 'Cancel',
@@ -2282,7 +2462,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         if (result === true) {
           // Soft stop - finish current batch, keep plan
           await this.miningService.softStopPlotPlan();
-          this.miningService.addActivityLog('info', 'Soft stop requested - will pause after current batch completes');
+          this.miningService.addActivityLog(
+            'info',
+            'Soft stop requested - will pause after current batch completes'
+          );
           await this.miningService.refreshPlotterState();
         } else if (result === 'secondary') {
           // Hard stop - finish current item, clear plan, regenerate
@@ -2303,38 +2486,45 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const plottingAddress = config?.plottingAddress?.trim() || '';
 
     if (!plottingAddress) {
-      this.dialog.open(ConfirmDialogComponent, {
-        width: '400px',
-        data: {
-          title: 'Plotting Address Required',
-          message: 'Please configure a plotting address before starting.\n\nGo to the setup wizard to select a wallet address for your plot files.',
-          confirmText: 'Go to Setup',
-          cancelText: 'Cancel',
-        },
-      }).afterClosed().subscribe((result: boolean) => {
-        if (result) {
-          this.navigateToSetup(0);
-        }
-      });
+      this.dialog
+        .open(ConfirmDialogComponent, {
+          width: '400px',
+          data: {
+            title: 'Plotting Address Required',
+            message:
+              'Please configure a plotting address before starting.\n\nGo to the setup wizard to select a wallet address for your plot files.',
+            confirmText: 'Go to Setup',
+            cancelText: 'Cancel',
+          },
+        })
+        .afterClosed()
+        .subscribe((result: boolean) => {
+          if (result) {
+            this.navigateToSetup(0);
+          }
+        });
       return;
     }
 
     // Validate address format (bech32)
     const addressInfo = await this.miningService.validateAddress(plottingAddress);
     if (!addressInfo.valid) {
-      this.dialog.open(ConfirmDialogComponent, {
-        width: '400px',
-        data: {
-          title: 'Invalid Plotting Address',
-          message: `The configured plotting address is not valid:\n\n${plottingAddress}\n\nPlease select a valid bech32 address in the setup wizard.`,
-          confirmText: 'Go to Setup',
-          cancelText: 'Cancel',
-        },
-      }).afterClosed().subscribe((result: boolean) => {
-        if (result) {
-          this.navigateToSetup(0);
-        }
-      });
+      this.dialog
+        .open(ConfirmDialogComponent, {
+          width: '400px',
+          data: {
+            title: 'Invalid Plotting Address',
+            message: `The configured plotting address is not valid:\n\n${plottingAddress}\n\nPlease select a valid bech32 address in the setup wizard.`,
+            confirmText: 'Go to Setup',
+            cancelText: 'Cancel',
+          },
+        })
+        .afterClosed()
+        .subscribe((result: boolean) => {
+          if (result) {
+            this.navigateToSetup(0);
+          }
+        });
       return;
     }
 
@@ -2348,7 +2538,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         const dialogRef = this.dialog.open(ConfirmDialogComponent, {
           data: {
             title: 'Administrator Recommended',
-            message: 'Without admin rights, file pre-allocation can block for hours with no progress shown.\n\nRestart as admin?',
+            message:
+              'Without admin rights, file pre-allocation can block for hours with no progress shown.\n\nRestart as admin?',
             confirmText: 'Restart as Admin',
             secondaryText: 'Continue Anyway',
             cancelText: 'Cancel',
@@ -2364,7 +2555,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
             return;
           }
           // Restart failed or was cancelled by UAC
-          this.miningService.addActivityLog('warning', 'Elevation cancelled - continuing without admin privileges');
+          this.miningService.addActivityLog(
+            'warning',
+            'Elevation cancelled - continuing without admin privileges'
+          );
         } else if (result === 'secondary') {
           this.miningService.addActivityLog('info', 'Continuing without admin privileges');
         } else {

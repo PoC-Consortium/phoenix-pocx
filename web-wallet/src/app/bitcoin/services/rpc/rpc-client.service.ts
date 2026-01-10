@@ -238,7 +238,10 @@ export class RpcClientService implements OnDestroy {
       }
 
       if (response.error) {
-        return { success: false, error: `RPC Error ${response.error.code}: ${response.error.message}` };
+        return {
+          success: false,
+          error: `RPC Error ${response.error.code}: ${response.error.message}`,
+        };
       }
 
       // Get network info for version
@@ -261,7 +264,9 @@ export class RpcClientService implements OnDestroy {
 
         networkResponse = await firstValueFrom(
           this.http
-            .post<RpcResponse<{ version: number; subversion: string }>>(url, networkRequest, { headers })
+            .post<
+              RpcResponse<{ version: number; subversion: string }>
+            >(url, networkRequest, { headers })
             .pipe(
               timeout(10000),
               catchError((error: HttpErrorResponse) => this.handleHttpError(error))

@@ -115,7 +115,10 @@ export class CookieAuthService {
    * Read cookie file with specific config (without caching).
    * Used for testing connection with unsaved settings.
    */
-  async readCookieWithConfig(dataDirectory: string, network: string): Promise<RpcCredentials | null> {
+  async readCookieWithConfig(
+    dataDirectory: string,
+    network: string
+  ): Promise<RpcCredentials | null> {
     if (!this.electron.isDesktop) {
       return this.getManualCredentials();
     }

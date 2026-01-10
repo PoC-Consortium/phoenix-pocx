@@ -1209,13 +1209,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
       const label = this.wifLabel().trim() || undefined;
 
       // Use short timeout (5s) - if it times out, import likely succeeded but wallet is rescanning
-      const result = await this.walletRpc.importDescriptors(walletName, [
-        {
-          desc: preview.descriptor,
-          timestamp: 'now',
-          label,
-        },
-      ], 5000);
+      const result = await this.walletRpc.importDescriptors(
+        walletName,
+        [
+          {
+            desc: preview.descriptor,
+            timestamp: 'now',
+            label,
+          },
+        ],
+        5000
+      );
 
       if (result && result.length > 0 && result[0].success) {
         this.notification.success(

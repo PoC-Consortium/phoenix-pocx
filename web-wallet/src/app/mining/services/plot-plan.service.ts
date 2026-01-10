@@ -1,11 +1,5 @@
 import { Injectable } from '@angular/core';
-import {
-  DriveInfo,
-  DriveConfig,
-  PlotPlan,
-  PlotPlanItem,
-  PlotPlanStats,
-} from '../models';
+import { DriveInfo, DriveConfig, PlotPlan, PlotPlanItem, PlotPlanStats } from '../models';
 
 const BATCH_SIZE = 1024; // 1024 warps = 1 TiB
 
@@ -26,11 +20,7 @@ export class PlotPlanService {
   /**
    * Generate a plot plan from drive info and allocations
    */
-  generatePlan(
-    drives: DriveInfo[],
-    driveConfigs: DriveConfig[],
-    config: PlotConfig
-  ): PlotPlan {
+  generatePlan(drives: DriveInfo[], driveConfigs: DriveConfig[], config: PlotConfig): PlotPlan {
     const plan: PlotPlanItem[] = [];
     const finishedDrives: string[] = [];
     let batchId = 0;
@@ -97,7 +87,7 @@ export class PlotPlanService {
       const counts = driveTaskCounts.get(path);
       const completed = driveCompletedTasks.get(path) || 0;
       if (counts && completed >= counts.totalTasks) {
-        plan.push({ type: 'add_to_miner', path });
+        plan.push({ type: 'add_to_miner' });
       }
     };
 
@@ -304,9 +294,20 @@ export class PlotPlanService {
       }
     }
 
+    // Compress consecutive add_to_miner items into single one
+    // (multiple drives finishing in same batch only need one miner restart)
+    const compressedPlan: PlotPlanItem[] = [];
+    for (const item of plan) {
+      const lastItem = compressedPlan[compressedPlan.length - 1];
+      if (item.type === 'add_to_miner' && lastItem?.type === 'add_to_miner') {
+        continue; // Skip consecutive add_to_miner
+      }
+      compressedPlan.push(item);
+    }
+
     // Return simplified plan (runtime-only, not persisted)
     return {
-      items: plan,
+      items: compressedPlan,
       configHash: this.computeConfigHash(drives, driveConfigs, config),
       generatedAt: Date.now(),
     };
@@ -315,11 +316,7 @@ export class PlotPlanService {
   /**
    * Compute a hash of the configuration for change detection
    */
-  computeConfigHash(
-    drives: DriveInfo[],
-    driveConfigs: DriveConfig[],
-    config: PlotConfig
-  ): string {
+  computeConfigHash(drives: DriveInfo[], driveConfigs: DriveConfig[], config: PlotConfig): string {
     const data = {
       drives: drives.map(d => ({
         path: d.path,

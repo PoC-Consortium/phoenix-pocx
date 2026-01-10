@@ -35,7 +35,6 @@ import {
   PlotterCompleteEvent,
   PlotterErrorEvent,
 } from '../../models';
-import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 
 type ChainMode = 'solo' | 'pool' | 'custom';
 
@@ -54,7 +53,16 @@ interface ChainModalData {
 @Component({
   selector: 'app-setup-wizard',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatDialogModule, MatIconModule, MatButtonModule, MatSnackBarModule, CdkDropList, CdkDrag],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatDialogModule,
+    MatIconModule,
+    MatButtonModule,
+    MatSnackBarModule,
+    CdkDropList,
+    CdkDrag,
+  ],
   template: `
     <div class="header">
       <div class="header-left">
@@ -135,13 +143,21 @@ interface ChainModalData {
                   <div class="priority-slot" [title]="'Priority ' + (i + 1)">{{ i + 1 }}</div>
                   <div class="chain-info">
                     <div class="chain-name">{{ chain.name }}</div>
-                    <div class="chain-url">{{ chain.mode === 'solo' ? 'Solo mining via wallet node' : chain.rpcTransport + '://' + chain.rpcHost + ':' + chain.rpcPort }}</div>
+                    <div class="chain-url">
+                      {{
+                        chain.mode === 'solo'
+                          ? 'Solo mining via wallet node'
+                          : chain.rpcTransport + '://' + chain.rpcHost + ':' + chain.rpcPort
+                      }}
+                    </div>
                   </div>
                   <span class="chain-mode" [class]="chain.mode">
                     {{ chain.mode === 'solo' ? 'Solo' : 'Pool' }}
                   </span>
                   <div class="chain-actions">
-                    <button class="edit-btn" (click)="editChain(chain)" title="Edit">&#9998;</button>
+                    <button class="edit-btn" (click)="editChain(chain)" title="Edit">
+                      &#9998;
+                    </button>
                     <button class="remove-btn" (click)="removeChain(chain)">Remove</button>
                   </div>
                 </div>
@@ -168,7 +184,10 @@ interface ChainModalData {
               <div class="device-icon cpu"><span class="icon-glyph">⚙</span>CPU</div>
               <div class="device-info">
                 <div class="device-name">{{ cpuInfo()?.name || 'Unknown CPU' }}</div>
-                <div class="device-specs">{{ cpuInfo()?.threads || 0 }} threads available &bull; {{ cpuInfo()?.features?.join(', ') || 'AVX2' }}</div>
+                <div class="device-specs">
+                  {{ cpuInfo()?.threads || 0 }} threads available &bull;
+                  {{ cpuInfo()?.features?.join(', ') || 'AVX2' }}
+                </div>
               </div>
             </div>
             <div class="thread-slider-container">
@@ -205,20 +224,36 @@ interface ChainModalData {
               <div class="form-row">
                 <div class="form-group">
                   <label>Poll Interval (ms)</label>
-                  <input type="number" [ngModel]="pollInterval()" (ngModelChange)="pollInterval.set($event)" />
+                  <input
+                    type="number"
+                    [ngModel]="pollInterval()"
+                    (ngModelChange)="pollInterval.set($event)"
+                  />
                 </div>
                 <div class="form-group">
                   <label>Timeout (ms)</label>
-                  <input type="number" [ngModel]="timeout()" (ngModelChange)="timeout.set($event)" />
+                  <input
+                    type="number"
+                    [ngModel]="timeout()"
+                    (ngModelChange)="timeout.set($event)"
+                  />
                 </div>
               </div>
               <div class="form-row checkbox-row">
                 <label class="checkbox-option">
-                  <input type="checkbox" [ngModel]="compressionEnabled()" (ngModelChange)="compressionEnabled.set($event)" />
+                  <input
+                    type="checkbox"
+                    [ngModel]="compressionEnabled()"
+                    (ngModelChange)="compressionEnabled.set($event)"
+                  />
                   Enable on-the-fly compression
                 </label>
                 <label class="checkbox-option">
-                  <input type="checkbox" [ngModel]="threadPinning()" (ngModelChange)="threadPinning.set($event)" />
+                  <input
+                    type="checkbox"
+                    [ngModel]="threadPinning()"
+                    (ngModelChange)="threadPinning.set($event)"
+                  />
                   Thread Pinning
                 </label>
               </div>
@@ -244,7 +279,9 @@ interface ChainModalData {
                   [checked]="isDeviceEnabled(gpu.id)"
                   (change)="selectDevice(gpu.id)"
                 />
-                <div class="device-icon gpu" [class.apu]="gpu.isApu"><span class="icon-glyph">🖥️</span>{{ gpu.isApu ? 'APU' : 'GPU' }}</div>
+                <div class="device-icon gpu" [class.apu]="gpu.isApu">
+                  <span class="icon-glyph">🖥️</span>{{ gpu.isApu ? 'APU' : 'GPU' }}
+                </div>
                 <div class="device-info">
                   <div class="device-name">
                     {{ gpu.name }}
@@ -252,7 +289,9 @@ interface ChainModalData {
                       <span class="apu-badge">APU</span>
                     }
                   </div>
-                  <div class="device-specs">{{ gpu.memoryMb }} MB VRAM &bull; {{ gpu.openclVersion }}</div>
+                  <div class="device-specs">
+                    {{ gpu.memoryMb }} MB VRAM &bull; {{ gpu.openclVersion }}
+                  </div>
                 </div>
                 <div class="benchmark-display">
                   @if (benchmarkingDevice() === gpu.id) {
@@ -261,12 +300,34 @@ interface ChainModalData {
                     </div>
                   } @else if (getBenchmarkError(gpu.id)) {
                     <span class="benchmark-error" [title]="getBenchmarkError(gpu.id)">Error</span>
-                    <button class="redo-btn" (click)="runSingleDeviceBenchmark(gpu.id)" [disabled]="benchmarkRunning()" title="Retry benchmark">↻</button>
+                    <button
+                      class="redo-btn"
+                      (click)="runSingleDeviceBenchmark(gpu.id)"
+                      [disabled]="benchmarkRunning()"
+                      title="Retry benchmark"
+                    >
+                      ↻
+                    </button>
                   } @else if (getBenchmarkResult(gpu.id)) {
-                    <span class="benchmark-result">{{ getBenchmarkResult(gpu.id) | number:'1.0-0' }} MiB/s</span>
-                    <button class="redo-btn" (click)="runSingleDeviceBenchmark(gpu.id)" [disabled]="benchmarkRunning()" title="Redo benchmark">↻</button>
+                    <span class="benchmark-result"
+                      >{{ getBenchmarkResult(gpu.id) | number: '1.0-0' }} MiB/s</span
+                    >
+                    <button
+                      class="redo-btn"
+                      (click)="runSingleDeviceBenchmark(gpu.id)"
+                      [disabled]="benchmarkRunning()"
+                      title="Redo benchmark"
+                    >
+                      ↻
+                    </button>
                   } @else {
-                    <button class="benchmark-btn" (click)="runSingleDeviceBenchmark(gpu.id)" [disabled]="benchmarkRunning()">Benchmark</button>
+                    <button
+                      class="benchmark-btn"
+                      (click)="runSingleDeviceBenchmark(gpu.id)"
+                      [disabled]="benchmarkRunning()"
+                    >
+                      Benchmark
+                    </button>
                   }
                 </div>
                 <div class="device-config">
@@ -296,7 +357,10 @@ interface ChainModalData {
               <div class="device-icon cpu"><span class="icon-glyph">⚙</span>CPU</div>
               <div class="device-info">
                 <div class="device-name">{{ cpuInfo()?.name || 'Unknown CPU' }}</div>
-                <div class="device-specs">{{ cpuInfo()?.threads || 0 }} threads available &bull; {{ cpuInfo()?.features?.join(', ') || 'AVX2' }} &bull; CPU</div>
+                <div class="device-specs">
+                  {{ cpuInfo()?.threads || 0 }} threads available &bull;
+                  {{ cpuInfo()?.features?.join(', ') || 'AVX2' }} &bull; CPU
+                </div>
               </div>
               <div class="benchmark-display">
                 @if (benchmarkingDevice() === 'cpu') {
@@ -305,12 +369,34 @@ interface ChainModalData {
                   </div>
                 } @else if (getBenchmarkError('cpu')) {
                   <span class="benchmark-error" [title]="getBenchmarkError('cpu')">Error</span>
-                  <button class="redo-btn" (click)="runSingleDeviceBenchmark('cpu')" [disabled]="benchmarkRunning()" title="Retry benchmark">↻</button>
+                  <button
+                    class="redo-btn"
+                    (click)="runSingleDeviceBenchmark('cpu')"
+                    [disabled]="benchmarkRunning()"
+                    title="Retry benchmark"
+                  >
+                    ↻
+                  </button>
                 } @else if (getBenchmarkResult('cpu')) {
-                  <span class="benchmark-result">{{ getBenchmarkResult('cpu') | number:'1.0-0' }} MiB/s</span>
-                  <button class="redo-btn" (click)="runSingleDeviceBenchmark('cpu')" [disabled]="benchmarkRunning()" title="Redo benchmark">↻</button>
+                  <span class="benchmark-result"
+                    >{{ getBenchmarkResult('cpu') | number: '1.0-0' }} MiB/s</span
+                  >
+                  <button
+                    class="redo-btn"
+                    (click)="runSingleDeviceBenchmark('cpu')"
+                    [disabled]="benchmarkRunning()"
+                    title="Redo benchmark"
+                  >
+                    ↻
+                  </button>
                 } @else {
-                  <button class="benchmark-btn" (click)="runSingleDeviceBenchmark('cpu')" [disabled]="benchmarkRunning()">Benchmark</button>
+                  <button
+                    class="benchmark-btn"
+                    (click)="runSingleDeviceBenchmark('cpu')"
+                    [disabled]="benchmarkRunning()"
+                  >
+                    Benchmark
+                  </button>
                 }
               </div>
               <div class="device-config">
@@ -329,7 +415,8 @@ interface ChainModalData {
 
             @if (gpus().length === 0) {
               <div class="info-box">
-                <strong>No GPUs detected.</strong> CPU plotting is available but slower. Consider adding a GPU for faster plotting.
+                <strong>No GPUs detected.</strong> CPU plotting is available but slower. Consider
+                adding a GPU for faster plotting.
               </div>
             }
           </div>
@@ -351,7 +438,9 @@ interface ChainModalData {
                 />
                 <div class="radio-label">
                   <div class="radio-label-main">Use first wallet address</div>
-                  <div class="radio-label-sub address-full">{{ walletAddress() || 'No wallet connected' }}</div>
+                  <div class="radio-label-sub address-full">
+                    {{ walletAddress() || 'No wallet connected' }}
+                  </div>
                 </div>
               </label>
               <label class="radio-option">
@@ -374,19 +463,31 @@ interface ChainModalData {
                     />
                     @if (addressValidation() && useCustomAddress()) {
                       @if (!addressValidation()!.valid) {
-                        <span class="address-badge error" title="The address is not a valid bech32 format. Please check for typos.">
+                        <span
+                          class="address-badge error"
+                          title="The address is not a valid bech32 format. Please check for typos."
+                        >
                           ❌ Invalid
                         </span>
                       } @else if (addressValidation()!.isMine === true) {
-                        <span class="address-badge success" title="This address belongs to your wallet. You can mine with these plots directly.">
+                        <span
+                          class="address-badge success"
+                          title="This address belongs to your wallet. You can mine with these plots directly."
+                        >
                           🔑
                         </span>
                       } @else if (addressValidation()!.assignedToUs === true) {
-                        <span class="address-badge success" title="Forging rights for this address are assigned to your wallet. You can mine with these plots.">
+                        <span
+                          class="address-badge success"
+                          title="Forging rights for this address are assigned to your wallet. You can mine with these plots."
+                        >
                           🔑
                         </span>
                       } @else {
-                        <span class="address-badge warning" title="No keys and no forging assignment to your wallet. The plot owner must assign forging rights to you first.">
+                        <span
+                          class="address-badge warning"
+                          title="No keys and no forging assignment to your wallet. The plot owner must assign forging rights to you first."
+                        >
                           🔑
                         </span>
                       }
@@ -415,25 +516,35 @@ interface ChainModalData {
                 <div class="memory-breakdown">
                   <div class="memory-row">
                     <span class="memory-label">Plotter Cache</span>
-                    <span class="memory-value">{{ plotterCacheGib() | number:'1.1-1' }} GiB</span>
+                    <span class="memory-value">{{ plotterCacheGib() | number: '1.1-1' }} GiB</span>
                   </div>
                   <div class="memory-row">
-                    <span class="memory-label">HDD Cache ({{ parallelDrives() }} drive{{ parallelDrives() > 1 ? 's' : '' }})</span>
-                    <span class="memory-value">{{ hddCacheGib() | number:'1.1-1' }} GiB</span>
+                    <span class="memory-label"
+                      >HDD Cache ({{ parallelDrives() }} drive{{
+                        parallelDrives() > 1 ? 's' : ''
+                      }})</span
+                    >
+                    <span class="memory-value">{{ hddCacheGib() | number: '1.1-1' }} GiB</span>
                   </div>
                   @if (gpuMemoryGib() > 0) {
                     <div class="memory-row">
                       <span class="memory-label">GPU Cache</span>
-                      <span class="memory-value">{{ gpuMemoryGib() | number:'1.1-1' }} GiB</span>
+                      <span class="memory-value">{{ gpuMemoryGib() | number: '1.1-1' }} GiB</span>
                     </div>
                   }
                   <div class="memory-row memory-total">
                     <span class="memory-label">Total</span>
-                    <span class="memory-value">~{{ totalEstimatedMemoryGib() | number:'1.0-0' }} GiB</span>
+                    <span class="memory-value"
+                      >~{{ totalEstimatedMemoryGib() | number: '1.0-0' }} GiB</span
+                    >
                   </div>
                   <div class="memory-row memory-available">
                     <span class="memory-label">Available RAM</span>
-                    <span class="memory-value" [class.warning]="totalEstimatedMemoryGib() > systemMemoryGib()">{{ systemMemoryGib() }} GiB</span>
+                    <span
+                      class="memory-value"
+                      [class.warning]="totalEstimatedMemoryGib() > systemMemoryGib()"
+                      >{{ systemMemoryGib() }} GiB</span
+                    >
                   </div>
                 </div>
               </div>
@@ -462,7 +573,10 @@ interface ChainModalData {
                 </div>
                 <div class="form-group">
                   <label>PoW Scaling</label>
-                  <select [ngModel]="compressionLevel()" (ngModelChange)="compressionLevel.set($event)">
+                  <select
+                    [ngModel]="compressionLevel()"
+                    (ngModelChange)="compressionLevel.set($event)"
+                  >
                     <option value="1">X1: Years 0-4 (recommended)</option>
                     <option value="2">X2: Years 4-12</option>
                     <option value="3">X3: Years 12-28</option>
@@ -474,11 +588,19 @@ interface ChainModalData {
               </div>
               <div class="checkbox-row standalone">
                 <label class="checkbox-option">
-                  <input type="checkbox" [ngModel]="directIo()" (ngModelChange)="directIo.set($event)" />
+                  <input
+                    type="checkbox"
+                    [ngModel]="directIo()"
+                    (ngModelChange)="directIo.set($event)"
+                  />
                   Direct I/O
                 </label>
                 <label class="checkbox-option">
-                  <input type="checkbox" [ngModel]="lowPriority()" (ngModelChange)="lowPriority.set($event)" />
+                  <input
+                    type="checkbox"
+                    [ngModel]="lowPriority()"
+                    (ngModelChange)="lowPriority.set($event)"
+                  />
                   Low Process Priority
                 </label>
               </div>
@@ -487,7 +609,9 @@ interface ChainModalData {
               @if (selectedGpuInfo() && performanceHintEntries().length > 0) {
                 <div class="performance-hint">
                   <div class="performance-hint-header">Performance Hint</div>
-                  <div class="performance-hint-desc">Optimal CU/Escalation combinations for {{ selectedGpuInfo()!.name }}</div>
+                  <div class="performance-hint-desc">
+                    Optimal CU/Escalation combinations for {{ selectedGpuInfo()!.name }}
+                  </div>
                   <table class="performance-table">
                     <thead>
                       <tr>
@@ -498,10 +622,15 @@ interface ChainModalData {
                     </thead>
                     <tbody>
                       @for (entry of performanceHintEntries(); track entry.cus) {
-                        <tr [class.current]="entry.cus === getDeviceThreads(selectedGpuInfo()!.id) && entry.escalation === escalation()">
+                        <tr
+                          [class.current]="
+                            entry.cus === getDeviceThreads(selectedGpuInfo()!.id) &&
+                            entry.escalation === escalation()
+                          "
+                        >
                           <td>{{ entry.cus }}</td>
                           <td>{{ entry.escalation }}</td>
-                          <td>{{ entry.usagePercent | number:'1.0-0' }}%</td>
+                          <td>{{ entry.usagePercent | number: '1.0-0' }}%</td>
                         </tr>
                       }
                     </tbody>
@@ -547,12 +676,16 @@ interface ChainModalData {
                 <!-- Line 1: Path + Capacity + Actions -->
                 <div class="drive-header">
                   <span class="drive-path">{{ drive.path }}</span>
-                  <span class="capacity-badge">Total Capacity: {{ formatSize(drive.totalGib) }}</span>
+                  <span class="capacity-badge"
+                    >Total Capacity: {{ formatSize(drive.totalGib) }}</span
+                  >
                   @if (drive.isSystemDrive) {
                     <span class="system-badge" title="System drive: max 80% usage">&#9888;</span>
                   }
                   <div class="drive-actions">
-                    <button class="drive-refresh" (click)="refreshDrive(drive)" title="Refresh">&#8635;</button>
+                    <button class="drive-refresh" (click)="refreshDrive(drive)" title="Refresh">
+                      &#8635;
+                    </button>
                     <button class="drive-remove" (click)="removeDrive(drive)">&#10005;</button>
                   </div>
                 </div>
@@ -561,28 +694,50 @@ interface ChainModalData {
                 <div class="segment-bar-container">
                   <div class="segment-bar">
                     @if (getOtherDataGib(drive) > 0) {
-                      <div class="segment other" [style.flex]="getOtherDataGib(drive)" title="Other data on this drive (non-plot files)">
+                      <div
+                        class="segment other"
+                        [style.flex]="getOtherDataGib(drive)"
+                        title="Other data on this drive (non-plot files)"
+                      >
                         <span class="segment-label">{{ formatSize(getOtherDataGib(drive)) }}</span>
                       </div>
                     }
                     @if (drive.completeSizeGib > 0) {
-                      <div class="segment existing" [style.flex]="drive.completeSizeGib" title="Plotted: Complete .pocx files ready for mining">
+                      <div
+                        class="segment existing"
+                        [style.flex]="drive.completeSizeGib"
+                        title="Plotted: Complete .pocx files ready for mining"
+                      >
                         <span class="segment-label">{{ formatSize(drive.completeSizeGib) }}</span>
                       </div>
                     }
                     @if (drive.incompleteSizeGib > 0) {
-                      <div class="segment unfinished" [style.flex]="drive.incompleteSizeGib" title="Unfinished: Incomplete plots that can be resumed">
+                      <div
+                        class="segment unfinished"
+                        [style.flex]="drive.incompleteSizeGib"
+                        title="Unfinished: Incomplete plots that can be resumed"
+                      >
                         <span class="segment-label">{{ formatSize(drive.incompleteSizeGib) }}</span>
                       </div>
                     }
                     @if (getToPlotGib(drive) > 0) {
-                      <div class="segment allocated" [style.flex]="getToPlotGib(drive)" title="To Plot: New space to be plotted">
+                      <div
+                        class="segment allocated"
+                        [style.flex]="getToPlotGib(drive)"
+                        title="To Plot: New space to be plotted"
+                      >
                         <span class="segment-label">+{{ formatSize(getToPlotGib(drive)) }}</span>
                       </div>
                     }
                     @if (getRemainingFree(drive) > 0) {
-                      <div class="segment free" [style.flex]="getRemainingFree(drive)" title="Free: Available space on drive">
-                        <span class="segment-label">{{ formatSize(getRemainingFree(drive)) }} free</span>
+                      <div
+                        class="segment free"
+                        [style.flex]="getRemainingFree(drive)"
+                        title="Free: Available space on drive"
+                      >
+                        <span class="segment-label"
+                          >{{ formatSize(getRemainingFree(drive)) }} free</span
+                        >
                       </div>
                     }
                   </div>
@@ -637,12 +792,21 @@ interface ChainModalData {
               <div class="form-row">
                 <div class="form-group">
                   <label>HDD Wakeup Interval (seconds)</label>
-                  <input type="number" [ngModel]="hddWakeup()" (ngModelChange)="hddWakeup.set($event)" min="0" />
+                  <input
+                    type="number"
+                    [ngModel]="hddWakeup()"
+                    (ngModelChange)="hddWakeup.set($event)"
+                    min="0"
+                  />
                 </div>
               </div>
               <div class="form-row">
                 <label class="checkbox-option">
-                  <input type="checkbox" [ngModel]="miningDirectIo()" (ngModelChange)="miningDirectIo.set($event)" />
+                  <input
+                    type="checkbox"
+                    [ngModel]="miningDirectIo()"
+                    (ngModelChange)="miningDirectIo.set($event)"
+                  />
                   Use Direct I/O for mining
                 </label>
               </div>
@@ -718,11 +882,20 @@ interface ChainModalData {
             @if (chainModalData().mode === 'pool') {
               <div class="form-group" style="margin-bottom: 16px;">
                 <label>Select Pool</label>
-                <select [ngModel]="chainModalData().poolUrl" (ngModelChange)="updateChainModal('poolUrl', $event)">
+                <select
+                  [ngModel]="chainModalData().poolUrl"
+                  (ngModelChange)="updateChainModal('poolUrl', $event)"
+                >
                   <option value="">-- Select a pool --</option>
-                  <option value="https://pool.pocx.io:8080/api">PoCX Pool Alpha (pool.pocx.io)</option>
-                  <option value="https://pool2.pocx.io:8080/api">PoCX Pool Beta (pool2.pocx.io)</option>
-                  <option value="https://community.pocx.io:8080/api">Community Pool (community.pocx.io)</option>
+                  <option value="https://pool.pocx.io:8080/api">
+                    PoCX Pool Alpha (pool.pocx.io)
+                  </option>
+                  <option value="https://pool2.pocx.io:8080/api">
+                    PoCX Pool Beta (pool2.pocx.io)
+                  </option>
+                  <option value="https://community.pocx.io:8080/api">
+                    Community Pool (community.pocx.io)
+                  </option>
                 </select>
               </div>
               <div class="form-group">
@@ -768,7 +941,10 @@ interface ChainModalData {
               <div class="form-row" style="margin-bottom: 16px;">
                 <div class="form-group">
                   <label>Mode</label>
-                  <select [ngModel]="chainModalData().customMode" (ngModelChange)="updateChainModal('customMode', $event)">
+                  <select
+                    [ngModel]="chainModalData().customMode"
+                    (ngModelChange)="updateChainModal('customMode', $event)"
+                  >
                     <option value="solo">Wallet (Solo)</option>
                     <option value="pool">Pool</option>
                   </select>
@@ -795,7 +971,9 @@ interface ChainModalData {
           </div>
           <div class="modal-footer">
             <button class="btn btn-ghost" (click)="closeChainModal()">Cancel</button>
-            <button class="btn btn-primary" (click)="saveChain()">{{ editingChain() ? 'Save' : 'Add' }}</button>
+            <button class="btn btn-primary" (click)="saveChain()">
+              {{ editingChain() ? 'Save' : 'Add' }}
+            </button>
           </div>
         </div>
       </div>
@@ -1040,9 +1218,10 @@ interface ChainModalData {
       .cdk-drag-preview {
         box-sizing: border-box;
         border-radius: 4px;
-        box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
-                    0 8px 10px 1px rgba(0, 0, 0, 0.14),
-                    0 3px 14px 2px rgba(0, 0, 0, 0.12);
+        box-shadow:
+          0 5px 5px -3px rgba(0, 0, 0, 0.2),
+          0 8px 10px 1px rgba(0, 0, 0, 0.14),
+          0 3px 14px 2px rgba(0, 0, 0, 0.12);
         background: white;
         display: flex;
         align-items: center;
@@ -2308,10 +2487,18 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly store = inject(Store);
 
   // Wallet settings for solo mining (synced to mining config)
-  private readonly walletRpcHost = toSignal(this.store.select(selectRpcHost), { initialValue: '127.0.0.1' });
-  private readonly walletRpcPort = toSignal(this.store.select(selectRpcPort), { initialValue: 18332 });
-  private readonly walletDataDirectory = toSignal(this.store.select(selectDataDirectory), { initialValue: '' });
-  private readonly walletNetwork = toSignal(this.store.select(selectNetwork), { initialValue: 'testnet' });
+  private readonly walletRpcHost = toSignal(this.store.select(selectRpcHost), {
+    initialValue: '127.0.0.1',
+  });
+  private readonly walletRpcPort = toSignal(this.store.select(selectRpcPort), {
+    initialValue: 18332,
+  });
+  private readonly walletDataDirectory = toSignal(this.store.select(selectDataDirectory), {
+    initialValue: '',
+  });
+  private readonly walletNetwork = toSignal(this.store.select(selectNetwork), {
+    initialValue: 'testnet',
+  });
 
   // Event listener cleanup
   private plotterEventUnlisteners: UnlistenFn[] = [];
@@ -2488,7 +2675,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
     for (let cus = startCUs; cus <= maxCUs; cus++) {
       const totalBlock = cus * wgs;
-      const escalation = Math.floor(WORK_PACKAGE * totalBlock / gcd(WORK_PACKAGE, totalBlock) / WORK_PACKAGE);
+      const escalation = Math.floor(
+        (WORK_PACKAGE * totalBlock) / gcd(WORK_PACKAGE, totalBlock) / WORK_PACKAGE
+      );
       const usagePercent = (cus / maxCUs) * 100;
       entries.push({ cus, escalation, usagePercent });
     }
@@ -2544,14 +2733,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     this.plotterEventUnlisteners = [];
 
     // Listen for plotter started - get total warps
-    const startedUnlisten = await listen<PlotterStartedEvent>(
-      'plotter:started',
-      event => {
-        this.benchmarkTotalWarps = event.payload.totalWarps;
-        this.benchmarkHashedWarps = 0;
-        this.benchmarkProgress.set(0);
-      }
-    );
+    const startedUnlisten = await listen<PlotterStartedEvent>('plotter:started', event => {
+      this.benchmarkTotalWarps = event.payload.totalWarps;
+      this.benchmarkHashedWarps = 0;
+      this.benchmarkProgress.set(0);
+    });
     this.plotterEventUnlisteners.push(startedUnlisten);
 
     // Listen for hashing progress - accumulate warps
@@ -2568,32 +2754,26 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     this.plotterEventUnlisteners.push(hashingUnlisten);
 
     // Listen for completion
-    const completeUnlisten = await listen<PlotterCompleteEvent>(
-      'plotter:complete',
-      () => {
-        this.benchmarkProgress.set(1);
-      }
-    );
+    const completeUnlisten = await listen<PlotterCompleteEvent>('plotter:complete', () => {
+      this.benchmarkProgress.set(1);
+    });
     this.plotterEventUnlisteners.push(completeUnlisten);
 
     // Listen for errors
-    const errorUnlisten = await listen<PlotterErrorEvent>(
-      'plotter:error',
-      event => {
-        const deviceId = this.benchmarkingDevice();
-        if (deviceId) {
-          this.benchmarkErrors.update(m => {
-            const newMap = new Map(m);
-            newMap.set(deviceId, event.payload.error);
-            return newMap;
-          });
-          // Clear benchmarking device so the error badge shows instead of progress bar
-          this.benchmarkingDevice.set(null);
-        }
-        this.benchmarkProgress.set(0);
-        this.benchmarkRunning.set(false);
+    const errorUnlisten = await listen<PlotterErrorEvent>('plotter:error', event => {
+      const deviceId = this.benchmarkingDevice();
+      if (deviceId) {
+        this.benchmarkErrors.update(m => {
+          const newMap = new Map(m);
+          newMap.set(deviceId, event.payload.error);
+          return newMap;
+        });
+        // Clear benchmarking device so the error badge shows instead of progress bar
+        this.benchmarkingDevice.set(null);
       }
-    );
+      this.benchmarkProgress.set(0);
+      this.benchmarkRunning.set(false);
+    });
     this.plotterEventUnlisteners.push(errorUnlisten);
   }
 
@@ -2629,7 +2809,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       return newMap;
     });
 
-    console.log(`[Benchmark] Starting ${deviceId} with ${device.threads} threads, escalation=${this.escalation()}, zcb=${this.zeroCopyBuffers()}, address: ${address.substring(0, 20)}...`);
+    console.log(
+      `[Benchmark] Starting ${deviceId} with ${device.threads} threads, escalation=${this.escalation()}, zcb=${this.zeroCopyBuffers()}, address: ${address.substring(0, 20)}...`
+    );
     const startTime = performance.now();
 
     try {
@@ -2647,7 +2829,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         newMap.set(deviceId, result.mibPerSecond);
         return newMap;
       });
-      console.log(`[Benchmark] ${deviceId}: ${result.mibPerSecond.toFixed(1)} MiB/s (plotter: ${result.durationMs}ms, total: ${elapsed}s)`);
+      console.log(
+        `[Benchmark] ${deviceId}: ${result.mibPerSecond.toFixed(1)} MiB/s (plotter: ${result.durationMs}ms, total: ${elapsed}s)`
+      );
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`[Benchmark] ${deviceId} failed:`, errorMsg);
@@ -2743,9 +2927,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
         // Load drive info for existing configured drives (auto-caches in service)
         if (config.drives?.length) {
-          await Promise.all(config.drives.map(d =>
-            this.miningService.getDriveInfo(d.path)
-          ));
+          await Promise.all(config.drives.map(d => this.miningService.getDriveInfo(d.path)));
           // availableDrives computed signal auto-updates from cache
         }
 
@@ -2831,7 +3013,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     // Build URL from chain config for display
     const chainUrl = `${chain.rpcTransport}://${chain.rpcHost}:${chain.rpcPort}`;
     // Determine if this is a "custom" chain (user-defined pool endpoint)
-    const isCustomPool = chain.mode === 'pool' && chain.rpcHost && !chain.rpcHost.includes('pocx.io');
+    const isCustomPool =
+      chain.mode === 'pool' && chain.rpcHost && !chain.rpcHost.includes('pocx.io');
     // Extract token from auth
     const authToken = chain.rpcAuth.type === 'user_pass' ? chain.rpcAuth.password : '';
     this.chainModalData.set({
@@ -2840,7 +3023,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       poolUrl: chain.mode === 'pool' && !isCustomPool ? chainUrl : '',
       poolToken: authToken,
       customUrl: isCustomPool ? chainUrl : '',
-      customApiPath: '',  // API path no longer used
+      customApiPath: '', // API path no longer used
       customMode: chain.mode,
       customBlockTime: chain.blockTimeSeconds || 120,
       customToken: authToken,
@@ -2875,9 +3058,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         id,
         name: 'PoCX Testnet (Local)',
         rpcTransport: 'http',
-        rpcHost: '127.0.0.1',  // Will be overridden from wallet settings
-        rpcPort: 18332,        // Will be overridden from wallet settings
-        rpcAuth: { type: 'cookie' },  // Backend reads cookie from wallet settings
+        rpcHost: '127.0.0.1', // Will be overridden from wallet settings
+        rpcPort: 18332, // Will be overridden from wallet settings
+        rpcAuth: { type: 'cookie' }, // Backend reads cookie from wallet settings
         blockTimeSeconds: 120,
         mode: 'solo',
         enabled: true,
@@ -2942,7 +3125,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       const url = new URL(urlStr);
       const transport = url.protocol === 'https:' ? 'https' : 'http';
       const host = url.hostname;
-      const port = url.port ? parseInt(url.port, 10) : (transport === 'https' ? 443 : 80);
+      const port = url.port ? parseInt(url.port, 10) : transport === 'https' ? 443 : 80;
       return { transport, host, port };
     } catch {
       // Default if URL parsing fails
@@ -3006,7 +3189,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       // Add new device as enabled, disable all others
       const maxThreads = this.getMaxThreadsForDevice(deviceId);
       const updatedDevices = devices.map(d => ({ ...d, enabled: false }));
-      this.plotterDevices.set([...updatedDevices, { deviceId, enabled: true, threads: maxThreads }]);
+      this.plotterDevices.set([
+        ...updatedDevices,
+        { deviceId, enabled: true, threads: maxThreads },
+      ]);
     }
 
     // Auto-set zeroCopyBuffers based on whether selected device is an APU
@@ -3063,12 +3249,16 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
             if (!result.isMine) {
               try {
                 const assignmentStatus = await this.miningRpc.getAssignmentStatus(address);
-                result.hasAssignment = assignmentStatus.has_assignment && assignmentStatus.state === 'ASSIGNED';
+                result.hasAssignment =
+                  assignmentStatus.has_assignment && assignmentStatus.state === 'ASSIGNED';
 
                 // If assigned, check if the forging_address belongs to our wallet
                 if (result.hasAssignment && assignmentStatus.forging_address) {
                   try {
-                    const forgingAddrInfo = await this.walletRpc.getAddressInfo(walletName, assignmentStatus.forging_address);
+                    const forgingAddrInfo = await this.walletRpc.getAddressInfo(
+                      walletName,
+                      assignmentStatus.forging_address
+                    );
                     result.assignedToUs = forgingAddrInfo.ismine;
                   } catch {
                     result.assignedToUs = false;
@@ -3173,7 +3363,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   getOtherDataGib(drive: DriveInfo): number {
     // Other data = total capacity - plots - unfinished - free space
-    const otherData = drive.totalGib - drive.completeSizeGib - drive.incompleteSizeGib - drive.freeGib;
+    const otherData =
+      drive.totalGib - drive.completeSizeGib - drive.incompleteSizeGib - drive.freeGib;
     return Math.max(0, Math.round(otherData));
   }
 
@@ -3253,17 +3444,27 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           continue;
         }
 
-        // Check for same-drive conflict (Windows: compare drive letters)
+        // Get drive info from service (auto-caches) - needed for volumeId check
+        let driveInfo: DriveInfo | null = null;
+        try {
+          driveInfo = await this.miningService.getDriveInfo(path);
+        } catch (error) {
+          console.error('Failed to get drive info for', path, error);
+          continue;
+        }
+
+        if (!driveInfo) {
+          continue;
+        }
+
+        // Check for same-drive conflict using volumeId (handles mount points correctly)
         // Skip this check in dev mode to allow testing with multiple folders
         if (!this.miningService.isDevMode()) {
-          const newDriveLetter = this.getDriveLetter(path);
-          const conflictingConfig = this.driveConfigs().find(
-            c => this.getDriveLetter(c.path) === newDriveLetter
-          );
+          const conflictingDrive = this.findConflictingDrive(driveInfo);
 
-          if (conflictingConfig) {
+          if (conflictingDrive) {
             this.snackBar.open(
-              `Cannot add folder: Drive ${newDriveLetter} already has a plot folder configured (${conflictingConfig.path}). Multiple folders on the same drive would severely impact performance.`,
+              `Cannot add folder: This drive already has a plot folder configured (${conflictingDrive.path}). Multiple folders on the same physical drive would severely impact performance.`,
               'Dismiss',
               { duration: 6000 }
             );
@@ -3271,29 +3472,49 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           }
         }
 
-        // Get drive info from service (auto-caches)
-        try {
-          const driveInfo = await this.miningService.getDriveInfo(path);
-          if (driveInfo) {
-            // Create DriveConfig with default allocation (max allocatable)
-            const defaultAllocation = this.getMaxAllocatable(driveInfo);
-            if (defaultAllocation > 0) {
-              const config: DriveConfig = {
-                path: driveInfo.path,
-                enabled: true,
-                allocatedGib: defaultAllocation,
-              };
-              this.driveConfigs.update(configs => [...configs, config]);
-              // availableDrives computed signal auto-updates from cache
-            }
-          }
-        } catch (error) {
-          console.error('Failed to get drive info for', path, error);
+        // Create DriveConfig with default allocation (max allocatable)
+        const defaultAllocation = this.getMaxAllocatable(driveInfo);
+        if (defaultAllocation > 0) {
+          const config: DriveConfig = {
+            path: driveInfo.path,
+            enabled: true,
+            allocatedGib: defaultAllocation,
+          };
+          this.driveConfigs.update(configs => [...configs, config]);
+          // availableDrives computed signal auto-updates from cache
         }
       }
     } catch (err) {
       console.error('Failed to open folder dialog:', err);
     }
+  }
+
+  /**
+   * Find an existing drive config that conflicts with the new drive (same physical volume).
+   * Uses volumeId for accurate detection (handles Windows mount points correctly).
+   * Falls back to drive letter comparison if volumeId not available.
+   */
+  private findConflictingDrive(newDrive: DriveInfo): DriveInfo | null {
+    const driveInfoCache = this.miningService.driveInfoCache();
+
+    for (const config of this.driveConfigs()) {
+      const existingDrive = driveInfoCache.get(config.path);
+      if (!existingDrive) continue;
+
+      // Compare volumeIds if both available (most accurate, handles mount points)
+      if (newDrive.volumeId && existingDrive.volumeId) {
+        if (newDrive.volumeId === existingDrive.volumeId) {
+          return existingDrive;
+        }
+      } else {
+        // Fallback: compare drive letters (Windows) or root (Unix)
+        if (this.getDriveLetter(newDrive.path) === this.getDriveLetter(existingDrive.path)) {
+          return existingDrive;
+        }
+      }
+    }
+
+    return null;
   }
 
   private getDriveLetter(path: string): string {

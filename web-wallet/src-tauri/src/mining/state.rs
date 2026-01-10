@@ -142,10 +142,8 @@ pub enum PlotPlanItem {
         #[serde(rename = "batchId")]
         batch_id: u32,
     },
-    /// Add completed drive to miner config
-    AddToMiner {
-        path: String,
-    },
+    /// Checkpoint to restart miner with newly ready drives
+    AddToMiner,
 }
 
 // Note: PlotPlan and PlotPlanStatus have been moved to plotter.rs

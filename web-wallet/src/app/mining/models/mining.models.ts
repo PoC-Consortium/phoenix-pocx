@@ -44,10 +44,11 @@ export interface DriveInfo {
   totalGib: number;
   freeGib: number;
   isSystemDrive: boolean;
-  completeFiles: number;     // .pocx files (ready for mining)
-  completeSizeGib: number;   // Size of complete files
-  incompleteFiles: number;   // .tmp files (can resume)
+  completeFiles: number; // .pocx files (ready for mining)
+  completeSizeGib: number; // Size of complete files
+  incompleteFiles: number; // .tmp files (can resume)
   incompleteSizeGib: number; // Size of incomplete files
+  volumeId?: string; // Volume GUID for same-drive detection (handles mount points)
 }
 
 // ============================================================================
@@ -261,7 +262,7 @@ export type PlotterUIState = 'plotting' | 'stopping' | 'ready' | 'complete';
 export type PlotPlanItem =
   | { type: 'resume'; path: string; fileIndex: number; sizeGib: number }
   | { type: 'plot'; path: string; warps: number; batchId: number }
-  | { type: 'add_to_miner'; path: string };
+  | { type: 'add_to_miner' };
 
 /**
  * Plot plan - now runtime-only (not persisted to config)
@@ -272,9 +273,9 @@ export type PlotPlanItem =
  * - Hard stop done: When hard stop completes (to detect .tmp files)
  */
 export interface PlotPlan {
-  items: PlotPlanItem[];     // Ordered list of tasks to execute
-  configHash: string;        // Hash of drive configs for change detection
-  generatedAt: number;       // Timestamp when plan was generated
+  items: PlotPlanItem[]; // Ordered list of tasks to execute
+  configHash: string; // Hash of drive configs for change detection
+  generatedAt: number; // Timestamp when plan was generated
 }
 
 /**
@@ -284,10 +285,10 @@ export interface PlotPlan {
  * All UI state is derived from these values.
  */
 export interface PlotterState {
-  running: boolean;          // Whether plotter is actively running
-  stopType: StopType;        // Current stop request (none/soft/hard)
-  plan: PlotPlan | null;     // Current plan (null = no work or complete)
-  currentIndex: number;      // Current execution position (0-based)
+  running: boolean; // Whether plotter is actively running
+  stopType: StopType; // Current stop request (none/soft/hard)
+  plan: PlotPlan | null; // Current plan (null = no work or complete)
+  currentIndex: number; // Current execution position (0-based)
   progress: PlottingProgress; // Current plotting progress
 }
 
@@ -317,7 +318,7 @@ export interface PlotExecutionResult {
 
 export interface PlotterItemCompleteEvent {
   type: 'resume' | 'plot' | 'add_to_miner';
-  path: string;
+  path?: string; // Optional - not present for add_to_miner
   success: boolean;
   warpsPlotted?: number;
   durationMs?: number;
@@ -329,15 +330,15 @@ export interface PlotterItemCompleteEvent {
 // ============================================================================
 
 export interface PlottingProgress {
-  hashingWarps: number;      // Warps completed in hashing phase (0→totalWarps)
-  writingWarps: number;      // Warps completed in writing phase (0→totalWarps)
-  totalWarps: number;        // Target warps for current batch
-  resumeOffset: number;      // Warps already completed before this session (for resume)
-  plotStartTime: number;     // Timestamp when current batch started (ms)
-  currentBatchSize: number;  // Number of items in current batch
-  completedInBatch: number;  // Items completed in current batch
-  progress: number;          // Combined progress 0-100%
-  speedMibS: number;         // Current plotting speed in MiB/s
+  hashingWarps: number; // Warps completed in hashing phase (0→totalWarps)
+  writingWarps: number; // Warps completed in writing phase (0→totalWarps)
+  totalWarps: number; // Target warps for current batch
+  resumeOffset: number; // Warps already completed before this session (for resume)
+  plotStartTime: number; // Timestamp when current batch started (ms)
+  currentBatchSize: number; // Number of items in current batch
+  completedInBatch: number; // Items completed in current batch
+  progress: number; // Combined progress 0-100%
+  speedMibS: number; // Current plotting speed in MiB/s
 }
 
 // ============================================================================
@@ -398,8 +399,8 @@ export interface MinerScanStatusEvent {
   chain: string;
   height: number;
   status: 'finished' | 'paused' | 'interrupted';
-  durationSecs?: number;      // For 'finished'
-  progressPercent?: number;   // For 'paused' or 'interrupted'
+  durationSecs?: number; // For 'finished'
+  progressPercent?: number; // For 'paused' or 'interrupted'
 }
 
 /** Event: miner:deadline-accepted */
@@ -436,7 +437,7 @@ export interface MinerDeadlineRejectedEvent {
 
 /** Event: miner:log - forwarded log messages from miner */
 export interface MinerLogEvent {
-  level: string;  // 'info', 'warn', 'error', 'debug', 'trace'
+  level: string; // 'info', 'warn', 'error', 'debug', 'trace'
   message: string;
 }
 
@@ -473,8 +474,8 @@ export interface MinerScanProgress {
   height: number;
   totalWarps: number;
   scannedWarps: number;
-  progress: number;      // 0-100%
-  startTime: number;     // timestamp
+  progress: number; // 0-100%
+  startTime: number; // timestamp
   resuming: boolean;
 }
 
@@ -599,8 +600,8 @@ export const MAX_CAPACITY_DATAPOINTS = 720;
  * Effective capacity data point with timestamp for X-axis
  */
 export interface CapacityDataPoint {
-  timestamp: number;  // From deadline entry
-  capacity: number;   // TiB
+  timestamp: number; // From deadline entry
+  capacity: number; // TiB
 }
 
 /**
@@ -632,9 +633,8 @@ export function generateEffectiveCapacityHistory(
   const sorted = [...bestDeadlines].sort((a, b) => a.timestamp - b.timestamp);
 
   // Cap at maxDataPoints (take most recent)
-  const capped = sorted.length > maxDataPoints
-    ? sorted.slice(sorted.length - maxDataPoints)
-    : sorted;
+  const capped =
+    sorted.length > maxDataPoints ? sorted.slice(sorted.length - maxDataPoints) : sorted;
 
   if (capped.length === 0) return [];
 

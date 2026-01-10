@@ -20,13 +20,7 @@ import { PlotPlan } from '../../models/mining.models';
 @Component({
   selector: 'app-plan-viewer-dialog',
   standalone: true,
-  imports: [
-    CommonModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatIconModule,
-    MatTooltipModule,
-  ],
+  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     <h2 mat-dialog-title class="dialog-title">
       <mat-icon>assignment</mat-icon>
@@ -39,7 +33,9 @@ import { PlotPlan } from '../../models/mining.models';
         <div class="plan-stats">
           <div class="stat">
             <span class="stat-label">Tasks</span>
-            <span class="stat-value">{{ stats()?.completedTasks ?? 0 }}/{{ stats()?.totalTasks ?? 0 }}</span>
+            <span class="stat-value"
+              >{{ stats()?.completedTasks ?? 0 }}/{{ stats()?.totalTasks ?? 0 }}</span
+            >
           </div>
           <div class="stat">
             <span class="stat-label">Remaining</span>
@@ -98,8 +94,8 @@ import { PlotPlan } from '../../models/mining.models';
                       }
                     }
                     @case ('add_to_miner') {
-                      <span class="badge add-miner">Add Miner</span>
-                      <span class="item-path">{{ formatPath(item.path) }}</span>
+                      <span class="badge add-miner">Add to Miner</span>
+                      <span class="item-description">Restart miner with ready drives</span>
                     }
                   }
                 </div>
@@ -125,247 +121,281 @@ import { PlotPlan } from '../../models/mining.models';
       <button mat-button (click)="close()">Close</button>
     </mat-dialog-actions>
   `,
-  styles: [`
-    .dialog-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin: 0;
-      padding: 16px 24px;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.12);
-    }
-
-    .dialog-content {
-      padding: 16px 24px;
-      max-height: 60vh;
-      overflow-y: auto;
-    }
-
-    .plan-stats {
-      display: flex;
-      gap: 24px;
-      padding: 12px 16px;
-      background: rgba(0, 0, 0, 0.04);
-      border-radius: 8px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-
-    .stat {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .stat-label {
-      font-size: 11px;
-      text-transform: uppercase;
-      color: rgba(0, 0, 0, 0.54);
-      letter-spacing: 0.5px;
-    }
-
-    .stat-value {
-      font-size: 16px;
-      font-weight: 500;
-    }
-
-    .status-badge {
-      margin-left: auto;
-      padding: 4px 12px;
-      border-radius: 16px;
-      font-size: 12px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-
-      &.pending { background: #e3f2fd; color: #1976d2; }
-      &.running { background: #e8f5e9; color: #388e3c; }
-      &.stopping { background: #fff3e0; color: #f57c00; }
-      &.completed { background: #e8f5e9; color: #2e7d32; }
-      &.invalid { background: #ffebee; color: #c62828; }
-    }
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgba(0, 0, 0, 0.6);
-      margin: 16px 0 8px;
-    }
-
-    .plan-items {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .plan-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      transition: background-color 0.2s;
-
-      &:hover {
-        background: rgba(0, 0, 0, 0.04);
-      }
-
-      &.current {
-        background: rgba(76, 175, 80, 0.12);
-        border-left: 3px solid #4caf50;
-      }
-
-      &.completed {
-        opacity: 0.6;
-      }
-
-      &.stopping {
-        background: rgba(255, 152, 0, 0.12);
-        border-left: 3px solid #ff9800;
-      }
-    }
-
-    .item-index {
-      width: 24px;
-      text-align: center;
-      font-size: 12px;
-      color: rgba(0, 0, 0, 0.4);
-    }
-
-    .status-icon {
-      font-size: 20px;
-      width: 20px;
-      height: 20px;
-
-      &.done { color: #4caf50; }
-      &.running { color: #4caf50; }
-      &.stopping { color: #ff9800; }
-      &.pending { color: rgba(0, 0, 0, 0.26); }
-    }
-
-    .item-content {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex: 1;
-      min-width: 0;
-    }
-
-    .badge {
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-
-      &.resume { background: #e1bee7; color: #7b1fa2; }
-      &.plot { background: #bbdefb; color: #1565c0; }
-      &.add-miner { background: #c8e6c9; color: #2e7d32; }
-    }
-
-    .item-path {
-      font-family: 'Roboto Mono', monospace;
-      font-size: 13px;
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .item-detail {
-      font-size: 12px;
-      color: rgba(0, 0, 0, 0.54);
-      white-space: nowrap;
-    }
-
-    .item-batch {
-      padding: 2px 6px;
-      background: rgba(0, 0, 0, 0.08);
-      border-radius: 4px;
-      font-size: 10px;
-      font-weight: 600;
-      color: rgba(0, 0, 0, 0.54);
-    }
-
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 32px;
-      text-align: center;
-      color: rgba(0, 0, 0, 0.54);
-
-      mat-icon {
-        font-size: 48px;
-        width: 48px;
-        height: 48px;
-        margin-bottom: 16px;
-        opacity: 0.5;
-      }
-
-      p {
+  styles: [
+    `
+      .dialog-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         margin: 0;
+        padding: 16px 24px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.12);
       }
 
-      .hint {
-        font-size: 13px;
-        margin-top: 8px;
-        opacity: 0.7;
+      .dialog-content {
+        padding: 16px 24px;
+        max-height: 60vh;
+        overflow-y: auto;
       }
-    }
 
-    /* Dark theme support */
-    :host-context(.dark-theme) {
       .plan-stats {
-        background: rgba(255, 255, 255, 0.08);
+        display: flex;
+        gap: 24px;
+        padding: 12px 16px;
+        background: rgba(0, 0, 0, 0.04);
+        border-radius: 8px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+
+      .stat {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
       }
 
       .stat-label {
-        color: rgba(255, 255, 255, 0.5);
+        font-size: 11px;
+        text-transform: uppercase;
+        color: rgba(0, 0, 0, 0.54);
+        letter-spacing: 0.5px;
+      }
+
+      .stat-value {
+        font-size: 16px;
+        font-weight: 500;
+      }
+
+      .status-badge {
+        margin-left: auto;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+
+        &.pending {
+          background: #e3f2fd;
+          color: #1976d2;
+        }
+        &.running {
+          background: #e8f5e9;
+          color: #388e3c;
+        }
+        &.stopping {
+          background: #fff3e0;
+          color: #f57c00;
+        }
+        &.completed {
+          background: #e8f5e9;
+          color: #2e7d32;
+        }
+        &.invalid {
+          background: #ffebee;
+          color: #c62828;
+        }
       }
 
       .section-header {
-        color: rgba(255, 255, 255, 0.6);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(0, 0, 0, 0.6);
+        margin: 16px 0 8px;
       }
 
-      .plan-item:hover {
-        background: rgba(255, 255, 255, 0.08);
+      .plan-items {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .plan-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background: rgba(0, 0, 0, 0.04);
+        }
+
+        &.current {
+          background: rgba(76, 175, 80, 0.12);
+          border-left: 3px solid #4caf50;
+        }
+
+        &.completed {
+          opacity: 0.6;
+        }
+
+        &.stopping {
+          background: rgba(255, 152, 0, 0.12);
+          border-left: 3px solid #ff9800;
+        }
       }
 
       .item-index {
-        color: rgba(255, 255, 255, 0.4);
+        width: 24px;
+        text-align: center;
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.4);
       }
 
-      .status-icon.pending {
-        color: rgba(255, 255, 255, 0.26);
+      .status-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+
+        &.done {
+          color: #4caf50;
+        }
+        &.running {
+          color: #4caf50;
+        }
+        &.stopping {
+          color: #ff9800;
+        }
+        &.pending {
+          color: rgba(0, 0, 0, 0.26);
+        }
+      }
+
+      .item-content {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+
+        &.resume {
+          background: #e1bee7;
+          color: #7b1fa2;
+        }
+        &.plot {
+          background: #bbdefb;
+          color: #1565c0;
+        }
+        &.add-miner {
+          background: #c8e6c9;
+          color: #2e7d32;
+        }
+      }
+
+      .item-path {
+        font-family: 'Roboto Mono', monospace;
+        font-size: 13px;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .item-detail {
-        color: rgba(255, 255, 255, 0.54);
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.54);
+        white-space: nowrap;
       }
 
       .item-batch {
-        background: rgba(255, 255, 255, 0.12);
-        color: rgba(255, 255, 255, 0.54);
+        padding: 2px 6px;
+        background: rgba(0, 0, 0, 0.08);
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        color: rgba(0, 0, 0, 0.54);
       }
 
       .empty-state {
-        color: rgba(255, 255, 255, 0.54);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 32px;
+        text-align: center;
+        color: rgba(0, 0, 0, 0.54);
+
+        mat-icon {
+          font-size: 48px;
+          width: 48px;
+          height: 48px;
+          margin-bottom: 16px;
+          opacity: 0.5;
+        }
+
+        p {
+          margin: 0;
+        }
+
+        .hint {
+          font-size: 13px;
+          margin-top: 8px;
+          opacity: 0.7;
+        }
       }
 
-      .dialog-title {
-        border-bottom-color: rgba(255, 255, 255, 0.12);
+      /* Dark theme support */
+      :host-context(.dark-theme) {
+        .plan-stats {
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .stat-label {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .section-header {
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        .plan-item:hover {
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .item-index {
+          color: rgba(255, 255, 255, 0.4);
+        }
+
+        .status-icon.pending {
+          color: rgba(255, 255, 255, 0.26);
+        }
+
+        .item-detail {
+          color: rgba(255, 255, 255, 0.54);
+        }
+
+        .item-batch {
+          background: rgba(255, 255, 255, 0.12);
+          color: rgba(255, 255, 255, 0.54);
+        }
+
+        .empty-state {
+          color: rgba(255, 255, 255, 0.54);
+        }
+
+        .dialog-title {
+          border-bottom-color: rgba(255, 255, 255, 0.12);
+        }
       }
-    }
-  `],
+    `,
+  ],
 })
 export class PlanViewerDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<PlanViewerDialogComponent>);
@@ -444,8 +474,12 @@ export class PlanViewerDialogComponent {
     // Check if in same batch as current item
     const currentItem = plan.items[idx];
     const checkItem = plan.items[index];
-    if (currentItem?.type === 'plot' && checkItem?.type === 'plot' &&
-        currentItem.batchId !== undefined && checkItem.batchId !== undefined) {
+    if (
+      currentItem?.type === 'plot' &&
+      checkItem?.type === 'plot' &&
+      currentItem.batchId !== undefined &&
+      checkItem.batchId !== undefined
+    ) {
       return currentItem.batchId === checkItem.batchId;
     }
 

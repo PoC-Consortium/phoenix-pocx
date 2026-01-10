@@ -487,6 +487,7 @@ pub async fn start_mining(
             match rpc_transport {
                 pocx_miner::RpcTransport::Http => "http",
                 pocx_miner::RpcTransport::Https => "https",
+                pocx_miner::RpcTransport::Ipc => "ipc",
             },
             chain_config.rpc_host,
             chain_config.rpc_port,
@@ -499,6 +500,7 @@ pub async fn start_mining(
             rpc_transport,
             rpc_host: chain_config.rpc_host.clone(),
             rpc_port: chain_config.rpc_port,
+            ipc_path: None, // IPC not supported via wallet GUI
             rpc_auth,
             block_time_seconds: chain_config.block_time_seconds,
             submission_mode,
@@ -508,13 +510,45 @@ pub async fn start_mining(
         chains.push(chain);
     }
 
-    // Build plot directories from enabled drives
+    // Build plot directories from enabled AND ready drives
+    // A drive is "ready" when complete_size_gib >= allocated_gib (fully plotted)
     let plot_dirs: Vec<std::path::PathBuf> = config
         .drives
         .iter()
-        .filter(|d| d.enabled)
+        .filter(|d| {
+            if !d.enabled {
+                return false;
+            }
+            // Check if drive is ready (has complete plots >= allocated size)
+            if let Some(info) = super::drives::get_drive_info(&d.path) {
+                let is_ready = info.complete_size_gib >= d.allocated_gib as f64;
+                if !is_ready {
+                    log::info!(
+                        "Drive {} not ready for mining: {:.1} GiB plotted of {} GiB allocated",
+                        d.path, info.complete_size_gib, d.allocated_gib
+                    );
+                }
+                is_ready
+            } else {
+                log::warn!("Could not get drive info for {}, skipping", d.path);
+                false
+            }
+        })
         .map(|d| std::path::PathBuf::from(&d.path))
         .collect();
+
+    // Check if we have any ready drives
+    if plot_dirs.is_empty() {
+        // Reset state back to stopped
+        if let Ok(mut state_guard) = state.lock() {
+            state_guard.mining_status = MiningStatus::Stopped;
+        }
+        return Ok(CommandResult::err(
+            "No ready drives for mining. Drives must be fully plotted before mining can start."
+        ));
+    }
+
+    log::info!("Starting miner with {} ready drive(s)", plot_dirs.len());
 
     // Build miner configuration
     let miner_cfg = pocx_miner::Cfg {
@@ -523,7 +557,7 @@ pub async fn start_mining(
         timeout: 5000,
         plot_dirs,
         hdd_use_direct_io: config.direct_io,
-        hdd_wakeup_after: config.hdd_wakeup_seconds as i64,
+        hdd_wakeup_after: config.hdd_wakeup_seconds,
         hdd_read_cache_in_warps: 16,
         cpu_threads: config.cpu_config.mining_threads as usize,
         cpu_thread_pinning: true,
@@ -639,7 +673,7 @@ pub async fn run_device_benchmark(
     // Base rule: 1-8 threads → 1 warp, 9-16 → 2 warps, etc.
     // CPU and APU: use base rule
     // Discrete GPU: use 4x base rule
-    let base_warps = ((threads as u64 + 7) / 8).max(1);
+    let base_warps = (threads as u64).div_ceil(8).max(1);
     let warps: u64 = if device_id == "cpu" {
         base_warps
     } else {
@@ -1040,7 +1074,7 @@ pub async fn advance_plot_plan(
             };
             let next_batch = match next_item {
                 PlotPlanItem::Plot { batch_id, .. } => Some(*batch_id),
-                PlotPlanItem::AddToMiner { .. } => {
+                PlotPlanItem::AddToMiner => {
                     // Always execute AddToMiner even when stopping
                     log::debug!("[EXEC] soft stop: executing AddToMiner before stopping");
                     return Ok(CommandResult::ok(Some(next_item.clone())));

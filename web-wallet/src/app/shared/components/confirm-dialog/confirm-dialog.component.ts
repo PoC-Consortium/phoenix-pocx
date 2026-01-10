@@ -10,7 +10,7 @@ export interface ConfirmDialogData {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  secondaryText?: string;  // Optional third button
+  secondaryText?: string; // Optional third button
   type?: 'info' | 'warning' | 'danger';
 }
 

@@ -2,7 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+// Logging module
+mod logging;
 
 // Mining module
 pub mod mining;
@@ -217,7 +221,7 @@ async fn restart_elevated(app: tauri::AppHandle) -> bool {
                 exe_wide.as_ptr(),
                 ptr::null(),
                 ptr::null(),
-                windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL as i32,
+                windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
             )
         };
 
@@ -364,10 +368,16 @@ fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logger with info level by default (respects RUST_LOG env var if set)
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_millis()
-        .init();
+    // Initialize log4rs with console, file, and Tauri event appenders
+    // Log files go to: {app_data}/com.pocx.phoenix/logs/phoenix.1.log
+    let log_dir = dirs::data_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("com.pocx.phoenix")
+        .join("logs");
+
+    if let Err(e) = logging::init_logger(log_dir.clone()) {
+        eprintln!("Failed to initialize logger: {}. Log dir: {:?}", e, log_dir);
+    }
 
     // Create shared mining state
     let mining_state = mining::state::create_mining_state();
@@ -389,6 +399,9 @@ pub fn run() {
         .manage(mining_state)
         .manage(plotter_runtime)
         .setup(|app| {
+            // Set app handle for TauriEventAppender (log forwarding to frontend)
+            logging::set_app_handle(app.handle().clone());
+
             // Create and set application menu
             let menu = create_menu(app)?;
             app.set_menu(menu)?;
@@ -404,7 +417,11 @@ pub fn run() {
             match id {
                 "settings" => {
                     if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.eval("window.location.hash = '/settings';");
+                        // Use history.pushState for Angular's HTML5 routing
+                        let _ = window.eval(r#"
+                            history.pushState({}, '', '/settings');
+                            window.dispatchEvent(new PopStateEvent('popstate'));
+                        "#);
                     }
                 }
                 #[cfg(debug_assertions)]
@@ -501,6 +518,57 @@ pub fn run() {
                     }
                 }
                 _ => {}
+            }
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+
+                // Check if mining is running
+                let mining_active = {
+                    let state = app.state::<mining::state::SharedMiningState>().inner().clone();
+                    let result = state.lock().map(|guard| {
+                        !matches!(guard.mining_status, mining::state::MiningStatus::Stopped)
+                    }).unwrap_or(false);
+                    result
+                };
+
+                // Check if plotting is running
+                let plotting_active = {
+                    let runtime = app.state::<mining::plotter::SharedPlotterRuntime>().inner().clone();
+                    runtime.is_running()
+                };
+
+                if mining_active || plotting_active {
+                    // Prevent immediate close
+                    api.prevent_close();
+
+                    // Build warning message
+                    let activity = match (mining_active, plotting_active) {
+                        (true, true) => "Mining and plotting are",
+                        (true, false) => "Mining is",
+                        (false, true) => "Plotting is",
+                        _ => unreachable!(),
+                    };
+                    let message = format!(
+                        "{} currently running.\n\nExiting now may cause data loss or corruption.\n\nAre you sure you want to exit?",
+                        activity
+                    );
+
+                    // Show confirmation dialog
+                    let window_clone = window.clone();
+                    app.dialog()
+                        .message(message)
+                        .title("Confirm Exit")
+                        .kind(MessageDialogKind::Warning)
+                        .buttons(MessageDialogButtons::OkCancelCustom("Exit Anyway".to_string(), "Cancel".to_string()))
+                        .show(move |confirmed| {
+                            if confirmed {
+                                // User confirmed - force close
+                                let _ = window_clone.destroy();
+                            }
+                        });
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![

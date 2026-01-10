@@ -52,22 +52,14 @@ pub struct PlottingProgress {
 }
 
 /// Plot plan (in-memory only, not persisted)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlotPlan {
     pub items: Vec<PlotPlanItem>,
+    #[serde(default)]
     pub config_hash: String,
+    #[serde(default)]
     pub generated_at: u64,
-}
-
-impl Default for PlotPlan {
-    fn default() -> Self {
-        Self {
-            items: Vec::new(),
-            config_hash: String::new(),
-            generated_at: 0,
-        }
-    }
 }
 
 /// Plotter runtime state (returned to frontend)
@@ -401,9 +393,9 @@ pub async fn execute_plot_batch<R: Runtime>(
                 });
                 paths.push(path.clone());
             }
-            PlotPlanItem::AddToMiner { path } => {
-                // Skip add_to_miner items in batch - they'll be handled after completion
-                log::info!("Skipping add_to_miner item in batch: {}", path);
+            PlotPlanItem::AddToMiner => {
+                // Skip add_to_miner items in batch - they're executed separately
+                log::info!("Skipping add_to_miner item in batch");
             }
         }
     }
@@ -488,7 +480,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                         let (item_type, path) = match item {
                             PlotPlanItem::Plot { path, .. } => ("plot", path.clone()),
                             PlotPlanItem::Resume { path, .. } => ("resume", path.clone()),
-                            PlotPlanItem::AddToMiner { path } => ("add_to_miner", path.clone()),
+                            PlotPlanItem::AddToMiner => ("add_to_miner", String::new()),
                         };
                         let _ = app_handle_clone.emit(
                             "plotter:item-complete",
@@ -534,8 +526,16 @@ pub async fn execute_plot_batch<R: Runtime>(
                                     }),
                                 );
                             }
-                            PlotPlanItem::AddToMiner { .. } => {
-                                // Skip - not part of batch execution
+                            PlotPlanItem::AddToMiner => {
+                                // Emit add_to_miner event so frontend can restart miner
+                                let _ = app_handle_clone.emit(
+                                    "plotter:item-complete",
+                                    serde_json::json!({
+                                        "type": "add_to_miner",
+                                        "success": true,
+                                        "durationMs": duration.as_millis() as u64,
+                                    }),
+                                );
                             }
                         }
                     }
@@ -548,7 +548,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                     let (item_type, path) = match item {
                         PlotPlanItem::Plot { path, .. } => ("plot", path.clone()),
                         PlotPlanItem::Resume { path, .. } => ("resume", path.clone()),
-                        PlotPlanItem::AddToMiner { path } => ("add_to_miner", path.clone()),
+                        PlotPlanItem::AddToMiner => ("add_to_miner", String::new()),
                     };
                     let _ = app_handle_clone.emit(
                         "plotter:item-complete",
@@ -569,7 +569,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                     let (item_type, path) = match item {
                         PlotPlanItem::Plot { path, .. } => ("plot", path.clone()),
                         PlotPlanItem::Resume { path, .. } => ("resume", path.clone()),
-                        PlotPlanItem::AddToMiner { path } => ("add_to_miner", path.clone()),
+                        PlotPlanItem::AddToMiner => ("add_to_miner", String::new()),
                     };
                     let _ = app_handle_clone.emit(
                         "plotter:item-complete",
@@ -649,19 +649,13 @@ pub async fn execute_plot_item<R: Runtime>(
             )
             .await
         }
-        PlotPlanItem::AddToMiner { path } => {
-            // AddToMiner task: marks drive as ready for mining
-            // This is a stub - actual miner integration will be added later
-            // For now, it just triggers cache refresh on frontend via the event
-            log::info!("Adding drive to miner (stub): {}", path);
+        PlotPlanItem::AddToMiner => {
+            // AddToMiner checkpoint: signals frontend to restart miner with ready drives
+            log::info!("AddToMiner checkpoint - frontend will restart miner");
 
-            // TODO: When miner is integrated, register drive with miner here
-            // e.g., miner.add_plot_directory(&path)?;
-
-            // Emit completion event - frontend will clear cache for this path
+            // Emit completion event - frontend will restart miner to pick up ready drives
             let _ = app_handle.emit("plotter:item-complete", serde_json::json!({
                 "type": "add_to_miner",
-                "path": path,
                 "success": true,
             }));
 
@@ -772,6 +766,7 @@ async fn execute_plot<R: Runtime>(
 }
 
 /// Internal plot execution
+#[allow(clippy::too_many_arguments)]
 async fn execute_plot_internal<R: Runtime>(
     app_handle: AppHandle<R>,
     item_type: &str, // "plot" or "resume"
@@ -997,7 +992,7 @@ fn build_plotter_task_batch(
     log::info!("  Zero-copy buffers: {}", config.zero_copy_buffers);
     log::info!("  Low priority: {}", config.low_priority);
     log::info!("  Simulation mode: {}", config.simulation_mode);
-    log::info!("  Resume seed: {:?}", resume_seed.map(|s| hex::encode(s)));
+    log::info!("  Resume seed: {:?}", resume_seed.map(hex::encode));
     log::info!("=====================================");
 
     // Build the task

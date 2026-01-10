@@ -236,14 +236,6 @@ pub struct DeadlineRejectedEvent {
     pub message: String,
 }
 
-/// Event payload for log messages forwarded from miner
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MinerLogEvent {
-    pub level: String,
-    pub message: String,
-}
-
 /// Tauri-based miner callback that emits events to the frontend
 /// and persists deadline data to the shared mining state
 pub struct TauriMinerCallback<R: Runtime> {
@@ -479,16 +471,6 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
 
     fn on_hdd_wakeup(&self) {
         let _ = self.app_handle.emit("miner:hdd-wakeup", ());
-    }
-
-    fn on_log(&self, level: &str, message: &str) {
-        let _ = self.app_handle.emit(
-            "miner:log",
-            MinerLogEvent {
-                level: level.to_string(),
-                message: message.to_string(),
-            },
-        );
     }
 
     fn on_stopped(&self) {
