@@ -49,11 +49,9 @@ pocx_address = "1.0.0-rc.5"
 # OpenCL for GPU detection (dynamic loading - no build-time SDK required)
 opencl3 = { version = "0.10", features = ["dynamic"] }
 
-# Cross-platform elevation check
-is_elevated = "0.1"
-
-# Windows API for restart with elevation
+# Windows-specific dependencies for elevation and restart
 [target.'cfg(windows)'.dependencies]
+is_elevated = "0.1"
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_UI_Shell",

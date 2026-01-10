@@ -180,9 +180,19 @@ fn is_dev() -> bool {
 }
 
 /// Check if the current process is running with elevated (admin) privileges
+/// Only relevant on Windows for NTFS preallocation; Linux doesn't need elevation
 #[tauri::command]
 fn is_elevated() -> bool {
-    ::is_elevated::is_elevated()
+    #[cfg(windows)]
+    {
+        ::is_elevated::is_elevated()
+    }
+    #[cfg(not(windows))]
+    {
+        // On Linux/macOS, elevation is not needed for plotting
+        // Return true to skip elevation prompts
+        true
+    }
 }
 
 /// Restart the application with elevated (admin) privileges
