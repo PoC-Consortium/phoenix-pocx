@@ -6,6 +6,7 @@ authors = ["The Proof of Capacity Consortium <development@pocx.io>"]
 license = "GPL-3.0"
 repository = "https://github.com/PoC-Consortium/phoenix-pocx"
 edition = "2021"
+default-run = "phoenix-pocx"
 
 [lib]
 name = "phoenix_pocx_lib"
@@ -14,17 +15,49 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3"
+
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-http = "2"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "6"
 log = "0.4"
-env_logger = "0.11"
+log4rs = "1"
+anyhow = "1"
+hex = "0.4"
+url = "2"
+
+# System information for drive/device detection
+sysinfo = "0.32"
+num_cpus = "1.16"
+
+# Async runtime for mining operations
+tokio = { version = "1", features = ["full"] }
+
+# PoCX mining libraries
+pocx_miner = "1.0.0-rc.5"
+pocx_plotter = { version = "1.0.0-rc.5", features = ["opencl"] }
+pocx_address = "1.0.0-rc.5"
+
+# OpenCL for GPU detection (dynamic loading - no build-time SDK required)
+opencl3 = { version = "0.10", features = ["dynamic"] }
+
+# Windows-specific dependencies for elevation and restart
+[target.'cfg(windows)'.dependencies]
+is_elevated = "0.1"
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Storage_FileSystem",
+] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
@@ -33,5 +66,16 @@ tauri-plugin-updater = "2"
 panic = "abort"
 codegen-units = 1
 lto = true
-opt-level = "s"
+opt-level = 3
 strip = true
+
+# Optimize dependencies even in dev builds for acceptable performance
+# This is critical for CPU-intensive crypto/hashing code (Shabal256 SIMD)
+[profile.dev.package.pocx_hashlib]
+opt-level = 3
+
+[profile.dev.package.pocx_plotter]
+opt-level = 3
+
+[profile.dev.package.pocx_miner]
+opt-level = 3

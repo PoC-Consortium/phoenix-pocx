@@ -339,6 +339,8 @@ interface NavGroup {
         flex: 1;
         overflow: auto;
         background: #eaf0f6;
+        display: flex;
+        flex-direction: column;
       }
 
       :host-context(.dark-theme) {
@@ -380,7 +382,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     {
       id: 'mining',
       titleKey: 'mining',
-      items: [{ path: '/forging-assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' }],
+      items: [
+        { path: '/mining', icon: 'hardware', labelKey: 'mining_dashboard' },
+        { path: '/forging-assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' },
+      ],
     },
     {
       id: 'network',

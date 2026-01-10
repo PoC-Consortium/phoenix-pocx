@@ -112,6 +112,35 @@ export class CookieAuthService {
   }
 
   /**
+   * Read cookie file with specific config (without caching).
+   * Used for testing connection with unsaved settings.
+   */
+  async readCookieWithConfig(
+    dataDirectory: string,
+    network: string
+  ): Promise<RpcCredentials | null> {
+    if (!this.electron.isDesktop) {
+      return this.getManualCredentials();
+    }
+
+    if (!dataDirectory) {
+      return null;
+    }
+
+    try {
+      const result = await this.electron.readCookieFile({ dataDirectory, network });
+
+      if (!result || !result.success || !result.content) {
+        return null;
+      }
+
+      return this.parseCookie(result.content);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Set manual credentials (for browser mode or custom auth)
    */
   setManualCredentials(username: string, password: string): void {

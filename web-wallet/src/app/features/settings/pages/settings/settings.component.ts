@@ -23,6 +23,7 @@ import { RpcClientService } from '../../../../bitcoin/services/rpc/rpc-client.se
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { PlatformService } from '../../../../core/services/platform.service';
 import { ElectronService } from '../../../../core/services/electron.service';
+import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { SettingsActions } from '../../../../store/settings/settings.actions';
 import {
   selectNodeConfig,
@@ -37,6 +38,9 @@ import {
   getDefaultDataDirectory,
 } from '../../../../store/settings/settings.state';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { MiningService } from '../../../../mining/services';
+import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
+import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 
 interface ConnectionTestResult {
   success: boolean;
@@ -356,10 +360,119 @@ interface ConnectionTestResult {
                   <mat-icon>warning</mat-icon>
                   <p>{{ 'danger_zone_warning' | i18n }}</p>
                 </div>
-                <button mat-raised-button color="warn" (click)="confirmResetWallet()">
-                  <mat-icon>delete_forever</mat-icon>
-                  {{ 'reset_wallet' | i18n }}
-                </button>
+
+                <div class="danger-actions">
+                  <div class="danger-action-item">
+                    <div class="danger-action-info">
+                      <strong>{{ 'reset_mining_config' | i18n }}</strong>
+                      <p>{{ 'reset_mining_config_description' | i18n }}</p>
+                    </div>
+                    <button mat-stroked-button color="warn" (click)="confirmResetMiningConfig()">
+                      <mat-icon>restart_alt</mat-icon>
+                      {{ 'reset' | i18n }}
+                    </button>
+                  </div>
+                  <mat-divider></mat-divider>
+                  <div class="danger-action-item">
+                    <div class="danger-action-info">
+                      <strong>{{ 'reset_wallet' | i18n }}</strong>
+                      <p>{{ 'reset_wallet_description' | i18n }}</p>
+                    </div>
+                    <button mat-raised-button color="warn" (click)="confirmResetWallet()">
+                      <mat-icon>delete_forever</mat-icon>
+                      {{ 'reset' | i18n }}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Import WIF Key Section -->
+                <div class="wif-import-section">
+                  <h3 class="section-title">{{ 'import_wif_wpkh' | i18n }}</h3>
+                  <p class="section-description">
+                    {{ 'import_wif_description' | i18n }}
+                    @if (activeWalletName) {
+                      <strong>"{{ activeWalletName }}"</strong>
+                    }
+                  </p>
+
+                  <div class="wif-form">
+                    <div class="wif-input-row">
+                      <mat-form-field appearance="outline" class="wif-field">
+                        <mat-label>{{ 'wif_private_key' | i18n }}</mat-label>
+                        <input
+                          matInput
+                          [type]="wifShowKey() ? 'text' : 'password'"
+                          [value]="wifInput()"
+                          (input)="onWifInputChange($event)"
+                          placeholder="5... / K... / L... / c..."
+                          autocomplete="off"
+                        />
+                        <button
+                          mat-icon-button
+                          matSuffix
+                          (click)="wifShowKey.set(!wifShowKey())"
+                          [matTooltip]="wifShowKey() ? 'Hide key' : 'Show key'"
+                        >
+                          <mat-icon>{{ wifShowKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
+                        </button>
+                      </mat-form-field>
+                    </div>
+
+                    <mat-form-field appearance="outline" class="label-field">
+                      <mat-label>{{ 'address_label_optional' | i18n }}</mat-label>
+                      <input
+                        matInput
+                        [value]="wifLabel()"
+                        (input)="wifLabel.set($any($event.target).value)"
+                        placeholder="e.g., Cold storage"
+                      />
+                    </mat-form-field>
+
+                    @if (wifError()) {
+                      <div class="wif-error">
+                        <mat-icon>error</mat-icon>
+                        <span>{{ wifError() }}</span>
+                      </div>
+                    }
+
+                    @if (wifPreview()) {
+                      <div class="wif-preview">
+                        <div class="preview-row">
+                          <span class="preview-label">{{ 'address' | i18n }}:</span>
+                          <code class="preview-value">{{ wifPreview()!.address }}</code>
+                        </div>
+                      </div>
+                    }
+
+                    <div class="wif-actions">
+                      <button
+                        mat-stroked-button
+                        (click)="validateWif()"
+                        [disabled]="!wifInput() || isValidatingWif() || isImportingWif()"
+                      >
+                        @if (isValidatingWif()) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        } @else {
+                          <mat-icon>preview</mat-icon>
+                        }
+                        {{ 'preview_address' | i18n }}
+                      </button>
+                      <button
+                        mat-raised-button
+                        color="warn"
+                        (click)="importWif()"
+                        [disabled]="!wifPreview() || isImportingWif()"
+                      >
+                        @if (isImportingWif()) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        } @else {
+                          <mat-icon>key</mat-icon>
+                        }
+                        {{ 'import_to_wallet' | i18n }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </mat-tab>
@@ -533,10 +646,9 @@ interface ConnectionTestResult {
 
       /* Danger Zone Styles */
       .danger-zone-container {
-        max-width: 500px;
+        max-width: 600px;
         margin: 0 auto;
-        text-align: center;
-        padding: 48px 24px;
+        padding: 24px;
       }
 
       .danger-warning {
@@ -546,6 +658,7 @@ interface ConnectionTestResult {
         gap: 16px;
         margin-bottom: 32px;
         color: rgba(0, 0, 0, 0.6);
+        text-align: center;
 
         mat-icon {
           font-size: 48px;
@@ -557,6 +670,161 @@ interface ConnectionTestResult {
         p {
           margin: 0;
           max-width: 400px;
+        }
+      }
+
+      .danger-actions {
+        background: #ffffff;
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .danger-action-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        gap: 16px;
+      }
+
+      .danger-action-info {
+        flex: 1;
+
+        strong {
+          display: block;
+          margin-bottom: 4px;
+          color: rgba(0, 0, 0, 0.87);
+        }
+
+        p {
+          margin: 0;
+          font-size: 13px;
+          color: rgba(0, 0, 0, 0.6);
+        }
+      }
+
+      /* WIF Import Styles */
+      .wif-import-section {
+        background: #ffffff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 24px;
+
+        .section-title {
+          margin: 0 0 8px 0;
+          font-size: 14px;
+          font-weight: 500;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        .section-description {
+          margin: 0 0 16px 0;
+          font-size: 13px;
+          color: rgba(0, 0, 0, 0.6);
+
+          strong {
+            color: rgba(0, 0, 0, 0.87);
+          }
+        }
+      }
+
+      .wif-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .wif-input-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .wif-field {
+        flex: 1;
+
+        /* Hide browser's native password reveal button */
+        input::-ms-reveal,
+        input::-ms-clear {
+          display: none;
+        }
+      }
+
+      .label-field {
+        width: 100%;
+      }
+
+      .wif-error {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        background: rgba(244, 67, 54, 0.1);
+        border-radius: 4px;
+        color: #c62828;
+        font-size: 13px;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+      }
+
+      .wif-preview {
+        padding: 12px;
+        background: rgba(76, 175, 80, 0.1);
+        border: 1px solid rgba(76, 175, 80, 0.3);
+        border-radius: 4px;
+
+        .preview-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          margin-bottom: 8px;
+
+          &:last-child {
+            margin-bottom: 0;
+          }
+        }
+
+        .preview-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: rgba(0, 0, 0, 0.6);
+          min-width: 70px;
+        }
+
+        .preview-value {
+          font-size: 12px;
+          font-family: monospace;
+          background: rgba(0, 0, 0, 0.05);
+          padding: 2px 6px;
+          border-radius: 3px;
+          word-break: break-all;
+
+          &.descriptor {
+            font-size: 11px;
+          }
+        }
+      }
+
+      .wif-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        margin-top: 8px;
+
+        button {
+          min-width: 120px;
+
+          mat-spinner {
+            display: inline-block;
+            margin-right: 8px;
+          }
         }
       }
 
@@ -600,7 +868,25 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly platform = inject(PlatformService);
   private readonly electron = inject(ElectronService);
+  private readonly cookieAuth = inject(CookieAuthService);
+  private readonly miningService = inject(MiningService);
+  private readonly walletRpc = inject(WalletRpcService);
+  private readonly walletManager = inject(WalletManagerService);
   private readonly destroy$ = new Subject<void>();
+
+  // Expose only the active wallet name for template
+  get activeWalletName(): string | null {
+    return this.walletManager.activeWallet;
+  }
+
+  // WIF Import state
+  wifInput = signal('');
+  wifLabel = signal('');
+  wifShowKey = signal(false);
+  wifPreview = signal<{ address: string; descriptor: string } | null>(null);
+  wifError = signal<string | null>(null);
+  isValidatingWif = signal(false);
+  isImportingWif = signal(false);
 
   // Node configuration (local copy for editing)
   nodeConfig: NodeConfig = {
@@ -661,6 +947,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    // Clear sensitive WIF data
+    this.clearWifForm();
+  }
+
+  private clearWifForm(): void {
+    this.wifInput.set('');
+    this.wifLabel.set('');
+    this.wifPreview.set(null);
+    this.wifError.set(null);
   }
 
   goBack(): void {
@@ -714,16 +1009,31 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.testResult.set(null);
 
     try {
-      // Get blockchain info to test connection
-      const info = await this.blockchainRpc.getBlockchainInfo();
-      const networkInfo = await this.blockchainRpc.getNetworkInfo();
+      // Get credentials based on auth method from form values
+      let credentials: { username: string; password: string } | null = null;
 
-      this.testResult.set({
-        success: true,
-        version: networkInfo.subversion || `v${networkInfo.version}`,
-        chain: info.chain,
-        blocks: info.blocks,
+      if (this.nodeConfig.authMethod === 'cookie') {
+        // Read cookie with form's dataDirectory and network (not from store)
+        credentials = await this.cookieAuth.readCookieWithConfig(
+          this.nodeConfig.dataDirectory,
+          this.nodeConfig.network
+        );
+      } else {
+        // Use credentials from form
+        credentials = {
+          username: this.nodeConfig.username,
+          password: this.nodeConfig.password,
+        };
+      }
+
+      // Test connection with form values
+      const result = await this.rpcClient.testWithConfig({
+        host: this.nodeConfig.rpcHost,
+        port: this.nodeConfig.rpcPort,
+        credentials,
       });
+
+      this.testResult.set(result);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Connection failed';
       this.testResult.set({
@@ -739,8 +1049,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.isSaving.set(true);
 
     try {
-      // Dispatch action to save config
+      // Dispatch action to save config to store
       this.store.dispatch(SettingsActions.setNodeConfig({ config: { ...this.nodeConfig } }));
+
+      // Refresh global cookie cache with new settings
+      if (this.nodeConfig.authMethod === 'cookie') {
+        await this.cookieAuth.refreshCredentials();
+      }
 
       // Test connection after save
       await this.testConnection();
@@ -768,6 +1083,32 @@ export class SettingsComponent implements OnInit, OnDestroy {
   // Danger Zone
   // ============================================================
 
+  confirmResetMiningConfig(): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: {
+        title: this.i18n.get('reset_mining_config'),
+        message: this.i18n.get('reset_mining_config_confirm'),
+        confirmText: this.i18n.get('reset'),
+        cancelText: this.i18n.get('cancel'),
+        type: 'danger',
+      },
+    });
+
+    dialogRef.afterClosed().subscribe(async confirmed => {
+      if (confirmed) {
+        try {
+          await this.miningService.resetConfig();
+          this.notification.success(this.i18n.get('mining_config_reset'));
+          this.router.navigate(['/mining/setup']);
+        } catch (error) {
+          console.error('Failed to reset mining config:', error);
+          this.notification.error(this.i18n.get('reset_mining_config_failed'));
+        }
+      }
+    });
+  }
+
   confirmResetWallet(): void {
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '400px',
@@ -790,5 +1131,117 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private resetWallet(): void {
     // Dispatch reset action
     this.store.dispatch(SettingsActions.resetAllData());
+  }
+
+  // ============================================================
+  // WIF Import
+  // ============================================================
+
+  onWifInputChange(event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    this.wifInput.set(value);
+    // Clear previous preview/error when input changes
+    this.wifPreview.set(null);
+    this.wifError.set(null);
+  }
+
+  async validateWif(): Promise<void> {
+    const wif = this.wifInput().trim();
+    if (!wif) return;
+
+    // Check wallet is selected
+    if (!this.walletManager.activeWallet) {
+      this.wifError.set(this.i18n.get('no_wallet_selected'));
+      return;
+    }
+
+    this.isValidatingWif.set(true);
+    this.wifError.set(null);
+    this.wifPreview.set(null);
+
+    try {
+      // Create descriptor without checksum
+      const descriptorWithoutChecksum = `wpkh(${wif})`;
+
+      // Use Bitcoin Core's getdescriptorinfo to validate and get checksum
+      const info = await this.walletRpc.getDescriptorInfo(descriptorWithoutChecksum);
+
+      if (!info.issolvable) {
+        throw new Error('Invalid WIF key - descriptor is not solvable');
+      }
+
+      if (!info.hasprivatekeys) {
+        throw new Error('Invalid WIF key - no private key detected');
+      }
+
+      // Keep original descriptor with WIF, just append the checksum
+      // (info.descriptor converts WIF to pubkey, which we don't want for import)
+      const descriptorWithChecksum = `${descriptorWithoutChecksum}#${info.checksum}`;
+
+      // Derive the address using the public key version (for display only)
+      const addresses = await this.walletRpc.deriveAddresses(info.descriptor);
+
+      if (!addresses || addresses.length === 0) {
+        throw new Error('Could not derive address from WIF');
+      }
+
+      this.wifPreview.set({
+        address: addresses[0],
+        descriptor: descriptorWithChecksum,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid WIF key';
+      this.wifError.set(message);
+    } finally {
+      this.isValidatingWif.set(false);
+    }
+  }
+
+  async importWif(): Promise<void> {
+    const preview = this.wifPreview();
+    const walletName = this.walletManager.activeWallet;
+
+    if (!preview || !walletName) return;
+
+    this.isImportingWif.set(true);
+
+    try {
+      const label = this.wifLabel().trim() || undefined;
+
+      // Use short timeout (5s) - if it times out, import likely succeeded but wallet is rescanning
+      const result = await this.walletRpc.importDescriptors(
+        walletName,
+        [
+          {
+            desc: preview.descriptor,
+            timestamp: 'now',
+            label,
+          },
+        ],
+        5000
+      );
+
+      if (result && result.length > 0 && result[0].success) {
+        this.notification.success(
+          this.i18n.get('wif_import_success').replace('{address}', preview.address)
+        );
+        this.clearWifForm();
+      } else {
+        const errorMsg = result?.[0]?.error?.message || 'Unknown error';
+        throw new Error(errorMsg);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Import failed';
+      // Check if it's a timeout - import may have succeeded but wallet is rescanning
+      if (message.toLowerCase().includes('timeout')) {
+        this.notification.info(this.i18n.get('wif_import_timeout'));
+        this.clearWifForm();
+      } else {
+        this.wifError.set(message);
+        this.notification.error(this.i18n.get('wif_import_failed') + ': ' + message);
+      }
+    } finally {
+      this.isImportingWif.set(false);
+    }
   }
 }

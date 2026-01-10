@@ -134,7 +134,7 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
 
             <mat-paginator
               [length]="blocks().length"
-              [pageSize]="pageSize"
+              [pageSize]="pageSize()"
               [pageIndex]="pageIndex()"
               [pageSizeOptions]="pageSizeOptions"
               (page)="onPageChange($event)"
@@ -493,7 +493,7 @@ export class BlockListComponent implements OnInit, OnDestroy {
   loading = signal(false);
   blocks = signal<PocxBlock[]>([]);
   pageIndex = signal(0);
-  pageSize = 10;
+  pageSize = signal(10);
   pageSizeOptions = [10, 25, 50];
 
   countOptions = BLOCK_COUNT_OPTIONS;
@@ -501,8 +501,8 @@ export class BlockListComponent implements OnInit, OnDestroy {
 
   paginatedBlocks = computed(() => {
     const allBlocks = this.blocks();
-    const start = this.pageIndex() * this.pageSize;
-    return allBlocks.slice(start, start + this.pageSize);
+    const start = this.pageIndex() * this.pageSize();
+    return allBlocks.slice(start, start + this.pageSize());
   });
 
   ngOnInit(): void {
@@ -540,7 +540,7 @@ export class BlockListComponent implements OnInit, OnDestroy {
 
   onPageChange(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
-    this.pageSize = event.pageSize;
+    this.pageSize.set(event.pageSize);
   }
 
   viewBlock(block: PocxBlock): void {
