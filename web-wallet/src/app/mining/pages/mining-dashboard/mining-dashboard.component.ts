@@ -76,11 +76,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
             <div class="card-header">
               <span class="card-title"><mat-icon>timer</mat-icon>Best Deadline</span>
             </div>
-            <div class="deadline-value">{{ getBestDeadline() }}</div>
-            <div class="card-sub">{{ getBestDeadlineInfo() }}</div>
-            @if (getCurrentRoundDeadlines().length > 0) {
+            <div class="deadline-value">{{ bestDeadlineDisplay() }}</div>
+            <div class="card-sub">{{ bestDeadlineInfoDisplay() }}</div>
+            @if (currentRoundDeadlines().length > 0) {
               <div class="account-list">
-                @for (deadline of getCurrentRoundDeadlines(); track deadline.id) {
+                @for (deadline of currentRoundDeadlines(); track deadline.id) {
                   <div class="account-item">
                     <span class="account-id" [title]="deadline.account">{{
                       deadline.account
@@ -360,7 +360,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                         <td class="account-col" [title]="deadline.account">
                           {{ deadline.account }}
                         </td>
-                        <td class="deadline-col" [class.best]="isBestDeadline(deadline)">
+                        <td class="deadline-col">
                           {{ formatDeadline(deadline.deadline) }}
                         </td>
                       </tr>
@@ -1392,10 +1392,6 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         font-weight: 500;
       }
 
-      .deadline-table .deadline-col.best {
-        color: #2e7d32;
-      }
-
       /* Activity Section */
       .activity-section {
         flex: 3; /* Take 3x space compared to detail-row's 5x (~37.5%) */
@@ -1560,7 +1556,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly miningService = inject(MiningService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
-  private refreshInterval: ReturnType<typeof setInterval> | null = null;
 
   readonly miningStatus = signal<MiningStatus | null>(null);
   readonly plottingStatus = signal<PlottingStatus | null>(null);
@@ -1670,11 +1665,44 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return [oldest, middle, 'Now'];
   });
 
+  // Latest best deadline = first entry in recentDeadlines (most recent)
+  // Same data source as history table - O(1) read
+  readonly latestBestDeadline = computed(() => {
+    const deadlines = this.recentDeadlines();
+    return deadlines.length > 0 ? deadlines[0] : null;
+  });
+
+  // Current round deadlines for account list (one per chain)
+  // Only check first ~10 entries since current round is always at front
+  readonly currentRoundDeadlines = computed(() => {
+    const deadlines = this.recentDeadlines();
+    const blocks = this.currentBlock();
+    return deadlines.slice(0, 10).filter(d => {
+      const block = blocks[d.chainName];
+      return block && d.height === block.height;
+    });
+  });
+
+  // Formatted best deadline value for display
+  readonly bestDeadlineDisplay = computed(() => {
+    const best = this.latestBestDeadline();
+    if (!best) return '--';
+    return this.formatDeadline(best.deadline);
+  });
+
+  // Best deadline info line
+  readonly bestDeadlineInfoDisplay = computed(() => {
+    const best = this.latestBestDeadline();
+    if (!best) return 'No deadlines this round';
+    return `${best.chainName} • Block ${best.height.toLocaleString()}`;
+  });
+
   chainFilter = 'all';
 
   async ngOnInit(): Promise<void> {
+    // Load initial state once (config, drives, etc.)
     await this.loadState();
-    // Load drive stats once on init (not during polling - interferes with mining)
+    // Load drive stats once on init
     await this.loadDriveStats();
 
     // Initialize plotting (first start flow - generates plan if needed)
@@ -1687,23 +1715,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     if (this.miningService.plotterRunning()) {
       await this.miningService.setupPlotterEventListeners();
     }
-
-    this.startPolling();
+    // No polling needed - all updates come through Tauri event listeners
+    // which update service signals (minerDeadlines, minerCurrentBlock, etc.)
   }
 
   ngOnDestroy(): void {
-    this.stopPolling();
-  }
-
-  private startPolling(): void {
-    this.refreshInterval = setInterval(() => this.loadState(), 2000);
-  }
-
-  private stopPolling(): void {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = null;
-    }
+    // No polling to clean up - event listeners are managed by MiningService
   }
 
   private async loadState(): Promise<void> {
@@ -1798,8 +1815,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   isRunning(): boolean {
-    const status = this.miningStatus();
-    return status?.type === 'scanning' || status?.type === 'idle' || status?.type === 'starting';
+    // Use event-driven state for instant UI updates (no polling needed)
+    return this.miningService.minerRunning();
   }
 
   getStatusIndicatorClass(): string {
@@ -1858,33 +1875,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       return Math.round(status.progress);
     }
     return 0;
-  }
-
-  /**
-   * Get deadlines for the current round only (matching current block height per chain)
-   */
-  getCurrentRoundDeadlines(): DeadlineEntry[] {
-    const currentBlocks = this.currentBlock();
-    const deadlines = this.recentDeadlines();
-
-    return deadlines.filter(d => {
-      const block = currentBlocks[d.chainName];
-      return block && d.height === block.height;
-    });
-  }
-
-  getBestDeadline(): string {
-    const deadlines = this.getCurrentRoundDeadlines();
-    if (deadlines.length === 0) return '--';
-    const best = deadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
-    return this.formatDeadline(best.deadline);
-  }
-
-  getBestDeadlineInfo(): string {
-    const deadlines = this.getCurrentRoundDeadlines();
-    if (deadlines.length === 0) return 'No deadlines this round';
-    const best = deadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
-    return `${best.chainName} • Block ${best.height.toLocaleString()}`;
   }
 
   formatDeadline(seconds: number): string {
@@ -2194,15 +2184,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return all.filter(d => d.chainName === this.chainFilter);
   }
 
-  isBestDeadline(deadline: DeadlineEntry): boolean {
-    const chainDeadlines = this.recentDeadlines().filter(
-      d => d.chainName === deadline.chainName && d.height === deadline.height
-    );
-    if (chainDeadlines.length === 0) return false;
-    const best = chainDeadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
-    return best.id === deadline.id;
-  }
-
   formatTime(timestamp: number): string {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
@@ -2254,6 +2235,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     } else {
       await this.miningService.startMiner();
     }
+    // Service logs timing internally; just sync local UI state
     await this.loadState();
   }
 

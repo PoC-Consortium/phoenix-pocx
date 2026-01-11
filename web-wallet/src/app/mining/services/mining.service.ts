@@ -83,7 +83,8 @@ export class MiningService {
 
   // Activity logs (persisted in service, survives navigation)
   private readonly _activityLogs = signal<ActivityLogEntry[]>([]);
-  private static readonly MAX_LOG_AGE_MS = 24 * 60 * 60 * 1000; // 1 day
+  private static readonly INFO_LOG_AGE_MS = 60 * 60 * 1000; // 1 hour for info
+  private static readonly WARN_ERROR_LOG_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours for warn/error
 
   // Legacy callback for activity logging (deprecated, use addActivityLog directly)
   private _onActivityLog: ((type: string, message: string) => void) | null = null;
@@ -1207,7 +1208,7 @@ export class MiningService {
 
   /**
    * Add an activity log entry (stored in service, survives navigation)
-   * Automatically cleans up entries older than 1 day
+   * Basic 24h cleanup on add; smart tiered cleanup runs on scan-finished
    */
   addActivityLog(type: string, message: string): void {
     const now = Date.now();
@@ -1219,13 +1220,50 @@ export class MiningService {
     };
 
     this._activityLogs.update(logs => {
-      // Add new entry and filter out entries older than 1 day
-      const cutoff = now - MiningService.MAX_LOG_AGE_MS;
+      // Basic cleanup: remove anything older than 24h (absolute max)
+      const cutoff = now - MiningService.WARN_ERROR_LOG_AGE_MS;
       return [newEntry, ...logs.filter(log => log.timestamp > cutoff)];
     });
 
     // Also call legacy callback if set (for backward compatibility)
     this._onActivityLog?.(type, message);
+  }
+
+  /**
+   * Smart cleanup of activity logs with tiered retention:
+   * - info: 1 hour
+   * - warn/error: 24 hours
+   *
+   * Iterates from back (oldest), stops at first fresh info log.
+   * Called after scan-finished when compute is idle.
+   */
+  private cleanupActivityLogs(): void {
+    const now = Date.now();
+
+    this._activityLogs.update(logs => {
+      const cleaned = [...logs];
+
+      // Iterate from back (oldest), clean as we go
+      for (let i = cleaned.length - 1; i >= 0; i--) {
+        const log = cleaned[i];
+        const age = now - log.timestamp;
+
+        if (log.type === 'info') {
+          if (age < MiningService.INFO_LOG_AGE_MS) {
+            break; // First fresh info - everything before is fresh, STOP
+          }
+          cleaned.splice(i, 1); // Old info - remove
+        } else {
+          // warn/error
+          if (age >= MiningService.WARN_ERROR_LOG_AGE_MS) {
+            cleaned.splice(i, 1); // Old warn/error - remove
+          }
+          // else: keep, continue looking for fresh info
+        }
+      }
+
+      return cleaned;
+    });
   }
 
   /**
@@ -1645,10 +1683,12 @@ export class MiningService {
   // ============================================================================
 
   /**
-   * Start the miner with current configuration
+   * Start the miner with current configuration.
+   * State updates come via event listeners (miner:started, etc.) - no polling needed.
    */
   async startMiner(): Promise<void> {
     try {
+      // Setup listeners once (idempotent) - they stay active permanently
       await this.setupMinerEventListeners();
 
       const result = await invoke<CommandResult<void>>('start_mining');
@@ -1656,8 +1696,8 @@ export class MiningService {
         throw new Error(result.error || 'Failed to start miner');
       }
 
+      // Set running immediately; event handler will update with chain info
       this._minerState.update(s => ({ ...s, running: true }));
-      await this.refreshState();
     } catch (err) {
       this._error.set(`Failed to start miner: ${err}`);
       throw err;
@@ -1665,7 +1705,9 @@ export class MiningService {
   }
 
   /**
-   * Stop the miner
+   * Stop the miner.
+   * Event listeners stay active permanently to avoid Tauri IPC overhead accumulation.
+   * State updates come via miner:stopped event - no polling needed.
    */
   async stopMiner(): Promise<void> {
     try {
@@ -1674,9 +1716,8 @@ export class MiningService {
         throw new Error(result.error || 'Failed to stop miner');
       }
 
+      // Set stopped immediately; event handler will also update
       this._minerState.update(s => ({ ...s, running: false }));
-      this.cleanupMinerEventListeners();
-      await this.refreshState();
     } catch (err) {
       this._error.set(`Failed to stop miner: ${err}`);
       throw err;
@@ -1684,25 +1725,25 @@ export class MiningService {
   }
 
   /**
-   * Set up miner event listeners for real-time updates
+   * Set up miner event listeners for real-time updates.
+   * Listeners are registered ONCE and stay active permanently to avoid
+   * Tauri IPC overhead accumulation from repeated listen()/unlisten() cycles.
    */
   async setupMinerEventListeners(): Promise<void> {
     if (this._isMinerListening) {
-      return; // Already listening
+      return; // Already listening - listeners stay active permanently
     }
 
     this._isMinerListening = true;
-    console.log('MiningService: Setting up miner event listeners');
+    console.log('MiningService: Setting up permanent miner event listeners');
 
     // miner:started
     const startedUnlisten = await listen<MinerStartedEvent>('miner:started', event => {
-      console.log('MiningService: Miner started:', event.payload);
       this._minerState.update(s => ({
         ...s,
         running: true,
         chains: event.payload.chains,
       }));
-      // Log comes through miner:log hook
     });
     this._minerUnlisteners.push(startedUnlisten);
 
@@ -1710,13 +1751,11 @@ export class MiningService {
     const capacityUnlisten = await listen<MinerCapacityLoadedEvent>(
       'miner:capacity-loaded',
       event => {
-        console.log('MiningService: Capacity loaded:', event.payload);
         this._minerState.update(s => ({
           ...s,
           totalWarps: event.payload.totalWarps,
           capacityTib: event.payload.capacityTib,
         }));
-        // Log comes through miner:log hook
       }
     );
     this._minerUnlisteners.push(capacityUnlisten);
@@ -1738,7 +1777,6 @@ export class MiningService {
           },
         },
       }));
-      // Log comes through miner:log hook
     });
     this._minerUnlisteners.push(blockUnlisten);
 
@@ -1772,7 +1810,6 @@ export class MiningService {
           resuming: info.resuming,
         },
       }));
-      // Log comes through miner:log hook
     });
     this._minerUnlisteners.push(scanStartedUnlisten);
 
@@ -1803,82 +1840,49 @@ export class MiningService {
         // Snapshot deadlines for capacity chart (only update on round finish)
         this._capacityDeadlines.set([...this._minerState().recentDeadlines]);
         this._capacityChartVersion.update(v => v + 1);
+
+        // Smart cleanup of activity logs (idle moment after scan)
+        this.cleanupActivityLogs();
       }
     });
     this._minerUnlisteners.push(scanStatusUnlisten);
 
     // miner:deadline-accepted
+    // Backend only emits events for best deadlines, account is pre-converted to bech32
     const deadlineAcceptedUnlisten = await listen<MinerDeadlineAcceptedEvent>(
       'miner:deadline-accepted',
-      async event => {
+      event => {
         const d = event.payload;
-        // Log comes through miner:log hook
+        const pocTime = d.pocTime < 86400 ? d.pocTime : Number.MAX_SAFE_INTEGER;
 
-        // Convert account to bech32 with correct HRP
-        const bech32Account = await this.hexToBech32(d.account);
-
-        // Update deadline history and best deadline
-        // Use poc_time as the deadline value (lower = better)
-        // Only keep best deadline per chain+height
         this._minerState.update(s => {
           const MAX_PER_CHAIN = 720;
-          const pocTime = d.pocTime < 86400 ? d.pocTime : Number.MAX_SAFE_INTEGER;
 
-          // Get baseTarget from current block for this chain
-          const baseTarget = s.currentBlock[d.chain]?.baseTarget ?? 0;
+          const entry: DeadlineEntry = {
+            id: Date.now(),
+            chainName: d.chain,
+            account: d.account,
+            height: d.height,
+            nonce: d.nonce,
+            deadline: pocTime,
+            qualityRaw: d.qualityRaw,
+            baseTarget: d.baseTarget,
+            submitted: true,
+            timestamp: Date.now(),
+          };
 
-          // Check if we already have an entry for this chain+height
-          const existingIdx = s.recentDeadlines.findIndex(
-            dl => dl.chainName === d.chain && dl.height === d.height
+          const filtered = s.recentDeadlines.filter(
+            dl => !(dl.chainName === d.chain && dl.height === d.height)
           );
+          const allDeadlines = [entry, ...filtered];
 
-          let updatedDeadlines: DeadlineEntry[];
+          const chainCounts = new Map<string, number>();
+          const updatedDeadlines = allDeadlines.filter(dl => {
+            const count = (chainCounts.get(dl.chainName) ?? 0) + 1;
+            chainCounts.set(dl.chainName, count);
+            return count <= MAX_PER_CHAIN;
+          });
 
-          if (existingIdx >= 0) {
-            // Entry exists - only update if this deadline is better (lower poc_time)
-            const existing = s.recentDeadlines[existingIdx];
-            if (pocTime < existing.deadline) {
-              // Better deadline - replace
-              updatedDeadlines = [...s.recentDeadlines];
-              updatedDeadlines[existingIdx] = {
-                ...existing,
-                account: bech32Account,
-                nonce: d.nonce,
-                deadline: pocTime,
-                qualityRaw: d.qualityRaw,
-                baseTarget,
-                timestamp: Date.now(),
-              };
-            } else {
-              // Not better - keep existing
-              updatedDeadlines = s.recentDeadlines;
-            }
-          } else {
-            // New entry for this chain+height
-            const entry: DeadlineEntry = {
-              id: Date.now(),
-              chainName: d.chain,
-              account: bech32Account,
-              height: d.height,
-              nonce: d.nonce,
-              deadline: pocTime, // Use poc_time as deadline value
-              qualityRaw: d.qualityRaw, // Raw quality for effective capacity
-              baseTarget, // Block's base target for capacity calculations
-              submitted: true,
-              timestamp: Date.now(),
-            };
-
-            // Add and enforce per-chain limit
-            const allDeadlines = [entry, ...s.recentDeadlines];
-            const chainCounts = new Map<string, number>();
-            updatedDeadlines = allDeadlines.filter(dl => {
-              const count = (chainCounts.get(dl.chainName) ?? 0) + 1;
-              chainCounts.set(dl.chainName, count);
-              return count <= MAX_PER_CHAIN;
-            });
-          }
-
-          // Update best deadline for this chain (for the card)
           const currentBlock = s.currentBlock[d.chain];
           if (currentBlock && (!currentBlock.bestDeadline || pocTime < currentBlock.bestDeadline)) {
             return {
@@ -1906,59 +1910,52 @@ export class MiningService {
     // miner:deadline-retry
     const deadlineRetryUnlisten = await listen<MinerDeadlineRetryEvent>(
       'miner:deadline-retry',
-      () => {
-        // Log comes through miner:log hook
-      }
+      () => {}
     );
     this._minerUnlisteners.push(deadlineRetryUnlisten);
 
     // miner:deadline-rejected
     const deadlineRejectedUnlisten = await listen<MinerDeadlineRejectedEvent>(
       'miner:deadline-rejected',
-      () => {
-        // Log comes through miner:log hook
-      }
+      () => {}
     );
     this._minerUnlisteners.push(deadlineRejectedUnlisten);
 
     // miner:hdd-wakeup
-    const hddWakeupUnlisten = await listen('miner:hdd-wakeup', () => {
-      // Log comes through miner:log hook
-    });
+    const hddWakeupUnlisten = await listen('miner:hdd-wakeup', () => {});
     this._minerUnlisteners.push(hddWakeupUnlisten);
 
     // miner:log - forwarded log messages from pocx_miner via log4rs
     const logUnlisten = await listen<MinerLogEvent>('miner:log', event => {
       const { level, message } = event.payload;
-      // Map log levels to activity log types
       const type = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info';
       this.addActivityLog(type, message);
-      // Also log errors to console and update error state
       if (level === 'error') {
-        console.error('MiningService: Miner error:', message);
         this._error.set(message);
       }
     });
     this._minerUnlisteners.push(logUnlisten);
 
-    // miner:stopped
+    // miner:stopped - just update state, don't cleanup listeners
     const stoppedUnlisten = await listen('miner:stopped', () => {
-      console.log('MiningService: Miner stopped');
       this._minerState.update(s => ({
         ...s,
         running: false,
         queue: [],
       }));
-      // Log comes through miner:log hook
-      this.cleanupMinerEventListeners();
+      // Don't cleanup listeners - they stay active permanently
     });
     this._minerUnlisteners.push(stoppedUnlisten);
   }
 
   /**
-   * Clean up miner event listeners
+   * Clean up miner event listeners.
+   * Note: This is intentionally NOT called during normal start/stop cycles
+   * to avoid Tauri IPC overhead accumulation. Listeners stay active permanently.
+   * This method exists for edge cases (e.g., full reset, navigation away from mining).
    */
   cleanupMinerEventListeners(): void {
+    if (!this._isMinerListening) return;
     console.log('MiningService: Cleaning up miner event listeners');
     for (const unlisten of this._minerUnlisteners) {
       unlisten();

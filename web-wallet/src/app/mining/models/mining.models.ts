@@ -406,12 +406,15 @@ export interface MinerScanStatusEvent {
 /** Event: miner:deadline-accepted */
 export interface MinerDeadlineAcceptedEvent {
   chain: string;
-  account: string;
+  account: string; // bech32 format (pre-converted by backend)
   height: number;
   nonce: number;
   qualityRaw: number;
   compression: number;
   pocTime: number;
+  gensig: string; // Generation signature for fork detection
+  isBestForBlock: boolean; // Always true (backend only emits best)
+  baseTarget: number; // Block's base target for capacity calculations
 }
 
 /** Event: miner:deadline-retry */
