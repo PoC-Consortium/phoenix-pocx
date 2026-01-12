@@ -39,21 +39,31 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux x64
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             label: Linux-x64
             os_name: Linux
             arch_name: x64
+          # Linux ARM64 (Raspberry Pi 4/5, ARM servers)
+          - platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            label: Linux-ARM64
+            os_name: Linux
+            arch_name: ARM64
+          # macOS Apple Silicon
           - platform: macos-latest
             target: aarch64-apple-darwin
             label: macOS-AppleSilicon
             os_name: macOS
             arch_name: AppleSilicon
+          # macOS Intel
           - platform: macos-latest
             target: x86_64-apple-darwin
             label: macOS-Intel
             os_name: macOS
             arch_name: Intel
+          # Windows x64
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             label: Windows-x64
@@ -75,8 +85,14 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install dependencies (Ubuntu)
+      - name: Install dependencies (Ubuntu x64)
         if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies (Ubuntu ARM64)
+        if: matrix.platform == 'ubuntu-22.04-arm'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -101,7 +117,7 @@ jobs:
         run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
       - name: Rename and upload artifacts (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.os_name == 'Linux'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
