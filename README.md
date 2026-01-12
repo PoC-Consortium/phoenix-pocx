@@ -8,8 +8,10 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 - Send and receive Bitcoin-PoCX
 - Transaction history with confirmations
 - Forging assignment management (PoCX-specific)
+- **Integrated Mining**: Multi-chain PoCX mining with real-time dashboard
+- **Plot File Generation**: CPU and GPU (OpenCL) plotting support
 - Multi-language support (24 languages)
-- Lightweight desktop app for Windows, macOS, and Linux (~10MB)
+- Lightweight desktop app for Windows, macOS, and Linux
 
 ## Requirements
 
@@ -56,6 +58,7 @@ phoenix-pocx/
 │   │   ├── app/
 │   │   │   ├── core/        # Core services (auth, platform)
 │   │   │   ├── bitcoin/     # Bitcoin RPC & wallet services
+│   │   │   ├── mining/      # Mining dashboard & plotting
 │   │   │   ├── shared/      # Shared components
 │   │   │   ├── store/       # NgRx state management
 │   │   │   └── features/    # Feature modules
@@ -64,10 +67,12 @@ phoenix-pocx/
 │   ├── src-tauri/           # Tauri desktop wrapper (Rust)
 │   │   ├── src/
 │   │   │   ├── main.rs      # Entry point
-│   │   │   └── lib.rs       # Commands & setup
+│   │   │   ├── lib.rs       # Commands & setup
+│   │   │   └── mining/      # Mining & plotting backend
 │   │   ├── Cargo.toml       # Rust dependencies
 │   │   └── tauri.conf.json  # Tauri configuration
 │   └── package.json
+├── CLAUDE.md                # Developer documentation
 └── README.md
 ```
 
@@ -128,6 +133,15 @@ xcode-select --install
 
 **Windows:**
 - Install Visual Studio Build Tools with C++ workload
+
+### GPU Plotting (Optional)
+
+For GPU-accelerated plot generation, install OpenCL drivers:
+- **NVIDIA**: Included with NVIDIA drivers
+- **AMD**: Install AMD ROCm or AMDGPU-PRO drivers
+- **Intel**: Install Intel OpenCL runtime
+
+No OpenCL SDK is required at build time (dynamic loading).
 
 ## Attribution
 
