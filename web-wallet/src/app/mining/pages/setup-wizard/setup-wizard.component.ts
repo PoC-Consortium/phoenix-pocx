@@ -3405,17 +3405,14 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           }
         }
 
-        // Create DriveConfig with default allocation (max allocatable)
-        const defaultAllocation = this.getMaxAllocatable(driveInfo);
-        if (defaultAllocation > 0) {
-          const config: DriveConfig = {
-            path: driveInfo.path,
-            enabled: true,
-            allocatedGib: defaultAllocation,
-          };
-          this.driveConfigs.update(configs => [...configs, config]);
-          // availableDrives computed signal auto-updates from cache
-        }
+        // Create DriveConfig - always add, let user see the actual state
+        const defaultAllocation = Math.max(0, this.getMaxAllocatable(driveInfo));
+        const config: DriveConfig = {
+          path: driveInfo.path,
+          enabled: true,
+          allocatedGib: defaultAllocation,
+        };
+        this.driveConfigs.update(configs => [...configs, config]);
       }
     } catch (err) {
       console.error('Failed to open folder dialog:', err);

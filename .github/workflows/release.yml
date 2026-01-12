@@ -9,8 +9,31 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Release (${{ matrix.platform }})
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - name: Create Release
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: context.ref.replace('refs/tags/', ''),
+              name: `Phoenix PoCX Wallet ${context.ref.replace('refs/tags/', '')}`,
+              body: 'See the assets to download this version and install.',
+              draft: true,
+              prerelease: false
+            });
+            return data.id;
+
+  build:
+    name: Build (${{ matrix.label }})
+    needs: create-release
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -18,12 +41,24 @@ jobs:
         include:
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            label: Linux-x64
+            os_name: Linux
+            arch_name: x64
           - platform: macos-latest
             target: aarch64-apple-darwin
+            label: macOS-AppleSilicon
+            os_name: macOS
+            arch_name: AppleSilicon
           - platform: macos-latest
             target: x86_64-apple-darwin
+            label: macOS-Intel
+            os_name: macOS
+            arch_name: Intel
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
+            label: Windows-x64
+            os_name: Windows
+            arch_name: x64
 
     steps:
       - uses: actions/checkout@v4
@@ -56,9 +91,78 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: web-wallet
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Phoenix PoCX Wallet ${{ github.ref_name }}'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: true
-          prerelease: false
+          includeRelease: false
+          includeUpdaterJson: false
           args: --target ${{ matrix.target }}
+
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Rename and upload artifacts (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          # Rename AppImage
+          if [ -f "$BUNDLE_DIR/appimage/"*.AppImage ]; then
+            mv "$BUNDLE_DIR/appimage/"*.AppImage "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
+            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage" --repo ${{ github.repository }}
+          fi
+
+          # Rename deb
+          if [ -f "$BUNDLE_DIR/deb/"*.deb ]; then
+            mv "$BUNDLE_DIR/deb/"*.deb "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
+            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb" --repo ${{ github.repository }}
+          fi
+
+          # Rename rpm
+          if [ -f "$BUNDLE_DIR/rpm/"*.rpm ]; then
+            mv "$BUNDLE_DIR/rpm/"*.rpm "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
+            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm" --repo ${{ github.repository }}
+          fi
+
+      - name: Rename and upload artifacts (macOS)
+        if: matrix.os_name == 'macOS'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          # Rename dmg
+          if [ -f "$BUNDLE_DIR/dmg/"*.dmg ]; then
+            mv "$BUNDLE_DIR/dmg/"*.dmg "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
+            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg" --repo ${{ github.repository }}
+          fi
+
+          # Rename app.tar.gz (for updater)
+          if [ -f "$BUNDLE_DIR/macos/"*.app.tar.gz ]; then
+            mv "$BUNDLE_DIR/macos/"*.app.tar.gz "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
+            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz" --repo ${{ github.repository }}
+          fi
+
+      - name: Rename and upload artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+
+          # Rename NSIS installer
+          if [ -f "$BUNDLE_DIR/nsis/"*-setup.exe ]; then
+            mv "$BUNDLE_DIR/nsis/"*-setup.exe "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
+            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe" --repo ${{ github.repository }}
+          fi
+
+          # Rename MSI
+          if [ -f "$BUNDLE_DIR/msi/"*.msi ]; then
+            mv "$BUNDLE_DIR/msi/"*.msi "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
+            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi" --repo ${{ github.repository }}
+          fi
