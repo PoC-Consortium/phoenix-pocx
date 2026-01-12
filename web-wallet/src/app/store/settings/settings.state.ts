@@ -14,9 +14,9 @@ export type Theme = 'light' | 'dark' | 'system';
 export type LanguageCode = 'en' | 'de' | 'es' | 'fr' | 'zh' | 'ja' | 'ko';
 
 /**
- * Coin type for node configuration
+ * Coin type for node configuration (currently only Bitcoin-PoCX supported)
  */
-export type CoinType = 'bitcoin-pocx' | 'bitcoin-og' | 'custom';
+export type CoinType = 'bitcoin-pocx';
 
 /**
  * Authentication method for RPC
@@ -149,40 +149,22 @@ export function getDefaultRpcPort(network: Network): number {
 /**
  * Get default currency symbol for coin type
  */
-export function getDefaultCurrencySymbol(coinType: CoinType): string {
-  switch (coinType) {
-    case 'bitcoin-pocx':
-      return 'BTCX';
-    case 'bitcoin-og':
-      return 'BTC';
-    case 'custom':
-      return 'BTC';
-    default:
-      return 'BTCX';
-  }
+export function getDefaultCurrencySymbol(_coinType: CoinType): string {
+  return 'BTCX';
 }
 
 /**
  * Get default testnet subdirectory for coin type
  */
-export function getDefaultTestnetSubdir(coinType: CoinType): string {
-  switch (coinType) {
-    case 'bitcoin-pocx':
-      return 'testnet';
-    case 'bitcoin-og':
-      return 'testnet3';
-    case 'custom':
-      return 'testnet';
-    default:
-      return 'testnet';
-  }
+export function getDefaultTestnetSubdir(_coinType: CoinType): string {
+  return 'testnet';
 }
 
 /**
- * Get default data directory based on platform and coin type
+ * Get default data directory based on platform
  */
-export function getDefaultDataDirectory(coinType: CoinType, platform: string): string {
-  const coinFolder = coinType === 'bitcoin-og' ? 'Bitcoin' : 'Bitcoin-PoCX';
+export function getDefaultDataDirectory(_coinType: CoinType, platform: string): string {
+  const coinFolder = 'Bitcoin-PoCX';
 
   switch (platform) {
     case 'win32':

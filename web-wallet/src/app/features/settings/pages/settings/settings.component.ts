@@ -33,8 +33,6 @@ import {
   NodeConfig,
   NotificationSettings,
   getDefaultRpcPort,
-  getDefaultCurrencySymbol,
-  getDefaultTestnetSubdir,
   getDefaultDataDirectory,
 } from '../../../../store/settings/settings.state';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -92,20 +90,6 @@ interface ConnectionTestResult {
           <mat-tab [label]="'node_configuration' | i18n">
             <div class="tab-content">
               <div class="config-container">
-                <!-- Coin Type Section -->
-                <div class="config-section">
-                  <h3 class="section-title">{{ 'coin_type' | i18n }}</h3>
-                  <mat-radio-group
-                    [(ngModel)]="nodeConfig.coinType"
-                    (change)="onCoinTypeChange()"
-                    class="vertical-radio-group"
-                  >
-                    <mat-radio-button value="bitcoin-pocx">Bitcoin-PoCX</mat-radio-button>
-                    <mat-radio-button value="bitcoin-og">Bitcoin (Original)</mat-radio-button>
-                    <mat-radio-button value="custom">{{ 'custom' | i18n }}</mat-radio-button>
-                  </mat-radio-group>
-                </div>
-
                 <!-- Network Section -->
                 <div class="config-section">
                   <h3 class="section-title">{{ 'network' | i18n }}</h3>
@@ -411,7 +395,7 @@ interface ConnectionTestResult {
                           mat-icon-button
                           matSuffix
                           (click)="wifShowKey.set(!wifShowKey())"
-                          [matTooltip]="wifShowKey() ? 'Hide key' : 'Show key'"
+                          [matTooltip]="wifShowKey() ? ('hide_key' | i18n) : ('show_key' | i18n)"
                         >
                           <mat-icon>{{ wifShowKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
                         </button>
@@ -424,7 +408,7 @@ interface ConnectionTestResult {
                         matInput
                         [value]="wifLabel()"
                         (input)="wifLabel.set($any($event.target).value)"
-                        placeholder="e.g., Cold storage"
+                        [placeholder]="'address_label_placeholder' | i18n"
                       />
                     </mat-form-field>
 
@@ -966,18 +950,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
   // ============================================================
   // Node Configuration
   // ============================================================
-
-  onCoinTypeChange(): void {
-    const coinType = this.nodeConfig.coinType;
-
-    // Update defaults based on coin type
-    this.nodeConfig.dataDirectory = getDefaultDataDirectory(coinType, this.platform.platform);
-    this.nodeConfig.testnetSubdir = getDefaultTestnetSubdir(coinType);
-    this.nodeConfig.currencySymbol = getDefaultCurrencySymbol(coinType);
-
-    // Clear test result
-    this.testResult.set(null);
-  }
 
   onNetworkChange(): void {
     // Update port based on network

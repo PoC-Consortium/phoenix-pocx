@@ -2,11 +2,12 @@ import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { I18nPipe, I18nService } from '../../../core/i18n';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@ngrx/store';
@@ -62,6 +63,7 @@ interface ChainModalData {
     MatSnackBarModule,
     CdkDropList,
     CdkDrag,
+    I18nPipe,
   ],
   template: `
     <div class="header">
@@ -69,7 +71,7 @@ interface ChainModalData {
         <button mat-icon-button class="back-button" (click)="cancel()">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <h1>Mining Setup</h1>
+        <h1>{{ 'setup_mining_setup' | i18n }}</h1>
       </div>
     </div>
 
@@ -88,7 +90,9 @@ interface ChainModalData {
               1
             }
           </div>
-          <span class="step-label" [class.active]="currentStep() === 0">Miner</span>
+          <span class="step-label" [class.active]="currentStep() === 0">{{
+            'setup_step_miner' | i18n
+          }}</span>
         </div>
         <div class="step-line" [class.complete]="currentStep() > 0"></div>
         <div class="step">
@@ -104,7 +108,9 @@ interface ChainModalData {
               2
             }
           </div>
-          <span class="step-label" [class.active]="currentStep() === 1">Plotter</span>
+          <span class="step-label" [class.active]="currentStep() === 1">{{
+            'setup_step_plotter' | i18n
+          }}</span>
         </div>
         <div class="step-line" [class.complete]="currentStep() > 1"></div>
         <div class="step">
@@ -120,7 +126,9 @@ interface ChainModalData {
               3
             }
           </div>
-          <span class="step-label" [class.active]="currentStep() === 2">Drives</span>
+          <span class="step-label" [class.active]="currentStep() === 2">{{
+            'setup_step_drives' | i18n
+          }}</span>
         </div>
       </div>
 
@@ -129,12 +137,12 @@ interface ChainModalData {
         <!-- Chain Configuration Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">Chain Configuration</span>
+            <span class="section-title">{{ 'setup_chain_configuration' | i18n }}</span>
           </div>
           <div class="section-content">
             <div class="chain-list-header">
-              <span class="chain-list-label">Priority</span>
-              <span class="chain-list-hint">Drag to reorder mining priority</span>
+              <span class="chain-list-label">{{ 'setup_priority' | i18n }}</span>
+              <span class="chain-list-hint">{{ 'setup_drag_to_reorder' | i18n }}</span>
             </div>
             <div class="chain-list" cdkDropList (cdkDropListDropped)="onChainDropped($event)">
               @for (chain of chainConfigs(); track chain.id; let i = $index) {
@@ -146,30 +154,38 @@ interface ChainModalData {
                     <div class="chain-url">
                       {{
                         chain.mode === 'solo'
-                          ? 'Solo mining via wallet node'
+                          ? ('setup_solo_mining_via_node' | i18n)
                           : chain.rpcTransport + '://' + chain.rpcHost + ':' + chain.rpcPort
                       }}
                     </div>
                   </div>
                   <span class="chain-mode" [class]="chain.mode">
-                    {{ chain.mode === 'solo' ? 'Solo' : 'Pool' }}
+                    {{ chain.mode === 'solo' ? ('setup_solo' | i18n) : ('setup_pool' | i18n) }}
                   </span>
                   <div class="chain-actions">
-                    <button class="edit-btn" (click)="editChain(chain)" title="Edit">
+                    <button
+                      class="edit-btn"
+                      (click)="editChain(chain)"
+                      [title]="'setup_edit' | i18n"
+                    >
                       &#9998;
                     </button>
-                    <button class="remove-btn" (click)="removeChain(chain)">Remove</button>
+                    <button class="remove-btn" (click)="removeChain(chain)">
+                      {{ 'setup_remove' | i18n }}
+                    </button>
                   </div>
                 </div>
               }
               @if (chainConfigs().length === 0) {
                 <div class="chain-empty">
-                  <span>No chains configured. Add a chain to start mining.</span>
+                  <span>{{ 'setup_no_chains_configured' | i18n }}</span>
                 </div>
               }
             </div>
             <div class="btn-row">
-              <button class="btn btn-secondary" (click)="showChainModal()">+ Add Chain</button>
+              <button class="btn btn-secondary" (click)="showChainModal()">
+                {{ 'setup_add_chain' | i18n }}
+              </button>
             </div>
           </div>
         </div>
@@ -177,23 +193,23 @@ interface ChainModalData {
         <!-- CPU / Performance Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">CPU / Performance</span>
+            <span class="section-title">{{ 'setup_cpu_performance' | i18n }}</span>
           </div>
           <div class="section-content">
             <div class="device-item">
               <div class="device-icon cpu"><span class="icon-glyph">⚙</span>CPU</div>
               <div class="device-info">
-                <div class="device-name">{{ cpuInfo()?.name || 'Unknown CPU' }}</div>
+                <div class="device-name">{{ cpuInfo()?.name || ('setup_unknown_cpu' | i18n) }}</div>
                 <div class="device-specs">
-                  {{ cpuInfo()?.threads || 0 }} threads available &bull;
+                  {{ 'setup_threads_available' | i18n: { count: cpuInfo()?.threads || 0 } }} &bull;
                   {{ cpuInfo()?.features?.join(', ') || 'AVX2' }}
                 </div>
               </div>
             </div>
             <div class="thread-slider-container">
               <div class="slider-label">
-                <span>Mining Threads:</span>
-                <span>Max: {{ cpuInfo()?.threads || 0 }}</span>
+                <span>{{ 'setup_mining_threads' | i18n }}</span>
+                <span>{{ 'setup_max' | i18n }} {{ cpuInfo()?.threads || 0 }}</span>
               </div>
               <div class="slider-wrapper">
                 <input
@@ -204,7 +220,9 @@ interface ChainModalData {
                   [ngModel]="cpuConfig().miningThreads"
                   (ngModelChange)="onMiningThreadsChange($event)"
                 />
-                <span class="slider-value">{{ cpuConfig().miningThreads }} threads</span>
+                <span class="slider-value"
+                  >{{ cpuConfig().miningThreads }} {{ 'setup_threads' | i18n }}</span
+                >
               </div>
             </div>
           </div>
@@ -213,9 +231,9 @@ interface ChainModalData {
         <!-- Advanced Options Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">Advanced Options</span>
+            <span class="section-title">{{ 'setup_advanced_options' | i18n }}</span>
             <button class="collapse-toggle" (click)="toggleAdvanced('step1')">
-              <span>{{ advancedStep1Open() ? 'Hide' : 'Show' }}</span>
+              <span>{{ advancedStep1Open() ? ('setup_hide' | i18n) : ('setup_show' | i18n) }}</span>
               <span>{{ advancedStep1Open() ? '&#9660;' : '&#9654;' }}</span>
             </button>
           </div>
@@ -223,7 +241,7 @@ interface ChainModalData {
             <div class="section-content">
               <div class="form-row">
                 <div class="form-group">
-                  <label>Poll Interval (ms)</label>
+                  <label>{{ 'setup_poll_interval' | i18n }}</label>
                   <input
                     type="number"
                     [ngModel]="pollInterval()"
@@ -231,7 +249,7 @@ interface ChainModalData {
                   />
                 </div>
                 <div class="form-group">
-                  <label>Timeout (ms)</label>
+                  <label>{{ 'setup_timeout' | i18n }}</label>
                   <input
                     type="number"
                     [ngModel]="timeout()"
@@ -246,7 +264,7 @@ interface ChainModalData {
                     [ngModel]="compressionEnabled()"
                     (ngModelChange)="compressionEnabled.set($event)"
                   />
-                  Enable on-the-fly compression
+                  {{ 'setup_enable_compression' | i18n }}
                 </label>
                 <label class="checkbox-option">
                   <input
@@ -254,7 +272,7 @@ interface ChainModalData {
                     [ngModel]="threadPinning()"
                     (ngModelChange)="threadPinning.set($event)"
                   />
-                  Thread Pinning
+                  {{ 'setup_thread_pinning' | i18n }}
                 </label>
               </div>
             </div>
@@ -267,7 +285,7 @@ interface ChainModalData {
         <!-- Plotting Devices Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">Plotting Device</span>
+            <span class="section-title">{{ 'setup_plotting_device' | i18n }}</span>
           </div>
           <div class="section-content">
             @for (gpu of gpus(); track gpu.id) {
@@ -299,12 +317,14 @@ interface ChainModalData {
                       <div class="progress-bar" [style.width.%]="benchmarkProgress() * 100"></div>
                     </div>
                   } @else if (getBenchmarkError(gpu.id)) {
-                    <span class="benchmark-error" [title]="getBenchmarkError(gpu.id)">Error</span>
+                    <span class="benchmark-error" [title]="getBenchmarkError(gpu.id)">{{
+                      'setup_error' | i18n
+                    }}</span>
                     <button
                       class="redo-btn"
                       (click)="runSingleDeviceBenchmark(gpu.id)"
                       [disabled]="benchmarkRunning()"
-                      title="Retry benchmark"
+                      [title]="'setup_retry_benchmark' | i18n"
                     >
                       ↻
                     </button>
@@ -316,7 +336,7 @@ interface ChainModalData {
                       class="redo-btn"
                       (click)="runSingleDeviceBenchmark(gpu.id)"
                       [disabled]="benchmarkRunning()"
-                      title="Redo benchmark"
+                      [title]="'setup_redo_benchmark' | i18n"
                     >
                       ↻
                     </button>
@@ -326,7 +346,7 @@ interface ChainModalData {
                       (click)="runSingleDeviceBenchmark(gpu.id)"
                       [disabled]="benchmarkRunning()"
                     >
-                      Benchmark
+                      {{ 'setup_benchmark' | i18n }}
                     </button>
                   }
                 </div>
@@ -339,7 +359,9 @@ interface ChainModalData {
                       min="1"
                       [max]="getGpuComputeUnits(gpu)"
                     />
-                    <span class="thread-max">of {{ getGpuComputeUnits(gpu) }} CUs</span>
+                    <span class="thread-max">{{
+                      'setup_of_cus' | i18n: { count: getGpuComputeUnits(gpu) }
+                    }}</span>
                   </div>
                 </div>
               </div>
@@ -356,9 +378,9 @@ interface ChainModalData {
               />
               <div class="device-icon cpu"><span class="icon-glyph">⚙</span>CPU</div>
               <div class="device-info">
-                <div class="device-name">{{ cpuInfo()?.name || 'Unknown CPU' }}</div>
+                <div class="device-name">{{ cpuInfo()?.name || ('setup_unknown_cpu' | i18n) }}</div>
                 <div class="device-specs">
-                  {{ cpuInfo()?.threads || 0 }} threads available &bull;
+                  {{ 'setup_threads_available' | i18n: { count: cpuInfo()?.threads || 0 } }} &bull;
                   {{ cpuInfo()?.features?.join(', ') || 'AVX2' }} &bull; CPU
                 </div>
               </div>
@@ -368,12 +390,14 @@ interface ChainModalData {
                     <div class="progress-bar" [style.width.%]="benchmarkProgress() * 100"></div>
                   </div>
                 } @else if (getBenchmarkError('cpu')) {
-                  <span class="benchmark-error" [title]="getBenchmarkError('cpu')">Error</span>
+                  <span class="benchmark-error" [title]="getBenchmarkError('cpu')">{{
+                    'setup_error' | i18n
+                  }}</span>
                   <button
                     class="redo-btn"
                     (click)="runSingleDeviceBenchmark('cpu')"
                     [disabled]="benchmarkRunning()"
-                    title="Retry benchmark"
+                    [title]="'setup_retry_benchmark' | i18n"
                   >
                     ↻
                   </button>
@@ -385,7 +409,7 @@ interface ChainModalData {
                     class="redo-btn"
                     (click)="runSingleDeviceBenchmark('cpu')"
                     [disabled]="benchmarkRunning()"
-                    title="Redo benchmark"
+                    [title]="'setup_redo_benchmark' | i18n"
                   >
                     ↻
                   </button>
@@ -395,7 +419,7 @@ interface ChainModalData {
                     (click)="runSingleDeviceBenchmark('cpu')"
                     [disabled]="benchmarkRunning()"
                   >
-                    Benchmark
+                    {{ 'setup_benchmark' | i18n }}
                   </button>
                 }
               </div>
@@ -408,15 +432,16 @@ interface ChainModalData {
                     min="1"
                     [max]="cpuInfo()?.threads || 16"
                   />
-                  <span class="thread-max">of {{ cpuInfo()?.threads || 16 }} threads</span>
+                  <span class="thread-max">{{
+                    'setup_of_threads' | i18n: { count: cpuInfo()?.threads || 16 }
+                  }}</span>
                 </div>
               </div>
             </div>
 
             @if (gpus().length === 0) {
               <div class="info-box">
-                <strong>No GPUs detected.</strong> CPU plotting is available but slower. Consider
-                adding a GPU for faster plotting.
+                {{ 'setup_no_gpus_detected' | i18n }}
               </div>
             }
           </div>
@@ -425,7 +450,7 @@ interface ChainModalData {
         <!-- Plot Address Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">Plot Address</span>
+            <span class="section-title">{{ 'setup_plot_address' | i18n }}</span>
           </div>
           <div class="section-content">
             <div class="radio-group">
@@ -437,9 +462,9 @@ interface ChainModalData {
                   (change)="useCustomAddress.set(false)"
                 />
                 <div class="radio-label">
-                  <div class="radio-label-main">Use first wallet address</div>
+                  <div class="radio-label-main">{{ 'setup_use_wallet_address' | i18n }}</div>
                   <div class="radio-label-sub address-full">
-                    {{ walletAddress() || 'No wallet connected' }}
+                    {{ walletAddress() || ('setup_no_wallet_connected' | i18n) }}
                   </div>
                 </div>
               </label>
@@ -451,42 +476,42 @@ interface ChainModalData {
                   (change)="useCustomAddress.set(true)"
                 />
                 <div class="radio-label">
-                  <div class="radio-label-main">Custom address</div>
+                  <div class="radio-label-main">{{ 'setup_custom_address' | i18n }}</div>
                   <div class="address-input-row">
                     <input
                       type="text"
                       class="input-field address-input"
                       [ngModel]="customPlottingAddress()"
                       (ngModelChange)="onCustomAddressChange($event)"
-                      placeholder="Enter your plotting address"
+                      [placeholder]="'setup_enter_plotting_address' | i18n"
                       [disabled]="!useCustomAddress()"
                     />
                     @if (addressValidation() && useCustomAddress()) {
                       @if (!addressValidation()!.valid) {
                         <span
                           class="address-badge error"
-                          title="The address is not a valid bech32 format. Please check for typos."
+                          [title]="'setup_address_invalid_tooltip' | i18n"
                         >
-                          ❌ Invalid
+                          ❌ {{ 'setup_invalid' | i18n }}
                         </span>
                       } @else if (addressValidation()!.isMine === true) {
                         <span
                           class="address-badge success"
-                          title="This address belongs to your wallet. You can mine with these plots directly."
+                          [title]="'setup_address_mine_tooltip' | i18n"
                         >
                           🔑
                         </span>
                       } @else if (addressValidation()!.assignedToUs === true) {
                         <span
                           class="address-badge success"
-                          title="Forging rights for this address are assigned to your wallet. You can mine with these plots."
+                          [title]="'setup_address_assigned_tooltip' | i18n"
                         >
                           🔑
                         </span>
                       } @else {
                         <span
                           class="address-badge warning"
-                          title="No keys and no forging assignment to your wallet. The plot owner must assign forging rights to you first."
+                          [title]="'setup_address_no_keys_tooltip' | i18n"
                         >
                           🔑
                         </span>
@@ -502,9 +527,9 @@ interface ChainModalData {
         <!-- Advanced Options Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">Advanced Options</span>
+            <span class="section-title">{{ 'setup_advanced_options' | i18n }}</span>
             <button class="collapse-toggle" (click)="toggleAdvanced('step2')">
-              <span>{{ advancedStep2Open() ? 'Hide' : 'Show' }}</span>
+              <span>{{ advancedStep2Open() ? ('setup_hide' | i18n) : ('setup_show' | i18n) }}</span>
               <span>{{ advancedStep2Open() ? '&#9660;' : '&#9654;' }}</span>
             </button>
           </div>
@@ -512,34 +537,35 @@ interface ChainModalData {
             <div class="section-content advanced-content">
               <!-- Memory Estimation Box -->
               <div class="memory-estimation">
-                <div class="memory-estimation-header">Estimated Memory Usage</div>
+                <div class="memory-estimation-header">{{ 'setup_estimated_memory' | i18n }}</div>
                 <div class="memory-breakdown">
                   <div class="memory-row">
-                    <span class="memory-label">Plotter Cache</span>
+                    <span class="memory-label">{{ 'setup_plotter_cache' | i18n }}</span>
                     <span class="memory-value">{{ plotterCacheGib() | number: '1.1-1' }} GiB</span>
                   </div>
                   <div class="memory-row">
                     <span class="memory-label"
-                      >HDD Cache ({{ parallelDrives() }} drive{{
-                        parallelDrives() > 1 ? 's' : ''
+                      >{{ 'setup_hdd_cache' | i18n }} ({{ parallelDrives() }}
+                      {{
+                        parallelDrives() > 1 ? ('mining_drives' | i18n) : ('mining_drive' | i18n)
                       }})</span
                     >
                     <span class="memory-value">{{ hddCacheGib() | number: '1.1-1' }} GiB</span>
                   </div>
                   @if (gpuMemoryGib() > 0) {
                     <div class="memory-row">
-                      <span class="memory-label">GPU Cache</span>
+                      <span class="memory-label">{{ 'setup_gpu_cache' | i18n }}</span>
                       <span class="memory-value">{{ gpuMemoryGib() | number: '1.1-1' }} GiB</span>
                     </div>
                   }
                   <div class="memory-row memory-total">
-                    <span class="memory-label">Total</span>
+                    <span class="memory-label">{{ 'setup_total' | i18n }}</span>
                     <span class="memory-value"
                       >~{{ totalEstimatedMemoryGib() | number: '1.0-0' }} GiB</span
                     >
                   </div>
                   <div class="memory-row memory-available">
-                    <span class="memory-label">Available RAM</span>
+                    <span class="memory-label">{{ 'setup_available_ram' | i18n }}</span>
                     <span
                       class="memory-value"
                       [class.warning]="totalEstimatedMemoryGib() > systemMemoryGib()"
@@ -551,7 +577,7 @@ interface ChainModalData {
 
               <div class="form-row">
                 <div class="form-group escalation-group">
-                  <label>Drives to Plot in Parallel</label>
+                  <label>{{ 'setup_drives_in_parallel' | i18n }}</label>
                   <input
                     type="number"
                     [ngModel]="parallelDrives()"
@@ -562,7 +588,7 @@ interface ChainModalData {
                   />
                 </div>
                 <div class="form-group escalation-group">
-                  <label>Memory Escalation Factor</label>
+                  <label>{{ 'setup_memory_escalation' | i18n }}</label>
                   <input
                     type="number"
                     [ngModel]="escalation()"
@@ -572,17 +598,17 @@ interface ChainModalData {
                   />
                 </div>
                 <div class="form-group">
-                  <label>PoW Scaling</label>
+                  <label>{{ 'setup_pow_scaling' | i18n }}</label>
                   <select
                     [ngModel]="compressionLevel()"
                     (ngModelChange)="compressionLevel.set($event)"
                   >
-                    <option value="1">X1: Years 0-4 (recommended)</option>
-                    <option value="2">X2: Years 4-12</option>
-                    <option value="3">X3: Years 12-28</option>
-                    <option value="4">X4: Years 28-60</option>
-                    <option value="5">X5: Years 60-124</option>
-                    <option value="6">X6: Years 124+</option>
+                    <option value="1">{{ 'setup_pow_x1' | i18n }}</option>
+                    <option value="2">{{ 'setup_pow_x2' | i18n }}</option>
+                    <option value="3">{{ 'setup_pow_x3' | i18n }}</option>
+                    <option value="4">{{ 'setup_pow_x4' | i18n }}</option>
+                    <option value="5">{{ 'setup_pow_x5' | i18n }}</option>
+                    <option value="6">{{ 'setup_pow_x6' | i18n }}</option>
                   </select>
                 </div>
               </div>
@@ -593,7 +619,7 @@ interface ChainModalData {
                     [ngModel]="directIo()"
                     (ngModelChange)="directIo.set($event)"
                   />
-                  Direct I/O
+                  {{ 'setup_direct_io' | i18n }}
                 </label>
                 <label class="checkbox-option">
                   <input
@@ -601,23 +627,23 @@ interface ChainModalData {
                     [ngModel]="lowPriority()"
                     (ngModelChange)="lowPriority.set($event)"
                   />
-                  Low Process Priority
+                  {{ 'setup_low_priority' | i18n }}
                 </label>
               </div>
 
               <!-- Performance Hint Table (GPU only) -->
               @if (selectedGpuInfo() && performanceHintEntries().length > 0) {
                 <div class="performance-hint">
-                  <div class="performance-hint-header">Performance Hint</div>
+                  <div class="performance-hint-header">{{ 'setup_performance_hint' | i18n }}</div>
                   <div class="performance-hint-desc">
-                    Optimal CU/Escalation combinations for {{ selectedGpuInfo()!.name }}
+                    {{ 'setup_optimal_combinations' | i18n: { device: selectedGpuInfo()!.name } }}
                   </div>
                   <table class="performance-table">
                     <thead>
                       <tr>
-                        <th>CUs</th>
-                        <th>Memory Escalation Factor</th>
-                        <th>Occupancy</th>
+                        <th>{{ 'setup_cus' | i18n }}</th>
+                        <th>{{ 'setup_memory_escalation' | i18n }}</th>
+                        <th>{{ 'setup_occupancy' | i18n }}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -647,27 +673,29 @@ interface ChainModalData {
         <!-- Plot Directories Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">Plot Directories</span>
-            <button class="btn btn-secondary btn-sm" (click)="addDrive()">+ Add Folder(s)</button>
+            <span class="section-title">{{ 'setup_plot_directories' | i18n }}</span>
+            <button class="btn btn-secondary btn-sm" (click)="addDrive()">
+              {{ 'setup_add_folders' | i18n }}
+            </button>
           </div>
           <div class="section-content drives-section">
             <!-- Summary Totals (centered, with color legend) -->
             <div class="drives-summary">
               <div class="summary-item">
                 <span class="summary-value plotted">{{ formatSize(plottedGib()) }}</span>
-                <span class="summary-label">Plotted</span>
+                <span class="summary-label">{{ 'setup_plotted' | i18n }}</span>
               </div>
               <div class="summary-item">
                 <span class="summary-value unfinished">{{ formatSize(unfinishedGib()) }}</span>
-                <span class="summary-label">Unfinished</span>
+                <span class="summary-label">{{ 'setup_unfinished' | i18n }}</span>
               </div>
               <div class="summary-item">
                 <span class="summary-value to-plot">{{ formatSize(toPlotGib()) }}</span>
-                <span class="summary-label">To Plot</span>
+                <span class="summary-label">{{ 'setup_to_plot' | i18n }}</span>
               </div>
               <div class="summary-item">
                 <span class="summary-value total">{{ formatSize(totalPlotGib()) }}</span>
-                <span class="summary-label">Total</span>
+                <span class="summary-label">{{ 'setup_total' | i18n }}</span>
               </div>
             </div>
 
@@ -677,13 +705,19 @@ interface ChainModalData {
                 <div class="drive-header">
                   <span class="drive-path">{{ drive.path }}</span>
                   <span class="capacity-badge"
-                    >Total Capacity: {{ formatSize(drive.totalGib) }}</span
+                    >{{ 'setup_total_capacity' | i18n }} {{ formatSize(drive.totalGib) }}</span
                   >
                   @if (drive.isSystemDrive) {
-                    <span class="system-badge" title="System drive: max 80% usage">&#9888;</span>
+                    <span class="system-badge" [title]="'setup_system_drive_warning' | i18n"
+                      >&#9888;</span
+                    >
                   }
                   <div class="drive-actions">
-                    <button class="drive-refresh" (click)="refreshDrive(drive)" title="Refresh">
+                    <button
+                      class="drive-refresh"
+                      (click)="refreshDrive(drive)"
+                      [title]="'setup_refresh' | i18n"
+                    >
                       &#8635;
                     </button>
                     <button class="drive-remove" (click)="removeDrive(drive)">&#10005;</button>
@@ -697,7 +731,7 @@ interface ChainModalData {
                       <div
                         class="segment other"
                         [style.flex]="getOtherDataGib(drive)"
-                        title="Other data on this drive (non-plot files)"
+                        [title]="'setup_other_data_tooltip' | i18n"
                       >
                         <span class="segment-label">{{ formatSize(getOtherDataGib(drive)) }}</span>
                       </div>
@@ -706,7 +740,7 @@ interface ChainModalData {
                       <div
                         class="segment existing"
                         [style.flex]="drive.completeSizeGib"
-                        title="Plotted: Complete .pocx files ready for mining"
+                        [title]="'setup_plotted_tooltip' | i18n"
                       >
                         <span class="segment-label">{{ formatSize(drive.completeSizeGib) }}</span>
                       </div>
@@ -715,7 +749,7 @@ interface ChainModalData {
                       <div
                         class="segment unfinished"
                         [style.flex]="drive.incompleteSizeGib"
-                        title="Unfinished: Incomplete plots that can be resumed"
+                        [title]="'setup_unfinished_tooltip' | i18n"
                       >
                         <span class="segment-label">{{ formatSize(drive.incompleteSizeGib) }}</span>
                       </div>
@@ -724,7 +758,7 @@ interface ChainModalData {
                       <div
                         class="segment allocated"
                         [style.flex]="getToPlotGib(drive)"
-                        title="To Plot: New space to be plotted"
+                        [title]="'setup_to_plot_tooltip' | i18n"
                       >
                         <span class="segment-label">+{{ formatSize(getToPlotGib(drive)) }}</span>
                       </div>
@@ -733,10 +767,10 @@ interface ChainModalData {
                       <div
                         class="segment free"
                         [style.flex]="getRemainingFree(drive)"
-                        title="Free: Available space on drive"
+                        [title]="'setup_free_tooltip' | i18n"
                       >
                         <span class="segment-label"
-                          >{{ formatSize(getRemainingFree(drive)) }} free</span
+                          >{{ formatSize(getRemainingFree(drive)) }} {{ 'setup_free' | i18n }}</span
                         >
                       </div>
                     }
@@ -771,8 +805,8 @@ interface ChainModalData {
             @if (availableDrives().length === 0) {
               <div class="empty-state">
                 <span class="empty-icon">&#128193;</span>
-                <p>No drives configured</p>
-                <p class="hint">Click "+ Add Folder" to add plot directories</p>
+                <p>{{ 'setup_no_drives_configured' | i18n }}</p>
+                <p class="hint">{{ 'setup_add_folder_hint' | i18n }}</p>
               </div>
             }
           </div>
@@ -781,9 +815,9 @@ interface ChainModalData {
         <!-- Advanced Options Section -->
         <div class="section">
           <div class="section-header">
-            <span class="section-title">Advanced Options</span>
+            <span class="section-title">{{ 'setup_advanced_options' | i18n }}</span>
             <button class="collapse-toggle" (click)="toggleAdvanced('step3')">
-              <span>{{ advancedStep3Open() ? 'Hide' : 'Show' }}</span>
+              <span>{{ advancedStep3Open() ? ('setup_hide' | i18n) : ('setup_show' | i18n) }}</span>
               <span>{{ advancedStep3Open() ? '&#9660;' : '&#9654;' }}</span>
             </button>
           </div>
@@ -791,7 +825,7 @@ interface ChainModalData {
             <div class="section-content">
               <div class="form-row">
                 <div class="form-group">
-                  <label>HDD Wakeup Interval (seconds)</label>
+                  <label>{{ 'setup_hdd_wakeup' | i18n }}</label>
                   <input
                     type="number"
                     [ngModel]="hddWakeup()"
@@ -807,7 +841,7 @@ interface ChainModalData {
                     [ngModel]="miningDirectIo()"
                     (ngModelChange)="miningDirectIo.set($event)"
                   />
-                  Use Direct I/O for mining
+                  {{ 'setup_mining_direct_io' | i18n }}
                 </label>
               </div>
             </div>
@@ -818,18 +852,22 @@ interface ChainModalData {
       <!-- Navigation Footer -->
       <div class="wizard-footer">
         @if (currentStep() > 0) {
-          <button class="btn btn-ghost" (click)="previousStep()">&larr; Back</button>
+          <button class="btn btn-ghost" (click)="previousStep()">
+            &larr; {{ 'setup_back' | i18n }}
+          </button>
         } @else {
-          <button class="btn btn-ghost" (click)="cancel()">Cancel</button>
+          <button class="btn btn-ghost" (click)="cancel()">{{ 'setup_cancel' | i18n }}</button>
         }
         <div class="footer-right">
           @if (currentStep() === 2 || !isFirstRun()) {
             <button class="btn btn-success" (click)="saveAndStart()" [disabled]="saving()">
-              {{ saving() ? 'Saving...' : 'Save & Close' }}
+              {{ saving() ? ('setup_saving' | i18n) : ('setup_save_close' | i18n) }}
             </button>
           }
           @if (currentStep() < 2) {
-            <button class="btn btn-primary" (click)="nextStep()">Next &rarr;</button>
+            <button class="btn btn-primary" (click)="nextStep()">
+              {{ 'setup_next' | i18n }} &rarr;
+            </button>
           }
         </div>
       </div>
@@ -840,32 +878,34 @@ interface ChainModalData {
       <div class="modal-overlay" (click)="closeChainModal()">
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-header">
-            <h3>{{ editingChain() ? 'Edit Chain' : 'Add Chain' }}</h3>
+            <h3>
+              {{ editingChain() ? ('setup_edit_chain' | i18n) : ('setup_add_chain_title' | i18n) }}
+            </h3>
           </div>
           <div class="modal-content">
             <div class="form-group" style="margin-bottom: 16px;">
-              <label>Type</label>
+              <label>{{ 'setup_type' | i18n }}</label>
               <div class="mode-tabs">
                 <button
                   class="mode-tab"
                   [class.active]="chainModalData().mode === 'solo'"
                   (click)="setChainMode('solo')"
                 >
-                  Solo (Local)
+                  {{ 'setup_solo_local' | i18n }}
                 </button>
                 <button
                   class="mode-tab"
                   [class.active]="chainModalData().mode === 'pool'"
                   (click)="setChainMode('pool')"
                 >
-                  Pool
+                  {{ 'setup_pool' | i18n }}
                 </button>
                 <button
                   class="mode-tab"
                   [class.active]="chainModalData().mode === 'custom'"
                   (click)="setChainMode('custom')"
                 >
-                  Custom
+                  {{ 'setup_custom' | i18n }}
                 </button>
               </div>
             </div>
@@ -873,20 +913,21 @@ interface ChainModalData {
             <!-- Solo Mode -->
             @if (chainModalData().mode === 'solo') {
               <div class="info-box solo">
-                <strong>Solo Mining</strong><br />
-                Uses your connected wallet node for mining.
+                <strong>{{ 'setup_solo_mining_info' | i18n }}</strong
+                ><br />
+                {{ 'setup_solo_mining_desc' | i18n }}
               </div>
             }
 
             <!-- Pool Mode -->
             @if (chainModalData().mode === 'pool') {
               <div class="form-group" style="margin-bottom: 16px;">
-                <label>Select Pool</label>
+                <label>{{ 'setup_select_pool' | i18n }}</label>
                 <select
                   [ngModel]="chainModalData().poolUrl"
                   (ngModelChange)="updateChainModal('poolUrl', $event)"
                 >
-                  <option value="">-- Select a pool --</option>
+                  <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
                   <option value="https://pool.pocx.io:8080/api">
                     PoCX Pool Alpha (pool.pocx.io)
                   </option>
@@ -899,12 +940,12 @@ interface ChainModalData {
                 </select>
               </div>
               <div class="form-group">
-                <label>Bearer Token (optional)</label>
+                <label>{{ 'setup_bearer_token' | i18n }}</label>
                 <input
                   type="text"
                   [ngModel]="chainModalData().poolToken"
                   (ngModelChange)="updateChainModal('poolToken', $event)"
-                  placeholder="Your pool authentication token"
+                  [placeholder]="'setup_pool_token_placeholder' | i18n"
                 />
               </div>
             }
@@ -912,16 +953,16 @@ interface ChainModalData {
             <!-- Custom Mode -->
             @if (chainModalData().mode === 'custom') {
               <div class="form-group" style="margin-bottom: 16px;">
-                <label>Chain Name</label>
+                <label>{{ 'setup_chain_name' | i18n }}</label>
                 <input
                   type="text"
                   [ngModel]="chainModalData().chainName"
                   (ngModelChange)="updateChainModal('chainName', $event)"
-                  placeholder="My Custom Chain"
+                  [placeholder]="'setup_chain_name_placeholder' | i18n"
                 />
               </div>
               <div class="form-group" style="margin-bottom: 16px;">
-                <label>Endpoint URL</label>
+                <label>{{ 'setup_endpoint_url' | i18n }}</label>
                 <input
                   type="text"
                   [ngModel]="chainModalData().customUrl"
@@ -930,7 +971,7 @@ interface ChainModalData {
                 />
               </div>
               <div class="form-group" style="margin-bottom: 16px;">
-                <label>API Path (optional)</label>
+                <label>{{ 'setup_api_path' | i18n }}</label>
                 <input
                   type="text"
                   [ngModel]="chainModalData().customApiPath"
@@ -940,17 +981,17 @@ interface ChainModalData {
               </div>
               <div class="form-row" style="margin-bottom: 16px;">
                 <div class="form-group">
-                  <label>Mode</label>
+                  <label>{{ 'setup_mode' | i18n }}</label>
                   <select
                     [ngModel]="chainModalData().customMode"
                     (ngModelChange)="updateChainModal('customMode', $event)"
                   >
-                    <option value="solo">Wallet (Solo)</option>
-                    <option value="pool">Pool</option>
+                    <option value="solo">{{ 'setup_wallet_solo' | i18n }}</option>
+                    <option value="pool">{{ 'setup_pool' | i18n }}</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label>Block Time (seconds)</label>
+                  <label>{{ 'setup_block_time' | i18n }}</label>
                   <input
                     type="number"
                     [ngModel]="chainModalData().customBlockTime"
@@ -959,20 +1000,20 @@ interface ChainModalData {
                 </div>
               </div>
               <div class="form-group">
-                <label>Auth Token (optional)</label>
+                <label>{{ 'setup_auth_token' | i18n }}</label>
                 <input
                   type="text"
                   [ngModel]="chainModalData().customToken"
                   (ngModelChange)="updateChainModal('customToken', $event)"
-                  placeholder="Bearer token for authentication"
+                  [placeholder]="'setup_auth_token_placeholder' | i18n"
                 />
               </div>
             }
           </div>
           <div class="modal-footer">
-            <button class="btn btn-ghost" (click)="closeChainModal()">Cancel</button>
+            <button class="btn btn-ghost" (click)="closeChainModal()">{{ 'cancel' | i18n }}</button>
             <button class="btn btn-primary" (click)="saveChain()">
-              {{ editingChain() ? 'Save' : 'Add' }}
+              {{ editingChain() ? ('setup_save' | i18n) : ('setup_add' | i18n) }}
             </button>
           </div>
         </div>
@@ -1154,21 +1195,6 @@ interface ChainModalData {
       }
 
       .collapse-toggle:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
-
-      .header-btn {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: #ffffff;
-        padding: 4px 12px;
-        border-radius: 4px;
-        font-size: 11px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-
-      .header-btn:hover {
         background: rgba(255, 255, 255, 0.2);
       }
 
@@ -1605,12 +1631,6 @@ interface ChainModalData {
         gap: 12px;
       }
 
-      .slider-with-input {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
       .gib-input {
         display: flex;
         align-items: center;
@@ -1635,11 +1655,6 @@ interface ChainModalData {
       .gib-input .unit {
         font-size: 11px;
         color: #666;
-      }
-
-      .file-summary {
-        font-weight: 500;
-        color: #333;
       }
 
       .slider {
@@ -2049,6 +2064,11 @@ interface ChainModalData {
         margin-bottom: 0;
       }
 
+      .drive-card.system-drive {
+        border-color: #ffb74d;
+        background: #fff8e1;
+      }
+
       /* Line 1: Path + Actions */
       .drive-header {
         display: flex;
@@ -2169,17 +2189,6 @@ interface ChainModalData {
         color: #888888;
       }
 
-      .segment-total-badge {
-        padding: 4px 10px;
-        background: #e0e0e0;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 500;
-        color: #616161;
-        font-family: 'Consolas', monospace;
-        white-space: nowrap;
-      }
-
       /* Line 3: Slider + Controls */
       .drive-controls {
         display: flex;
@@ -2212,17 +2221,6 @@ interface ChainModalData {
         color: #888888;
       }
 
-      .total-plots {
-        margin-left: auto;
-        font-size: 12px;
-        color: #666666;
-      }
-
-      .total-plots strong {
-        color: #616161;
-        font-family: 'Consolas', monospace;
-      }
-
       .empty-state {
         display: flex;
         flex-direction: column;
@@ -2242,39 +2240,6 @@ interface ChainModalData {
 
       .hint {
         font-size: 12px;
-        margin-top: 4px;
-      }
-
-      .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
-        margin-top: 16px;
-        padding-top: 16px;
-        border-top: 1px solid #e0e0e0;
-      }
-
-      .summary-item {
-        text-align: center;
-      }
-
-      .summary-value {
-        font-size: 24px;
-        font-weight: 600;
-        color: rgb(0, 35, 65);
-      }
-
-      .summary-value.ready {
-        color: #2e7d32;
-      }
-
-      .summary-value.plotting {
-        color: #e65100;
-      }
-
-      .summary-label {
-        font-size: 12px;
-        color: #666666;
         margin-top: 4px;
       }
 
@@ -2322,6 +2287,11 @@ interface ChainModalData {
       .btn-secondary:hover {
         background: #f8f9fa;
         border-color: #1976d2;
+      }
+
+      .btn-sm {
+        padding: 6px 12px;
+        font-size: 11px;
       }
 
       .btn-primary {
@@ -2479,12 +2449,12 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly miningService = inject(MiningService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly miningRpc = inject(MiningRpcService);
   private readonly store = inject(Store);
+  private readonly i18n = inject(I18nService);
 
   // Wallet settings for solo mining (synced to mining config)
   private readonly walletRpcHost = toSignal(this.store.select(selectRpcHost), {
@@ -2557,7 +2527,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly addressValidation = signal<AddressInfo | null>(null);
   readonly compressionLevel = signal('1');
   readonly escalation = signal(1); // default 1, min 1
-  readonly filesToPlotSetting = signal(16);
   readonly directIo = signal(true);
   readonly lowPriority = signal(false);
 
@@ -3283,8 +3252,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   }
 
   // Step 3: Drive management - GiB based
-  readonly PLOT_FILE_SIZE_GIB = 1024; // Fixed 1 TiB plot file size
-
   getDriveAllocatedGib(path: string): number {
     const config = this.driveConfigs().find(d => d.path === path);
     if (config) return config.allocatedGib;
@@ -3382,40 +3349,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     // Free space minus what we're going to plot
     const toPlot = this.getToPlotGib(drive);
     return Math.max(0, drive.freeGib - toPlot);
-  }
-
-  getDriveTotalGib(drive: DriveInfo): number {
-    // allocatedGib is now the total target (plotted + to plot)
-    return this.getDriveAllocatedGib(drive.path);
-  }
-
-  getFullFiles(gib: number): number {
-    return Math.floor(gib / this.PLOT_FILE_SIZE_GIB);
-  }
-
-  getRemainderGib(gib: number): number {
-    return gib % this.PLOT_FILE_SIZE_GIB;
-  }
-
-  formatFileSummary(gib: number): string {
-    if (gib === 0) return '0 files';
-    const fullFiles = this.getFullFiles(gib);
-    const remainder = this.getRemainderGib(gib);
-
-    if (fullFiles === 0) {
-      return `1 file: ${remainder} GiB`;
-    }
-
-    const parts: string[] = [];
-    if (fullFiles > 0) {
-      parts.push(`${fullFiles}×1TiB`);
-    }
-    if (remainder > 0) {
-      parts.push(`${remainder} GiB`);
-    }
-
-    const totalFiles = fullFiles + (remainder > 0 ? 1 : 0);
-    return `${totalFiles} file${totalFiles !== 1 ? 's' : ''}: ${parts.join(' + ')}`;
   }
 
   formatSize(gib: number): string {

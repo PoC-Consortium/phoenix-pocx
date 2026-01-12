@@ -7,6 +7,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { MiningService } from '../../services/mining.service';
 import { PlotPlan } from '../../models/mining.models';
+import { I18nPipe, I18nService } from '../../../core/i18n';
 
 /**
  * Plan Viewer Dialog
@@ -20,11 +21,18 @@ import { PlotPlan } from '../../models/mining.models';
 @Component({
   selector: 'app-plan-viewer-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule],
+  imports: [
+    CommonModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatIconModule,
+    MatTooltipModule,
+    I18nPipe,
+  ],
   template: `
     <h2 mat-dialog-title class="dialog-title">
       <mat-icon>assignment</mat-icon>
-      Plotting Plan
+      {{ 'plan_plotting_plan' | i18n }}
     </h2>
 
     <mat-dialog-content class="dialog-content">
@@ -32,17 +40,17 @@ import { PlotPlan } from '../../models/mining.models';
         <!-- Stats Summary -->
         <div class="plan-stats">
           <div class="stat">
-            <span class="stat-label">Tasks</span>
+            <span class="stat-label">{{ 'plan_tasks' | i18n }}</span>
             <span class="stat-value"
               >{{ stats()?.completedTasks ?? 0 }}/{{ stats()?.totalTasks ?? 0 }}</span
             >
           </div>
           <div class="stat">
-            <span class="stat-label">Remaining</span>
+            <span class="stat-label">{{ 'plan_remaining' | i18n }}</span>
             <span class="stat-value">{{ formatTib(stats()?.remainingTib ?? 0) }}</span>
           </div>
           <div class="stat">
-            <span class="stat-label">ETA</span>
+            <span class="stat-label">{{ 'mining_eta' | i18n }}</span>
             <span class="stat-value">{{ eta() }}</span>
           </div>
           <div class="stat status-badge" [class]="uiState()">
@@ -54,7 +62,7 @@ import { PlotPlan } from '../../models/mining.models';
         @if (plan.items.length > 0) {
           <div class="section-header">
             <mat-icon>playlist_play</mat-icon>
-            Tasks ({{ plan.items.length }})
+            {{ 'plan_tasks' | i18n }} ({{ plan.items.length }})
           </div>
           <div class="plan-items">
             @for (item of plan.items; track $index; let i = $index) {
@@ -79,23 +87,26 @@ import { PlotPlan } from '../../models/mining.models';
                 <div class="item-content">
                   @switch (item.type) {
                     @case ('resume') {
-                      <span class="badge resume">Resume</span>
+                      <span class="badge resume">{{ 'plan_resume' | i18n }}</span>
                       <span class="item-path">{{ formatPath(item.path) }}</span>
                       <span class="item-detail">{{ item.sizeGib }} GiB</span>
                     }
                     @case ('plot') {
-                      <span class="badge plot">Plot</span>
+                      <span class="badge plot">{{ 'plan_plot' | i18n }}</span>
                       <span class="item-path">{{ formatPath(item.path) }}</span>
                       <span class="item-detail">{{ item.warps }} GiB</span>
                       @if (item.batchId !== undefined) {
-                        <span class="item-batch" matTooltip="Parallel batch {{ item.batchId + 1 }}">
+                        <span
+                          class="item-batch"
+                          [matTooltip]="getParallelBatchTooltip(item.batchId)"
+                        >
                           B{{ item.batchId + 1 }}
                         </span>
                       }
                     }
                     @case ('add_to_miner') {
-                      <span class="badge add-miner">Add to Miner</span>
-                      <span class="item-description">Restart miner with ready drives</span>
+                      <span class="badge add-miner">{{ 'plan_add_to_miner' | i18n }}</span>
+                      <span class="item-description">{{ 'plan_restart_miner' | i18n }}</span>
                     }
                   }
                 </div>
@@ -105,20 +116,20 @@ import { PlotPlan } from '../../models/mining.models';
         } @else {
           <div class="empty-state">
             <mat-icon>info_outline</mat-icon>
-            <p>No tasks in the plan. All drives are either finished or have no allocated space.</p>
+            <p>{{ 'plan_no_tasks' | i18n }}</p>
           </div>
         }
       } @else {
         <div class="empty-state">
           <mat-icon>info_outline</mat-icon>
-          <p>No plan has been generated yet.</p>
-          <p class="hint">Configure drives and start plotting to generate a plan.</p>
+          <p>{{ 'plan_no_plan_yet' | i18n }}</p>
+          <p class="hint">{{ 'plan_configure_hint' | i18n }}</p>
         </div>
       }
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
-      <button mat-button (click)="close()">Close</button>
+      <button mat-button (click)="close()">{{ 'close' | i18n }}</button>
     </mat-dialog-actions>
   `,
   styles: [
@@ -400,6 +411,7 @@ import { PlotPlan } from '../../models/mining.models';
 export class PlanViewerDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<PlanViewerDialogComponent>);
   private readonly miningService = inject(MiningService);
+  private readonly i18n = inject(I18nService);
 
   readonly plan = this.miningService.plotPlan;
   readonly stats = this.miningService.planStats;
@@ -427,6 +439,10 @@ export class PlanViewerDialogComponent {
 
   formatStatus(status: string): string {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  getParallelBatchTooltip(batchId: number): string {
+    return this.i18n.get('plan_parallel_batch', { batch: batchId + 1 });
   }
 
   /**

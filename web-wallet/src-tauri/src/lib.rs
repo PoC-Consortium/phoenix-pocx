@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
-use tauri::{Manager, WindowEvent};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri::Manager;
 
 // Logging module
 mod logging;
@@ -75,7 +74,7 @@ pub struct CookieReadResult {
 /// Expand environment variables and ~ in paths
 /// Windows: %VAR% style
 /// Unix: ~ expands to HOME
-fn expand_path(path: &str) -> String {
+pub fn expand_path(path: &str) -> String {
     let mut result = path.to_string();
 
     #[cfg(windows)]
@@ -530,57 +529,8 @@ pub fn run() {
                 _ => {}
             }
         })
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                let app = window.app_handle();
-
-                // Check if mining is running
-                let mining_active = {
-                    let state = app.state::<mining::state::SharedMiningState>().inner().clone();
-                    let result = state.lock().map(|guard| {
-                        !matches!(guard.mining_status, mining::state::MiningStatus::Stopped)
-                    }).unwrap_or(false);
-                    result
-                };
-
-                // Check if plotting is running
-                let plotting_active = {
-                    let runtime = app.state::<mining::plotter::SharedPlotterRuntime>().inner().clone();
-                    runtime.is_running()
-                };
-
-                if mining_active || plotting_active {
-                    // Prevent immediate close
-                    api.prevent_close();
-
-                    // Build warning message
-                    let activity = match (mining_active, plotting_active) {
-                        (true, true) => "Mining and plotting are",
-                        (true, false) => "Mining is",
-                        (false, true) => "Plotting is",
-                        _ => unreachable!(),
-                    };
-                    let message = format!(
-                        "{} currently running.\n\nExiting now may cause data loss or corruption.\n\nAre you sure you want to exit?",
-                        activity
-                    );
-
-                    // Show confirmation dialog
-                    let window_clone = window.clone();
-                    app.dialog()
-                        .message(message)
-                        .title("Confirm Exit")
-                        .kind(MessageDialogKind::Warning)
-                        .buttons(MessageDialogButtons::OkCancelCustom("Exit Anyway".to_string(), "Cancel".to_string()))
-                        .show(move |confirmed| {
-                            if confirmed {
-                                // User confirmed - force close
-                                let _ = window_clone.destroy();
-                            }
-                        });
-                }
-            }
-        })
+        // Window close handling is done in the frontend (AppComponent.initCloseHandler)
+        // to support i18n for the confirmation dialog
         .invoke_handler(tauri::generate_handler![
             // Cookie/wallet commands
             read_cookie_file,

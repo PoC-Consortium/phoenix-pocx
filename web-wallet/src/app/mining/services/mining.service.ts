@@ -36,10 +36,14 @@ import {
   MinerScanProgressEvent,
   MinerScanStatusEvent,
   MinerDeadlineAcceptedEvent,
-  MinerDeadlineRetryEvent,
-  MinerDeadlineRejectedEvent,
   MinerLogEvent,
   MinerRuntimeState,
+  // Capacity calculation types
+  CapacityCache,
+  GENESIS_BASE_TARGET,
+  MAX_CAPACITY_DATAPOINTS,
+  generateEffectiveCapacityHistory,
+  formatCapacity,
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
 
@@ -86,9 +90,6 @@ export class MiningService {
   private static readonly INFO_LOG_AGE_MS = 60 * 60 * 1000; // 1 hour for info
   private static readonly WARN_ERROR_LOG_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours for warn/error
 
-  // Legacy callback for activity logging (deprecated, use addActivityLog directly)
-  private _onActivityLog: ((type: string, message: string) => void) | null = null;
-
   // Cached drive info (scanned once, refreshed on config change or job complete)
   private readonly _driveInfoCache = signal<Map<string, DriveInfo>>(new Map());
   private _driveInfoLoaded = false;
@@ -122,6 +123,15 @@ export class MiningService {
   private readonly _capacityChartVersion = signal(0); // Bumped on scan finish to trigger chart update
   private readonly _capacityDeadlines = signal<DeadlineEntry[]>([]); // Snapshot updated only on scan finish
 
+  // Capacity calculation cache (survives navigation, updated incrementally on scan finish)
+  private readonly _capacityCache = signal<CapacityCache>({
+    count: 0,
+    qualitySum: 0,
+    effectiveCapacity: 0,
+    history: [],
+    lastDeadlineTimestamp: 0,
+  });
+
   // Public computed values
   readonly state = this._state.asReadonly();
   readonly devices = this._devices.asReadonly();
@@ -138,7 +148,6 @@ export class MiningService {
     () => this._state()?.plottingStatus ?? { type: 'idle' as const }
   );
   readonly config = computed(() => this._state()?.config ?? null);
-  readonly recentDeadlines = computed(() => this._state()?.recentDeadlines ?? []);
   readonly isDevMode = this._isDevMode.asReadonly();
   readonly simulationMode = computed(() => this._state()?.config.simulationMode ?? false);
 
@@ -152,6 +161,15 @@ export class MiningService {
   readonly minerDeadlines = computed(() => this._minerState().recentDeadlines);
   readonly capacityChartVersion = this._capacityChartVersion.asReadonly();
   readonly capacityDeadlines = this._capacityDeadlines.asReadonly(); // Snapshot for chart (updates on scan finish)
+
+  // Cached capacity calculations (survive navigation)
+  readonly capacityCache = this._capacityCache.asReadonly();
+  readonly effectiveCapacityTib = computed(() => this._capacityCache().effectiveCapacity);
+  readonly effectiveCapacityFormatted = computed(() => {
+    const tib = this._capacityCache().effectiveCapacity;
+    return tib > 0 ? formatCapacity(tib) : '--';
+  });
+  readonly capacityHistory = computed(() => this._capacityCache().history);
 
   // Activity logs (survives navigation, auto-cleanup of entries > 1 day old)
   readonly activityLogs = this._activityLogs.asReadonly();
@@ -1200,13 +1218,6 @@ export class MiningService {
   }
 
   /**
-   * Set activity log callback (called by dashboard to receive activity updates)
-   */
-  setActivityLogCallback(callback: ((type: string, message: string) => void) | null): void {
-    this._onActivityLog = callback;
-  }
-
-  /**
    * Add an activity log entry (stored in service, survives navigation)
    * Basic 24h cleanup on add; smart tiered cleanup runs on scan-finished
    */
@@ -1224,9 +1235,60 @@ export class MiningService {
       const cutoff = now - MiningService.WARN_ERROR_LOG_AGE_MS;
       return [newEntry, ...logs.filter(log => log.timestamp > cutoff)];
     });
+  }
 
-    // Also call legacy callback if set (for backward compatibility)
-    this._onActivityLog?.(type, message);
+  /**
+   * Update capacity cache from current deadlines.
+   * Called on scan-finished. Uses settled deadlines (skips newest).
+   *
+   * Optimized: only recalculates if new data arrived since last update.
+   */
+  private updateCapacityCache(): void {
+    const deadlines = this._capacityDeadlines();
+
+    // Settled deadlines = skip newest (may still have more deadlines coming for that height)
+    const settled = deadlines.length > 1 ? deadlines.slice(1) : [];
+
+    // Check if we have new data since last update
+    const latestTimestamp = settled.length > 0 ? settled[0].timestamp : 0;
+    const lastTimestamp = this._capacityCache().lastDeadlineTimestamp;
+
+    // Skip if no new data
+    if (latestTimestamp === lastTimestamp && this._capacityCache().count > 0) {
+      return;
+    }
+
+    if (settled.length === 0) {
+      this._capacityCache.set({
+        count: 0,
+        qualitySum: 0,
+        effectiveCapacity: 0,
+        history: [],
+        lastDeadlineTimestamp: latestTimestamp,
+      });
+      return;
+    }
+
+    // Calculate totals (qualityRaw = 0 is valid - instant forge)
+    const count = settled.length;
+    const qualitySum = settled.reduce((acc, d) => acc + d.qualityRaw, 0);
+    const effectiveCapacity = qualitySum > 0 ? (count * GENESIS_BASE_TARGET) / qualitySum : 0;
+
+    // Get enabled chain count for max data points
+    const config = this._state()?.config;
+    const chainCount = Math.max(1, config?.chains.filter(c => c.enabled).length ?? 1);
+    const maxDataPoints = chainCount * MAX_CAPACITY_DATAPOINTS;
+
+    // Generate history (uses optimized prefix sum algorithm)
+    const history = generateEffectiveCapacityHistory(settled, maxDataPoints, 50);
+
+    this._capacityCache.set({
+      count,
+      qualitySum,
+      effectiveCapacity,
+      history,
+      lastDeadlineTimestamp: latestTimestamp,
+    });
   }
 
   /**
@@ -1813,7 +1875,7 @@ export class MiningService {
     });
     this._minerUnlisteners.push(scanStartedUnlisten);
 
-    // miner:scan-progress
+    // miner:scan-progress (high frequency)
     const scanProgressUnlisten = await listen<MinerScanProgressEvent>(
       'miner:scan-progress',
       event => {
@@ -1837,9 +1899,12 @@ export class MiningService {
     // miner:scan-status - triggers capacity chart update on round finish
     const scanStatusUnlisten = await listen<MinerScanStatusEvent>('miner:scan-status', event => {
       if (event.payload.status === 'finished') {
-        // Snapshot deadlines for capacity chart (only update on round finish)
+        // Snapshot deadlines for capacity chart (update on round finish)
         this._capacityDeadlines.set([...this._minerState().recentDeadlines]);
         this._capacityChartVersion.update(v => v + 1);
+
+        // Update capacity cache (survives navigation)
+        this.updateCapacityCache();
 
         // Smart cleanup of activity logs (idle moment after scan)
         this.cleanupActivityLogs();
@@ -1856,8 +1921,6 @@ export class MiningService {
         const pocTime = d.pocTime < 86400 ? d.pocTime : Number.MAX_SAFE_INTEGER;
 
         this._minerState.update(s => {
-          const MAX_PER_CHAIN = 720;
-
           const entry: DeadlineEntry = {
             id: Date.now(),
             chainName: d.chain,
@@ -1871,17 +1934,12 @@ export class MiningService {
             timestamp: Date.now(),
           };
 
+          // Replace existing deadline for same chain+height (backend guarantees best-only)
           const filtered = s.recentDeadlines.filter(
             dl => !(dl.chainName === d.chain && dl.height === d.height)
           );
-          const allDeadlines = [entry, ...filtered];
-
-          const chainCounts = new Map<string, number>();
-          const updatedDeadlines = allDeadlines.filter(dl => {
-            const count = (chainCounts.get(dl.chainName) ?? 0) + 1;
-            chainCounts.set(dl.chainName, count);
-            return count <= MAX_PER_CHAIN;
-          });
+          // Note: 720-per-chain trimming handled by backend (state.rs)
+          const updatedDeadlines = [entry, ...filtered];
 
           const currentBlock = s.currentBlock[d.chain];
           if (currentBlock && (!currentBlock.bestDeadline || pocTime < currentBlock.bestDeadline)) {
@@ -1907,23 +1965,8 @@ export class MiningService {
     );
     this._minerUnlisteners.push(deadlineAcceptedUnlisten);
 
-    // miner:deadline-retry
-    const deadlineRetryUnlisten = await listen<MinerDeadlineRetryEvent>(
-      'miner:deadline-retry',
-      () => {}
-    );
-    this._minerUnlisteners.push(deadlineRetryUnlisten);
-
-    // miner:deadline-rejected
-    const deadlineRejectedUnlisten = await listen<MinerDeadlineRejectedEvent>(
-      'miner:deadline-rejected',
-      () => {}
-    );
-    this._minerUnlisteners.push(deadlineRejectedUnlisten);
-
-    // miner:hdd-wakeup
-    const hddWakeupUnlisten = await listen('miner:hdd-wakeup', () => {});
-    this._minerUnlisteners.push(hddWakeupUnlisten);
+    // Note: miner:deadline-retry, miner:deadline-rejected, miner:hdd-wakeup
+    // are handled by miner:log callback - no separate listeners needed
 
     // miner:log - forwarded log messages from pocx_miner via log4rs
     const logUnlisten = await listen<MinerLogEvent>('miner:log', event => {

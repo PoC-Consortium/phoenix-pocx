@@ -11,6 +11,7 @@ use super::state::{
     MiningConfig, MiningState, MiningStatus, PlotPlanItem,
     PlotterDeviceConfig, PlottingStatus, SharedMiningState,
 };
+use crate::expand_path;
 use serde::Serialize;
 use std::path::PathBuf;
 use tauri::{AppHandle, State};
@@ -26,37 +27,8 @@ fn build_cookie_path(data_directory: &str, network: &str) -> Option<String> {
         return None;
     }
 
-    // Expand path (similar to lib.rs expand_path)
-    let mut expanded = data_directory.to_string();
-    #[cfg(windows)]
-    {
-        // Expand %VAR% style environment variables on Windows
-        while let Some(start) = expanded.find('%') {
-            if let Some(end) = expanded[start + 1..].find('%') {
-                let var_name = &expanded[start + 1..start + 1 + end];
-                if let Ok(value) = std::env::var(var_name) {
-                    expanded = format!("{}{}{}", &expanded[..start], value, &expanded[start + 2 + end..]);
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        // Expand ~ to HOME directory on Unix
-        if expanded.starts_with("~/") {
-            if let Some(home) = dirs::home_dir() {
-                expanded = format!("{}{}", home.display(), &expanded[1..]);
-            }
-        } else if expanded == "~" {
-            if let Some(home) = dirs::home_dir() {
-                expanded = home.to_string_lossy().to_string();
-            }
-        }
-    }
+    // Use shared expand_path from lib.rs
+    let expanded = expand_path(data_directory);
 
     // Build cookie path
     let mut path = PathBuf::from(expanded);

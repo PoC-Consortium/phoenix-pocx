@@ -542,55 +542,26 @@ export function formatCapacity(capacityTib: number): string {
 }
 
 /**
- * Get best deadline per chain+height (lowest qualityRaw wins)
- *
- * For multi-chain support, we key by chainName+height to get the best
- * deadline for each unique block on each chain.
- *
- * @param deadlines Array of DeadlineEntry
- * @returns Array with only the best deadline for each unique chain+height
- */
-export function getBestDeadlinesPerBlock(deadlines: DeadlineEntry[]): DeadlineEntry[] {
-  // Filter valid deadlines
-  const valid = deadlines.filter(d => d.qualityRaw && d.qualityRaw > 0);
-  if (valid.length === 0) return [];
-
-  // Group by chain+height, keep only the best (lowest qualityRaw) per block
-  const bestByBlock = new Map<string, DeadlineEntry>();
-
-  for (const d of valid) {
-    const key = `${d.chainName}:${d.height}`;
-    const existing = bestByBlock.get(key);
-    if (!existing || d.qualityRaw < existing.qualityRaw) {
-      bestByBlock.set(key, d);
-    }
-  }
-
-  return Array.from(bestByBlock.values());
-}
-
-/**
  * Calculate effective capacity from deadline history
  *
  * Formula: n * GENESIS_BASE_TARGET / sum(qualityRaw)
  *
- * Important: Only the BEST deadline per chain+height is used (lowest qualityRaw).
- * Works with multiple chains - all best deadlines are combined.
+ * Note: Backend already guarantees one best deadline per chain+height,
+ * so no deduplication needed here.
+ *
+ * Note: qualityRaw = 0 is valid (instant forge / golden deadline).
  *
  * @param deadlines Array of DeadlineEntry with qualityRaw
  * @returns Effective capacity in TiB
  */
 export function calculateEffectiveCapacity(deadlines: DeadlineEntry[]): number {
-  // Get only the best deadline per chain+height
-  const bestDeadlines = getBestDeadlinesPerBlock(deadlines);
-  if (bestDeadlines.length === 0) return 0;
+  if (deadlines.length === 0) return 0;
 
-  const qualitySum = bestDeadlines.reduce((acc, d) => acc + d.qualityRaw, 0);
-
-  if (qualitySum === 0) return 0;
+  const qualitySum = deadlines.reduce((acc, d) => acc + d.qualityRaw, 0);
+  if (qualitySum === 0) return 0; // All instant forges - capacity is effectively infinite
 
   // Effective capacity (TiB) = n * GENESIS_BASE_TARGET / sum(qualityRaw)
-  return (bestDeadlines.length * GENESIS_BASE_TARGET) / qualitySum;
+  return (deadlines.length * GENESIS_BASE_TARGET) / qualitySum;
 }
 
 /**
@@ -608,16 +579,31 @@ export interface CapacityDataPoint {
 }
 
 /**
+ * Cached capacity calculation state
+ * Stored in service to survive navigation and enable incremental updates
+ */
+export interface CapacityCache {
+  count: number; // Number of valid deadlines
+  qualitySum: number; // Sum of qualityRaw for all valid deadlines
+  effectiveCapacity: number; // Calculated TiB (n * GENESIS_BASE_TARGET / qualitySum)
+  history: CapacityDataPoint[]; // Sparkline chart data
+  lastDeadlineTimestamp: number; // For detecting new data
+}
+
+/**
  * Generate effective capacity history for sparkline chart
  *
- * Uses cumulative averaging with a sliding window of the last N best deadlines.
+ * Uses cumulative averaging with a sliding window of the last N deadlines.
  * Each chart point shows effective capacity calculated from all data points
  * up to that moment (capped at maxDataPoints).
  *
- * Works with multiple chains - all best deadlines combined and sorted by timestamp.
+ * Optimized with prefix sums for O(n) instead of O(n²) complexity.
+ *
+ * Note: Backend already guarantees one best deadline per chain+height,
+ * so no deduplication needed here.
  *
  * @param deadlines Array of DeadlineEntry
- * @param maxDataPoints Maximum best deadlines to include in lookback (default 720)
+ * @param maxDataPoints Maximum deadlines to include in lookback (default 720)
  * @param maxChartPoints Maximum chart points to return (default 50)
  * @returns Array of CapacityDataPoint for sparkline, oldest to newest
  */
@@ -628,18 +614,22 @@ export function generateEffectiveCapacityHistory(
 ): CapacityDataPoint[] {
   if (deadlines.length === 0) return [];
 
-  // Get best deadline per chain+height
-  const bestDeadlines = getBestDeadlinesPerBlock(deadlines);
-  if (bestDeadlines.length === 0) return [];
-
   // Sort by timestamp ascending (oldest first)
-  const sorted = [...bestDeadlines].sort((a, b) => a.timestamp - b.timestamp);
+  const sorted = [...deadlines].sort((a, b) => a.timestamp - b.timestamp);
 
   // Cap at maxDataPoints (take most recent)
   const capped =
     sorted.length > maxDataPoints ? sorted.slice(sorted.length - maxDataPoints) : sorted;
 
   if (capped.length === 0) return [];
+
+  // Build prefix sums in single pass: O(n)
+  const prefixQualitySum = new Array<number>(capped.length);
+  let runningSum = 0;
+  for (let i = 0; i < capped.length; i++) {
+    runningSum += capped[i].qualityRaw;
+    prefixQualitySum[i] = runningSum;
+  }
 
   // Determine which indices to sample for chart points
   const step = Math.max(1, Math.floor(capped.length / maxChartPoints));
@@ -652,22 +642,18 @@ export function generateEffectiveCapacityHistory(
     sampledIndices.push(capped.length - 1);
   }
 
-  // Calculate cumulative capacity at each sampled point
+  // Calculate cumulative capacity at each sampled point using prefix sums: O(1) per point
   const result: CapacityDataPoint[] = [];
 
   for (const idx of sampledIndices) {
-    // Include all deadlines from start up to this index (cumulative)
-    const windowDeadlines = capped.slice(0, idx + 1);
-
-    if (windowDeadlines.length > 0) {
-      const qualitySum = windowDeadlines.reduce((acc, d) => acc + d.qualityRaw, 0);
-      if (qualitySum > 0) {
-        const capacity = (windowDeadlines.length * GENESIS_BASE_TARGET) / qualitySum;
-        result.push({
-          timestamp: capped[idx].timestamp,
-          capacity,
-        });
-      }
+    const count = idx + 1;
+    const qualitySum = prefixQualitySum[idx];
+    if (qualitySum > 0) {
+      const capacity = (count * GENESIS_BASE_TARGET) / qualitySum;
+      result.push({
+        timestamp: capped[idx].timestamp,
+        capacity,
+      });
     }
   }
 
