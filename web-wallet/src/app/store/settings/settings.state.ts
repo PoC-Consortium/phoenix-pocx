@@ -29,7 +29,6 @@ export type AuthMethod = 'cookie' | 'credentials';
 export interface NodeConfig {
   coinType: CoinType;
   network: Network;
-  currencySymbol: string;
   rpcHost: string;
   rpcPort: number;
   dataDirectory: string;
@@ -87,7 +86,6 @@ export interface SettingsState {
 export const defaultNodeConfig: NodeConfig = {
   coinType: 'bitcoin-pocx',
   network: 'testnet',
-  currencySymbol: 'BTCX',
   rpcHost: '127.0.0.1',
   rpcPort: 18332,
   dataDirectory: '',
@@ -144,13 +142,6 @@ export function getDefaultRpcPort(network: Network): number {
     default:
       return 18332;
   }
-}
-
-/**
- * Get default currency symbol for coin type
- */
-export function getDefaultCurrencySymbol(_coinType: CoinType): string {
-  return 'BTCX';
 }
 
 /**

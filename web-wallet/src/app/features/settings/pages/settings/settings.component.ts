@@ -104,16 +104,6 @@ interface ConnectionTestResult {
                   </mat-radio-group>
                 </div>
 
-                <!-- Currency Symbol -->
-                <div class="config-section">
-                  <h3 class="section-title">{{ 'currency_symbol' | i18n }}</h3>
-                  <mat-form-field appearance="outline" class="half-width">
-                    <mat-label>{{ 'currency_symbol' | i18n }}</mat-label>
-                    <input matInput [(ngModel)]="nodeConfig.currencySymbol" maxlength="10" />
-                    <mat-hint>{{ 'max_10_characters' | i18n }}</mat-hint>
-                  </mat-form-field>
-                </div>
-
                 <!-- Connection Settings Section -->
                 <div class="config-section">
                   <h3 class="section-title">{{ 'connection_settings' | i18n }}</h3>
@@ -876,7 +866,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
   nodeConfig: NodeConfig = {
     coinType: 'bitcoin-pocx',
     network: 'testnet',
-    currencySymbol: 'BTCX',
     rpcHost: '127.0.0.1',
     rpcPort: 18332,
     dataDirectory: '',

@@ -101,7 +101,6 @@
   "create_wallet_message": "始めるにはウォレットを作成またはインポートしてください",
   "created_at_block": "作成されたブロック",
   "creating": "作成中",
-  "currency_symbol": "通貨記号",
   "current_block_height": "現在のブロック高さ",
   "custom": "カスタム",
   "danger_zone": "危険ゾーン",
