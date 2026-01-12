@@ -12,24 +12,16 @@ jobs:
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.create.outputs.result }}
     steps:
-      - name: Create Release
-        id: create
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: context.ref.replace('refs/tags/', ''),
-              name: `Phoenix PoCX Wallet ${context.ref.replace('refs/tags/', '')}`,
-              body: 'See the assets to download this version and install.',
-              draft: true,
-              prerelease: false
-            });
-            return data.id;
+      - name: Create Draft Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --title "Phoenix PoCX Wallet ${{ github.ref_name }}" \
+            --notes "See the assets to download this version and install." \
+            --draft
 
   build:
     name: Build (${{ matrix.label }})
@@ -85,14 +77,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install dependencies (Ubuntu x64)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './web-wallet/src-tauri -> target'
 
-      - name: Install dependencies (Ubuntu ARM64)
-        if: matrix.platform == 'ubuntu-22.04-arm'
+      - name: Install dependencies (Ubuntu)
+        if: startsWith(matrix.platform, 'ubuntu')
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
@@ -102,14 +93,8 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: web-wallet
-          includeRelease: false
-          includeUpdaterJson: false
-          args: --target ${{ matrix.target }}
+        working-directory: web-wallet
+        run: npm run tauri build -- --target ${{ matrix.target }}
 
       - name: Get version from tag
         id: version
@@ -123,24 +108,34 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          mkdir -p artifacts
 
-          # Rename AppImage
-          if [ -f "$BUNDLE_DIR/appimage/"*.AppImage ]; then
-            mv "$BUNDLE_DIR/appimage/"*.AppImage "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
-            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage" --repo ${{ github.repository }}
-          fi
+          # Rename and upload AppImage
+          for f in "$BUNDLE_DIR/appimage/"*.AppImage; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done
 
-          # Rename deb
-          if [ -f "$BUNDLE_DIR/deb/"*.deb ]; then
-            mv "$BUNDLE_DIR/deb/"*.deb "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
-            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb" --repo ${{ github.repository }}
-          fi
+          # Rename and upload deb
+          for f in "$BUNDLE_DIR/deb/"*.deb; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done
 
-          # Rename rpm
-          if [ -f "$BUNDLE_DIR/rpm/"*.rpm ]; then
-            mv "$BUNDLE_DIR/rpm/"*.rpm "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
-            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm" --repo ${{ github.repository }}
-          fi
+          # Rename and upload rpm
+          for f in "$BUNDLE_DIR/rpm/"*.rpm; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done
 
       - name: Rename and upload artifacts (macOS)
         if: matrix.os_name == 'macOS'
@@ -149,18 +144,25 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          mkdir -p artifacts
 
-          # Rename dmg
-          if [ -f "$BUNDLE_DIR/dmg/"*.dmg ]; then
-            mv "$BUNDLE_DIR/dmg/"*.dmg "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
-            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg" --repo ${{ github.repository }}
-          fi
+          # Rename and upload dmg
+          for f in "$BUNDLE_DIR/dmg/"*.dmg; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done
 
-          # Rename app.tar.gz (for updater)
-          if [ -f "$BUNDLE_DIR/macos/"*.app.tar.gz ]; then
-            mv "$BUNDLE_DIR/macos/"*.app.tar.gz "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
-            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz" --repo ${{ github.repository }}
-          fi
+          # Rename and upload app.tar.gz (for updater)
+          for f in "$BUNDLE_DIR/macos/"*.tar.gz; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done
 
       - name: Rename and upload artifacts (Windows)
         if: matrix.platform == 'windows-latest'
@@ -170,15 +172,22 @@ jobs:
         run: |
           VERSION=${{ steps.version.outputs.version }}
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          mkdir -p artifacts
 
-          # Rename NSIS installer
-          if [ -f "$BUNDLE_DIR/nsis/"*-setup.exe ]; then
-            mv "$BUNDLE_DIR/nsis/"*-setup.exe "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
-            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe" --repo ${{ github.repository }}
-          fi
+          # Rename and upload NSIS installer
+          for f in "$BUNDLE_DIR/nsis/"*-setup.exe; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done
 
-          # Rename MSI
-          if [ -f "$BUNDLE_DIR/msi/"*.msi ]; then
-            mv "$BUNDLE_DIR/msi/"*.msi "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
-            gh release upload ${{ github.ref_name }} "Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi" --repo ${{ github.repository }}
-          fi
+          # Rename and upload MSI
+          for f in "$BUNDLE_DIR/msi/"*.msi; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done
