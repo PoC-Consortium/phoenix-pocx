@@ -486,12 +486,6 @@ export interface MinerScanProgress {
 // Effective Capacity Calculation
 // ============================================================================
 
-/** Data needed for effective capacity calculation */
-export interface DeadlineForCapacity {
-  deadline: number;
-  baseTarget: number;
-}
-
 /**
  * Genesis base target constant
  *

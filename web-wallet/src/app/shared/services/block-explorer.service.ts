@@ -29,27 +29,15 @@ export class BlockExplorerService {
     return 'https://explorer.testnet.bitcoin-pocx.org/testnet';
   }
 
-  /**
-   * Get the explorer URL for a block
-   * @param hash - Block hash
-   */
-  getBlockUrl(hash: string): string {
+  private getBlockUrl(hash: string): string {
     return `${this.getBaseUrl()}/block/${hash}`;
   }
 
-  /**
-   * Get the explorer URL for a transaction
-   * @param txid - Transaction ID
-   */
-  getTransactionUrl(txid: string): string {
+  private getTransactionUrl(txid: string): string {
     return `${this.getBaseUrl()}/tx/${txid}`;
   }
 
-  /**
-   * Get the explorer URL for an address
-   * @param address - Bitcoin address
-   */
-  getAddressUrl(address: string): string {
+  private getAddressUrl(address: string): string {
     return `${this.getBaseUrl()}/address/${address}`;
   }
 
