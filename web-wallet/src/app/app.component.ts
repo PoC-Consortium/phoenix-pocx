@@ -119,18 +119,21 @@ export class AppComponent implements OnInit, OnDestroy {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       const currentWindow = getCurrentWindow();
 
+      const { invoke } = await import('@tauri-apps/api/core');
+
       this.closeUnlisten = await currentWindow.onCloseRequested(async event => {
         const miningActive = this.miningService.minerRunning();
         const plottingActive =
           this.miningService.plotterUIState() === 'plotting' ||
           this.miningService.plotterUIState() === 'stopping';
 
-        // If nothing active, allow close immediately
+        // If nothing active, exit immediately
         if (!miningActive && !plottingActive) {
+          await invoke('exit_app');
           return;
         }
 
-        // Prevent immediate close
+        // Prevent immediate close to show confirmation dialog
         event.preventDefault();
 
         // Build warning message
@@ -159,8 +162,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
         dialogRef.afterClosed().subscribe(async (confirmed: boolean) => {
           if (confirmed) {
-            // User confirmed - force close by destroying the window
-            await currentWindow.destroy();
+            // User confirmed - force exit the application
+            const { invoke } = await import('@tauri-apps/api/core');
+            await invoke('exit_app');
           }
         });
       });

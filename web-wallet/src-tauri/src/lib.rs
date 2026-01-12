@@ -178,6 +178,13 @@ fn is_dev() -> bool {
     cfg!(debug_assertions)
 }
 
+/// Force exit the application
+/// Used when user confirms exit while mining/plotting is active
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 /// Check if the current process is running with elevated (admin) privileges
 /// Only relevant on Windows for NTFS preallocation; Linux doesn't need elevation
 #[tauri::command]
@@ -263,7 +270,11 @@ fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
                 .build(app)?,
         )
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Exit"))?)
+        .item(
+            &MenuItemBuilder::with_id("exit", "Exit")
+                .accelerator("CmdOrCtrl+Q")
+                .build(app)?,
+        )
         .build()?;
 
     // Edit menu
@@ -424,6 +435,13 @@ pub fn run() {
         .on_menu_event(|app, event| {
             let id = event.id().as_ref();
             match id {
+                "exit" => {
+                    // Request window close - triggers frontend's onCloseRequested handler
+                    // which shows confirmation dialog if mining/plotting is active
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.close();
+                    }
+                }
                 "settings" => {
                     if let Some(window) = app.get_webview_window("main") {
                         // Use history.pushState for Angular's HTML5 routing
@@ -537,6 +555,7 @@ pub fn run() {
             get_cookie_path,
             get_platform,
             is_dev,
+            exit_app,
             // Elevation commands
             is_elevated,
             restart_elevated,
