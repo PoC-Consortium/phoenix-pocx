@@ -65,10 +65,14 @@ fn get_volume_guid(path: &str) -> Option<String> {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn get_volume_guid(_path: &str) -> Option<String> {
-    // On Unix, we don't have volume GUIDs - use None
-    // The frontend will fall back to path-based comparison
-    None
+fn get_volume_guid(path: &str) -> Option<String> {
+    // On Unix, use device ID as the volume identifier
+    // This correctly identifies which filesystem a path belongs to
+    use std::os::unix::fs::MetadataExt;
+
+    std::fs::metadata(path)
+        .map(|m| format!("dev:{}", m.dev()))
+        .ok()
 }
 
 /// Check if this path is on the actual system volume (not a mountpoint to another drive)
@@ -91,7 +95,21 @@ fn is_system_drive_path(mount_point: &str) -> bool {
 
 #[cfg(not(target_os = "windows"))]
 fn is_system_drive_path(mount_point: &str) -> bool {
-    mount_point == "/"
+    // Check if mount point is "/" OR if it's on the same device as root
+    if mount_point == "/" {
+        return true;
+    }
+
+    // Use device ID to check if the path is on the same filesystem as root
+    use std::os::unix::fs::MetadataExt;
+
+    let root_dev = std::fs::metadata("/").map(|m| m.dev()).ok();
+    let path_dev = std::fs::metadata(mount_point).map(|m| m.dev()).ok();
+
+    match (root_dev, path_dev) {
+        (Some(root), Some(path)) => root == path,
+        _ => mount_point == "/", // Fallback
+    }
 }
 
 /// Check if filename matches PoCX plot file pattern
@@ -197,32 +215,48 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
     let disks = Disks::new_with_refreshed_list();
     let gib = 1024.0 * 1024.0 * 1024.0;
 
-    // Find the disk that contains this path
+    // Find the disk with the LONGEST matching mount point
+    // This is critical for Linux where "/" matches everything, but we want
+    // the most specific mount point (e.g., "/media/usb" over "/")
+    let mut best_match: Option<(&sysinfo::Disk, usize)> = None;
+
     for disk in disks.iter() {
         let mount_point = disk.mount_point();
         if target_path.starts_with(mount_point) {
-            let mount_str = mount_point.to_string_lossy().to_string();
-            let total_bytes = disk.total_space() as f64;
-            let free_bytes = disk.available_space() as f64;
-            let is_system = is_system_drive_path(&mount_str);
-
-            // Scan the specific path for plot files (not the mount point)
-            let scan = scan_plot_files(path);
-
-            return Some(DriveInfo {
-                path: path.to_string(),
-                label: disk.name().to_string_lossy().to_string(),
-                total_gib: total_bytes / gib,
-                free_gib: free_bytes / gib,
-                is_system_drive: is_system,
-                complete_files: scan.complete_count,
-                complete_size_gib: scan.complete_bytes as f64 / gib,
-                incomplete_files: scan.incomplete_count,
-                incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
-                volume_id: get_volume_guid(path),
-            });
+            let mount_len = mount_point.as_os_str().len();
+            match &best_match {
+                Some((_, best_len)) if mount_len <= *best_len => {
+                    // Current match is not longer, skip
+                }
+                _ => {
+                    // This is a longer (more specific) match
+                    best_match = Some((disk, mount_len));
+                }
+            }
         }
     }
 
-    None
+    // Build DriveInfo from the best matching disk
+    best_match.map(|(disk, _)| {
+        let mount_str = disk.mount_point().to_string_lossy().to_string();
+        let total_bytes = disk.total_space() as f64;
+        let free_bytes = disk.available_space() as f64;
+        let is_system = is_system_drive_path(&mount_str);
+
+        // Scan the specific path for plot files (not the mount point)
+        let scan = scan_plot_files(path);
+
+        DriveInfo {
+            path: path.to_string(),
+            label: disk.name().to_string_lossy().to_string(),
+            total_gib: total_bytes / gib,
+            free_gib: free_bytes / gib,
+            is_system_drive: is_system,
+            complete_files: scan.complete_count,
+            complete_size_gib: scan.complete_bytes as f64 / gib,
+            incomplete_files: scan.incomplete_count,
+            incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+            volume_id: get_volume_guid(path),
+        }
+    })
 }
