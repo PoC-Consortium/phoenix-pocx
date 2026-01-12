@@ -23,6 +23,16 @@ phoenix-pocx/
 │   │   │   │           ├── descriptor.service.ts     # BIP39/descriptor generation
 │   │   │   │           ├── wallet-manager.service.ts # Wallet lifecycle
 │   │   │   │           └── wallet.service.ts         # High-level wallet API
+│   │   │   ├── mining/      # Mining & plotting module
+│   │   │   │   ├── pages/
+│   │   │   │   │   ├── mining-dashboard/             # Main mining UI
+│   │   │   │   │   └── setup-wizard/                 # Initial setup flow
+│   │   │   │   ├── services/
+│   │   │   │   │   ├── mining.service.ts             # Mining state & Tauri IPC
+│   │   │   │   │   └── plot-plan.service.ts          # Plot planning logic
+│   │   │   │   ├── models/
+│   │   │   │   │   └── mining.models.ts              # Types & capacity calculations
+│   │   │   │   └── components/                       # Dialogs, charts, etc.
 │   │   │   ├── shared/      # Shared components, services
 │   │   │   ├── store/       # NgRx store
 │   │   │   │   ├── wallet/  # Wallet state management
@@ -32,7 +42,14 @@ phoenix-pocx/
 │   ├── src-tauri/           # Tauri desktop wrapper (Rust)
 │   │   ├── src/
 │   │   │   ├── main.rs      # Entry point
-│   │   │   └── lib.rs       # Commands & plugins
+│   │   │   ├── lib.rs       # Commands & plugins
+│   │   │   └── mining/      # Mining backend
+│   │   │       ├── mod.rs           # Module exports
+│   │   │       ├── commands.rs      # 50+ Tauri commands
+│   │   │       ├── state.rs         # Shared mining state
+│   │   │       ├── plotter.rs       # Plot file generation
+│   │   │       ├── callback.rs      # Event callbacks to frontend
+│   │   │       └── drives.rs        # Drive detection
 │   │   ├── Cargo.toml       # Rust dependencies
 │   │   └── tauri.conf.json  # Tauri configuration
 │   └── package.json
@@ -114,13 +131,84 @@ Despite the legacy name, this service is now primarily for Tauri:
 - **wallet** feature: balance, transactions, UTXOs, addresses
 - **settings** feature: network, theme, preferences
 
+### Mining Layer
+The mining module provides integrated PoCX mining and plotting capabilities:
+
+1. **MiningService** (`mining/services/mining.service.ts`)
+   - Signal-based reactive state management
+   - Tauri IPC for all mining/plotting operations
+   - Event listeners for real-time updates (scan progress, deadlines, plot progress)
+   - Incremental capacity tracking with cached calculations
+   - Manages miner and plotter lifecycle
+
+2. **PlotPlanService** (`mining/services/plot-plan.service.ts`)
+   - Plot file planning and space allocation
+   - Drive capacity calculations
+   - Plot plan generation and execution
+
+3. **Mining Models** (`mining/models/mining.models.ts`)
+   - Type definitions for chains, drives, deadlines, plot plans
+   - Effective capacity calculation with O(n) prefix-sum optimization
+   - Quality-to-capacity conversion formulas
+
+## Rust Mining Backend
+
+Located in `src-tauri/src/mining/`:
+
+### State Management (`state.rs`)
+- `SharedMiningState` - Thread-safe shared state via `Arc<RwLock<>>`
+- Stores chain configs, drive configs, CPU settings, plotter device settings
+- Persists to `mining_config.json`
+
+### Commands (`commands.rs`)
+50+ Tauri commands organized by category:
+- **Device Detection**: `detect_mining_devices` (CPU, GPU via OpenCL)
+- **Drive Management**: `list_plot_drives`, `get_plot_drive_info`
+- **Chain Config**: `add_chain_config`, `update_chain_config`, `remove_chain_config`
+- **Drive Config**: `add_drive_config`, `update_drive_config`, `remove_drive_config`
+- **Mining Control**: `start_mining`, `stop_mining`
+- **Plot Planning**: `generate_plot_plan`, `execute_plot_plan_item`
+- **Plotter Control**: `start_plotter`, `stop_plotter`, `hard_stop_plotter`
+- **Benchmarking**: `run_benchmark`
+- **Address Utils**: `validate_pocx_address`, `get_address_info`, `hex_to_bech32`
+
+### Plotter (`plotter.rs`)
+- Plot file generation using `pocx_plotter` library
+- Supports CPU and GPU (OpenCL) plotting
+- Progress callbacks to frontend via Tauri events
+- Graceful and hard stop support
+
+### Callbacks (`callback.rs`)
+- `TauriMinerCallback` - Implements miner callback trait
+- Emits events: `mining:scan-progress`, `mining:deadline-found`, `mining:round-finished`
+- Real-time updates to frontend via Tauri event system
+
+### Drive Detection (`drives.rs`)
+- Cross-platform drive enumeration
+- Capacity and free space detection
+- Plot file discovery and validation
+
+## PoCX Libraries
+
+The mining backend uses these Rust crates:
+- **pocx_miner** - Deadline scanning, mining loop, callback system
+- **pocx_plotter** - Plot file generation (CPU/GPU via OpenCL)
+- **pocx_address** - Bitcoin-PoCX address validation and encoding
+- **opencl3** - GPU detection with dynamic loading (no build-time SDK required)
+
 ## Tauri Commands (Rust)
 
-Located in `src-tauri/src/lib.rs`:
+### Core Commands (`src-tauri/src/lib.rs`)
 - `read_cookie_file` - Read cookie file with path expansion
 - `get_cookie_path` - Build cookie path from data dir + network
 - `get_platform` - Return platform (win32/darwin/linux)
 - `is_dev` - Check if running in debug mode
+- `exit_app` - Force exit application
+- `is_elevated` - Check admin privileges (Windows)
+- `restart_elevated` - Restart with admin privileges for NTFS preallocation
+
+### Mining Commands (`src-tauri/src/mining/commands.rs`)
+See "Rust Mining Backend" section above for full list of 50+ mining commands.
 
 ## Tauri Plugins
 
