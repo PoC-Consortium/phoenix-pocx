@@ -155,14 +155,16 @@ pub enum PlotPlanItem {
 pub struct DeadlineEntry {
     pub id: i64,
     pub chain_name: String,
-    pub account: String,
+    pub account: String,        // bech32 format (converted in backend)
     pub height: u64,
     pub nonce: u64,
     pub deadline: u64,
-    pub quality_raw: u64,  // Raw quality for effective capacity calculations
-    pub base_target: u64,  // Block's base target for capacity calculations
+    pub quality_raw: u64,       // Raw quality for effective capacity calculations
+    pub base_target: u64,       // Block's base target for capacity calculations
     pub submitted: bool,
     pub timestamp: i64,
+    #[serde(default)]
+    pub gensig: String,         // Generation signature for fork detection
 }
 
 /// Full mining configuration
@@ -375,19 +377,46 @@ pub fn update_mining_status(state: &SharedMiningState, status: MiningStatus) {
 /// Maximum deadlines to keep per chain (720 blocks ≈ 1 day at 2min block time)
 const MAX_DEADLINES_PER_CHAIN: usize = 720;
 
-/// Add or update a deadline entry
+/// Result of adding a deadline - indicates what changed
+#[derive(Debug, Clone, PartialEq)]
+pub enum DeadlineUpdateResult {
+    /// No update - existing deadline was better
+    NotImproved,
+    /// New best deadline for this block (new height or better deadline)
+    NewBestForBlock,
+    /// Fork detected - gensig changed, deadline replaced
+    ForkDetected,
+}
+
+/// Add or update a deadline entry with fork detection
 /// - Only one entry per chain+height (best deadline wins)
 /// - Lower deadline value (poc_time) is better
-pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) {
+/// - Detects forks by gensig change for same height
+/// Returns what kind of update occurred (for frontend notification)
+pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) -> DeadlineUpdateResult {
     if let Ok(mut state) = state.lock() {
         let chain_name = deadline.chain_name.clone();
         let height = deadline.height;
+        let gensig = deadline.gensig.clone();
 
         // Check if we already have an entry for this chain+height
         if let Some(existing) = state.recent_deadlines.iter_mut().find(|d| {
             d.chain_name == chain_name && d.height == height
         }) {
-            // Only update if new deadline is better (lower)
+            // Fork detection: if gensig changed, this is a new block at same height
+            if !existing.gensig.is_empty() && existing.gensig != gensig {
+                // Fork detected - replace entry entirely
+                existing.account = deadline.account;
+                existing.nonce = deadline.nonce;
+                existing.deadline = deadline.deadline;
+                existing.quality_raw = deadline.quality_raw;
+                existing.base_target = deadline.base_target;
+                existing.timestamp = deadline.timestamp;
+                existing.gensig = gensig;
+                return DeadlineUpdateResult::ForkDetected;
+            }
+
+            // Same block - only update if new deadline is better (lower)
             if deadline.deadline < existing.deadline {
                 existing.account = deadline.account;
                 existing.nonce = deadline.nonce;
@@ -395,8 +424,10 @@ pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) {
                 existing.quality_raw = deadline.quality_raw;
                 existing.base_target = deadline.base_target;
                 existing.timestamp = deadline.timestamp;
+                existing.gensig = gensig;
+                return DeadlineUpdateResult::NewBestForBlock;
             }
-            return;
+            return DeadlineUpdateResult::NotImproved;
         }
 
         // New entry - add to front
@@ -418,6 +449,10 @@ pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) {
         if let Some(idx) = remove_idx {
             state.recent_deadlines.remove(idx);
         }
+
+        DeadlineUpdateResult::NewBestForBlock
+    } else {
+        DeadlineUpdateResult::NotImproved
     }
 }
 

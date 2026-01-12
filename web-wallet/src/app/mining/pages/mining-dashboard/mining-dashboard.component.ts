@@ -6,16 +6,14 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { I18nPipe, I18nService } from '../../../core/i18n';
 import { MiningService } from '../../services';
 import {
   MiningStatus,
   PlottingStatus,
-  DeadlineEntry,
   ChainConfig,
   DriveConfig,
   calculateNetworkCapacityTib,
-  calculateEffectiveCapacity,
-  generateEffectiveCapacityHistory,
   formatCapacity,
 } from '../../models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -32,6 +30,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
     MatTooltipModule,
     MatIconModule,
     MatCheckboxModule,
+    I18nPipe,
   ],
   template: `
     <div class="dashboard">
@@ -41,7 +40,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <!-- Mining Status Card -->
           <div class="summary-card mining-status-card">
             <div class="card-header">
-              <span class="card-title"><mat-icon>hardware</mat-icon>Mining Status</span>
+              <span class="card-title"
+                ><mat-icon>hardware</mat-icon>{{ 'mining_status' | i18n }}</span
+              >
             </div>
             <div class="status-row">
               <span class="status-indicator" [class]="getStatusIndicatorClass()"></span>
@@ -51,17 +52,21 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 [class.btn-stop]="isRunning()"
                 [class.btn-start]="!isRunning()"
                 (click)="toggleMining()"
-                [title]="isRunning() ? 'Stop Mining' : 'Start Mining'"
+                [title]="
+                  isRunning() ? ('mining_stop_mining' | i18n) : ('mining_start_mining' | i18n)
+                "
               >
-                <span class="btn-label">{{ isRunning() ? 'Stop' : 'Start' }}</span>
+                <span class="btn-label">{{
+                  isRunning() ? ('mining_stop' | i18n) : ('mining_start' | i18n)
+                }}</span>
                 <span class="btn-icon-glyph">{{ isRunning() ? '■' : '▶' }}</span>
               </button>
             </div>
             <div class="card-sub">{{ getCurrentChainInfo() }}</div>
-            @if (miningStatus()?.type === 'scanning') {
+            @if (isScanning()) {
               <div class="progress-container">
                 <div class="progress-label">
-                  <span>Scan Progress</span>
+                  <span>{{ 'mining_scan_progress' | i18n }}</span>
                   <span>{{ getScanProgress() }}%</span>
                 </div>
                 <div class="progress-bar-sm">
@@ -74,13 +79,15 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <!-- Best Deadline Card -->
           <div class="summary-card best-deadline-card">
             <div class="card-header">
-              <span class="card-title"><mat-icon>timer</mat-icon>Best Deadline</span>
+              <span class="card-title"
+                ><mat-icon>timer</mat-icon>{{ 'mining_best_deadline' | i18n }}</span
+              >
             </div>
-            <div class="deadline-value">{{ getBestDeadline() }}</div>
-            <div class="card-sub">{{ getBestDeadlineInfo() }}</div>
-            @if (getCurrentRoundDeadlines().length > 0) {
+            <div class="deadline-value">{{ bestDeadlineDisplay() }}</div>
+            <div class="card-sub">{{ bestDeadlineInfoDisplay() }}</div>
+            @if (currentRoundDeadlines().length > 0) {
               <div class="account-list">
-                @for (deadline of getCurrentRoundDeadlines(); track deadline.id) {
+                @for (deadline of currentRoundDeadlines(); track deadline.id) {
                   <div class="account-item">
                     <span class="account-id" [title]="deadline.account">{{
                       deadline.account
@@ -95,14 +102,16 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <!-- Capacity Card -->
           <div class="summary-card capacity-card">
             <div class="card-header">
-              <span class="card-title"><mat-icon>storage</mat-icon>Capacity</span>
+              <span class="card-title"
+                ><mat-icon>storage</mat-icon>{{ 'mining_capacity' | i18n }}</span
+              >
               @if (miningService.isDevMode()) {
                 <mat-checkbox
                   class="sim-checkbox"
                   [checked]="miningService.simulationMode()"
                   (change)="toggleSimulationMode($event.checked)"
-                  matTooltip="Simulation mode: plotter runs in benchmark mode (no disk writes)"
-                  >Sim</mat-checkbox
+                  [matTooltip]="'mining_sim_tooltip' | i18n"
+                  >{{ 'mining_sim' | i18n }}</mat-checkbox
                 >
               }
             </div>
@@ -112,16 +121,19 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
               <div class="capacity-value">{{ totalPlotSize() }}</div>
               <div class="capacity-status">
                 @if (isAllComplete()) {
-                  <span class="status-legend">ready for mining</span>
+                  <span class="status-legend">{{ 'mining_ready_for_mining' | i18n }}</span>
                 } @else {
                   <span class="status-item ready"
-                    ><span class="dot">●</span> {{ formatTib(getReadyTib()) }} ready</span
+                    ><span class="dot">●</span> {{ formatTib(getReadyTib()) }}
+                    {{ 'mining_ready' | i18n | lowercase }}</span
                   >
                   <span class="status-item plotted"
-                    ><span class="dot">●</span> {{ formatTib(getPlottedTib()) }} plotted</span
+                    ><span class="dot">●</span> {{ formatTib(getPlottedTib()) }}
+                    {{ 'mining_plotted' | i18n | lowercase }}</span
                   >
                   <span class="status-item to-plot"
-                    ><span class="dot">○</span> {{ formatTib(getToPlotTib()) }} to plot</span
+                    ><span class="dot">○</span> {{ formatTib(getToPlotTib()) }}
+                    {{ 'mining_to_plot' | i18n }}</span
                   >
                 }
               </div>
@@ -137,14 +149,14 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                   <button
                     class="btn btn-icon btn-stop"
                     disabled
-                    title="Stopping after current batch..."
+                    [title]="'mining_stopping_after_batch' | i18n"
                   >
-                    <span class="btn-label">Stopping</span>
+                    <span class="btn-label">{{ 'mining_stopping' | i18n }}</span>
                     <span class="btn-icon-glyph">⏳</span>
                   </button>
                   <div class="plotter-info">
                     <div class="plotter-info-row">
-                      <span class="task-info">Finishing batch...</span>
+                      <span class="task-info">{{ 'mining_finishing_batch' | i18n }}</span>
                       <span class="speed-info">{{ getPlottingSpeed() }}</span>
                     </div>
                     <div class="progress-bar-sm">
@@ -161,16 +173,16 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                   <button
                     class="btn btn-icon btn-stop"
                     (click)="togglePlotting()"
-                    title="Stop Plotting"
+                    [title]="'mining_stop_plotting' | i18n"
                   >
-                    <span class="btn-label">Stop</span>
+                    <span class="btn-label">{{ 'mining_stop' | i18n }}</span>
                     <span class="btn-icon-glyph">■</span>
                   </button>
                   <div class="plotter-info">
                     <div class="plotter-info-row">
-                      <span class="task-info"
-                        >Task {{ getCurrentTask() }}/{{ getTotalTasks() }}</span
-                      >
+                      <span class="task-info">{{
+                        'mining_task' | i18n: { current: getCurrentTask(), total: getTotalTasks() }
+                      }}</span>
                       <span class="speed-info">{{ getPlottingSpeed() }}</span>
                     </div>
                     <div class="progress-bar-sm">
@@ -179,7 +191,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                         [style.width.%]="getPlottingProgress()"
                       ></div>
                     </div>
-                    <div class="eta-info">ETA: {{ planEta() }}</div>
+                    <div class="eta-info">{{ 'mining_eta' | i18n }} {{ planEta() }}</div>
                   </div>
                 </div>
               } @else if (canStartPlan() || hasQueuedDrives()) {
@@ -188,22 +200,25 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                   <button
                     class="btn btn-icon btn-start"
                     (click)="togglePlotting()"
-                    title="Start Plotting"
+                    [title]="'mining_start_plotting' | i18n"
                   >
-                    <span class="btn-label">Start</span>
+                    <span class="btn-label">{{ 'mining_start' | i18n }}</span>
                     <span class="btn-icon-glyph">▶</span>
                   </button>
                   <span class="queue-info">{{
                     canStartPlan()
-                      ? getRemainingSize() + ' in plan'
-                      : 'Ready to plot ' + getQueuedSize()
+                      ? getRemainingSize() + ' ' + ('mining_in_plan' | i18n)
+                      : ('mining_ready_to_plot' | i18n) + ' ' + getQueuedSize()
                   }}</span>
                 </div>
               } @else {
                 <!-- Complete State: Info -->
                 <div class="plotter-complete">
                   <span class="complete-info"
-                    >{{ drives().length }} drive{{ drives().length !== 1 ? 's' : '' }}</span
+                    >{{ drives().length }}
+                    {{
+                      drives().length !== 1 ? ('mining_drives' | i18n) : ('mining_drive' | i18n)
+                    }}</span
                   >
                 </div>
               }
@@ -213,7 +228,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <!-- Effective Capacity Card -->
           <div class="summary-card effective-capacity-card">
             <div class="card-header">
-              <span class="card-title"><mat-icon>trending_up</mat-icon>Effective Capacity</span>
+              <span class="card-title"
+                ><mat-icon>trending_up</mat-icon>{{ 'mining_effective_capacity' | i18n }}</span
+              >
               <span class="capacity-value">{{ calculatedEffectiveCapacity() }}</span>
             </div>
             @if (sparklineData().length > 1) {
@@ -261,11 +278,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
             } @else if (sparklineData().length === 1) {
               <div class="chart-placeholder">
                 <span class="single-value">{{ calculatedEffectiveCapacity() }}</span>
-                <span class="placeholder-text">Collecting data...</span>
+                <span class="placeholder-text">{{ 'mining_collecting_data' | i18n }}</span>
               </div>
             } @else {
               <div class="chart-placeholder">
-                <span class="placeholder-text">No deadline data yet</span>
+                <span class="placeholder-text">{{ 'mining_no_deadline_data' | i18n }}</span>
               </div>
             }
           </div>
@@ -278,8 +295,12 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
             <!-- Chain Details -->
             <div class="section">
               <div class="section-header">
-                <span class="section-title">Active Chains</span>
-                <button class="icon-btn" (click)="navigateToSetup(0)" title="Configure Chains">
+                <span class="section-title">{{ 'mining_active_chains' | i18n }}</span>
+                <button
+                  class="icon-btn"
+                  (click)="navigateToSetup(0)"
+                  [title]="'mining_configure_chains' | i18n"
+                >
                   <mat-icon>link</mat-icon>
                 </button>
               </div>
@@ -287,11 +308,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 <table class="chains-table">
                   <thead>
                     <tr>
-                      <th>Chain</th>
-                      <th>Height</th>
-                      <th>Difficulty</th>
-                      <th>PoW Scale</th>
-                      <th>Status</th>
+                      <th>{{ 'mining_chain' | i18n }}</th>
+                      <th>{{ 'height' | i18n }}</th>
+                      <th>{{ 'difficulty' | i18n }}</th>
+                      <th>{{ 'mining_pow_scale' | i18n }}</th>
+                      <th>{{ 'status' | i18n }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -314,7 +335,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                     }
                     @if (enabledChains().length === 0) {
                       <tr>
-                        <td colspan="5" class="empty-row">No chains configured</td>
+                        <td colspan="5" class="empty-row">
+                          {{ 'mining_no_chains_configured' | i18n }}
+                        </td>
                       </tr>
                     }
                   </tbody>
@@ -325,18 +348,22 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
             <!-- Best Deadline History -->
             <div class="section deadline-history-section">
               <div class="section-header">
-                <span class="section-title">Best Deadline History</span>
+                <span class="section-title">{{ 'mining_best_deadline_history' | i18n }}</span>
                 <div class="header-actions">
                   <div class="chain-filter">
-                    <select [(ngModel)]="chainFilter" (change)="filterDeadlines()">
-                      <option value="all">All Chains</option>
+                    <select [ngModel]="chainFilter()" (ngModelChange)="chainFilter.set($event)">
+                      <option value="all">{{ 'mining_all_chains' | i18n }}</option>
                       @for (chain of enabledChains(); track chain.name) {
                         <option [value]="chain.name">{{ chain.name }}</option>
                       }
                     </select>
                   </div>
-                  <button class="export-btn" (click)="exportCSV()" title="Export to CSV">
-                    Export CSV
+                  <button
+                    class="export-btn"
+                    (click)="exportCSV()"
+                    [title]="'mining_export_to_csv' | i18n"
+                  >
+                    {{ 'mining_export_csv' | i18n }}
                   </button>
                 </div>
               </div>
@@ -344,11 +371,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 <table class="deadline-table">
                   <thead>
                     <tr>
-                      <th>Time</th>
-                      <th>Block</th>
-                      <th>Chain</th>
-                      <th>Account</th>
-                      <th>Best Deadline</th>
+                      <th>{{ 'time' | i18n }}</th>
+                      <th>{{ 'block_height' | i18n }}</th>
+                      <th>{{ 'mining_chain' | i18n }}</th>
+                      <th>{{ 'account' | i18n }}</th>
+                      <th>{{ 'mining_best_deadline' | i18n }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -360,14 +387,16 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                         <td class="account-col" [title]="deadline.account">
                           {{ deadline.account }}
                         </td>
-                        <td class="deadline-col" [class.best]="isBestDeadline(deadline)">
+                        <td class="deadline-col">
                           {{ formatDeadline(deadline.deadline) }}
                         </td>
                       </tr>
                     }
                     @if (filteredDeadlines().length === 0) {
                       <tr>
-                        <td colspan="5" class="empty-row">No deadlines found yet</td>
+                        <td colspan="5" class="empty-row">
+                          {{ 'mining_no_deadlines_found' | i18n }}
+                        </td>
                       </tr>
                     }
                   </tbody>
@@ -380,24 +409,36 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           <div class="right-column">
             <div class="section drives-section">
               <div class="section-header">
-                <span class="section-title">Drives</span>
+                <span class="section-title">{{ 'mining_drives_title' | i18n }}</span>
                 <div class="header-buttons">
                   @if (hasActivePlan()) {
-                    <button class="icon-btn" (click)="openPlanViewer()" title="Plot Plan">
+                    <button
+                      class="icon-btn"
+                      (click)="openPlanViewer()"
+                      [title]="'mining_plot_plan' | i18n"
+                    >
                       <mat-icon>assignment</mat-icon>
                     </button>
                   }
                   <button
                     class="icon-btn"
                     (click)="refreshDriveStats()"
-                    title="Refresh Drive Stats"
+                    [title]="'mining_refresh_drive_stats' | i18n"
                   >
                     <mat-icon>refresh</mat-icon>
                   </button>
-                  <button class="icon-btn" (click)="navigateToSetup(1)" title="Plotter Settings">
+                  <button
+                    class="icon-btn"
+                    (click)="navigateToSetup(1)"
+                    [title]="'mining_plotter_settings' | i18n"
+                  >
                     <mat-icon>memory</mat-icon>
                   </button>
-                  <button class="icon-btn" (click)="navigateToSetup(2)" title="Drive Settings">
+                  <button
+                    class="icon-btn"
+                    (click)="navigateToSetup(2)"
+                    [title]="'mining_drive_settings' | i18n"
+                  >
                     <mat-icon>storage</mat-icon>
                   </button>
                 </div>
@@ -406,10 +447,10 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 <table>
                   <thead>
                     <tr>
-                      <th>Path</th>
-                      <th>Status</th>
-                      <th>Plotted</th>
-                      <th>Allocated</th>
+                      <th>{{ 'mining_path' | i18n }}</th>
+                      <th>{{ 'status' | i18n }}</th>
+                      <th>{{ 'mining_plotted' | i18n }}</th>
+                      <th>{{ 'mining_allocated' | i18n }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -440,7 +481,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                     }
                     @if (drives().length === 0) {
                       <tr>
-                        <td colspan="4" class="empty-row">No drives configured</td>
+                        <td colspan="4" class="empty-row">
+                          {{ 'mining_no_drives_configured' | i18n }}
+                        </td>
                       </tr>
                     }
                   </tbody>
@@ -453,14 +496,14 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         <!-- Recent Activity -->
         <div class="section activity-section">
           <div class="section-header">
-            <span class="section-title">Recent Activity</span>
+            <span class="section-title">{{ 'mining_recent_activity' | i18n }}</span>
             <div class="log-filters">
               <button
                 class="log-filter"
                 [class.active]="logFilters().all"
                 (click)="toggleLogFilter('all')"
               >
-                All
+                {{ 'all' | i18n }}
               </button>
               <button
                 class="log-filter"
@@ -468,7 +511,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 data-filter="info"
                 (click)="toggleLogFilter('info')"
               >
-                Info
+                {{ 'info' | i18n }}
               </button>
               <button
                 class="log-filter"
@@ -476,7 +519,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 data-filter="warn"
                 (click)="toggleLogFilter('warn')"
               >
-                Warn
+                {{ 'warning' | i18n }}
               </button>
               <button
                 class="log-filter"
@@ -484,7 +527,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                 data-filter="error"
                 (click)="toggleLogFilter('error')"
               >
-                Error
+                {{ 'error' | i18n }}
               </button>
             </div>
           </div>
@@ -499,7 +542,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
               @if (activityLogs().length === 0) {
                 <div class="log-entry">
                   <span class="log-time">--:--:--</span>
-                  <span class="log-message">No activity yet</span>
+                  <span class="log-message">{{ 'mining_no_activity_yet' | i18n }}</span>
                 </div>
               }
             </div>
@@ -508,11 +551,13 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
         <!-- First-run overlay -->
         @if (showFirstRun()) {
-          <div class="overlay show" (click)="hideFirstRun($event)">
+          <div class="overlay show">
             <div class="first-run-card">
-              <h2>Welcome to Mining</h2>
-              <p>Before you can start mining, configure your mining target and storage drives.</p>
-              <button class="btn btn-primary" routerLink="/mining/setup">Get Started</button>
+              <h2>{{ 'mining_welcome' | i18n }}</h2>
+              <p>{{ 'mining_welcome_message' | i18n }}</p>
+              <button class="btn btn-primary" routerLink="/mining/setup">
+                {{ 'mining_get_started' | i18n }}
+              </button>
             </div>
           </div>
         }
@@ -648,33 +693,10 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         position: relative;
       }
 
-      .summary-card .card-value {
-        font-size: 26px;
-        font-weight: 600;
-        color: #ffffff;
-        line-height: 1;
-      }
-
       .summary-card .card-sub {
         font-size: 11px;
         color: rgba(255, 255, 255, 0.7);
         margin-top: 4px;
-      }
-
-      .gear-link {
-        color: rgba(255, 255, 255, 0.6);
-        background: transparent;
-        border: none;
-        font-size: 14px;
-        padding: 2px 4px;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-
-      .gear-link:hover {
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.1);
       }
 
       /* Mining Status Card */
@@ -697,23 +719,12 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         box-shadow: 0 0 8px #4caf50;
         animation: pulse 2s infinite;
       }
-      .status-indicator.idle {
-        background: #9e9e9e;
-      }
       .status-indicator.scanning {
         background: #42a5f5;
         box-shadow: 0 0 8px #42a5f5;
       }
-      .status-indicator.plotting {
-        background: #ff9800;
-        box-shadow: 0 0 8px #ff9800;
-        animation: pulse 2s infinite;
-      }
       .status-indicator.stopped {
         background: #9e9e9e;
-      }
-      .status-indicator.error {
-        background: #f44336;
       }
 
       @keyframes pulse {
@@ -811,11 +822,11 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       .progress-fill.scanning {
         background: linear-gradient(90deg, #42a5f5, #1976d2);
       }
-      .progress-fill.mining {
-        background: linear-gradient(90deg, #4caf50, #2e7d32);
-      }
       .progress-fill.plotting {
         background: linear-gradient(90deg, #ff9800, #e65100);
+      }
+      .progress-fill.stopping {
+        background: linear-gradient(90deg, #ff5722, #d84315);
       }
 
       /* Best Deadline Card */
@@ -894,12 +905,6 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       }
       .status-item.plotted {
         color: #4fc3f7;
-      }
-      .status-item.plotting {
-        color: #ffb74d;
-      }
-      .status-item.queued {
-        color: rgba(255, 255, 255, 0.5);
       }
       .status-item.to-plot {
         color: rgba(255, 255, 255, 0.5);
@@ -987,22 +992,6 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         flex: 1;
       }
 
-      /* Gear link in lower section */
-      .capacity-lower .gear-link {
-        color: rgba(255, 255, 255, 0.5);
-        text-decoration: none;
-        font-size: 14px;
-        padding: 4px;
-        border-radius: 4px;
-        transition: all 0.2s;
-        flex-shrink: 0;
-      }
-
-      .capacity-lower .gear-link:hover {
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.1);
-      }
-
       .header-buttons {
         display: flex;
         gap: 4px;
@@ -1030,21 +1019,6 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         font-size: 18px;
         width: 18px;
         height: 18px;
-      }
-
-      .info-btn {
-        background: rgba(255, 255, 255, 0.1);
-        border: none;
-        color: rgba(255, 255, 255, 0.9);
-        cursor: pointer;
-        font-size: 14px;
-        padding: 3px 8px;
-        border-radius: 4px;
-        transition: all 0.2s;
-      }
-
-      .info-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
       }
 
       /* Effective Capacity Card */
@@ -1201,21 +1175,6 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         color: #ffffff;
       }
 
-      .section-header .gear-btn {
-        background: rgba(255, 255, 255, 0.1);
-        border: none;
-        color: rgba(255, 255, 255, 0.9);
-        cursor: pointer;
-        font-size: 14px;
-        padding: 3px 6px;
-        border-radius: 4px;
-        transition: all 0.2s;
-      }
-
-      .section-header .gear-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
-
       .section-content {
         padding: 10px 14px;
         flex: 1;
@@ -1326,9 +1285,6 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         border-radius: 2px;
       }
 
-      .mini-progress .fill.mining {
-        background: #4caf50;
-      }
       .mini-progress .fill.plotting {
         background: #ff9800;
       }
@@ -1390,10 +1346,6 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
       .deadline-table .deadline-col {
         font-weight: 500;
-      }
-
-      .deadline-table .deadline-col.best {
-        color: #2e7d32;
       }
 
       /* Activity Section */
@@ -1560,7 +1512,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly miningService = inject(MiningService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
-  private refreshInterval: ReturnType<typeof setInterval> | null = null;
+  private readonly i18n = inject(I18nService);
 
   readonly miningStatus = signal<MiningStatus | null>(null);
   readonly plottingStatus = signal<PlottingStatus | null>(null);
@@ -1581,6 +1533,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   private readonly LOG_TYPE_TO_CATEGORY: Record<string, string> = {
     info: 'info',
     warn: 'warn',
+    warning: 'warn', // Alias for consistency
     error: 'error',
   };
 
@@ -1603,7 +1556,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   readonly totalPlotSize = signal('0 GiB');
   readonly readySize = signal('0 GiB');
-  readonly readyFiles = signal(0);
   readonly pendingFiles = signal(0);
   // Use service's cache directly so updates propagate automatically
   readonly driveInfos = this.miningService.driveInfoCache;
@@ -1613,21 +1565,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly planStats = this.miningService.planStats;
   readonly planEta = this.miningService.planEta;
 
-  // Effective capacity computed from deadline snapshot
-  // Only recalculates on scan round finish (not every deadline update)
-  readonly sparklineData = computed(() => {
-    const deadlines = this.miningService.capacityDeadlines(); // Snapshot, updates on scan finish
-    const chainCount = Math.max(1, this.enabledChains().length);
-    const maxDataPoints = chainCount * 120;
-    return generateEffectiveCapacityHistory(deadlines, maxDataPoints, 50);
-  });
-
-  readonly calculatedEffectiveCapacity = computed(() => {
-    const deadlines = this.miningService.capacityDeadlines(); // Snapshot, updates on scan finish
-    const capacityTib = calculateEffectiveCapacity(deadlines);
-    if (capacityTib === 0) return '--';
-    return formatCapacity(capacityTib);
-  });
+  // Effective capacity from service cache (survives navigation)
+  readonly sparklineData = this.miningService.capacityHistory;
+  readonly calculatedEffectiveCapacity = this.miningService.effectiveCapacityFormatted;
 
   // Chart axis labels
   readonly capacityYAxisLabels = computed(() => {
@@ -1670,11 +1610,52 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return [oldest, middle, 'Now'];
   });
 
-  chainFilter = 'all';
+  // Latest best deadline = first entry in recentDeadlines (most recent)
+  // Same data source as history table - O(1) read
+  readonly latestBestDeadline = computed(() => {
+    const deadlines = this.recentDeadlines();
+    return deadlines.length > 0 ? deadlines[0] : null;
+  });
+
+  // Current round deadlines for account list (one per chain)
+  // Only check first ~10 entries since current round is always at front
+  readonly currentRoundDeadlines = computed(() => {
+    const deadlines = this.recentDeadlines();
+    const blocks = this.currentBlock();
+    return deadlines.slice(0, 10).filter(d => {
+      const block = blocks[d.chainName];
+      return block && d.height === block.height;
+    });
+  });
+
+  // Formatted best deadline value for display
+  readonly bestDeadlineDisplay = computed(() => {
+    const best = this.latestBestDeadline();
+    if (!best) return '--';
+    return this.formatDeadline(best.deadline);
+  });
+
+  // Best deadline info line
+  readonly bestDeadlineInfoDisplay = computed(() => {
+    const best = this.latestBestDeadline();
+    if (!best) return this.i18n.get('mining_no_deadlines_this_round');
+    return `${best.chainName} • ${this.i18n.get('block')} ${best.height.toLocaleString()}`;
+  });
+
+  readonly chainFilter = signal('all');
+
+  // Filtered deadlines - computed for proper memoization (not recalced on every CD cycle)
+  readonly filteredDeadlines = computed(() => {
+    const all = this.recentDeadlines();
+    const filter = this.chainFilter();
+    if (filter === 'all') return all;
+    return all.filter(d => d.chainName === filter);
+  });
 
   async ngOnInit(): Promise<void> {
+    // Load initial state once (config, drives, etc.)
     await this.loadState();
-    // Load drive stats once on init (not during polling - interferes with mining)
+    // Load drive stats once on init
     await this.loadDriveStats();
 
     // Initialize plotting (first start flow - generates plan if needed)
@@ -1687,23 +1668,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     if (this.miningService.plotterRunning()) {
       await this.miningService.setupPlotterEventListeners();
     }
-
-    this.startPolling();
+    // No polling needed - all updates come through Tauri event listeners
+    // which update service signals (minerDeadlines, minerCurrentBlock, etc.)
   }
 
   ngOnDestroy(): void {
-    this.stopPolling();
-  }
-
-  private startPolling(): void {
-    this.refreshInterval = setInterval(() => this.loadState(), 2000);
-  }
-
-  private stopPolling(): void {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = null;
-    }
+    // No polling to clean up - event listeners are managed by MiningService
   }
 
   private async loadState(): Promise<void> {
@@ -1791,100 +1761,59 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return this.stateLoaded() && !this.configured();
   }
 
-  hideFirstRun(event: MouseEvent): void {
-    if ((event.target as HTMLElement).classList.contains('overlay')) {
-      // Don't hide on background click, only on button
-    }
+  isRunning(): boolean {
+    // Use event-driven state for instant UI updates (no polling needed)
+    return this.miningService.minerRunning();
   }
 
-  isRunning(): boolean {
-    const status = this.miningStatus();
-    return status?.type === 'scanning' || status?.type === 'idle' || status?.type === 'starting';
+  isScanning(): boolean {
+    // Use event-driven state for real-time updates
+    if (!this.miningService.minerRunning()) return false;
+    const scanProgress = this.miningService.minerScanProgress();
+    return scanProgress.progress > 0 && scanProgress.progress < 100;
   }
 
   getStatusIndicatorClass(): string {
-    const status = this.miningStatus();
-    if (!status) return 'idle';
-    switch (status.type) {
-      case 'scanning':
-        return 'scanning';
-      case 'idle':
-        return 'active';
-      case 'starting':
-        return 'scanning';
-      case 'stopped':
-        return 'stopped';
-      case 'error':
-        return 'error';
-      default:
-        return 'idle';
+    // Use event-driven state for real-time updates
+    if (!this.miningService.minerRunning()) {
+      return 'stopped';
     }
+    const scanProgress = this.miningService.minerScanProgress();
+    if (scanProgress.progress > 0 && scanProgress.progress < 100) {
+      return 'scanning';
+    }
+    return 'active';
   }
 
   getStatusText(): string {
-    const status = this.miningStatus();
-    if (!status) return 'Idle';
-    switch (status.type) {
-      case 'scanning':
-        return 'Scanning Plots';
-      case 'idle':
-        return 'Mining Active';
-      case 'starting':
-        return 'Starting...';
-      case 'stopped':
-        return 'Stopped';
-      case 'error':
-        return 'Error';
-      default:
-        return 'Idle';
+    // Use event-driven state for real-time updates
+    if (!this.miningService.minerRunning()) {
+      return this.i18n.get('mining_stopped');
     }
+    const scanProgress = this.miningService.minerScanProgress();
+    if (scanProgress.progress > 0 && scanProgress.progress < 100) {
+      return this.i18n.get('mining_scanning_plots');
+    }
+    return this.i18n.get('mining_active');
   }
 
   getCurrentChainInfo(): string {
-    const status = this.miningStatus();
-    if (status?.type === 'scanning') {
-      return `${status.chainName} • Block ${status.height?.toLocaleString()}`;
+    // Use event-driven state for real-time updates
+    const scanProgress = this.miningService.minerScanProgress();
+    if (this.miningService.minerRunning() && scanProgress.chain) {
+      return `${scanProgress.chain} • Block ${scanProgress.height?.toLocaleString()}`;
     }
     const chains = this.enabledChains();
     if (chains.length > 0) {
-      return `${chains.length} chain${chains.length > 1 ? 's' : ''} configured`;
+      return this.i18n.get('mining_chains_configured', { count: chains.length });
     }
-    return 'No chains configured';
+    return this.i18n.get('mining_no_chains_configured');
   }
 
   getScanProgress(): number {
-    const status = this.miningStatus();
-    if (status?.type === 'scanning') {
-      return Math.round(status.progress);
-    }
-    return 0;
-  }
-
-  /**
-   * Get deadlines for the current round only (matching current block height per chain)
-   */
-  getCurrentRoundDeadlines(): DeadlineEntry[] {
-    const currentBlocks = this.currentBlock();
-    const deadlines = this.recentDeadlines();
-
-    return deadlines.filter(d => {
-      const block = currentBlocks[d.chainName];
-      return block && d.height === block.height;
-    });
-  }
-
-  getBestDeadline(): string {
-    const deadlines = this.getCurrentRoundDeadlines();
-    if (deadlines.length === 0) return '--';
-    const best = deadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
-    return this.formatDeadline(best.deadline);
-  }
-
-  getBestDeadlineInfo(): string {
-    const deadlines = this.getCurrentRoundDeadlines();
-    if (deadlines.length === 0) return 'No deadlines this round';
-    const best = deadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
-    return `${best.chainName} • Block ${best.height.toLocaleString()}`;
+    // Use event-driven state for real-time updates
+    const scanProgress = this.miningService.minerScanProgress();
+    return Math.round(scanProgress.progress);
   }
 
   formatDeadline(seconds: number): string {
@@ -1902,12 +1831,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     return `${days}d ${hours}h`;
-  }
-
-  truncateAccount(account: string): string {
-    if (!account) return '';
-    if (account.length <= 16) return account;
-    return `${account.slice(0, 8)}...${account.slice(-6)}`;
   }
 
   /**
@@ -2052,7 +1975,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   getChainStatus(chainName: string): string {
     // Use miner event signals for real-time status
     if (!this.miningService.minerRunning()) {
-      return 'Stopped';
+      return this.i18n.get('mining_stopped');
     }
 
     const scanProgress = this.miningService.minerScanProgress();
@@ -2061,16 +1984,16 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       scanProgress.progress < 100 &&
       scanProgress.totalWarps > 0
     ) {
-      return `Scanning ${scanProgress.progress.toFixed(0)}%`;
+      return this.i18n.get('mining_scanning', { percent: scanProgress.progress.toFixed(0) });
     }
 
     // Check if chain is in queue
     const queue = this.miningService.minerQueue();
     if (queue.some(q => q.chain === chainName)) {
-      return 'Queued';
+      return this.i18n.get('mining_queued');
     }
 
-    return 'Ready';
+    return this.i18n.get('mining_ready');
   }
 
   getChainCompression(chainName: string): string {
@@ -2082,7 +2005,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const block = this.currentBlock()[chainName];
     if (!block) return '';
 
-    return `GenSig: ${block.genSig}\nBase Target: ${block.baseTarget}\nScoop: ${block.scoop}`;
+    return `${this.i18n.get('gen_sig')}: ${block.genSig}\n${this.i18n.get('base_target')}: ${block.baseTarget}\n${this.i18n.get('scoop')}: ${block.scoop}`;
   }
 
   /**
@@ -2111,11 +2034,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   getDriveStatus(drive: DriveConfig): string {
     if (this.isDrivePlotting(drive)) {
       // Show "Stopping" if we're in stopping state
-      if (this.miningService.plotterUIState() === 'stopping') return 'Stopping';
-      return 'Plotting';
+      if (this.miningService.plotterUIState() === 'stopping')
+        return this.i18n.get('mining_stopping');
+      return this.i18n.get('mining_plotting');
     }
-    if (this.isDriveReady(drive)) return 'Ready';
-    return 'Queued';
+    if (this.isDriveReady(drive)) return this.i18n.get('mining_ready');
+    return this.i18n.get('mining_queued');
   }
 
   /**
@@ -2188,21 +2112,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     return this.formatDriveSize(info.completeSizeGib);
   }
 
-  filteredDeadlines(): DeadlineEntry[] {
-    const all = this.recentDeadlines();
-    if (this.chainFilter === 'all') return all;
-    return all.filter(d => d.chainName === this.chainFilter);
-  }
-
-  isBestDeadline(deadline: DeadlineEntry): boolean {
-    const chainDeadlines = this.recentDeadlines().filter(
-      d => d.chainName === deadline.chainName && d.height === deadline.height
-    );
-    if (chainDeadlines.length === 0) return false;
-    const best = chainDeadlines.reduce((a, b) => (a.deadline < b.deadline ? a : b));
-    return best.id === deadline.id;
-  }
-
   formatTime(timestamp: number): string {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', {
@@ -2213,13 +2122,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     });
   }
 
-  filterDeadlines(): void {
-    // Already handled reactively via filteredDeadlines()
-  }
-
   exportCSV(): void {
     const deadlines = this.filteredDeadlines();
-    const headers = ['Time', 'Block', 'Chain', 'Account', 'Deadline'];
+    const headers = [
+      this.i18n.get('time'),
+      this.i18n.get('block'),
+      this.i18n.get('mining_chain'),
+      this.i18n.get('account'),
+      this.i18n.get('deadline'),
+    ];
     const rows = deadlines.map(d => [
       this.formatTime(d.timestamp),
       `#${d.height}`,
@@ -2254,6 +2165,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     } else {
       await this.miningService.startMiner();
     }
+    // Service logs timing internally; just sync local UI state
     await this.loadState();
   }
 
@@ -2431,12 +2343,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   async toggleSimulationMode(enabled: boolean): Promise<void> {
     await this.miningService.toggleSimulationMode(enabled);
     if (enabled) {
-      this.miningService.addActivityLog(
-        'info',
-        'Simulation mode enabled - plotter will not write to disk'
-      );
+      this.miningService.addActivityLog('info', this.i18n.get('mining_simulation_enabled'));
     } else {
-      this.miningService.addActivityLog('info', 'Simulation mode disabled');
+      this.miningService.addActivityLog('info', this.i18n.get('mining_simulation_disabled'));
     }
   }
 
@@ -2448,12 +2357,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       const dialogRef = this.dialog.open(ConfirmDialogComponent, {
         width: '420px',
         data: {
-          title: 'Stop Plotting?',
-          message:
-            'Soft Stop: Finish current batch, then pause (efficient resume)\n\nHard Stop: Stop immediately (file-by-file resume, less efficient for batches)',
-          confirmText: 'Soft Stop',
-          secondaryText: 'Hard Stop',
-          cancelText: 'Cancel',
+          title: this.i18n.get('mining_stop_plotting_title'),
+          message: this.i18n.get('mining_stop_plotting_message'),
+          confirmText: this.i18n.get('mining_soft_stop'),
+          secondaryText: this.i18n.get('mining_hard_stop'),
+          cancelText: this.i18n.get('cancel'),
           type: 'warning',
         },
       });
@@ -2462,15 +2370,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         if (result === true) {
           // Soft stop - finish current batch, keep plan
           await this.miningService.softStopPlotPlan();
-          this.miningService.addActivityLog(
-            'info',
-            'Soft stop requested - will pause after current batch completes'
-          );
+          this.miningService.addActivityLog('info', this.i18n.get('mining_soft_stop_requested'));
           await this.miningService.refreshPlotterState();
         } else if (result === 'secondary') {
           // Hard stop - finish current item, clear plan, regenerate
           await this.miningService.hardStopPlotPlan();
-          this.miningService.addActivityLog('warning', 'Hard stop - plotting aborted');
+          this.miningService.addActivityLog('warning', this.i18n.get('mining_hard_stop_aborted'));
           await this.miningService.refreshPlotterState();
         }
       });
@@ -2490,11 +2395,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         .open(ConfirmDialogComponent, {
           width: '400px',
           data: {
-            title: 'Plotting Address Required',
-            message:
-              'Please configure a plotting address before starting.\n\nGo to the setup wizard to select a wallet address for your plot files.',
-            confirmText: 'Go to Setup',
-            cancelText: 'Cancel',
+            title: this.i18n.get('mining_plotting_address_required'),
+            message: this.i18n.get('mining_plotting_address_required_message'),
+            confirmText: this.i18n.get('mining_go_to_setup'),
+            cancelText: this.i18n.get('cancel'),
           },
         })
         .afterClosed()
@@ -2513,10 +2417,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         .open(ConfirmDialogComponent, {
           width: '400px',
           data: {
-            title: 'Invalid Plotting Address',
-            message: `The configured plotting address is not valid:\n\n${plottingAddress}\n\nPlease select a valid bech32 address in the setup wizard.`,
-            confirmText: 'Go to Setup',
-            cancelText: 'Cancel',
+            title: this.i18n.get('mining_invalid_plotting_address'),
+            message: this.i18n.get('mining_invalid_plotting_address_message', {
+              address: plottingAddress,
+            }),
+            confirmText: this.i18n.get('mining_go_to_setup'),
+            cancelText: this.i18n.get('cancel'),
           },
         })
         .afterClosed()
@@ -2537,12 +2443,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         // Ask user if they want to restart with elevation
         const dialogRef = this.dialog.open(ConfirmDialogComponent, {
           data: {
-            title: 'Administrator Recommended',
-            message:
-              'Without admin rights, file pre-allocation can block for hours with no progress shown.\n\nRestart as admin?',
-            confirmText: 'Restart as Admin',
-            secondaryText: 'Continue Anyway',
-            cancelText: 'Cancel',
+            title: this.i18n.get('mining_admin_recommended'),
+            message: this.i18n.get('mining_admin_recommended_message'),
+            confirmText: this.i18n.get('mining_restart_as_admin'),
+            secondaryText: this.i18n.get('mining_continue_anyway'),
+            cancelText: this.i18n.get('cancel'),
           },
         });
 
@@ -2555,12 +2460,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
             return;
           }
           // Restart failed or was cancelled by UAC
-          this.miningService.addActivityLog(
-            'warning',
-            'Elevation cancelled - continuing without admin privileges'
-          );
+          this.miningService.addActivityLog('warning', this.i18n.get('mining_elevation_cancelled'));
         } else if (result === 'secondary') {
-          this.miningService.addActivityLog('info', 'Continuing without admin privileges');
+          this.miningService.addActivityLog(
+            'info',
+            this.i18n.get('mining_continuing_without_admin')
+          );
         } else {
           // User cancelled - don't start plotting
           return;
@@ -2592,12 +2497,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       // The plotter:item-complete event handler in service will call executeNextBatch()
       await this.miningService.executeNextBatch();
     }
-  }
-
-  // Plot plan methods
-  hasPendingTasks(): boolean {
-    // Use new simplified state
-    return this.miningService.plotterUIState() === 'ready';
   }
 
   /**

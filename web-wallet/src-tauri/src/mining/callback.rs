@@ -6,10 +6,11 @@
 use pocx_miner::MinerCallback;
 use pocx_plotter::PlotterCallback;
 use serde::Serialize;
-use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Runtime};
 
-use super::state::{add_deadline, DeadlineEntry, SharedMiningState};
+use super::state::{add_deadline, DeadlineEntry, DeadlineUpdateResult, SharedMiningState};
 
 /// Event payload for plotter started
 #[derive(Debug, Clone, Serialize)]
@@ -199,16 +200,20 @@ pub enum ScanStatusEvent {
 }
 
 /// Event payload for deadline accepted
+/// Account is pre-converted to bech32 format (no frontend IPC needed)
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeadlineAcceptedEvent {
     pub chain: String,
-    pub account: String,
+    pub account: String,          // bech32 format (pre-converted)
     pub height: u64,
     pub nonce: u64,
     pub quality_raw: u64,
     pub compression: u8,
     pub poc_time: u64,
+    pub gensig: String,           // For fork detection
+    pub is_best_for_block: bool,  // True if this is best deadline for this height
+    pub base_target: u64,         // Block's base target
 }
 
 /// Event payload for deadline retry
@@ -241,12 +246,18 @@ pub struct DeadlineRejectedEvent {
 pub struct TauriMinerCallback<R: Runtime> {
     app_handle: AppHandle<R>,
     state: SharedMiningState,
+    /// Cache for hex → bech32 address conversion (typically 1-10 entries)
+    bech32_cache: Mutex<HashMap<String, String>>,
 }
 
 impl<R: Runtime> TauriMinerCallback<R> {
     /// Create a new Tauri miner callback
     pub fn new(app_handle: AppHandle<R>, state: SharedMiningState) -> Self {
-        Self { app_handle, state }
+        Self {
+            app_handle,
+            state,
+            bech32_cache: Mutex::new(HashMap::new()),
+        }
     }
 
     /// Create and register the callback globally
@@ -257,6 +268,51 @@ impl<R: Runtime> TauriMinerCallback<R> {
             Err(_) => log::warn!("Miner callback registration failed (callback may already be set)"),
         }
         callback
+    }
+
+    /// Convert hex account to bech32 with caching
+    /// Uses the network from the mining config
+    fn hex_to_bech32_cached(&self, hex_account: &str) -> String {
+        // Check cache first
+        if let Ok(cache) = self.bech32_cache.lock() {
+            if let Some(cached) = cache.get(hex_account) {
+                return cached.clone();
+            }
+        }
+
+        // Get network from config
+        let network = if let Ok(state) = self.state.lock() {
+            state.config.wallet_network.clone()
+        } else {
+            "testnet".to_string()
+        };
+
+        // Determine HRP from network
+        let hrp = match network.to_lowercase().as_str() {
+            "mainnet" => "pocx",
+            "testnet" => "tpocx",
+            "regtest" => "rpocx",
+            _ => "tpocx", // Default to testnet
+        };
+
+        // Parse hex and encode to bech32
+        let bech32 = match hex::decode(hex_account) {
+            Ok(payload) => {
+                let network_id = pocx_address::NetworkId::Bech32(hrp.to_string());
+                match pocx_address::encode_address(&payload, network_id) {
+                    Ok(address) => address,
+                    Err(_) => hex_account.to_string(), // Fallback to hex
+                }
+            }
+            Err(_) => hex_account.to_string(), // Fallback to hex
+        };
+
+        // Cache the result
+        if let Ok(mut cache) = self.bech32_cache.lock() {
+            cache.insert(hex_account.to_string(), bech32.clone());
+        }
+
+        bech32
     }
 }
 
@@ -374,26 +430,6 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
     }
 
     fn on_deadline_accepted(&self, deadline: &pocx_miner::AcceptedDeadline) {
-        log::info!(
-            "Miner callback: deadline accepted - chain={}, height={}, quality_raw={}, poc_time={}",
-            deadline.chain, deadline.height, deadline.quality_raw, deadline.poc_time
-        );
-
-        // Emit event to frontend
-        let _ = self.app_handle.emit(
-            "miner:deadline-accepted",
-            DeadlineAcceptedEvent {
-                chain: deadline.chain.clone(),
-                account: deadline.account.clone(),
-                height: deadline.height,
-                nonce: deadline.nonce,
-                quality_raw: deadline.quality_raw,
-                compression: deadline.compression,
-                poc_time: deadline.poc_time,
-            },
-        );
-
-        // Persist accepted deadline to state (survives frontend reloads)
         // Use poc_time as deadline value (lower is better, cap at reasonable max)
         let poc_time = if deadline.poc_time < 86400 {
             deadline.poc_time
@@ -401,33 +437,71 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
             u64::MAX
         };
 
-        // Look up base_target from current block for this chain
-        let base_target = if let Ok(state) = self.state.lock() {
+        // Look up base_target and gensig from current block for this chain
+        let (base_target, gensig) = if let Ok(state) = self.state.lock() {
             state.current_block
                 .get(&deadline.chain)
-                .map(|b| b.base_target)
-                .unwrap_or(0)
+                .map(|b| (b.base_target, b.generation_signature.clone()))
+                .unwrap_or((0, String::new()))
         } else {
-            0
+            (0, String::new())
         };
+
+        // Convert account to bech32 using cache (no frontend IPC needed)
+        let account_bech32 = self.hex_to_bech32_cached(&deadline.account);
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0);
+
         let entry = DeadlineEntry {
             id: timestamp,
             chain_name: deadline.chain.clone(),
-            account: deadline.account.clone(),
+            account: account_bech32.clone(),
             height: deadline.height,
             nonce: deadline.nonce,
-            deadline: poc_time, // Use poc_time as deadline value
-            quality_raw: deadline.quality_raw, // Raw quality for effective capacity
-            base_target, // Block's base target for capacity calculations
+            deadline: poc_time,
+            quality_raw: deadline.quality_raw,
+            base_target,
             submitted: true,
             timestamp,
+            gensig: gensig.clone(),
         };
-        add_deadline(&self.state, entry);
+
+        // Add to state and check if it was an improvement
+        let update_result = add_deadline(&self.state, entry);
+
+        // Only emit event if this deadline was actually an update (best for block)
+        let is_best_for_block = update_result != DeadlineUpdateResult::NotImproved;
+
+        if is_best_for_block {
+            log::info!(
+                "Miner callback: deadline accepted (best for block) - chain={}, height={}, poc_time={}",
+                deadline.chain, deadline.height, poc_time
+            );
+
+            let _ = self.app_handle.emit(
+                "miner:deadline-accepted",
+                DeadlineAcceptedEvent {
+                    chain: deadline.chain.clone(),
+                    account: account_bech32,
+                    height: deadline.height,
+                    nonce: deadline.nonce,
+                    quality_raw: deadline.quality_raw,
+                    compression: deadline.compression,
+                    poc_time,
+                    gensig,
+                    is_best_for_block: true,
+                    base_target,
+                },
+            );
+        } else {
+            log::debug!(
+                "Miner callback: deadline skipped (not best) - chain={}, height={}, poc_time={}",
+                deadline.chain, deadline.height, poc_time
+            );
+        }
     }
 
     fn on_deadline_retry(&self, deadline: &pocx_miner::AcceptedDeadline, reason: &str) {

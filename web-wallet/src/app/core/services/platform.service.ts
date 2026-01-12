@@ -75,34 +75,6 @@ export class PlatformService {
   }
 
   /**
-   * Get the Bitcoin-PoCX data directory based on platform
-   */
-  getDataDirectory(): string {
-    switch (this._platform) {
-      case 'win32':
-        return '%LOCALAPPDATA%\\Bitcoin-PocX';
-      case 'darwin':
-        return '~/Library/Application Support/Bitcoin-PocX';
-      case 'linux':
-        return '~/.bitcoin-pocx';
-      default:
-        return '';
-    }
-  }
-
-  /**
-   * Open a URL in the system browser
-   */
-  openInBrowser(url: string): void {
-    if (this.isBrowser) {
-      window.open(url, '_blank');
-    } else {
-      // In Electron, the main process handles this via window.open handler
-      window.open(url, '_blank');
-    }
-  }
-
-  /**
    * Copy text to clipboard
    */
   async copyToClipboard(text: string): Promise<boolean> {
