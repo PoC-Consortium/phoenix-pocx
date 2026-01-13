@@ -8,6 +8,7 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 - Send and receive Bitcoin-PoCX
 - Transaction history with confirmations
 - Forging assignment management (PoCX-specific)
+- **Managed Node**: Automatic download, install, and lifecycle management of Bitcoin-PoCX Core
 - **Integrated Mining**: Multi-chain PoCX mining with real-time dashboard
 - **Plot File Generation**: CPU and GPU (OpenCL) plotting support
 - Multi-language support (24 languages)
@@ -17,7 +18,9 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 
 - **Node.js** 20+ and npm
 - **Rust** (for desktop builds)
-- **Bitcoin-PoCX Core** running with RPC enabled
+- **Bitcoin-PoCX Core** - either:
+  - **Managed mode** (recommended): Wallet downloads and manages the node automatically
+  - **External mode**: Connect to your own Bitcoin-PoCX Core instance with RPC enabled
 
 ## Quick Start
 
@@ -56,8 +59,9 @@ phoenix-pocx/
 ├── web-wallet/              # Angular 21 web application
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── core/        # Core services (auth, platform)
+│   │   │   ├── core/        # Core services (auth, platform, guards)
 │   │   │   ├── bitcoin/     # Bitcoin RPC & wallet services
+│   │   │   ├── node/        # Managed node service & setup wizard
 │   │   │   ├── mining/      # Mining dashboard & plotting
 │   │   │   ├── shared/      # Shared components
 │   │   │   ├── store/       # NgRx state management
@@ -68,6 +72,7 @@ phoenix-pocx/
 │   │   ├── src/
 │   │   │   ├── main.rs      # Entry point
 │   │   │   ├── lib.rs       # Commands & setup
+│   │   │   ├── node/        # Managed node backend
 │   │   │   └── mining/      # Mining & plotting backend
 │   │   ├── Cargo.toml       # Rust dependencies
 │   │   └── tauri.conf.json  # Tauri configuration
@@ -84,9 +89,15 @@ phoenix-pocx/
 - **Tauri 2** - Lightweight desktop wrapper (Rust)
 - **TypeScript 5.9** - Type safety
 
-## Bitcoin Core Configuration
+## Node Configuration
 
-The wallet connects to Bitcoin-PoCX Core via JSON-RPC. Ensure your `bitcoin.conf` includes:
+### Managed Mode (Default)
+
+On first launch, the wallet will guide you through downloading Bitcoin-PoCX Core. The node is automatically started and stopped with the wallet.
+
+### External Mode
+
+To connect to your own Bitcoin-PoCX Core instance, configure your `bitcoin.conf`:
 
 ```ini
 server=1

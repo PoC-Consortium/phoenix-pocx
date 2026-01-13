@@ -386,6 +386,14 @@ export class WalletManagerService {
     this.activeWalletSubject.next(walletName);
   }
 
+  /**
+   * Notify subscribers that wallet list should be refreshed.
+   * Call this after operations that affect wallet availability (e.g., node restart).
+   */
+  notifyWalletsChanged(): void {
+    this.walletsChangedSubject.next();
+  }
+
   // ============================================================
   // Wallet Information
   // ============================================================

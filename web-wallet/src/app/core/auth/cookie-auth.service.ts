@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { ElectronService, CookieReadOptions } from '../services/electron.service';
 import { selectNodeConfig } from '../../store/settings/settings.selectors';
+import { NodeService } from '../../node';
 
 export interface RpcCredentials {
   username: string;
@@ -22,6 +23,7 @@ export interface RpcCredentials {
 export class CookieAuthService {
   private readonly electron = inject(ElectronService);
   private readonly store = inject(Store);
+  private readonly nodeService = inject(NodeService);
 
   private readonly credentialsSubject = new BehaviorSubject<RpcCredentials | null>(null);
   private readonly errorSubject = new BehaviorSubject<string | null>(null);
@@ -62,38 +64,63 @@ export class CookieAuthService {
     }
 
     try {
-      // Get dataDirectory and network from settings store
-      const nodeConfig = await firstValueFrom(this.store.select(selectNodeConfig));
+      let dataDirectory: string;
+      let network: string;
 
-      if (!nodeConfig.dataDirectory) {
+      // For managed mode, use NodeService config (which has the correct paths)
+      if (this.nodeService.isManaged()) {
+        const nodeConfig = this.nodeService.config();
+        const paths = this.nodeService.paths();
+        dataDirectory = paths?.dataDir ?? '';
+        network = nodeConfig.network;
+        console.log('CookieAuthService: Using managed mode paths:', {
+          dataDir: dataDirectory,
+          network,
+          pathsLoaded: paths !== null,
+        });
+      } else {
+        // For external mode, use settings store
+        const storeConfig = await firstValueFrom(this.store.select(selectNodeConfig));
+        dataDirectory = storeConfig.dataDirectory;
+        network = storeConfig.network;
+        console.log('CookieAuthService: Using external mode config:', { dataDirectory, network });
+      }
+
+      if (!dataDirectory) {
+        console.warn('CookieAuthService: Data directory is empty!');
         this.errorSubject.next('Data directory not configured. Please check settings.');
         return false;
       }
 
       const options: CookieReadOptions = {
-        dataDirectory: nodeConfig.dataDirectory,
-        network: nodeConfig.network,
+        dataDirectory,
+        network,
       };
 
+      console.log('CookieAuthService: Reading cookie file with options:', options);
       const result = await this.electron.readCookieFile(options);
 
       if (!result || !result.success) {
         const error = result?.error || 'Cookie file not found';
+        console.warn('CookieAuthService: Failed to read cookie:', error, 'path:', result?.path);
         this.errorSubject.next(`${error}. Is Bitcoin Core running?`);
         return false;
       }
 
       if (!result.content) {
+        console.warn('CookieAuthService: Cookie file is empty at:', result.path);
         this.errorSubject.next('Cookie file is empty');
         return false;
       }
 
       const credentials = this.parseCookie(result.content);
       if (!credentials) {
+        console.warn('CookieAuthService: Invalid cookie format');
         this.errorSubject.next('Invalid cookie file format');
         return false;
       }
 
+      console.log('CookieAuthService: Credentials loaded successfully from:', result.path);
       this.credentialsSubject.next(credentials);
       return true;
     } catch (error) {

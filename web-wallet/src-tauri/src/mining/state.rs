@@ -392,6 +392,7 @@ pub enum DeadlineUpdateResult {
 /// - Only one entry per chain+height (best deadline wins)
 /// - Lower deadline value (poc_time) is better
 /// - Detects forks by gensig change for same height
+///
 /// Returns what kind of update occurred (for frontend notification)
 pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) -> DeadlineUpdateResult {
     if let Ok(mut state) = state.lock() {

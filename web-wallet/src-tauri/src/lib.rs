@@ -10,6 +10,9 @@ mod logging;
 // Mining module
 pub mod mining;
 
+// Node management module
+pub mod node;
+
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// Include database migrations for the mining database
@@ -114,17 +117,30 @@ pub fn expand_path(path: &str) -> String {
 /// Build cookie file path from dataDirectory and network
 fn build_cookie_path(data_directory: &str, network: &str) -> PathBuf {
     let expanded_dir = expand_path(data_directory);
-    let mut path = PathBuf::from(expanded_dir);
+    let base_path = PathBuf::from(&expanded_dir);
 
     if network == "mainnet" {
-        path.push(".cookie");
-    } else {
-        // testnet or regtest - cookie is in subdirectory
-        path.push(network);
-        path.push(".cookie");
+        return base_path.join(".cookie");
     }
 
-    path
+    // For testnet, Bitcoin Core uses "testnet3" folder (for testnet v3)
+    // Try testnet3 first, then fall back to testnet
+    if network == "testnet" {
+        let testnet3_cookie = base_path.join("testnet3").join(".cookie");
+        if testnet3_cookie.exists() {
+            return testnet3_cookie;
+        }
+        // Fall back to testnet folder
+        let testnet_cookie = base_path.join("testnet").join(".cookie");
+        if testnet_cookie.exists() {
+            return testnet_cookie;
+        }
+        // Default to testnet3 (most common)
+        return testnet3_cookie;
+    }
+
+    // regtest uses regtest folder
+    base_path.join(network).join(".cookie")
 }
 
 /// Read the Bitcoin Core cookie file for RPC authentication
@@ -182,6 +198,13 @@ fn is_dev() -> bool {
 /// Used when user confirms exit while mining/plotting is active
 #[tauri::command]
 fn exit_app(app: tauri::AppHandle) {
+    // Destroy the main window first to avoid Windows error message
+    // "Failed to unregister class Chrome_WidgetWin_0. Error = 1412"
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(err) = window.destroy() {
+            log::warn!("Failed to destroy window before exit: {}", err);
+        }
+    }
     app.exit(0);
 }
 
@@ -243,7 +266,10 @@ async fn restart_elevated(app: tauri::AppHandle) -> bool {
 
         // ShellExecuteW returns > 32 on success
         if result as usize > 32 {
-            // Exit current instance
+            // Destroy window first to avoid Windows error, then exit current instance
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.destroy();
+            }
             app.exit(0);
             true
         } else {
@@ -405,6 +431,10 @@ pub fn run() {
     // Create shared plotter runtime (for task management)
     let plotter_runtime = mining::create_plotter_runtime();
 
+    // Create shared node state and manager
+    let node_state = node::create_node_state();
+    let node_manager = node::NodeManager::new();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -418,6 +448,8 @@ pub fn run() {
         )
         .manage(mining_state)
         .manage(plotter_runtime)
+        .manage(node_state)
+        .manage(node_manager)
         .setup(|app| {
             // Set app handle for TauriEventAppender (log forwarding to frontend)
             logging::set_app_handle(app.handle().clone());
@@ -559,6 +591,41 @@ pub fn run() {
             // Elevation commands
             is_elevated,
             restart_elevated,
+            // Node management commands - Status & Config
+            node::commands::get_node_mode,
+            node::commands::set_node_mode,
+            node::commands::get_node_status,
+            node::commands::get_node_config,
+            node::commands::set_node_config,
+            node::commands::get_node_paths,
+            node::commands::preview_bitcoin_conf,
+            node::commands::get_download_progress,
+            // Node management commands - Process
+            node::commands::is_node_running,
+            node::commands::is_node_installed,
+            node::commands::get_installed_node_version,
+            node::commands::start_managed_node,
+            node::commands::stop_managed_node,
+            node::commands::restart_managed_node,
+            node::commands::detect_existing_node,
+            node::commands::refresh_node_status,
+            // Node management commands - Download & Update
+            node::commands::fetch_latest_node_release,
+            node::commands::fetch_all_node_releases,
+            node::commands::fetch_asset_sha256,
+            node::commands::get_platform_arch,
+            node::commands::check_node_update,
+            node::commands::download_and_install_from_asset,
+            node::commands::cancel_node_download,
+            // Node management commands - Network & Reset
+            node::commands::set_node_network,
+            node::commands::get_node_network,
+            node::commands::reset_node_config,
+            node::commands::uninstall_node,
+            // Node management commands - RPC & Lifecycle
+            node::commands::wait_for_node_ready,
+            node::commands::is_node_ready,
+            node::commands::stop_node_gracefully,
             // Mining device commands
             mining::commands::detect_mining_devices,
             // Mining drive commands

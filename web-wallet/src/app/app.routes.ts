@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, noAuthGuard } from './core/guards';
+import { authGuard, noAuthGuard, nodeSetupGuard } from './core/guards';
 
 /**
  * Application routes with lazy-loaded feature modules.
@@ -14,6 +14,19 @@ import { authGuard, noAuthGuard } from './core/guards';
  * - /contacts - Address book (protected)
  */
 export const routes: Routes = [
+  // Node setup route (accessible before auth - uses auth layout for toolbar)
+  {
+    path: 'node',
+    loadComponent: () =>
+      import('./layout/auth-layout/auth-layout.component').then(m => m.AuthLayoutComponent),
+    children: [
+      {
+        path: '',
+        loadChildren: () => import('./node/node.routes').then(m => m.NODE_ROUTES),
+      },
+    ],
+  },
+
   // Settings route (accessible from anywhere - uses auth layout for toolbar)
   {
     path: 'settings',
@@ -32,9 +45,10 @@ export const routes: Routes = [
 
   // Auth routes (public - redirect if already logged in)
   // Uses AuthLayoutComponent which shows toolbar without sidenav
+  // nodeSetupGuard runs first to redirect to /node/setup if node not installed
   {
     path: 'auth',
-    canActivate: [noAuthGuard],
+    canActivate: [nodeSetupGuard, noAuthGuard],
     loadComponent: () =>
       import('./layout/auth-layout/auth-layout.component').then(m => m.AuthLayoutComponent),
     children: [
@@ -46,9 +60,10 @@ export const routes: Routes = [
   },
 
   // Protected routes (require active wallet)
+  // nodeSetupGuard runs first to redirect to /node/setup if node not installed (desktop only)
   {
     path: '',
-    canActivate: [authGuard],
+    canActivate: [nodeSetupGuard, authGuard],
     loadComponent: () =>
       import('./layout/main-layout/main-layout.component').then(m => m.MainLayoutComponent),
     children: [

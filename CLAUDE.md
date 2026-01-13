@@ -11,6 +11,7 @@ phoenix-pocx/
 │   │   ├── app/
 │   │   │   ├── core/        # Core services
 │   │   │   │   ├── auth/    # Cookie authentication
+│   │   │   │   ├── guards/  # Route guards (auth, node-setup)
 │   │   │   │   └── services/# Desktop, Platform services
 │   │   │   ├── bitcoin/     # Bitcoin-specific services
 │   │   │   │   └── services/
@@ -23,6 +24,13 @@ phoenix-pocx/
 │   │   │   │           ├── descriptor.service.ts     # BIP39/descriptor generation
 │   │   │   │           ├── wallet-manager.service.ts # Wallet lifecycle
 │   │   │   │           └── wallet.service.ts         # High-level wallet API
+│   │   │   ├── node/        # Managed node module
+│   │   │   │   ├── models/
+│   │   │   │   │   └── node.models.ts               # Node config, status types
+│   │   │   │   ├── pages/
+│   │   │   │   │   └── node-setup/                  # First-launch setup wizard
+│   │   │   │   └── services/
+│   │   │   │       └── node.service.ts              # Node state & Tauri IPC
 │   │   │   ├── mining/      # Mining & plotting module
 │   │   │   │   ├── pages/
 │   │   │   │   │   ├── mining-dashboard/             # Main mining UI
@@ -43,6 +51,16 @@ phoenix-pocx/
 │   │   ├── src/
 │   │   │   ├── main.rs      # Entry point
 │   │   │   ├── lib.rs       # Commands & plugins
+│   │   │   ├── node/        # Managed node backend
+│   │   │   │   ├── mod.rs           # Module exports
+│   │   │   │   ├── commands.rs      # Tauri commands for node management
+│   │   │   │   ├── config.rs        # Node configuration persistence
+│   │   │   │   ├── state.rs         # Shared node state
+│   │   │   │   ├── manager.rs       # Node lifecycle (start/stop/detect)
+│   │   │   │   ├── downloader.rs    # GitHub release fetching
+│   │   │   │   ├── extractor.rs     # Archive extraction (zip/tar.gz)
+│   │   │   │   ├── hasher.rs        # SHA256 verification
+│   │   │   │   └── rpc.rs           # Node RPC communication
 │   │   │   └── mining/      # Mining backend
 │   │   │       ├── mod.rs           # Module exports
 │   │   │       ├── commands.rs      # 50+ Tauri commands
@@ -131,6 +149,24 @@ Despite the legacy name, this service is now primarily for Tauri:
 - **wallet** feature: balance, transactions, UTXOs, addresses
 - **settings** feature: network, theme, preferences
 
+### Node Layer (Managed Node)
+The node module provides optional managed node functionality:
+
+1. **NodeService** (`node/services/node.service.ts`)
+   - Signal-based reactive state for node status and config
+   - Tauri IPC for node lifecycle operations
+   - Download progress tracking with event listeners
+   - Update checking and version management
+
+2. **Node Setup Guard** (`core/guards/node-setup.guard.ts`)
+   - Redirects to setup wizard on first launch (managed mode)
+   - Checks if node is installed before allowing app access
+
+3. **Node Models** (`node/models/node.models.ts`)
+   - NodeConfig: mode (managed/external), network, RPC settings
+   - NodeStatus: running state, sync progress, version info
+   - ReleaseInfo: GitHub release data for downloads
+
 ### Mining Layer
 The mining module provides integrated PoCX mining and plotting capabilities:
 
@@ -150,6 +186,45 @@ The mining module provides integrated PoCX mining and plotting capabilities:
    - Type definitions for chains, drives, deadlines, plot plans
    - Effective capacity calculation with O(n) prefix-sum optimization
    - Quality-to-capacity conversion formulas
+
+## Rust Node Backend
+
+Located in `src-tauri/src/node/`:
+
+### Configuration (`config.rs`)
+- `NodeConfig` - Persisted to `node_config.json`
+- Supports managed mode (wallet controls node) and external mode (user's own node)
+- Network selection (mainnet, testnet, regtest)
+- RPC authentication (cookie or user/password)
+
+### State Management (`state.rs`)
+- `SharedNodeState` - Thread-safe state via `Arc<Mutex<>>`
+- Tracks node status, download progress, installed version
+- `NodeStatus` emitted to frontend via events
+
+### Node Manager (`manager.rs`)
+- Process detection using `sysinfo` crate
+- Start node with appropriate arguments
+- Graceful shutdown via RPC stop command
+- PID tracking for managed processes
+
+### Downloader (`downloader.rs`)
+- Fetch releases from GitHub API
+- Download with progress reporting
+- Update checking with version comparison
+
+### Extractor (`extractor.rs`)
+- Extract `bitcoind` from ZIP (Windows) or tar.gz (Unix)
+- Supports NSIS installer extraction (Windows)
+
+### Hasher (`hasher.rs`)
+- SHA256 verification of downloaded files
+- Streaming hash computation for large files
+
+### RPC (`rpc.rs`)
+- Lightweight RPC client for node communication
+- Health check (getblockchaininfo)
+- Graceful stop command
 
 ## Rust Mining Backend
 
@@ -206,6 +281,13 @@ The mining backend uses these Rust crates:
 - `exit_app` - Force exit application
 - `is_elevated` - Check admin privileges (Windows)
 - `restart_elevated` - Restart with admin privileges for NTFS preallocation
+
+### Node Commands (`src-tauri/src/node/commands.rs`)
+- **Status**: `get_node_status`, `refresh_node_status`, `is_node_ready`
+- **Config**: `get_node_config`, `save_node_config`, `set_node_network`
+- **Lifecycle**: `start_node`, `stop_node`, `detect_existing_node`
+- **Download**: `fetch_latest_node_release`, `fetch_all_node_releases`, `download_and_install_from_asset`
+- **Update**: `check_node_update`
 
 ### Mining Commands (`src-tauri/src/mining/commands.rs`)
 See "Rust Mining Backend" section above for full list of 50+ mining commands.

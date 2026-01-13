@@ -18,6 +18,8 @@ import {
 import { RpcClientService } from '../../bitcoin/services/rpc/rpc-client.service';
 import { selectNetwork } from '../../store/settings/settings.selectors';
 import { Network } from '../../store/settings/settings.state';
+import { NodeService } from '../../node';
+import { MiningService } from '../../mining/services';
 
 /**
  * Shared toolbar component matching original Phoenix wallet design.
@@ -66,6 +68,56 @@ import { Network } from '../../store/settings/settings.state';
 
             <div class="toolbar-separator"></div>
           }
+
+          <!-- Status Indicators -->
+          <div class="status-indicators">
+            <!-- Node Indicator (only for managed node) -->
+            @if (nodeService.isManaged()) {
+              <div
+                class="status-indicator"
+                [matTooltip]="
+                  nodeService.isRunning() ? ('node_running' | i18n) : ('node_stopped' | i18n)
+                "
+              >
+                <mat-icon [class.active]="nodeService.isRunning()">share</mat-icon>
+              </div>
+            }
+
+            <!-- Miner Indicator (only if mining configured) -->
+            @if (miningService.isConfigured()) {
+              <div
+                class="status-indicator"
+                [matTooltip]="
+                  miningService.minerRunning() ? ('miner_running' | i18n) : ('miner_stopped' | i18n)
+                "
+              >
+                <mat-icon [class.active]="miningService.minerRunning()">hardware</mat-icon>
+              </div>
+            }
+
+            <!-- Plotter Indicator (visible when there's work to do or actively plotting) -->
+            @if (miningService.plotterUIState() !== 'complete') {
+              <div
+                class="status-indicator"
+                [matTooltip]="
+                  miningService.plotterUIState() === 'plotting' ||
+                  miningService.plotterUIState() === 'stopping'
+                    ? ('plotting_active' | i18n)
+                    : ('plotting_pending' | i18n)
+                "
+              >
+                <mat-icon
+                  [class.active]="
+                    miningService.plotterUIState() === 'plotting' ||
+                    miningService.plotterUIState() === 'stopping'
+                  "
+                  >storage</mat-icon
+                >
+              </div>
+            }
+          </div>
+
+          <div class="toolbar-separator"></div>
 
           <!-- Settings Button (gear icon) -->
           <button
@@ -372,6 +424,33 @@ import { Network } from '../../store/settings/settings.state';
         outline: none;
       }
 
+      /* Status Indicators (node, miner, plotter) */
+      .status-indicators {
+        display: flex;
+        align-items: center;
+        height: 64px;
+        padding: 0 12px;
+        gap: 8px;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        mat-icon {
+          font-size: 22px;
+          width: 22px;
+          height: 22px;
+          color: rgba(0, 0, 0, 0.25);
+          transition: color 0.2s ease;
+
+          &.active {
+            color: #4caf50;
+          }
+        }
+      }
+
       /* Responsive */
       @media (max-width: 600px) {
         .toolbar {
@@ -398,6 +477,18 @@ import { Network } from '../../store/settings/settings.state';
           height: 56px;
         }
 
+        .status-indicators {
+          height: 56px;
+          padding: 0 8px;
+          gap: 6px;
+        }
+
+        .status-indicator mat-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+
         .network-stamp {
           font-size: 1rem;
           padding: 0.1rem 0.4rem;
@@ -413,6 +504,8 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   private readonly rpcClient = inject(RpcClientService);
   readonly i18n = inject(I18nService);
+  readonly nodeService = inject(NodeService);
+  readonly miningService = inject(MiningService);
   private readonly destroy$ = new Subject<void>();
 
   // Inputs

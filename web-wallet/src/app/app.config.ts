@@ -19,6 +19,7 @@ import { CookieAuthService } from './core/auth/cookie-auth.service';
 import { I18nService, CustomPaginatorIntl } from './core/i18n';
 import { PlatformService } from './core/services/platform.service';
 import { SettingsActions, selectNodeConfig } from './store/settings';
+import { NodeService } from './node';
 
 /**
  * Initialize platform and settings at app startup.
@@ -43,12 +44,25 @@ function initializeSettings(store: Store, platform: PlatformService): () => Prom
 }
 
 /**
- * Initialize cookie authentication at app startup.
- * Depends on settings being loaded first.
+ * Initialize node service and cookie authentication at app startup.
+ * Note: Node startup and RPC waiting is handled in AppComponent to allow showing a dialog.
  */
-function initializeCookieAuth(cookieAuth: CookieAuthService): () => Promise<void> {
+function initializeNodeAndAuth(
+  cookieAuth: CookieAuthService,
+  nodeService: NodeService
+): () => Promise<void> {
   return async () => {
+    // Ensure NodeService is fully initialized
+    if (!nodeService.isReady()) {
+      console.log('APP_INITIALIZER: Waiting for NodeService to initialize...');
+      await nodeService.initialize();
+      console.log('APP_INITIALIZER: NodeService initialized');
+    }
+
+    // Try to load cookie credentials (may fail if node not started yet - that's OK)
+    console.log('APP_INITIALIZER: Loading cookie credentials...');
     await cookieAuth.loadCredentials();
+    console.log('APP_INITIALIZER: Cookie auth complete');
   };
 }
 
@@ -85,11 +99,11 @@ export const appConfig: ApplicationConfig = {
       multi: true,
     },
 
-    // Cookie authentication initialization (depends on settings being loaded)
+    // Node service and cookie authentication initialization
     {
       provide: APP_INITIALIZER,
-      useFactory: initializeCookieAuth,
-      deps: [CookieAuthService],
+      useFactory: initializeNodeAndAuth,
+      deps: [CookieAuthService, NodeService],
       multi: true,
     },
 

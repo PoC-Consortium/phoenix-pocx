@@ -1,10 +1,13 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BlockchainStateService } from './bitcoin/services/blockchain-state.service';
 import { ElectronService, UpdateInfo } from './core/services/electron.service';
+import { CookieAuthService } from './core/auth/cookie-auth.service';
 import { NotificationService } from './shared/services';
 import { MiningService } from './mining/services';
+import { NodeService } from './node';
 import { I18nService } from './core/i18n';
 import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -21,8 +24,17 @@ import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confi
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
-  template: `<router-outlet></router-outlet>`,
+  imports: [RouterOutlet, MatProgressSpinnerModule],
+  template: `
+    @if (isStartingNode()) {
+      <div class="node-startup-overlay">
+        <mat-spinner diameter="48"></mat-spinner>
+        <span class="startup-text">Starting node...</span>
+      </div>
+    } @else {
+      <router-outlet></router-outlet>
+    }
+  `,
   styles: [
     `
       :host {
@@ -30,22 +42,61 @@ import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confi
         height: 100vh;
         overflow: hidden;
       }
+
+      .node-startup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #eceff1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        color: rgba(0, 0, 0, 0.87);
+      }
+
+      .startup-text {
+        margin-top: 16px;
+        font-size: 16px;
+        color: rgba(0, 0, 0, 0.6);
+      }
     `,
   ],
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly blockchainState = inject(BlockchainStateService);
   private readonly electronService = inject(ElectronService);
+  private readonly cookieAuth = inject(CookieAuthService);
   private readonly dialog = inject(MatDialog);
   private readonly notification = inject(NotificationService);
   private readonly miningService = inject(MiningService);
+  private readonly nodeService = inject(NodeService);
   private readonly i18n = inject(I18nService);
 
   private closeUnlisten: (() => void) | null = null;
+  private nodeStatusInterval: ReturnType<typeof setInterval> | null = null;
+
+  /** Signal to show node startup overlay */
+  readonly isStartingNode = signal(false);
 
   ngOnInit(): void {
     // Start blockchain state polling - runs continuously for all components
     this.blockchainState.startPolling();
+
+    // Check if we need to wait for node startup (set synchronously before async code)
+    if (
+      this.electronService.isDesktop &&
+      this.nodeService.isManaged() &&
+      this.nodeService.isInstalled()
+    ) {
+      this.isStartingNode.set(true);
+    }
+
+    // Initialize managed node service
+    this.initNodeService();
 
     // Set up update notification listeners (Electron only)
     this.initUpdateListeners();
@@ -60,6 +111,60 @@ export class AppComponent implements OnInit, OnDestroy {
       this.closeUnlisten();
       this.closeUnlisten = null;
     }
+
+    // Clean up node status polling
+    if (this.nodeStatusInterval) {
+      clearInterval(this.nodeStatusInterval);
+      this.nodeStatusInterval = null;
+    }
+  }
+
+  /**
+   * Initialize managed node service:
+   * - Start node if managed mode and installed
+   * - Wait for RPC to be ready
+   * - Start periodic status refresh
+   *
+   * Shows a loading overlay while waiting for the node to start.
+   *
+   * Redirect to /node/setup is handled by nodeSetupGuard in routes,
+   * which runs before authGuard and properly intercepts first-launch flow.
+   */
+  private async initNodeService(): Promise<void> {
+    if (!this.electronService.isDesktop) {
+      return;
+    }
+
+    // If we're showing the startup overlay, do the node startup
+    if (this.isStartingNode()) {
+      try {
+        // Check if node is already running
+        const existingPid = await this.nodeService.detectExistingNode();
+        if (!existingPid) {
+          await this.nodeService.startNode();
+        }
+
+        // Wait for RPC to be ready
+        const ready = await this.waitForNodeReady();
+        if (ready) {
+          await this.cookieAuth.refreshCredentials();
+        }
+      } catch (err) {
+        console.error('Error during node startup:', err);
+      } finally {
+        // Hide loading overlay
+        this.isStartingNode.set(false);
+      }
+    }
+
+    // Start periodic status refresh (every 30 seconds)
+    this.nodeStatusInterval = setInterval(async () => {
+      try {
+        await this.nodeService.refreshNodeStatus();
+      } catch {
+        // Silently ignore status refresh errors
+      }
+    }, 30000);
   }
 
   /**
@@ -126,17 +231,24 @@ export class AppComponent implements OnInit, OnDestroy {
         const plottingActive =
           this.miningService.plotterUIState() === 'plotting' ||
           this.miningService.plotterUIState() === 'stopping';
+        const nodeRunning = this.nodeService.isManaged() && this.nodeService.isRunning();
 
-        // If nothing active, exit immediately
-        if (!miningActive && !plottingActive) {
+        // If nothing active and node not running, just exit
+        if (!miningActive && !plottingActive && !nodeRunning) {
           await invoke('exit_app');
           return;
         }
 
-        // Prevent immediate close to show confirmation dialog
+        // Prevent immediate close to show confirmation/shutdown dialog
         event.preventDefault();
 
-        // Build warning message
+        // If only node needs to be stopped (no mining/plotting), ask user what to do
+        if (!miningActive && !plottingActive && nodeRunning) {
+          await this.showKeepNodeRunningDialog();
+          return;
+        }
+
+        // Mining or plotting is active - show confirmation dialog
         let activityMessage: string;
         if (miningActive && plottingActive) {
           activityMessage = this.i18n.get('exit_confirm_mining_plotting');
@@ -162,14 +274,118 @@ export class AppComponent implements OnInit, OnDestroy {
 
         dialogRef.afterClosed().subscribe(async (confirmed: boolean) => {
           if (confirmed) {
-            // User confirmed - force exit the application
-            const { invoke } = await import('@tauri-apps/api/core');
-            await invoke('exit_app');
+            // If node needs to be stopped, show shutdown dialog; otherwise just exit
+            if (nodeRunning) {
+              await this.showNodeShutdownDialog();
+            } else {
+              const { invoke } = await import('@tauri-apps/api/core');
+              await invoke('exit_app');
+            }
           }
         });
       });
     } catch (error) {
       console.error('Failed to initialize close handler:', error);
+    }
+  }
+
+  /**
+   * Wait for the node RPC to be ready.
+   * Returns true if ready, false if timeout.
+   */
+  private async waitForNodeReady(): Promise<boolean> {
+    const maxAttempts = 60; // 30 seconds max (60 * 500ms)
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      const isReady = await this.nodeService.isNodeReady();
+      if (isReady) {
+        return true;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+      attempts++;
+    }
+
+    return false;
+  }
+
+  /**
+   * Show a dialog asking the user if they want to keep the node running in background.
+   */
+  private async showKeepNodeRunningDialog(): Promise<void> {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '420px',
+      data: {
+        title: this.i18n.get('exit_node_running_title') || 'Node Running',
+        message:
+          this.i18n.get('exit_node_running_message') ||
+          'The Bitcoin node is currently running. Would you like to keep it running in the background or shut it down?',
+        confirmText: this.i18n.get('shut_down_node') || 'Shut Down Node',
+        cancelText: this.i18n.get('keep_running') || 'Keep Running',
+        type: 'info',
+      },
+    });
+
+    dialogRef.afterClosed().subscribe(async (shutDown: boolean) => {
+      if (shutDown) {
+        await this.showNodeShutdownDialog();
+      } else {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('exit_app');
+      }
+    });
+  }
+
+  /**
+   * Show a dialog while waiting for the node to shut down gracefully.
+   * Like bitcoin-qt, we wait for the node to fully stop before exiting.
+   */
+  private async showNodeShutdownDialog(): Promise<void> {
+    // Show non-closeable dialog with spinner
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '380px',
+      disableClose: true,
+      data: {
+        title: this.i18n.get('node_shutting_down_title') || 'Shutting Down',
+        message:
+          this.i18n.get('node_shutting_down_message') ||
+          'Please wait while the node shuts down safely...',
+        showSpinner: true,
+        hideActions: true,
+        type: 'info',
+      },
+    });
+
+    try {
+      await this.nodeService.stopNodeGracefully();
+      await this.waitForNodeToStop();
+    } catch (err) {
+      console.error('Error during node shutdown:', err);
+    } finally {
+      dialogRef.close();
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('exit_app');
+    }
+  }
+
+  /**
+   * Poll until the node process is no longer running.
+   * Returns when node has stopped or after max attempts.
+   */
+  private async waitForNodeToStop(): Promise<void> {
+    const maxAttempts = 120; // 60 seconds max (120 * 500ms)
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const isRunning = await this.nodeService.isNodeRunning();
+      if (!isRunning) {
+        return;
+      }
+
+      attempts++;
     }
   }
 }
