@@ -200,6 +200,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk/25* /usr/local/lib/android/sdk/ndk/26* /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -224,7 +229,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+          targets: aarch64-linux-android
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -239,9 +244,17 @@ jobs:
         working-directory: web-wallet
         run: npx tauri android init
 
-      - name: Build Android APK (debug signed)
+      - name: Setup Android signing
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.keystore
+          echo "TAURI_ANDROID_KEYSTORE=$HOME/release.keystore" >> $GITHUB_ENV
+          echo "TAURI_ANDROID_KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "TAURI_ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "TAURI_ANDROID_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Build Android APK (ARM64)
         working-directory: web-wallet
-        run: npx tauri android build --debug
+        run: npx tauri android build --target aarch64
 
       - name: Get version from tag
         id: version
@@ -254,11 +267,16 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           mkdir -p artifacts
 
-          # Find debug APK (debug builds are auto-signed and installable)
-          APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*-debug.apk" -type f | head -1)
+          # Find release APK (universal or arm64)
+          APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*-release*.apk" -o -name "*-universal*.apk" | grep -v debug | head -1)
+
+          # Fallback to any APK if release not found
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*.apk" -type f | grep -v debug | head -1)
+          fi
 
           if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
-            NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android.apk"
+            NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android-ARM64.apk"
             cp "$APK_FILE" "artifacts/$NEW_NAME"
             gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
           else
