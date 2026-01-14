@@ -246,11 +246,16 @@ jobs:
 
       - name: Setup Android signing
         run: |
+          # Decode keystore
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.keystore
-          echo "TAURI_ANDROID_KEYSTORE=$HOME/release.keystore" >> $GITHUB_ENV
-          echo "TAURI_ANDROID_KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "TAURI_ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
-          echo "TAURI_ANDROID_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> $GITHUB_ENV
+
+          # Create keystore.properties for Tauri/Gradle
+          cat > web-wallet/src-tauri/gen/android/keystore.properties << EOF
+          storeFile=$HOME/release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
 
       - name: Build Android APK
         working-directory: web-wallet
