@@ -3,7 +3,7 @@
   "identifier": "desktop",
   "description": "Desktop-only capabilities (updater)",
   "windows": ["main"],
-  "platforms": ["windows", "macos", "linux"],
+  "platforms": ["windows", "macOS", "linux"],
   "permissions": [
     "updater:default"
   ]
