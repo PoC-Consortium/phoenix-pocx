@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+#[cfg(desktop)]
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::Manager;
 
@@ -220,8 +221,9 @@ fn get_launch_mode() -> String {
 /// Used when user confirms exit while mining/plotting is active
 #[tauri::command]
 fn exit_app(app: tauri::AppHandle) {
-    // Destroy the main window first to avoid Windows error message
+    // On desktop, destroy the main window first to avoid Windows error message
     // "Failed to unregister class Chrome_WidgetWin_0. Error = 1412"
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window("main") {
         if let Err(err) = window.destroy() {
             log::warn!("Failed to destroy window before exit: {}", err);
@@ -303,12 +305,14 @@ async fn restart_elevated(app: tauri::AppHandle) -> bool {
     #[cfg(not(windows))]
     {
         // On Unix, we can't easily elevate. User should run with sudo.
+        let _ = &app; // Suppress unused variable warning
         log::warn!("Elevation not supported on this platform. Run with sudo for admin privileges.");
         false
     }
 }
 
-/// Create the application menu
+/// Create the application menu (desktop only)
+#[cfg(desktop)]
 fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // File menu
     let file_menu = SubmenuBuilder::new(app, "File")
