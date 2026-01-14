@@ -249,13 +249,11 @@ jobs:
           # Decode keystore
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.keystore
 
-          # Create keystore.properties for Tauri/Gradle (no leading spaces!)
-          cat > web-wallet/src-tauri/gen/android/keystore.properties <<EOF
-storeFile=$HOME/release.keystore
-storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-EOF
+          # Create keystore.properties for Tauri/Gradle
+          echo "storeFile=$HOME/release.keystore" > web-wallet/src-tauri/gen/android/keystore.properties
+          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> web-wallet/src-tauri/gen/android/keystore.properties
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> web-wallet/src-tauri/gen/android/keystore.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> web-wallet/src-tauri/gen/android/keystore.properties
 
       - name: Build Android APK
         working-directory: web-wallet
