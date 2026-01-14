@@ -241,7 +241,7 @@ jobs:
 
       - name: Build Android APK
         working-directory: web-wallet
-        run: npx tauri android build --apk
+        run: npx tauri android build
 
       - name: Get version from tag
         id: version
@@ -252,14 +252,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          APK_DIR="web-wallet/src-tauri/gen/android/app/build/outputs/apk/universal/release"
           mkdir -p artifacts
 
-          # Find and rename APK
-          for f in "$APK_DIR/"*.apk; do
-            if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android.apk"
-              cp "$f" "artifacts/$NEW_NAME"
-              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
-            fi
-          done
+          # Find APK in various possible output locations
+          APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*.apk" -type f | grep -v debug | head -1)
+
+          if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
+            NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android.apk"
+            cp "$APK_FILE" "artifacts/$NEW_NAME"
+            gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+          else
+            echo "No APK file found!"
+            find web-wallet/src-tauri/gen/android -name "*.apk" -type f || true
+            exit 1
+          fi
