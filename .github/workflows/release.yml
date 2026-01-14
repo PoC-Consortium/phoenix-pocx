@@ -255,6 +255,32 @@ jobs:
           echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> web-wallet/src-tauri/gen/android/keystore.properties
           echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> web-wallet/src-tauri/gen/android/keystore.properties
 
+          # Patch build.gradle.kts to use signing config
+          GRADLE_FILE="web-wallet/src-tauri/gen/android/app/build.gradle.kts"
+
+          # Add import at top of file
+          sed -i '1i import java.util.Properties\nimport java.io.FileInputStream' "$GRADLE_FILE"
+
+          # Add signingConfigs block before buildTypes
+          sed -i '/buildTypes {/i \
+          signingConfigs {\
+              create("release") {\
+                  val keystorePropertiesFile = rootProject.file("keystore.properties")\
+                  val keystoreProperties = Properties()\
+                  if (keystorePropertiesFile.exists()) {\
+                      keystoreProperties.load(FileInputStream(keystorePropertiesFile))\
+                  }\
+                  keyAlias = keystoreProperties["keyAlias"] as String\
+                  keyPassword = keystoreProperties["keyPassword"] as String\
+                  storeFile = file(keystoreProperties["storeFile"] as String)\
+                  storePassword = keystoreProperties["storePassword"] as String\
+              }\
+          }\
+          ' "$GRADLE_FILE"
+
+          # Update release buildType to use signing config
+          sed -i '/getByName("release") {/a \            signingConfig = signingConfigs.getByName("release")' "$GRADLE_FILE"
+
       - name: Build Android APK
         working-directory: web-wallet
         run: npx tauri android build
