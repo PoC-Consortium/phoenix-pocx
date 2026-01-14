@@ -7,6 +7,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { I18nPipe, I18nService } from '../../../core/i18n';
+import { AppModeService } from '../../../core/services/app-mode.service';
 import { MiningService } from '../../services';
 import {
   MiningStatus,
@@ -555,7 +556,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
             <div class="first-run-card">
               <h2>{{ 'mining_welcome' | i18n }}</h2>
               <p>{{ 'mining_welcome_message' | i18n }}</p>
-              <button class="btn btn-primary" routerLink="/mining/setup">
+              <button class="btn btn-primary" [routerLink]="setupRoute()">
                 {{ 'mining_get_started' | i18n }}
               </button>
             </div>
@@ -1513,6 +1514,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
+  private readonly appMode = inject(AppModeService);
+
+  /** Setup route path - differs between wallet mode and mining-only mode */
+  readonly setupRoute = computed(() =>
+    this.appMode.isMiningOnly() ? '/miner/setup' : '/mining/setup'
+  );
 
   readonly miningStatus = signal<MiningStatus | null>(null);
   readonly plottingStatus = signal<PlottingStatus | null>(null);
@@ -2195,7 +2202,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     await Promise.all(loadPromises);
 
     // Navigate to setup with step parameter
-    this.router.navigate(['/mining/setup'], { queryParams: { step } });
+    this.router.navigate([this.setupRoute()], { queryParams: { step } });
   }
 
   // Plotter methods

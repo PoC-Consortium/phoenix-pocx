@@ -191,3 +191,75 @@ jobs:
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi
           done
+
+  build-android:
+    name: Build (Android)
+    needs: create-release
+    runs-on: ubuntu-latest
+    continue-on-error: true  # Android build is experimental - don't fail the whole release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: web-wallet/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager --install "ndk;27.0.11718014"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.11718014" >> $GITHUB_ENV
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './web-wallet/src-tauri -> target'
+
+      - name: Install web-wallet dependencies
+        working-directory: web-wallet
+        run: npm ci
+
+      - name: Initialize Android project
+        working-directory: web-wallet
+        run: npx tauri android init
+
+      - name: Build Android APK
+        working-directory: web-wallet
+        run: npx tauri android build --apk
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Upload Android APK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          APK_DIR="web-wallet/src-tauri/gen/android/app/build/outputs/apk/universal/release"
+          mkdir -p artifacts
+
+          # Find and rename APK
+          for f in "$APK_DIR/"*.apk; do
+            if [ -f "$f" ]; then
+              NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android.apk"
+              cp "$f" "artifacts/$NEW_NAME"
+              gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
+            fi
+          done

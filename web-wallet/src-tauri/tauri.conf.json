@@ -55,8 +55,12 @@
     },
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "installerHooks": "nsis/hooks.nsi"
       }
+    },
+    "android": {
+      "minSdkVersion": 24
     }
   },
   "plugins": {

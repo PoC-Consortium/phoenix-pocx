@@ -24,6 +24,7 @@
     "@tauri-apps/plugin-notification": "^2.2.2",
     "@tauri-apps/plugin-opener": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.5.1",
+    "tauri-plugin-android-fs-api": "^24.1.0",
     "@angular/animations": "^21.0.8",
     "@angular/cdk": "^21.0.5",
     "@angular/common": "^21.0.8",

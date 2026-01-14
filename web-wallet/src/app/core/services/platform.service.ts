@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ElectronService } from './electron.service';
 
-export type Platform = 'win32' | 'darwin' | 'linux' | 'browser';
+export type Platform = 'win32' | 'darwin' | 'linux' | 'android' | 'browser';
 
 /**
  * PlatformService provides platform detection and environment information.
@@ -61,6 +61,13 @@ export class PlatformService {
    */
   get isLinux(): boolean {
     return this._platform === 'linux';
+  }
+
+  /**
+   * Check if running on Android
+   */
+  get isAndroid(): boolean {
+    return this._platform === 'android';
   }
 
   /**
