@@ -239,9 +239,9 @@ jobs:
         working-directory: web-wallet
         run: npx tauri android init
 
-      - name: Build Android APK
+      - name: Build Android APK (debug signed)
         working-directory: web-wallet
-        run: npx tauri android build
+        run: npx tauri android build --debug
 
       - name: Get version from tag
         id: version
@@ -254,8 +254,8 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           mkdir -p artifacts
 
-          # Find APK in various possible output locations
-          APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*.apk" -type f | grep -v debug | head -1)
+          # Find debug APK (debug builds are auto-signed and installable)
+          APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*-debug.apk" -type f | head -1)
 
           if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
             NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android.apk"
