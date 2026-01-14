@@ -258,28 +258,33 @@ jobs:
           # Patch build.gradle.kts to use signing config
           GRADLE_FILE="web-wallet/src-tauri/gen/android/app/build.gradle.kts"
 
-          # Add import at top of file
-          sed -i '1i import java.util.Properties\nimport java.io.FileInputStream' "$GRADLE_FILE"
+          # Create a patch file and apply it
+          cat > /tmp/signing-patch.txt << 'PATCH'
+          import java.util.Properties
+          import java.io.FileInputStream
+
+          val keystorePropertiesFile = rootProject.file("keystore.properties")
+          val keystoreProperties = Properties().apply {
+              if (keystorePropertiesFile.exists()) {
+                  load(FileInputStream(keystorePropertiesFile))
+              }
+          }
+
+          PATCH
+
+          # Prepend imports and properties loading to the file
+          cat /tmp/signing-patch.txt "$GRADLE_FILE" > /tmp/gradle-patched.kts
+          mv /tmp/gradle-patched.kts "$GRADLE_FILE"
 
           # Add signingConfigs block before buildTypes
-          sed -i '/buildTypes {/i \
-          signingConfigs {\
-              create("release") {\
-                  val keystorePropertiesFile = rootProject.file("keystore.properties")\
-                  val keystoreProperties = Properties()\
-                  if (keystorePropertiesFile.exists()) {\
-                      keystoreProperties.load(FileInputStream(keystorePropertiesFile))\
-                  }\
-                  keyAlias = keystoreProperties["keyAlias"] as String\
-                  keyPassword = keystoreProperties["keyPassword"] as String\
-                  storeFile = file(keystoreProperties["storeFile"] as String)\
-                  storePassword = keystoreProperties["storePassword"] as String\
-              }\
-          }\
-          ' "$GRADLE_FILE"
+          sed -i '/buildTypes {/i \    signingConfigs {\n        create("release") {\n            keyAlias = keystoreProperties["keyAlias"] as String\n            keyPassword = keystoreProperties["keyPassword"] as String\n            storeFile = file(keystoreProperties["storeFile"] as String)\n            storePassword = keystoreProperties["storePassword"] as String\n        }\n    }\n' "$GRADLE_FILE"
 
           # Update release buildType to use signing config
           sed -i '/getByName("release") {/a \            signingConfig = signingConfigs.getByName("release")' "$GRADLE_FILE"
+
+          # Debug: show the patched file
+          echo "=== Patched build.gradle.kts (first 60 lines) ==="
+          head -60 "$GRADLE_FILE"
 
       - name: Build Android APK
         working-directory: web-wallet
