@@ -249,13 +249,13 @@ jobs:
           # Decode keystore
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.keystore
 
-          # Create keystore.properties for Tauri/Gradle
-          cat > web-wallet/src-tauri/gen/android/keystore.properties << EOF
-          storeFile=$HOME/release.keystore
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          EOF
+          # Create keystore.properties for Tauri/Gradle (no leading spaces!)
+          cat > web-wallet/src-tauri/gen/android/keystore.properties <<EOF
+storeFile=$HOME/release.keystore
+storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+EOF
 
       - name: Build Android APK
         working-directory: web-wallet
@@ -272,8 +272,12 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           mkdir -p artifacts
 
+          # Debug: show all APK files
+          echo "All APK files found:"
+          find web-wallet/src-tauri/gen/android -name "*.apk" -type f 2>/dev/null || echo "No APKs found"
+
           # Find release APK (universal or arm64)
-          APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*-release*.apk" -o -name "*-universal*.apk" | grep -v debug | head -1)
+          APK_FILE=$(find web-wallet/src-tauri/gen/android \( -name "*-release*.apk" -o -name "*-universal*.apk" \) 2>/dev/null | grep -v debug | head -1)
 
           # Fallback to any APK if release not found
           if [ -z "$APK_FILE" ]; then
