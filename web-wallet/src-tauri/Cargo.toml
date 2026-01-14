@@ -57,11 +57,13 @@ zip = "2"
 flate2 = "1"
 tar = "0.4"
 
-# HTTP client for GitHub API and downloads
-reqwest = { version = "0.12", features = ["json", "stream"] }
-
 # Async stream utilities for download progress
 futures-util = "0.3"
+
+# HTTP client for GitHub API and downloads
+# Use rustls on Android (no OpenSSL cross-compilation needed), native-tls on desktop
+[target.'cfg(not(target_os = "android"))'.dependencies]
+reqwest = { version = "0.12", features = ["json", "stream"] }
 
 # Windows-specific dependencies for elevation and restart
 [target.'cfg(windows)'.dependencies]
@@ -78,6 +80,7 @@ tauri-plugin-updater = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "24"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 
 [profile.release]
 panic = "abort"
