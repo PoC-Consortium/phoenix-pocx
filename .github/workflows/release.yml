@@ -229,7 +229,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -252,9 +252,9 @@ jobs:
           echo "TAURI_ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> $GITHUB_ENV
           echo "TAURI_ANDROID_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> $GITHUB_ENV
 
-      - name: Build Android APK (ARM64)
+      - name: Build Android APK
         working-directory: web-wallet
-        run: npx tauri android build --target aarch64
+        run: npx tauri android build
 
       - name: Get version from tag
         id: version
@@ -276,7 +276,7 @@ jobs:
           fi
 
           if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
-            NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android-ARM64.apk"
+            NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android.apk"
             cp "$APK_FILE" "artifacts/$NEW_NAME"
             gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
           else
