@@ -1,5 +1,11 @@
 import { Routes } from '@angular/router';
-import { authGuard, noAuthGuard, nodeSetupGuard } from './core/guards';
+import {
+  authGuard,
+  noAuthGuard,
+  nodeSetupGuard,
+  miningOnlyGuard,
+  notMiningOnlyGuard,
+} from './core/guards';
 
 /**
  * Application routes with lazy-loaded feature modules.
@@ -43,12 +49,43 @@ export const routes: Routes = [
     ],
   },
 
+  // Mining-only mode routes (no wallet required)
+  // Uses simplified MiningLayoutComponent with minimal header
+  {
+    path: 'miner',
+    canActivate: [miningOnlyGuard, nodeSetupGuard],
+    loadComponent: () =>
+      import('./layout/mining-layout/mining-layout.component').then(m => m.MiningLayoutComponent),
+    children: [
+      {
+        path: '',
+        redirectTo: 'dashboard',
+        pathMatch: 'full',
+      },
+      {
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./mining/pages/mining-dashboard/mining-dashboard.component').then(
+            m => m.MiningDashboardComponent
+          ),
+      },
+      {
+        path: 'setup',
+        loadComponent: () =>
+          import('./mining/pages/setup-wizard/setup-wizard.component').then(
+            m => m.SetupWizardComponent
+          ),
+      },
+    ],
+  },
+
   // Auth routes (public - redirect if already logged in)
   // Uses AuthLayoutComponent which shows toolbar without sidenav
   // nodeSetupGuard runs first to redirect to /node/setup if node not installed
+  // notMiningOnlyGuard prevents access in mining-only mode
   {
     path: 'auth',
-    canActivate: [nodeSetupGuard, noAuthGuard],
+    canActivate: [notMiningOnlyGuard, nodeSetupGuard, noAuthGuard],
     loadComponent: () =>
       import('./layout/auth-layout/auth-layout.component').then(m => m.AuthLayoutComponent),
     children: [
@@ -61,9 +98,10 @@ export const routes: Routes = [
 
   // Protected routes (require active wallet)
   // nodeSetupGuard runs first to redirect to /node/setup if node not installed (desktop only)
+  // notMiningOnlyGuard prevents access in mining-only mode
   {
     path: '',
-    canActivate: [nodeSetupGuard, authGuard],
+    canActivate: [notMiningOnlyGuard, nodeSetupGuard, authGuard],
     loadComponent: () =>
       import('./layout/main-layout/main-layout.component').then(m => m.MainLayoutComponent),
     children: [

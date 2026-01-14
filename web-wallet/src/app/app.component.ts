@@ -1,9 +1,10 @@
 import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Router, RouterOutlet } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BlockchainStateService } from './bitcoin/services/blockchain-state.service';
 import { ElectronService, UpdateInfo } from './core/services/electron.service';
+import { AppModeService } from './core/services/app-mode.service';
 import { CookieAuthService } from './core/auth/cookie-auth.service';
 import { NotificationService } from './shared/services';
 import { MiningService } from './mining/services';
@@ -67,8 +68,10 @@ import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confi
   ],
 })
 export class AppComponent implements OnInit, OnDestroy {
+  private readonly router = inject(Router);
   private readonly blockchainState = inject(BlockchainStateService);
   private readonly electronService = inject(ElectronService);
+  private readonly appModeService = inject(AppModeService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly dialog = inject(MatDialog);
   private readonly notification = inject(NotificationService);
@@ -85,6 +88,15 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Start blockchain state polling - runs continuously for all components
     this.blockchainState.startPolling();
+
+    // If in mining-only mode, redirect to miner route immediately
+    if (this.appModeService.isMiningOnly()) {
+      // Only redirect if we're not already on a miner route
+      const currentUrl = this.router.url;
+      if (!currentUrl.startsWith('/miner') && !currentUrl.startsWith('/node')) {
+        this.router.navigate(['/miner']);
+      }
+    }
 
     // Check if we need to wait for node startup (set synchronously before async code)
     if (
@@ -232,6 +244,7 @@ export class AppComponent implements OnInit, OnDestroy {
           this.miningService.plotterUIState() === 'plotting' ||
           this.miningService.plotterUIState() === 'stopping';
         const nodeRunning = this.nodeService.isManaged() && this.nodeService.isRunning();
+        const isMiningOnly = this.appModeService.isMiningOnly();
 
         // If nothing active and node not running, just exit
         if (!miningActive && !plottingActive && !nodeRunning) {
@@ -242,9 +255,15 @@ export class AppComponent implements OnInit, OnDestroy {
         // Prevent immediate close to show confirmation/shutdown dialog
         event.preventDefault();
 
-        // If only node needs to be stopped (no mining/plotting), ask user what to do
+        // If only node needs to be stopped (no mining/plotting):
+        // - In mining-only mode: just shut down and exit (no dialog)
+        // - In wallet mode: ask user what to do
         if (!miningActive && !plottingActive && nodeRunning) {
-          await this.showKeepNodeRunningDialog();
+          if (isMiningOnly) {
+            await this.showNodeShutdownDialog();
+          } else {
+            await this.showKeepNodeRunningDialog();
+          }
           return;
         }
 

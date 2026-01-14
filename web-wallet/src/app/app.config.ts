@@ -18,8 +18,19 @@ import { reducers, metaReducers, effects } from './store';
 import { CookieAuthService } from './core/auth/cookie-auth.service';
 import { I18nService, CustomPaginatorIntl } from './core/i18n';
 import { PlatformService } from './core/services/platform.service';
+import { AppModeService } from './core/services/app-mode.service';
 import { SettingsActions, selectNodeConfig } from './store/settings';
 import { NodeService } from './node';
+
+/**
+ * Initialize app mode from launch arguments (--mining-only flag).
+ * Must run early to determine routing behavior.
+ */
+function initializeAppMode(appMode: AppModeService): () => Promise<void> {
+  return async () => {
+    await appMode.initializeMode();
+  };
+}
 
 /**
  * Initialize platform and settings at app startup.
@@ -88,6 +99,14 @@ export const appConfig: ApplicationConfig = {
       provide: APP_INITIALIZER,
       useFactory: initializeI18n,
       deps: [I18nService, HttpClient],
+      multi: true,
+    },
+
+    // App mode initialization (detect --mining-only flag)
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initializeAppMode,
+      deps: [AppModeService],
       multi: true,
     },
 

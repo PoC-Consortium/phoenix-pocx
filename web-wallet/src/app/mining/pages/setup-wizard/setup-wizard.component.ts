@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { I18nPipe, I18nService } from '../../../core/i18n';
+import { AppModeService } from '../../../core/services/app-mode.service';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@ngrx/store';
@@ -2450,6 +2451,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly appMode = inject(AppModeService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly miningRpc = inject(MiningRpcService);
@@ -3360,16 +3362,40 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   async addDrive(): Promise<void> {
     try {
-      const selected = await open({
-        directory: true,
-        multiple: true,
-        title: 'Select Plot Folder(s)',
-      });
+      let paths: string[] = [];
 
-      if (!selected) return;
+      // On Android, use the Android FS plugin for folder picker
+      if (this.appMode.isMobile()) {
+        try {
+          const { AndroidFs } = await import('tauri-plugin-android-fs-api');
+          const result = await AndroidFs.showOpenDirPicker({ localOnly: true });
+          if (!result) return;
+          // Get a usable path from the AndroidFsUri
+          const fsPath = await AndroidFs.getFsPath(result);
+          paths = [typeof fsPath === 'string' ? fsPath : fsPath.toString()];
+        } catch (error) {
+          console.error('Android folder picker failed:', error);
+          // Fallback to text input if plugin fails
+          const path = window.prompt(
+            'Enter the full path to your plot folder:\n\nExample: /storage/emulated/0/PoCX/plots',
+            '/storage/emulated/0/PoCX/plots'
+          );
+          if (!path || !path.trim()) return;
+          paths = [path.trim()];
+        }
+      } else {
+        // Desktop: use native folder picker
+        const selected = await open({
+          directory: true,
+          multiple: true,
+          title: 'Select Plot Folder(s)',
+        });
 
-      // Handle both single string and array of strings
-      const paths = Array.isArray(selected) ? selected : [selected];
+        if (!selected) return;
+
+        // Handle both single string and array of strings
+        paths = Array.isArray(selected) ? selected : [selected];
+      }
 
       for (const path of paths) {
         // Skip if already in driveConfigs

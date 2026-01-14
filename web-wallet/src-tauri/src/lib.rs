@@ -172,7 +172,7 @@ fn get_cookie_path(options: CookieReadOptions) -> Option<String> {
     Some(path.to_string_lossy().to_string())
 }
 
-/// Get the current platform (win32, darwin, linux)
+/// Get the current platform (win32, darwin, linux, android)
 #[tauri::command]
 fn get_platform() -> String {
     #[cfg(target_os = "windows")]
@@ -184,7 +184,10 @@ fn get_platform() -> String {
     #[cfg(target_os = "linux")]
     return "linux".to_string();
 
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    #[cfg(target_os = "android")]
+    return "android".to_string();
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "android")))]
     return "unknown".to_string();
 }
 
@@ -192,6 +195,25 @@ fn get_platform() -> String {
 #[tauri::command]
 fn is_dev() -> bool {
     cfg!(debug_assertions)
+}
+
+/// Get the launch mode (wallet or mining-only)
+/// Returns "mining" if --mining-only or -m flag is passed, otherwise "wallet"
+/// On Android, always returns "mining" (no node support on mobile)
+#[tauri::command]
+fn get_launch_mode() -> String {
+    // Android is always mining-only (no local node support)
+    #[cfg(target_os = "android")]
+    return "mining".to_string();
+
+    #[cfg(not(target_os = "android"))]
+    {
+        if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
+            "mining".to_string()
+        } else {
+            "wallet".to_string()
+        }
+    }
 }
 
 /// Force exit the application
@@ -435,12 +457,25 @@ pub fn run() {
     let node_state = node::create_node_state();
     let node_manager = node::NodeManager::new();
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_http::init());
+
+    // Desktop-only plugins
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    // Android-only plugins
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.plugin(tauri_plugin_android_fs::init());
+    }
+
+    builder = builder
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:mining.db", include_migrations())
@@ -454,17 +489,34 @@ pub fn run() {
             // Set app handle for TauriEventAppender (log forwarding to frontend)
             logging::set_app_handle(app.handle().clone());
 
-            // Create and set application menu
-            let menu = create_menu(app)?;
-            app.set_menu(menu)?;
+            // Create and set application menu (desktop only - no menu on mobile)
+            #[cfg(not(target_os = "android"))]
+            {
+                let menu = create_menu(app)?;
+                app.set_menu(menu)?;
+            }
 
             // Register miner callback for mining events (with state for deadline persistence)
             let state = app.state::<mining::state::SharedMiningState>().inner().clone();
             mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
 
+            // Set window title based on launch mode (desktop only)
+            #[cfg(not(target_os = "android"))]
+            {
+                if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.set_title("Phoenix PoCX Miner");
+                    }
+                }
+            }
+
             Ok(())
-        })
-        .on_menu_event(|app, event| {
+        });
+
+    // Menu events (desktop only - no menu on mobile)
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.on_menu_event(|app, event| {
             let id = event.id().as_ref();
             match id {
                 "exit" => {
@@ -476,11 +528,15 @@ pub fn run() {
                 }
                 "settings" => {
                     if let Some(window) = app.get_webview_window("main") {
+                        // In mining-only mode, navigate to mining setup instead of global settings
+                        let is_mining_only = std::env::args().any(|arg| arg == "--mining-only" || arg == "-m");
+                        let route = if is_mining_only { "/miner/setup" } else { "/settings" };
+
                         // Use history.pushState for Angular's HTML5 routing
-                        let _ = window.eval(r#"
-                            history.pushState({}, '', '/settings');
+                        let _ = window.eval(&format!(r#"
+                            history.pushState({{}}, '', '{}');
                             window.dispatchEvent(new PopStateEvent('popstate'));
-                        "#);
+                        "#, route));
                     }
                 }
                 #[cfg(debug_assertions)]
@@ -578,15 +634,19 @@ pub fn run() {
                 }
                 _ => {}
             }
-        })
-        // Window close handling is done in the frontend (AppComponent.initCloseHandler)
-        // to support i18n for the confirmation dialog
+        });
+    }
+
+    // Window close handling is done in the frontend (AppComponent.initCloseHandler)
+    // to support i18n for the confirmation dialog
+    builder
         .invoke_handler(tauri::generate_handler![
             // Cookie/wallet commands
             read_cookie_file,
             get_cookie_path,
             get_platform,
             is_dev,
+            get_launch_mode,
             exit_app,
             // Elevation commands
             is_elevated,

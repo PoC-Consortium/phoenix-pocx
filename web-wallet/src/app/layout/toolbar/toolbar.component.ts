@@ -117,20 +117,6 @@ import { MiningService } from '../../mining/services';
             }
           </div>
 
-          <div class="toolbar-separator"></div>
-
-          <!-- Settings Button (gear icon) -->
-          <button
-            mat-button
-            class="action-button icon-button"
-            [routerLink]="['/settings']"
-            [matTooltip]="'settings' | i18n"
-          >
-            <mat-icon class="secondary-text">settings</mat-icon>
-          </button>
-
-          <div class="toolbar-separator"></div>
-
           <div class="logo">
             <img
               class="logo-icon"
@@ -214,6 +200,18 @@ import { MiningService } from '../../mining/services';
 
             <div class="toolbar-separator"></div>
           }
+
+          <!-- Settings Button (gear icon) -->
+          <button
+            mat-button
+            class="action-button icon-button"
+            [routerLink]="['/settings']"
+            [matTooltip]="'settings' | i18n"
+          >
+            <mat-icon class="secondary-text">settings</mat-icon>
+          </button>
+
+          <div class="toolbar-separator"></div>
 
           <!-- Language Selector -->
           <button mat-button [matMenuTriggerFor]="langMenu" class="action-button lang-button">
