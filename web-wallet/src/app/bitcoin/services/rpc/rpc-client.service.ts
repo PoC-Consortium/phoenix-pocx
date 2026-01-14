@@ -128,6 +128,7 @@ export class RpcClientService implements OnDestroy {
   ): Promise<T> {
     const authHeader = this.cookieAuth.getAuthHeader();
     if (!authHeader) {
+      console.warn('RpcClientService: No credentials available for call:', method);
       throw new Error('No RPC credentials available');
     }
 
@@ -317,6 +318,8 @@ export class RpcClientService implements OnDestroy {
 
       if (!response.ok) {
         if (response.status === 401) {
+          console.error('RpcClientService: 401 Auth failed for', request.method, 'at', url);
+          console.error('RpcClientService: Auth header length:', authHeader?.length || 0);
           throw new Error('Authentication failed. Invalid RPC credentials.');
         } else if (response.status === 403) {
           throw new Error('Access forbidden. Check rpcallowip configuration.');

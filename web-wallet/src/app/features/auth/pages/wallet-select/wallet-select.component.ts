@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
@@ -69,10 +69,16 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
                   <li>Cookie authentication is accessible</li>
                 </ul>
               </div>
-              <button mat-raised-button color="primary" (click)="retryConnection()">
-                <mat-icon>refresh</mat-icon>
-                {{ 'retry' | i18n }}
-              </button>
+              <div class="error-actions">
+                <button mat-raised-button color="primary" (click)="retryConnection()">
+                  <mat-icon>refresh</mat-icon>
+                  {{ 'retry' | i18n }}
+                </button>
+                <button mat-stroked-button routerLink="/settings">
+                  <mat-icon>settings</mat-icon>
+                  {{ 'settings' | i18n }}
+                </button>
+              </div>
             </div>
           }
 
@@ -206,15 +212,15 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
         <!-- Bottom Actions -->
         <div class="box-actions">
           <div class="left-actions">
-            <button mat-stroked-button routerLink="/auth/create">
+            <button mat-stroked-button routerLink="/auth/create" [disabled]="!isConnected()">
               <mat-icon>add</mat-icon>
               {{ 'create_new' | i18n }}
             </button>
-            <button mat-stroked-button routerLink="/auth/import">
+            <button mat-stroked-button routerLink="/auth/import" [disabled]="!isConnected()">
               <mat-icon>import_export</mat-icon>
               {{ 'import' | i18n }}
             </button>
-            <button mat-stroked-button routerLink="/auth/watch-only">
+            <button mat-stroked-button routerLink="/auth/watch-only" [disabled]="!isConnected()">
               <mat-icon>visibility</mat-icon>
               {{ 'watch_only' | i18n }}
             </button>
@@ -223,7 +229,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
             <button
               mat-raised-button
               color="primary"
-              [disabled]="!selectedWallet() || isOpening()"
+              [disabled]="!isConnected() || !selectedWallet() || isOpening()"
               (click)="openWallet()"
               class="primary-action-button"
             >
@@ -346,6 +352,22 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 
             li {
               margin: 4px 0;
+            }
+          }
+        }
+
+        .error-actions {
+          display: flex;
+          gap: 12px;
+          margin-top: 8px;
+          align-items: center;
+
+          button {
+            min-width: 120px;
+            height: 36px;
+
+            mat-icon {
+              margin-right: 4px;
             }
           }
         }
@@ -602,6 +624,9 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   connectionError = signal<string | null>(null);
   wallets = signal<WalletSummary[]>([]);
   selectedWallet = signal<string | null>(null);
+
+  // Computed: are we connected to the node?
+  isConnected = computed(() => !this.isConnecting() && !this.connectionError());
 
   // Loading wallets tracking
   loadingWallets = new Set<string>();

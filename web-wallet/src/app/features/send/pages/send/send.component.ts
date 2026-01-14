@@ -16,10 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { Subject } from 'rxjs';
-import { Store } from '@ngrx/store';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { selectCurrencySymbol } from '../../../../store/settings/settings.selectors';
 
 interface Contact {
   id: string;
@@ -1030,11 +1027,10 @@ export class SendComponent implements OnInit, OnDestroy {
   private readonly location = inject(Location);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
-  private readonly store = inject(Store);
   private readonly destroy$ = new Subject<void>();
 
-  // Currency symbol from settings (BTCX, BTC, etc.)
-  currencySymbol = toSignal(this.store.select(selectCurrencySymbol), { initialValue: 'BTCX' });
+  // Currency symbol - always BTCX for Bitcoin-PoCX
+  currencySymbol = signal('BTCX');
 
   // Contacts from localStorage
   contacts = signal<Contact[]>([]);

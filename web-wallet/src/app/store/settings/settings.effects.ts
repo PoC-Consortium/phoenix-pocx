@@ -7,6 +7,7 @@ import { SettingsActions } from './settings.actions';
 import { selectSettingsState } from './settings.selectors';
 import { getDefaultDataDirectory, defaultNodeConfig } from './settings.state';
 import { PlatformService } from '../../core/services/platform.service';
+import { NodeService } from '../../node';
 
 const STORAGE_KEY = 'phoenix_pocx_settings';
 
@@ -19,6 +20,7 @@ export class SettingsEffects {
   private readonly store = inject(Store);
   private readonly router = inject(Router);
   private readonly platform = inject(PlatformService);
+  private readonly nodeService = inject(NodeService);
 
   /**
    * Load settings from localStorage.
@@ -111,13 +113,13 @@ export class SettingsEffects {
   );
 
   /**
-   * Reset all data - clears localStorage and navigates to root
+   * Reset all data - clears localStorage, node config, and navigates to root
    */
   resetAllData$ = createEffect(
     () =>
       this.actions$.pipe(
         ofType(SettingsActions.resetAllData),
-        tap(() => {
+        tap(async () => {
           try {
             // Clear all Phoenix-related localStorage items
             const keysToRemove = [];
@@ -129,8 +131,15 @@ export class SettingsEffects {
             }
             keysToRemove.forEach(key => localStorage.removeItem(key));
 
-            // Navigate to root and reload
-            this.router.navigate(['/']).then(() => {
+            // Uninstall node and reset configuration (Tauri backend)
+            try {
+              await this.nodeService.uninstallNode();
+            } catch (err) {
+              console.warn('Failed to uninstall node:', err);
+            }
+
+            // Navigate to node setup and reload
+            this.router.navigate(['/node/setup']).then(() => {
               window.location.reload();
             });
           } catch (error) {

@@ -3,6 +3,7 @@ import { Component, inject } from '@angular/core';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe } from '../../../core/i18n';
 
 export interface ConfirmDialogData {
@@ -12,6 +13,8 @@ export interface ConfirmDialogData {
   cancelText?: string;
   secondaryText?: string; // Optional third button
   type?: 'info' | 'warning' | 'danger';
+  showSpinner?: boolean; // Show a loading spinner instead of icon
+  hideActions?: boolean; // Hide action buttons (for progress dialogs)
 }
 
 /**
@@ -36,10 +39,12 @@ export interface ConfirmDialogData {
 @Component({
   selector: 'app-confirm-dialog',
   standalone: true,
-  imports: [MatDialogModule, MatButtonModule, MatIconModule, I18nPipe],
+  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, I18nPipe],
   template: `
     <h2 mat-dialog-title class="dialog-title" [class]="type">
-      @if (type === 'warning') {
+      @if (showSpinner) {
+        <mat-spinner diameter="24" class="title-spinner"></mat-spinner>
+      } @else if (type === 'warning') {
         <mat-icon class="title-icon warning">warning</mat-icon>
       } @else if (type === 'danger') {
         <mat-icon class="title-icon danger">error</mat-icon>
@@ -53,23 +58,25 @@ export interface ConfirmDialogData {
       <p class="dialog-message">{{ message }}</p>
     </mat-dialog-content>
 
-    <mat-dialog-actions align="end">
-      <button mat-button (click)="onCancel()">
-        {{ cancelText || ('cancel' | i18n) }}
-      </button>
-      @if (secondaryText) {
-        <button mat-stroked-button color="warn" (click)="onSecondary()">
-          {{ secondaryText }}
+    @if (!hideActions) {
+      <mat-dialog-actions align="end">
+        <button mat-button (click)="onCancel()">
+          {{ cancelText || ('cancel' | i18n) }}
         </button>
-      }
-      <button
-        mat-raised-button
-        [color]="type === 'danger' ? 'warn' : 'primary'"
-        (click)="onConfirm()"
-      >
-        {{ confirmText || ('confirm' | i18n) }}
-      </button>
-    </mat-dialog-actions>
+        @if (secondaryText) {
+          <button mat-stroked-button color="warn" (click)="onSecondary()">
+            {{ secondaryText }}
+          </button>
+        }
+        <button
+          mat-raised-button
+          [color]="type === 'danger' ? 'warn' : 'primary'"
+          (click)="onConfirm()"
+        >
+          {{ confirmText || ('confirm' | i18n) }}
+        </button>
+      </mat-dialog-actions>
+    }
   `,
   styles: [
     `
@@ -89,6 +96,10 @@ export interface ConfirmDialogData {
         &.danger {
           color: #f44336;
         }
+      }
+
+      .title-spinner {
+        margin-right: 4px;
       }
 
       .dialog-message {
@@ -115,6 +126,8 @@ export class ConfirmDialogComponent {
   cancelText?: string;
   secondaryText?: string;
   type: 'info' | 'warning' | 'danger';
+  showSpinner: boolean;
+  hideActions: boolean;
 
   constructor() {
     this.title = this.data?.title ?? 'Confirm';
@@ -123,6 +136,8 @@ export class ConfirmDialogComponent {
     this.cancelText = this.data?.cancelText;
     this.secondaryText = this.data?.secondaryText;
     this.type = this.data?.type ?? 'info';
+    this.showSpinner = this.data?.showSpinner ?? false;
+    this.hideActions = this.data?.hideActions ?? false;
   }
 
   onConfirm(): void {

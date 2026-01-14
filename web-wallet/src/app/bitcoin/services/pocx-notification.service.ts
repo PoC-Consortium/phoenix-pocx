@@ -7,7 +7,6 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import {
   selectNotifications,
   selectNotificationsEnabled,
-  selectCurrencySymbol,
 } from '../../store/settings/settings.selectors';
 
 /**
@@ -39,9 +38,9 @@ export class PocxNotificationService implements OnDestroy {
   private readonly notificationSettings = toSignal(this.store.select(selectNotifications), {
     initialValue: null,
   });
-  private readonly currencySymbol = toSignal(this.store.select(selectCurrencySymbol), {
-    initialValue: 'BTCX',
-  });
+
+  // Currency symbol - always BTCX for Bitcoin-PoCX
+  private readonly currencySymbol = 'BTCX';
 
   // Batching state
   private readonly BATCH_DELAY = 2000; // 2 seconds
@@ -179,7 +178,7 @@ export class PocxNotificationService implements OnDestroy {
     if (!pending) return;
 
     const { count, totalAmount } = pending;
-    const symbol = this.currencySymbol();
+    const symbol = this.currencySymbol;
     const formattedAmount = this.formatAmount(totalAmount);
 
     let title: string;

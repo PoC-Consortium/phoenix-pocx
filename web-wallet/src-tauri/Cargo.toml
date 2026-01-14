@@ -49,6 +49,20 @@ pocx_address = "1.0.0-rc.5"
 # OpenCL for GPU detection (dynamic loading - no build-time SDK required)
 opencl3 = { version = "0.10", features = ["dynamic"] }
 
+# SHA256 hashing for node binary verification
+sha2 = "0.10"
+
+# Archive extraction for node binaries
+zip = "2"
+flate2 = "1"
+tar = "0.4"
+
+# HTTP client for GitHub API and downloads
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Async stream utilities for download progress
+futures-util = "0.3"
+
 # Windows-specific dependencies for elevation and restart
 [target.'cfg(windows)'.dependencies]
 is_elevated = "0.1"

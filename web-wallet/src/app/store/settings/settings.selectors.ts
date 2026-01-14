@@ -16,11 +16,6 @@ export const selectNetwork = createSelector(selectNodeConfig, config => config.n
 
 export const selectCoinType = createSelector(selectNodeConfig, config => config.coinType);
 
-export const selectCurrencySymbol = createSelector(
-  selectNodeConfig,
-  config => config.currencySymbol
-);
-
 export const selectRpcHost = createSelector(selectNodeConfig, config => config.rpcHost);
 
 export const selectRpcPort = createSelector(selectNodeConfig, config => config.rpcPort);

@@ -15,7 +15,6 @@ export {
   defaultNodeConfig,
   defaultNotificationSettings,
   getDefaultRpcPort,
-  getDefaultCurrencySymbol,
   getDefaultTestnetSubdir,
   getDefaultDataDirectory,
 } from './settings.state';
