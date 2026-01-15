@@ -1,10 +1,10 @@
 //! Android-specific implementation using Tauri's mobile plugin system
 
-use tauri::{plugin::PluginHandle, Manager, Runtime};
+use tauri::{plugin::PluginHandle, Manager, Runtime, State};
 
 /// Check if the app has MANAGE_EXTERNAL_STORAGE permission
 pub fn has_all_files_access<R: Runtime>(app: tauri::AppHandle<R>) -> Result<bool, String> {
-    let handle: &PluginHandle<R> = app
+    let handle: State<'_, PluginHandle<R>> = app
         .try_state()
         .ok_or("Storage permission plugin not initialized")?;
 
@@ -15,7 +15,7 @@ pub fn has_all_files_access<R: Runtime>(app: tauri::AppHandle<R>) -> Result<bool
 
 /// Request MANAGE_EXTERNAL_STORAGE permission by opening settings
 pub fn request_all_files_access<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    let handle: &PluginHandle<R> = app
+    let handle: State<'_, PluginHandle<R>> = app
         .try_state()
         .ok_or("Storage permission plugin not initialized")?;
 
