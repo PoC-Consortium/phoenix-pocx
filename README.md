@@ -12,7 +12,8 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 - **Integrated Mining**: Multi-chain PoCX mining with real-time dashboard
 - **Plot File Generation**: CPU and GPU (OpenCL) plotting support
 - Multi-language support (24 languages)
-- Lightweight desktop app for Windows, macOS, and Linux
+- Lightweight app for Windows, macOS, Linux, and Android
+- **Android Support**: Background mining with foreground service and wake lock
 
 ## Requirements
 
@@ -153,6 +154,18 @@ For GPU-accelerated plot generation, install OpenCL drivers:
 - **Intel**: Install Intel OpenCL runtime
 
 No OpenCL SDK is required at build time (dynamic loading).
+
+### Android Build
+
+```bash
+cd web-wallet
+npx tauri android init    # First time only
+npx tauri android build --target aarch64
+```
+
+The APK will be in `web-wallet/src-tauri/gen/android/app/build/outputs/apk/`.
+
+**Note**: Android mining runs with a foreground service to keep the app alive when backgrounded or screen is off.
 
 ## Attribution
 

@@ -387,7 +387,7 @@
   "setup_auth_token_placeholder": "用于认证的 Bearer 令牌",
   "setup_save": "保存",
   "setup_add": "添加",
-  "setup_storage_permission_required": "此应用需要"访问所有文件"权限来检测和读取plot文件。点击确定打开设置并为Phoenix启用此权限。",
+  "setup_storage_permission_required": "此应用需要「访问所有文件」权限来检测和读取plot文件。点击确定打开设置并为Phoenix启用此权限。",
   "plan_plotting_plan": "绘图计划",
   "plan_tasks": "任务",
   "plan_remaining": "剩余",

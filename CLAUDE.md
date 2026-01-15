@@ -68,6 +68,9 @@ phoenix-pocx/
 │   │   │       ├── plotter.rs       # Plot file generation
 │   │   │       ├── callback.rs      # Event callbacks to frontend
 │   │   │       └── drives.rs        # Drive detection
+│   │   ├── plugins/           # Custom Tauri plugins
+│   │   │   ├── tauri-plugin-storage-permission/  # Android file access
+│   │   │   └── tauri-plugin-foreground-service/  # Android background service
 │   │   ├── Cargo.toml       # Rust dependencies
 │   │   └── tauri.conf.json  # Tauri configuration
 │   └── package.json
@@ -276,7 +279,7 @@ The mining backend uses these Rust crates:
 ### Core Commands (`src-tauri/src/lib.rs`)
 - `read_cookie_file` - Read cookie file with path expansion
 - `get_cookie_path` - Build cookie path from data dir + network
-- `get_platform` - Return platform (win32/darwin/linux)
+- `get_platform` - Return platform (win32/darwin/linux/android)
 - `is_dev` - Check if running in debug mode
 - `exit_app` - Force exit application
 - `is_elevated` - Check admin privileges (Windows)
@@ -299,3 +302,20 @@ See "Rust Mining Backend" section above for full list of 50+ mining commands.
 - **opener** - Open URLs/files with default app
 - **http** - HTTP client for RPC calls (bypasses CORS)
 - **updater** - Auto-update support (configured but not yet active)
+
+### Android Plugins
+
+Custom Tauri plugins for Android-specific functionality (located in `src-tauri/plugins/`):
+
+- **storage-permission** - Request MANAGE_EXTERNAL_STORAGE permission (Android 11+)
+  - `has_all_files_access` - Check if permission granted
+  - `request_all_files_access` - Open system settings to grant permission
+
+- **foreground-service** - Keep app alive during mining/plotting
+  - `start_foreground_service(mode)` - Start service ("mining" or "plotting")
+  - `stop_foreground_service` - Stop service and release wake lock
+  - `update_service_notification(text)` - Update notification text
+  - `request_battery_exemption` - Request battery optimization exemption
+  - `is_service_running` - Check if service is active
+  - Holds PARTIAL_WAKE_LOCK to prevent CPU sleep
+  - Shows persistent notification with Stop button
