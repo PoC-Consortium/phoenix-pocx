@@ -3419,7 +3419,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           }
         } catch (error) {
           console.error('Android folder picker failed:', error);
-          this.miningService.addActivityLog('warn', 'Android: Folder picker failed, prompting for manual entry');
+          this.miningService.addActivityLog(
+            'warn',
+            'Android: Folder picker failed, prompting for manual entry'
+          );
         }
 
         // Fallback to manual path entry if no path was resolved
