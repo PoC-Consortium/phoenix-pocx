@@ -2681,7 +2681,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
         // Show permission request dialog
         const message = this.i18n.get('setup_storage_permission_required');
-        const fallbackMessage = 'This app needs "All files access" permission to detect and read plot files. Tap OK to open Settings and enable it for Phoenix.';
+        const fallbackMessage =
+          'This app needs "All files access" permission to detect and read plot files. Tap OK to open Settings and enable it for Phoenix.';
 
         if (confirm(message || fallbackMessage)) {
           this.miningService.addActivityLog('info', 'Android: User accepted permission prompt');
@@ -2705,7 +2706,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
    */
   private async requestStoragePermission(): Promise<void> {
     try {
-      this.miningService.addActivityLog('info', 'Android: Opening system settings for permission...');
+      this.miningService.addActivityLog(
+        'info',
+        'Android: Opening system settings for permission...'
+      );
       await invoke('plugin:storage-permission|request_all_files_access');
 
       // After returning from settings, re-check permission
@@ -2728,7 +2732,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.miningService.addActivityLog('error', `Android: Failed to open settings - ${errorMsg}`);
       console.error('Failed to request storage permission:', err);
-      alert('Could not open Settings. Please enable "All files access" for Phoenix manually in Settings > Privacy > Files and media.');
+      alert(
+        'Could not open Settings. Please enable "All files access" for Phoenix manually in Settings > Privacy > Files and media.'
+      );
     }
   }
 }
