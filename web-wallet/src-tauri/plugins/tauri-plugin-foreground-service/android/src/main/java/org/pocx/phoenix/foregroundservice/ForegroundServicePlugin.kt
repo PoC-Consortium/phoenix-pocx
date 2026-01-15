@@ -44,11 +44,9 @@ class ForegroundServicePlugin(private val activity: Activity) : Plugin(activity)
      */
     @Command
     fun startForegroundService(invoke: Invoke) {
-        Log.i(TAG, "startForegroundService command called")
         try {
             val args = invoke.parseArgs(StartServiceArgs::class.java)
             val mode = args.mode
-            Log.i(TAG, "Starting foreground service with mode: $mode")
 
             val intent = Intent(activity, MiningForegroundService::class.java).apply {
                 action = MiningForegroundService.ACTION_START
@@ -56,14 +54,11 @@ class ForegroundServicePlugin(private val activity: Activity) : Plugin(activity)
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Log.d(TAG, "Using startForegroundService (Android O+)")
                 activity.startForegroundService(intent)
             } else {
-                Log.d(TAG, "Using startService (pre-Android O)")
                 activity.startService(intent)
             }
 
-            Log.i(TAG, "Foreground service start intent sent")
             invoke.resolve(JSObject())
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground service", e)

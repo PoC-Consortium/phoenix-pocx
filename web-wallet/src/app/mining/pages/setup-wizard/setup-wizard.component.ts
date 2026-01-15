@@ -3392,14 +3392,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           const uri = result.uri || JSON.stringify(result);
           const decoded = decodeURIComponent(uri);
 
-          // DEBUG: Log raw URI for troubleshooting
-          this.miningService.addActivityLog('info', `DEBUG: Raw folder URI: ${uri}`);
-          this.miningService.addActivityLog('info', `DEBUG: Decoded URI: ${decoded}`);
-
           // Extract volume ID and path from tree/ portion
           // Match: tree/VOLUMEID:PATH (VOLUMEID can be "primary", "XXXX-XXXX", or alphanumeric)
           const treeMatch = decoded.match(/tree\/([^:/]+):([^/]*)/);
-          this.miningService.addActivityLog('info', `DEBUG: treeMatch: ${JSON.stringify(treeMatch)}`);
 
           if (treeMatch) {
             const volumeId = treeMatch[1];
@@ -3413,11 +3408,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
             }
 
             const folderPath = folderName ? `${basePath}/${folderName}` : basePath;
-            this.miningService.addActivityLog('info', `DEBUG: Parsed path: ${folderPath}`);
             paths = [folderPath];
           } else {
-            // Fallback to prompt with debug info
-            this.miningService.addActivityLog('warn', `DEBUG: Could not parse URI, prompting user`);
+            // Fallback to prompt - URI format not recognized
+            this.miningService.addActivityLog('warn', 'Android: Could not parse folder URI, prompting for manual entry');
             const manualPath = window.prompt(
               `Could not parse folder URI.\n\nRaw: ${decoded}\n\nEnter path manually:`,
               '/storage/emulated/0/'

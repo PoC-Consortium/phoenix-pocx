@@ -246,9 +246,6 @@ export class MiningService {
     try {
       const platform = await invoke<string>('get_platform');
       this._isAndroid.set(platform === 'android');
-      if (platform === 'android') {
-        this.addActivityLog('info', 'DEBUG: Platform detected as Android');
-      }
     } catch {
       this._isAndroid.set(false);
     }
@@ -263,18 +260,13 @@ export class MiningService {
    * @param mode 'mining' or 'plotting'
    */
   private async startForegroundService(mode: 'mining' | 'plotting'): Promise<void> {
-    this.addActivityLog('info', `DEBUG: startForegroundService called, isAndroid=${this._isAndroid()}, mode=${mode}`);
-    if (!this._isAndroid()) {
-      this.addActivityLog('info', 'DEBUG: Not Android, skipping foreground service');
-      return;
-    }
+    if (!this._isAndroid()) return;
 
     try {
-      this.addActivityLog('info', 'DEBUG: Invoking foreground-service plugin...');
       await invoke('plugin:foreground-service|start_foreground_service', { mode });
-      this.addActivityLog('info', `DEBUG: Foreground service started (${mode})`);
+      this.addActivityLog('info', `Android: Foreground service started (${mode})`);
     } catch (err) {
-      this.addActivityLog('warn', `DEBUG: Failed to start foreground service - ${err}`);
+      this.addActivityLog('warn', `Android: Failed to start foreground service - ${err}`);
     }
   }
 
@@ -287,16 +279,14 @@ export class MiningService {
 
     // Don't stop if mining or plotting is still active
     if (this._minerState().running || this.plotterRunning()) {
-      this.addActivityLog('info', 'DEBUG: Not stopping foreground service - still active');
       return;
     }
 
     try {
-      this.addActivityLog('info', 'DEBUG: Stopping foreground service...');
       await invoke('plugin:foreground-service|stop_foreground_service');
-      this.addActivityLog('info', 'DEBUG: Foreground service stopped');
+      this.addActivityLog('info', 'Android: Foreground service stopped');
     } catch (err) {
-      this.addActivityLog('warn', `DEBUG: Failed to stop foreground service - ${err}`);
+      this.addActivityLog('warn', `Android: Failed to stop foreground service - ${err}`);
     }
   }
 

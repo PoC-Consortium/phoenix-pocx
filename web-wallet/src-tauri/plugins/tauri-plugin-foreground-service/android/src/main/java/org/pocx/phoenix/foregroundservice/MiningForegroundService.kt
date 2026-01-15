@@ -10,7 +10,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
@@ -24,7 +23,6 @@ import androidx.core.app.NotificationCompat
 class MiningForegroundService : Service() {
 
     companion object {
-        private const val TAG = "PhoenixForeground"
         const val ACTION_START = "org.pocx.phoenix.foregroundservice.START"
         const val ACTION_STOP = "org.pocx.phoenix.foregroundservice.STOP"
         const val ACTION_UPDATE = "org.pocx.phoenix.foregroundservice.UPDATE"
@@ -49,31 +47,25 @@ class MiningForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.i(TAG, "Service onCreate")
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.i(TAG, "onStartCommand: action=${intent?.action}")
         when (intent?.action) {
             ACTION_START -> {
                 currentMode = intent.getStringExtra(EXTRA_MODE) ?: "mining"
                 currentText = if (currentMode == "mining") "Mining active" else "Plotting active"
-                Log.i(TAG, "Starting foreground service: mode=$currentMode")
                 startForegroundWithNotification()
                 acquireWakeLock()
                 isRunning = true
-                Log.i(TAG, "Foreground service started successfully")
             }
             ACTION_STOP -> {
-                Log.i(TAG, "Stopping foreground service")
                 stopForegroundService()
             }
             ACTION_UPDATE -> {
                 val text = intent.getStringExtra(EXTRA_TEXT)
                 if (text != null) {
                     currentText = text
-                    Log.d(TAG, "Updating notification: $text")
                     updateNotification()
                 }
             }
