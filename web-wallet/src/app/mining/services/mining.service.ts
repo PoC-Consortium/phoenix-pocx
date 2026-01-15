@@ -263,10 +263,16 @@ export class MiningService {
    * @param mode 'mining' or 'plotting'
    */
   private async startForegroundService(mode: 'mining' | 'plotting'): Promise<void> {
-    if (!this._isAndroid()) return;
+    console.log(`MiningService: startForegroundService called, isAndroid=${this._isAndroid()}, mode=${mode}`);
+    if (!this._isAndroid()) {
+      console.log('MiningService: Not Android, skipping foreground service');
+      return;
+    }
 
     try {
+      console.log('MiningService: Invoking foreground-service|start_foreground_service');
       await invoke('plugin:foreground-service|start_foreground_service', { mode });
+      console.log('MiningService: Foreground service started successfully');
       this.addActivityLog('info', `Android: Started foreground service (${mode})`);
     } catch (err) {
       console.error('Failed to start foreground service:', err);
