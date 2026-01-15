@@ -630,6 +630,22 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         }
       }
 
+      /* Mobile width: switch to block layout for proper stacking */
+      @media (max-width: 900px) {
+        .main-content {
+          display: block;
+          padding: 12px;
+        }
+
+        .main-content > * {
+          margin-bottom: 12px;
+        }
+
+        .main-content > *:last-child {
+          margin-bottom: 0;
+        }
+      }
+
       /* Summary Cards Grid */
       .summary-cards {
         display: grid;
@@ -1188,6 +1204,32 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       @media (max-width: 900px) {
         .detail-row {
           grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        /* On mobile, stack left-stack sections and drives vertically */
+        .left-stack {
+          order: 1;
+        }
+
+        .right-column {
+          order: 2;
+        }
+
+        /* Ensure sections have proper height when stacked */
+        .left-stack .section:first-child {
+          min-height: 140px;
+          max-height: 200px;
+        }
+
+        .left-stack .deadline-history-section {
+          min-height: 180px;
+          max-height: 280px;
+        }
+
+        .right-column .drives-section {
+          min-height: 150px;
+          max-height: 250px;
         }
       }
 
@@ -1423,6 +1465,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         flex: 3; /* Take 3x space compared to detail-row's 5x (~37.5%) */
         flex-shrink: 0; /* Don't shrink below min-height */
         min-height: 120px;
+        position: relative;
+        z-index: 1;
       }
 
       /* Small screens: fixed height for activity */
@@ -1431,6 +1475,16 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
           flex: none;
           height: 150px;
           min-height: 150px;
+        }
+      }
+
+      /* Mobile: ensure activity section doesn't overlap */
+      @media (max-width: 900px) {
+        .activity-section {
+          flex: none;
+          min-height: 140px;
+          max-height: 200px;
+          margin-top: 4px;
         }
       }
 
