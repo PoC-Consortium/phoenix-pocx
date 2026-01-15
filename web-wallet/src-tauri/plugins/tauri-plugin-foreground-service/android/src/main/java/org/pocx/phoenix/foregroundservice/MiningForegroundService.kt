@@ -148,7 +148,7 @@ class MiningForegroundService : Service() {
                 PowerManager.PARTIAL_WAKE_LOCK,
                 "Phoenix::MiningWakeLock"
             ).apply {
-                acquire(24 * 60 * 60 * 1000L) // 24 hours max
+                acquire() // Hold indefinitely until released - mining can run for days
             }
         }
     }
