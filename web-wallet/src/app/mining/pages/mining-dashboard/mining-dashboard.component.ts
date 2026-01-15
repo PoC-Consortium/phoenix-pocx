@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { I18nPipe, I18nService } from '../../../core/i18n';
 import { AppModeService } from '../../../core/services/app-mode.service';
+import { invoke } from '@tauri-apps/api/core';
 import { MiningService } from '../../services';
 import {
   MiningStatus,
@@ -1608,6 +1609,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly stateLoaded = signal(false);
   readonly enabledChains = signal<ChainConfig[]>([]);
   readonly drives = signal<DriveConfig[]>([]);
+  /** Android storage permission state */
+  readonly hasStoragePermission = signal(true);
   // Activity logs from service (survives navigation, auto-cleanup > 1 day)
   private readonly _allActivityLogs = this.miningService.activityLogs;
 
@@ -1738,6 +1741,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   });
 
   async ngOnInit(): Promise<void> {
+    // Check storage permission on Android (required before accessing plot files)
+    if (this.appMode.isMobile()) {
+      await this.checkStoragePermission();
+    }
+
     // Load initial state once (config, drives, etc.)
     await this.loadState();
     // Load drive stats once on init
@@ -2598,5 +2606,52 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       width: '600px',
       maxHeight: '80vh',
     });
+  }
+
+  /**
+   * Check if app has "All files access" permission on Android.
+   * This is required to detect plot files created by other apps.
+   */
+  private async checkStoragePermission(): Promise<void> {
+    try {
+      const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
+      this.hasStoragePermission.set(hasAccess);
+
+      if (!hasAccess) {
+        // Show permission request dialog
+        const message = this.i18n.get('setup_storage_permission_required');
+        const fallbackMessage = 'This app needs "All files access" permission to detect and read plot files. Tap OK to open Settings and enable it for Phoenix.';
+
+        if (confirm(message || fallbackMessage)) {
+          await this.requestStoragePermission();
+        }
+      }
+    } catch (err) {
+      console.error('Failed to check storage permission:', err);
+      // Assume we have permission if check fails (non-Android or old Android)
+      this.hasStoragePermission.set(true);
+    }
+  }
+
+  /**
+   * Request "All files access" permission by opening system settings.
+   */
+  private async requestStoragePermission(): Promise<void> {
+    try {
+      await invoke('plugin:storage-permission|request_all_files_access');
+      // After returning from settings, re-check permission
+      // Note: User may have granted or denied - we check again on next app focus
+      setTimeout(async () => {
+        try {
+          const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
+          this.hasStoragePermission.set(hasAccess);
+        } catch {
+          // Ignore
+        }
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to request storage permission:', err);
+      alert('Could not open Settings. Please enable "All files access" for Phoenix manually in Settings > Privacy > Files and media.');
+    }
   }
 }
