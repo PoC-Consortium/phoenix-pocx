@@ -3384,9 +3384,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           if (!result) return;
 
           // Parse the content URI to get real filesystem path
-          // URI format: content://com.android.externalstorage.documents/tree/primary%3AFolder
-          // "primary:Folder" -> "/storage/emulated/0/Folder"
-          // External SD: "XXXX-XXXX:Folder" -> "/storage/XXXX-XXXX/Folder"
+          // URI formats:
+          //   content://com.android.externalstorage.documents/tree/primary:Folder
+          //   content://com.android.externalstorage.documents/tree/XXXX-XXXX:Folder
+          //   content://com.android.externalstorage.documents/tree/62C4A5B3:Folder/document/...
+          // Volume IDs: "primary" -> /storage/emulated/0, others -> /storage/VOLUMEID
           const uri = result.uri || JSON.stringify(result);
           const decoded = decodeURIComponent(uri);
 
@@ -3394,29 +3396,33 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           this.miningService.addActivityLog('info', `DEBUG: Raw folder URI: ${uri}`);
           this.miningService.addActivityLog('info', `DEBUG: Decoded URI: ${decoded}`);
 
-          // Try to match primary storage first
-          const primaryMatch = decoded.match(/primary[:%]3?A?(.+?)(?:\/document|$)/i);
-          if (primaryMatch) {
-            const folderPath = `/storage/emulated/0/${primaryMatch[1].replace(/\/document.*/, '')}`;
-            this.miningService.addActivityLog('info', `DEBUG: Parsed as primary: ${folderPath}`);
+          // Extract volume ID and path from tree/ portion
+          // Match: tree/VOLUMEID:PATH (VOLUMEID can be "primary", "XXXX-XXXX", or alphanumeric)
+          const treeMatch = decoded.match(/tree\/([^:/]+):([^/]*)/);
+          this.miningService.addActivityLog('info', `DEBUG: treeMatch: ${JSON.stringify(treeMatch)}`);
+
+          if (treeMatch) {
+            const volumeId = treeMatch[1];
+            const folderName = treeMatch[2] || '';
+
+            let basePath: string;
+            if (volumeId.toLowerCase() === 'primary') {
+              basePath = '/storage/emulated/0';
+            } else {
+              basePath = `/storage/${volumeId}`;
+            }
+
+            const folderPath = folderName ? `${basePath}/${folderName}` : basePath;
+            this.miningService.addActivityLog('info', `DEBUG: Parsed path: ${folderPath}`);
             paths = [folderPath];
           } else {
-            // Try to match external storage (SD card format: XXXX-XXXX:path)
-            const externalMatch = decoded.match(/([A-F0-9]{4}-[A-F0-9]{4})[:%]3?A?(.+?)(?:\/document|$)/i);
-            if (externalMatch) {
-              const storageId = externalMatch[1];
-              const folderPath = `/storage/${storageId}/${externalMatch[2].replace(/\/document.*/, '')}`;
-              this.miningService.addActivityLog('info', `DEBUG: Parsed as external: ${folderPath}`);
-              paths = [folderPath];
-            } else {
-              // Fallback to prompt with debug info
-              this.miningService.addActivityLog('warn', `DEBUG: Could not parse URI, prompting user`);
-              const manualPath = window.prompt(
-                `Could not parse folder URI.\n\nRaw: ${decoded}\n\nEnter path manually:`,
-                '/storage/emulated/0/'
-              );
-              if (manualPath) paths = [manualPath];
-            }
+            // Fallback to prompt with debug info
+            this.miningService.addActivityLog('warn', `DEBUG: Could not parse URI, prompting user`);
+            const manualPath = window.prompt(
+              `Could not parse folder URI.\n\nRaw: ${decoded}\n\nEnter path manually:`,
+              '/storage/emulated/0/'
+            );
+            if (manualPath) paths = [manualPath];
           }
         } catch (error) {
           console.error('Android folder picker failed:', error);
