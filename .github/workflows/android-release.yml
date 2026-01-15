@@ -75,6 +75,20 @@ jobs:
           # Copy pre-generated icons to Android res folder
           cp -r web-wallet/src-tauri/android-icons/* web-wallet/src-tauri/gen/android/app/src/main/res/
 
+      - name: Add storage permissions to AndroidManifest.xml
+        run: |
+          MANIFEST="web-wallet/src-tauri/gen/android/app/src/main/AndroidManifest.xml"
+
+          # Add MANAGE_EXTERNAL_STORAGE permission after manifest opening tag
+          sed -i 's|<manifest |<manifest xmlns:tools="http://schemas.android.com/tools" |' "$MANIFEST"
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />' "$MANIFEST"
+
+          # Add requestLegacyExternalStorage to application tag
+          sed -i 's|<application|<application android:requestLegacyExternalStorage="true"|' "$MANIFEST"
+
+          echo "Modified manifest:"
+          cat "$MANIFEST"
+
       - name: Setup Android signing
         run: |
           # Decode keystore from secret

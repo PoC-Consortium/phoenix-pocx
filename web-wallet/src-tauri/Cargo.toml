@@ -80,6 +80,7 @@ tauri-plugin-updater = "2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "24"
+tauri-plugin-storage-permission = { path = "plugins/tauri-plugin-storage-permission" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 
 [profile.release]

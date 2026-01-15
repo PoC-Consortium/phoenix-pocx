@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Token Bearer per a autenticació",
   "setup_save": "Desar",
   "setup_add": "Afegir",
+  "setup_storage_permission_required": "Aquesta aplicacio necessita el permis \"Acces a tots els fitxers\" per detectar i llegir fitxers de plot. Toqueu D'acord per obrir Configuracio i activar-lo per a Phoenix.",
   "plan_plotting_plan": "Pla de plotting",
   "plan_tasks": "Tasques",
   "plan_remaining": "Restant",

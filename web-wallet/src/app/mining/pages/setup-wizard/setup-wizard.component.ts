@@ -2481,6 +2481,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly saving = signal(false);
   readonly isFirstRun = signal(true);
 
+  // Android storage permission state
+
   // Benchmark state
   readonly benchmarkRunning = signal(false);
   readonly benchmarkingDevice = signal<string | null>(null); // null, 'cpu', or gpu.id
@@ -2674,9 +2676,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     // Android-specific defaults
     if (this.appMode.isMobile()) {
-      this.useCustomAddress.set(true);  // No wallet on Android
-      this.directIo.set(false);          // Direct I/O not reliable on Android
-      this.miningDirectIo.set(false);    // Direct I/O not reliable on Android
+      this.useCustomAddress.set(true); // No wallet on Android
+      this.directIo.set(false); // Direct I/O not reliable on Android
+      this.miningDirectIo.set(false); // Direct I/O not reliable on Android
     }
 
     // Check for step query parameter FIRST to avoid visual jump
@@ -3392,7 +3394,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
             paths = [folderPath];
           } else {
             // Fallback to prompt
-            const manualPath = window.prompt('Could not parse folder. Enter path manually:', '/storage/emulated/0/');
+            const manualPath = window.prompt(
+              'Could not parse folder. Enter path manually:',
+              '/storage/emulated/0/'
+            );
             if (manualPath) paths = [manualPath];
           }
         } catch (error) {

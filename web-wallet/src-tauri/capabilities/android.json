@@ -5,6 +5,7 @@
   "windows": ["main"],
   "platforms": ["android"],
   "permissions": [
-    "android-fs:default"
+    "android-fs:default",
+    "storage-permission:default"
   ]
 }

@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Bearer token pro autentifikaci",
   "setup_save": "Ulozit",
   "setup_add": "Pridat",
+  "setup_storage_permission_required": "Tato aplikace potrebuje opravneni \"Pristup ke vsem souborum\" pro detekci a cteni plot souboru. Klepnete na OK pro otevreni Nastaveni a povoleni pro Phoenix.",
   "plan_plotting_plan": "Plan plotovani",
   "plan_tasks": "Ulohy",
   "plan_remaining": "Zbyvajici",

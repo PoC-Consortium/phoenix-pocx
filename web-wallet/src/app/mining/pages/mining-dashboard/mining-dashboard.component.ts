@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { I18nPipe, I18nService } from '../../../core/i18n';
 import { AppModeService } from '../../../core/services/app-mode.service';
+import { invoke } from '@tauri-apps/api/core';
 import { MiningService } from '../../services';
 import {
   MiningStatus,
@@ -585,12 +586,64 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       .main-content {
         flex: 1;
         padding: 16px;
-        overflow: hidden; /* Don't scroll main content - sections scroll internally */
+        overflow-y: auto; /* Allow scrolling when content exceeds viewport */
+        overflow-x: hidden;
         display: flex;
         flex-direction: column;
         gap: 12px;
         position: relative;
         min-height: 0; /* Allow flex children to shrink */
+      }
+
+      /* Always show scrollbar when content overflows */
+      .main-content::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .main-content::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+      }
+
+      .main-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+      }
+
+      .main-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.5);
+      }
+
+      /* Mobile/small screens: ensure content has intrinsic height for scrolling */
+      @media (max-height: 700px) {
+        .main-content {
+          display: block; /* Switch from flex to block for proper scroll behavior */
+          padding: 16px;
+        }
+
+        .main-content > * {
+          margin-bottom: 12px;
+        }
+
+        .main-content > *:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      /* Mobile width: switch to block layout for proper stacking */
+      @media (max-width: 900px) {
+        .main-content {
+          display: block;
+          padding: 12px;
+        }
+
+        .main-content > * {
+          margin-bottom: 12px;
+        }
+
+        .main-content > *:last-child {
+          margin-bottom: 0;
+        }
       }
 
       /* Summary Cards Grid */
@@ -599,6 +652,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         grid-template-columns: repeat(4, 1fr);
         gap: 16px;
         flex-shrink: 0;
+        min-height: fit-content; /* Ensure cards don't collapse */
       }
 
       @media (max-width: 1100px) {
@@ -619,6 +673,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         padding: 16px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         position: relative;
+        min-height: 100px; /* Prevent cards from collapsing */
+        min-width: 0; /* Allow cards to shrink in grid */
       }
 
       .summary-card .card-header {
@@ -1113,7 +1169,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         grid-template-columns: 1fr 1fr; /* Match 2+2 of 4-column summary cards */
         gap: 16px; /* Same gap as summary-cards */
         flex: 5; /* Take 5x space compared to activity section's 3x */
-        min-height: 0;
+        flex-shrink: 0; /* Don't shrink below min-height */
+        min-height: 250px; /* Minimum height for detail sections */
       }
 
       .left-stack {
@@ -1125,12 +1182,12 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
       .left-stack .section:first-child {
         flex: 2; /* Active Chains: 40% */
-        min-height: 0;
+        min-height: 120px;
       }
 
       .left-stack .deadline-history-section {
         flex: 3; /* Best Deadline: 60% */
-        min-height: 0;
+        min-height: 150px;
       }
 
       .right-column {
@@ -1141,12 +1198,64 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
       .right-column .drives-section {
         flex: 1;
-        min-height: 0;
+        min-height: 150px;
       }
 
       @media (max-width: 900px) {
         .detail-row {
           grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        /* On mobile, stack left-stack sections and drives vertically */
+        .left-stack {
+          order: 1;
+        }
+
+        .right-column {
+          order: 2;
+        }
+
+        /* Ensure sections have proper height when stacked */
+        .left-stack .section:first-child {
+          min-height: 140px;
+          max-height: 200px;
+        }
+
+        .left-stack .deadline-history-section {
+          min-height: 180px;
+          max-height: 280px;
+        }
+
+        .right-column .drives-section {
+          min-height: 150px;
+          max-height: 250px;
+        }
+      }
+
+      /* Small screens: use fixed heights instead of flex ratios */
+      @media (max-height: 700px) {
+        .detail-row {
+          flex: none;
+          min-height: auto;
+        }
+
+        .left-stack .section:first-child {
+          flex: none;
+          height: 150px;
+          min-height: 150px;
+        }
+
+        .left-stack .deadline-history-section {
+          flex: none;
+          height: 200px;
+          min-height: 200px;
+        }
+
+        .right-column .drives-section {
+          flex: none;
+          height: 200px;
+          min-height: 200px;
         }
       }
 
@@ -1180,10 +1289,12 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         padding: 10px 14px;
         flex: 1;
         overflow-y: auto;
+        overflow-x: auto; /* Allow horizontal scroll for tables on small screens */
       }
 
       table {
         width: 100%;
+        min-width: 300px; /* Minimum width to prevent column collapse */
         border-collapse: collapse;
       }
 
@@ -1352,7 +1463,29 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       /* Activity Section */
       .activity-section {
         flex: 3; /* Take 3x space compared to detail-row's 5x (~37.5%) */
-        min-height: 100px;
+        flex-shrink: 0; /* Don't shrink below min-height */
+        min-height: 120px;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Small screens: fixed height for activity */
+      @media (max-height: 700px) {
+        .activity-section {
+          flex: none;
+          height: 150px;
+          min-height: 150px;
+        }
+      }
+
+      /* Mobile: ensure activity section doesn't overlap */
+      @media (max-width: 900px) {
+        .activity-section {
+          flex: none;
+          min-height: 140px;
+          max-height: 200px;
+          margin-top: 4px;
+        }
       }
 
       .activity-section .section-content {
@@ -1530,6 +1663,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly stateLoaded = signal(false);
   readonly enabledChains = signal<ChainConfig[]>([]);
   readonly drives = signal<DriveConfig[]>([]);
+  /** Android storage permission state */
+  readonly hasStoragePermission = signal(true);
   // Activity logs from service (survives navigation, auto-cleanup > 1 day)
   private readonly _allActivityLogs = this.miningService.activityLogs;
 
@@ -1660,6 +1795,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   });
 
   async ngOnInit(): Promise<void> {
+    // Check storage permission on Android (required before accessing plot files)
+    if (this.appMode.isMobile()) {
+      await this.checkStoragePermission();
+    }
+
     // Load initial state once (config, drives, etc.)
     await this.loadState();
     // Load drive stats once on init
@@ -2520,5 +2660,81 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       width: '600px',
       maxHeight: '80vh',
     });
+  }
+
+  /**
+   * Check if app has "All files access" permission on Android.
+   * This is required to detect plot files created by other apps.
+   * Logs all steps to Recent Activity for debugging.
+   */
+  private async checkStoragePermission(): Promise<void> {
+    this.miningService.addActivityLog('info', 'Android: Checking storage permission...');
+
+    try {
+      const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
+      this.hasStoragePermission.set(hasAccess);
+
+      if (hasAccess) {
+        this.miningService.addActivityLog('info', 'Android: Storage permission granted');
+      } else {
+        this.miningService.addActivityLog('warn', 'Android: Storage permission NOT granted');
+
+        // Show permission request dialog
+        const message = this.i18n.get('setup_storage_permission_required');
+        const fallbackMessage =
+          'This app needs "All files access" permission to detect and read plot files. Tap OK to open Settings and enable it for Phoenix.';
+
+        if (confirm(message || fallbackMessage)) {
+          this.miningService.addActivityLog('info', 'Android: User accepted permission prompt');
+          await this.requestStoragePermission();
+        } else {
+          this.miningService.addActivityLog('warn', 'Android: User declined permission prompt');
+        }
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.miningService.addActivityLog('error', `Android: Permission check failed - ${errorMsg}`);
+      console.error('Failed to check storage permission:', err);
+      // Don't assume permission on error - leave as false so user knows there's an issue
+      this.hasStoragePermission.set(false);
+    }
+  }
+
+  /**
+   * Request "All files access" permission by opening system settings.
+   * Logs progress to Recent Activity.
+   */
+  private async requestStoragePermission(): Promise<void> {
+    try {
+      this.miningService.addActivityLog(
+        'info',
+        'Android: Opening system settings for permission...'
+      );
+      await invoke('plugin:storage-permission|request_all_files_access');
+
+      // After returning from settings, re-check permission
+      this.miningService.addActivityLog('info', 'Android: Returned from settings, re-checking...');
+      setTimeout(async () => {
+        try {
+          const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
+          this.hasStoragePermission.set(hasAccess);
+          if (hasAccess) {
+            this.miningService.addActivityLog('info', 'Android: Permission now granted!');
+          } else {
+            this.miningService.addActivityLog('warn', 'Android: Permission still not granted');
+          }
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          this.miningService.addActivityLog('error', `Android: Re-check failed - ${errorMsg}`);
+        }
+      }, 1000);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.miningService.addActivityLog('error', `Android: Failed to open settings - ${errorMsg}`);
+      console.error('Failed to request storage permission:', err);
+      alert(
+        'Could not open Settings. Please enable "All files access" for Phoenix manually in Settings > Privacy > Files and media.'
+      );
+    }
   }
 }

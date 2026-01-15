@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Bearer token pre autentifikaciu",
   "setup_save": "Ulozit",
   "setup_add": "Pridat",
+  "setup_storage_permission_required": "Tato aplikacia potrebuje povolenie \"Pristup ku vsetkym suborom\" na detekciu a citanie plot suborov. Klepnutim na OK otvorte Nastavenia a povolte ho pre Phoenix.",
   "plan_plotting_plan": "Plan plotovania",
   "plan_tasks": "Ulohy",
   "plan_remaining": "Zostavajuce",

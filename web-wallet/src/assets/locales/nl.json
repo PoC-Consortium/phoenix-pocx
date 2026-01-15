@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Bearer token voor authenticatie",
   "setup_save": "Opslaan",
   "setup_add": "Toevoegen",
+  "setup_storage_permission_required": "Deze app heeft de machtiging \"Toegang tot alle bestanden\" nodig om plot-bestanden te detecteren en te lezen. Tik op OK om Instellingen te openen en dit voor Phoenix in te schakelen.",
   "plan_plotting_plan": "Plotting Plan",
   "plan_tasks": "Taken",
   "plan_remaining": "Resterend",

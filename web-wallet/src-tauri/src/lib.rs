@@ -476,7 +476,9 @@ pub fn run() {
     // Android-only plugins
     #[cfg(target_os = "android")]
     {
-        builder = builder.plugin(tauri_plugin_android_fs::init());
+        builder = builder
+            .plugin(tauri_plugin_android_fs::init())
+            .plugin(tauri_plugin_storage_permission::init());
     }
 
     builder = builder

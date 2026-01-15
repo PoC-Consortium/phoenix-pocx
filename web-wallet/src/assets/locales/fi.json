@@ -541,6 +541,7 @@
   "setup_auth_token_placeholder": "Bearer-token todennukseen",
   "setup_save": "Tallenna",
   "setup_add": "Lisaa",
+  "setup_storage_permission_required": "Tama sovellus tarvitsee \"Kaikkien tiedostojen kayttooikeus\" -luvan plot-tiedostojen havaitsemiseen ja lukemiseen. Napauta OK avataksesi Asetukset ja ottaaksesi sen kayttoon Phoenixille.",
   "show_key": "Nayta avain",
   "show_in_explorer": "Avaa Blockchain Explorerissa",
   "since": "alkaen",

@@ -1,0 +1,17 @@
+[package]
+name = "tauri-plugin-storage-permission"
+version = "0.1.0"
+edition = "2021"
+description = "Tauri plugin for Android MANAGE_EXTERNAL_STORAGE permission"
+links = "tauri-plugin-storage-permission"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+tauri = "2"
+serde = { version = "1", features = ["derive"] }
+log = "0.4"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"

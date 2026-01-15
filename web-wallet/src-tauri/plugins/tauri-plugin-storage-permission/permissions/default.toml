@@ -1,0 +1,6 @@
+[default]
+description = "Default permissions for storage-permission plugin - allows checking and requesting All Files Access on Android"
+permissions = [
+    "allow-has-all-files-access",
+    "allow-request-all-files-access"
+]

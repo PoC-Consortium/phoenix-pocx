@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "認証用ベアラートークン",
   "setup_save": "保存",
   "setup_add": "追加",
+  "setup_storage_permission_required": "このアプリは、plotファイルを検出して読み取るために「すべてのファイルへのアクセス」権限が必要です。OKをタップして設定を開き、Phoenixで有効にしてください。",
   "plan_plotting_plan": "プロッティング計画",
   "plan_tasks": "タスク",
   "plan_remaining": "残り",

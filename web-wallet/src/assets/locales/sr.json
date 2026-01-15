@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Bearer токен за аутентификацију",
   "setup_save": "Сачувај",
   "setup_add": "Додај",
+  "setup_storage_permission_required": "Овој апликацији је потребна дозвола \"Приступ свим датотекама\" за откривање и читање plot датотека. Додирните OK да отворите Подешавања и омогућите је за Phoenix.",
   "plan_plotting_plan": "План плотирања",
   "plan_tasks": "Задаци",
   "plan_remaining": "Преостало",
