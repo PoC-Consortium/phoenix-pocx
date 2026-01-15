@@ -110,7 +110,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
                     "org.pocx.phoenix.foregroundservice",
                     "ForegroundServicePlugin",
                 )?;
-                app.manage(handle);
+                // Wrap in unique type so we can retrieve the correct handle from app state
+                app.manage(mobile::ForegroundServiceHandle(handle));
             }
             let _ = app;
             Ok(())

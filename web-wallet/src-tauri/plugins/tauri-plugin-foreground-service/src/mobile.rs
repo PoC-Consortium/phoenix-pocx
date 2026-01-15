@@ -1,7 +1,11 @@
 //! Android-specific implementation using Tauri's mobile plugin system
 
 use serde::{Deserialize, Serialize};
-use tauri::{plugin::PluginHandle, Manager, Runtime, State};
+use tauri::{plugin::PluginHandle, Manager, Runtime};
+
+/// Wrapper type for the foreground service plugin handle
+/// This ensures we get the correct plugin handle from app state
+pub struct ForegroundServiceHandle<R: Runtime>(pub PluginHandle<R>);
 
 /// Empty response for commands that return JSObject() from Kotlin
 #[derive(Deserialize)]
@@ -30,11 +34,12 @@ pub fn start_foreground_service<R: Runtime>(
     app: tauri::AppHandle<R>,
     mode: String,
 ) -> Result<(), String> {
-    let handle: State<'_, PluginHandle<R>> = app
-        .try_state()
+    let handle = app
+        .try_state::<ForegroundServiceHandle<R>>()
         .ok_or("Foreground service plugin not initialized")?;
 
     let _: EmptyResponse = handle
+        .0
         .run_mobile_plugin("startForegroundService", StartServiceArgs { mode })
         .map_err(|e| format!("Failed to start foreground service: {}", e))?;
 
@@ -43,11 +48,12 @@ pub fn start_foreground_service<R: Runtime>(
 
 /// Stop the foreground service
 pub fn stop_foreground_service<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    let handle: State<'_, PluginHandle<R>> = app
-        .try_state()
+    let handle = app
+        .try_state::<ForegroundServiceHandle<R>>()
         .ok_or("Foreground service plugin not initialized")?;
 
     let _: EmptyResponse = handle
+        .0
         .run_mobile_plugin("stopForegroundService", ())
         .map_err(|e| format!("Failed to stop foreground service: {}", e))?;
 
@@ -59,11 +65,12 @@ pub fn update_service_notification<R: Runtime>(
     app: tauri::AppHandle<R>,
     text: String,
 ) -> Result<(), String> {
-    let handle: State<'_, PluginHandle<R>> = app
-        .try_state()
+    let handle = app
+        .try_state::<ForegroundServiceHandle<R>>()
         .ok_or("Foreground service plugin not initialized")?;
 
     let _: EmptyResponse = handle
+        .0
         .run_mobile_plugin("updateNotification", UpdateNotificationArgs { text })
         .map_err(|e| format!("Failed to update notification: {}", e))?;
 
@@ -72,11 +79,12 @@ pub fn update_service_notification<R: Runtime>(
 
 /// Request battery optimization exemption
 pub fn request_battery_exemption<R: Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    let handle: State<'_, PluginHandle<R>> = app
-        .try_state()
+    let handle = app
+        .try_state::<ForegroundServiceHandle<R>>()
         .ok_or("Foreground service plugin not initialized")?;
 
     let _: EmptyResponse = handle
+        .0
         .run_mobile_plugin("requestBatteryExemption", ())
         .map_err(|e| format!("Failed to request battery exemption: {}", e))?;
 
@@ -85,11 +93,12 @@ pub fn request_battery_exemption<R: Runtime>(app: tauri::AppHandle<R>) -> Result
 
 /// Check if service is running
 pub fn is_service_running<R: Runtime>(app: tauri::AppHandle<R>) -> Result<bool, String> {
-    let handle: State<'_, PluginHandle<R>> = app
-        .try_state()
+    let handle = app
+        .try_state::<ForegroundServiceHandle<R>>()
         .ok_or("Foreground service plugin not initialized")?;
 
     let response: BoolResponse = handle
+        .0
         .run_mobile_plugin("isServiceRunning", ())
         .map_err(|e| format!("Failed to check service status: {}", e))?;
 
