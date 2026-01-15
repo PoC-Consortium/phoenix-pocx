@@ -3386,19 +3386,37 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           // Parse the content URI to get real filesystem path
           // URI format: content://com.android.externalstorage.documents/tree/primary%3AFolder
           // "primary:Folder" -> "/storage/emulated/0/Folder"
+          // External SD: "XXXX-XXXX:Folder" -> "/storage/XXXX-XXXX/Folder"
           const uri = result.uri || JSON.stringify(result);
           const decoded = decodeURIComponent(uri);
-          const match = decoded.match(/primary[:%]3?A?(.+?)(?:\/document|$)/i);
-          if (match) {
-            const folderPath = `/storage/emulated/0/${match[1].replace(/\/document.*/, '')}`;
+
+          // DEBUG: Log raw URI for troubleshooting
+          this.miningService.addActivityLog('info', `DEBUG: Raw folder URI: ${uri}`);
+          this.miningService.addActivityLog('info', `DEBUG: Decoded URI: ${decoded}`);
+
+          // Try to match primary storage first
+          const primaryMatch = decoded.match(/primary[:%]3?A?(.+?)(?:\/document|$)/i);
+          if (primaryMatch) {
+            const folderPath = `/storage/emulated/0/${primaryMatch[1].replace(/\/document.*/, '')}`;
+            this.miningService.addActivityLog('info', `DEBUG: Parsed as primary: ${folderPath}`);
             paths = [folderPath];
           } else {
-            // Fallback to prompt
-            const manualPath = window.prompt(
-              'Could not parse folder. Enter path manually:',
-              '/storage/emulated/0/'
-            );
-            if (manualPath) paths = [manualPath];
+            // Try to match external storage (SD card format: XXXX-XXXX:path)
+            const externalMatch = decoded.match(/([A-F0-9]{4}-[A-F0-9]{4})[:%]3?A?(.+?)(?:\/document|$)/i);
+            if (externalMatch) {
+              const storageId = externalMatch[1];
+              const folderPath = `/storage/${storageId}/${externalMatch[2].replace(/\/document.*/, '')}`;
+              this.miningService.addActivityLog('info', `DEBUG: Parsed as external: ${folderPath}`);
+              paths = [folderPath];
+            } else {
+              // Fallback to prompt with debug info
+              this.miningService.addActivityLog('warn', `DEBUG: Could not parse URI, prompting user`);
+              const manualPath = window.prompt(
+                `Could not parse folder URI.\n\nRaw: ${decoded}\n\nEnter path manually:`,
+                '/storage/emulated/0/'
+              );
+              if (manualPath) paths = [manualPath];
+            }
           }
         } catch (error) {
           console.error('Android folder picker failed:', error);
