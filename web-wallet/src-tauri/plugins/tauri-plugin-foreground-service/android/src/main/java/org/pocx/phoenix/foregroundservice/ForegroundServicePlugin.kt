@@ -8,10 +8,23 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import app.tauri.annotation.Command
+import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+
+/** Arguments for startForegroundService command */
+@InvokeArg
+class StartServiceArgs {
+    var mode: String = "mining"
+}
+
+/** Arguments for updateNotification command */
+@InvokeArg
+class UpdateNotificationArgs {
+    var text: String = ""
+}
 
 /**
  * Tauri plugin for managing Android Foreground Service with wake lock.
@@ -29,7 +42,8 @@ class ForegroundServicePlugin(private val activity: Activity) : Plugin(activity)
     @Command
     fun startForegroundService(invoke: Invoke) {
         try {
-            val mode = invoke.getString("mode") ?: "mining"
+            val args = invoke.parseArgs(StartServiceArgs::class.java)
+            val mode = args.mode
 
             val intent = Intent(activity, MiningForegroundService::class.java).apply {
                 action = MiningForegroundService.ACTION_START
@@ -71,7 +85,8 @@ class ForegroundServicePlugin(private val activity: Activity) : Plugin(activity)
     @Command
     fun updateNotification(invoke: Invoke) {
         try {
-            val text = invoke.getString("text") ?: ""
+            val args = invoke.parseArgs(UpdateNotificationArgs::class.java)
+            val text = args.text
 
             val intent = Intent(activity, MiningForegroundService::class.java).apply {
                 action = MiningForegroundService.ACTION_UPDATE
