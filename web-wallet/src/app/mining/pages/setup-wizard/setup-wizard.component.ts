@@ -2813,10 +2813,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`[Benchmark] ${deviceId} failed:`, errorMsg);
+      const failedMsg = this.i18n.get('mining_benchmark_failed', { error: errorMsg });
       if (this.appMode.isMobile()) {
-        alert(`Benchmark failed: ${errorMsg}`);
+        alert(failedMsg);
       } else {
-        this.snackBar.open(`Benchmark failed: ${errorMsg}`, 'Dismiss', { duration: 8000 });
+        this.snackBar.open(failedMsg, this.i18n.get('dismiss'), { duration: 8000 });
       }
       this.benchmarkErrors.update(m => {
         const newMap = new Map(m);
@@ -3410,33 +3411,33 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
             const folderPath = folderName ? `${basePath}/${folderName}` : basePath;
             paths = [folderPath];
           } else {
-            // Fallback to prompt - URI format not recognized
+            // URI format not recognized - fall through to manual entry
             this.miningService.addActivityLog(
               'warn',
               'Android: Could not parse folder URI, prompting for manual entry'
             );
-            const manualPath = window.prompt(
-              `Could not parse folder URI.\n\nRaw: ${decoded}\n\nEnter path manually:`,
-              '/storage/emulated/0/'
-            );
-            if (manualPath) paths = [manualPath];
           }
         } catch (error) {
           console.error('Android folder picker failed:', error);
-          // Fallback to text input if plugin fails
-          const path = window.prompt(
-            'Enter the full path to your plot folder:\n\nExample: /storage/emulated/0/PoCX/plots',
-            '/storage/emulated/0/PoCX/plots'
+          this.miningService.addActivityLog(
+            'warn',
+            'Android: Folder picker failed, prompting for manual entry'
           );
-          if (!path || !path.trim()) return;
-          paths = [path.trim()];
+        }
+
+        // Fallback to manual path entry if no path was resolved
+        if (paths.length === 0) {
+          const promptMessage = `${this.i18n.get('mining_enter_folder_path')}\n\n${this.i18n.get('mining_enter_folder_path_example')}`;
+          const manualPath = window.prompt(promptMessage, '/storage/emulated/0/PoCX/plots');
+          if (!manualPath || !manualPath.trim()) return;
+          paths = [manualPath.trim()];
         }
       } else {
         // Desktop: use native folder picker
         const selected = await open({
           directory: true,
           multiple: true,
-          title: 'Select Plot Folder(s)',
+          title: this.i18n.get('mining_select_plot_folders'),
         });
 
         if (!selected) return;
@@ -3471,8 +3472,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
           if (conflictingDrive) {
             this.snackBar.open(
-              `Cannot add folder: This drive already has a plot folder configured (${conflictingDrive.path}). Multiple folders on the same physical drive would severely impact performance.`,
-              'Dismiss',
+              this.i18n.get('mining_drive_conflict', { path: conflictingDrive.path }),
+              this.i18n.get('dismiss'),
               { duration: 6000 }
             );
             continue;
