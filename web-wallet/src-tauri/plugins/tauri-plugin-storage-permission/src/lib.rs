@@ -55,7 +55,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             #[cfg(target_os = "android")]
             {
                 let handle = _api.register_android_plugin("org.pocx.phoenix.storagepermission", "StoragePermissionPlugin")?;
-                app.manage(handle);
+                // Wrap in unique type so we can retrieve the correct handle from app state
+                app.manage(mobile::StoragePermissionHandle(handle));
             }
             let _ = app;
             Ok(())

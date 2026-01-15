@@ -478,7 +478,8 @@ pub fn run() {
     {
         builder = builder
             .plugin(tauri_plugin_android_fs::init())
-            .plugin(tauri_plugin_storage_permission::init());
+            .plugin(tauri_plugin_storage_permission::init())
+            .plugin(tauri_plugin_foreground_service::init());
     }
 
     builder = builder

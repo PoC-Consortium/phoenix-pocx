@@ -6,6 +6,7 @@
   "platforms": ["android"],
   "permissions": [
     "android-fs:default",
-    "storage-permission:default"
+    "storage-permission:default",
+    "foreground-service:default"
   ]
 }

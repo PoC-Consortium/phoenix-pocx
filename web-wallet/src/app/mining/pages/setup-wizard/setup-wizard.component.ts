@@ -3384,18 +3384,39 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           if (!result) return;
 
           // Parse the content URI to get real filesystem path
-          // URI format: content://com.android.externalstorage.documents/tree/primary%3AFolder
-          // "primary:Folder" -> "/storage/emulated/0/Folder"
+          // URI formats:
+          //   content://com.android.externalstorage.documents/tree/primary:Folder
+          //   content://com.android.externalstorage.documents/tree/XXXX-XXXX:Folder
+          //   content://com.android.externalstorage.documents/tree/62C4A5B3:Folder/document/...
+          // Volume IDs: "primary" -> /storage/emulated/0, others -> /storage/VOLUMEID
           const uri = result.uri || JSON.stringify(result);
           const decoded = decodeURIComponent(uri);
-          const match = decoded.match(/primary[:%]3?A?(.+?)(?:\/document|$)/i);
-          if (match) {
-            const folderPath = `/storage/emulated/0/${match[1].replace(/\/document.*/, '')}`;
+
+          // Extract volume ID and path from tree/ portion
+          // Match: tree/VOLUMEID:PATH (VOLUMEID can be "primary", "XXXX-XXXX", or alphanumeric)
+          const treeMatch = decoded.match(/tree\/([^:/]+):([^/]*)/);
+
+          if (treeMatch) {
+            const volumeId = treeMatch[1];
+            const folderName = treeMatch[2] || '';
+
+            let basePath: string;
+            if (volumeId.toLowerCase() === 'primary') {
+              basePath = '/storage/emulated/0';
+            } else {
+              basePath = `/storage/${volumeId}`;
+            }
+
+            const folderPath = folderName ? `${basePath}/${folderName}` : basePath;
             paths = [folderPath];
           } else {
-            // Fallback to prompt
+            // Fallback to prompt - URI format not recognized
+            this.miningService.addActivityLog(
+              'warn',
+              'Android: Could not parse folder URI, prompting for manual entry'
+            );
             const manualPath = window.prompt(
-              'Could not parse folder. Enter path manually:',
+              `Could not parse folder URI.\n\nRaw: ${decoded}\n\nEnter path manually:`,
               '/storage/emulated/0/'
             );
             if (manualPath) paths = [manualPath];

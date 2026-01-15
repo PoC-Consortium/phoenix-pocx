@@ -1,0 +1,9 @@
+[default]
+description = "Default permissions for foreground-service plugin - allows starting/stopping foreground service on Android"
+permissions = [
+    "allow-start-foreground-service",
+    "allow-stop-foreground-service",
+    "allow-update-service-notification",
+    "allow-request-battery-exemption",
+    "allow-is-service-running"
+]
