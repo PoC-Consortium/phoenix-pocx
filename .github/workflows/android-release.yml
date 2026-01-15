@@ -75,6 +75,12 @@ jobs:
           # Copy pre-generated icons to Android res folder
           cp -r web-wallet/src-tauri/android-icons/* web-wallet/src-tauri/gen/android/app/src/main/res/
 
+      - name: Apply custom AndroidManifest.xml
+        run: |
+          # Copy manifest with MANAGE_EXTERNAL_STORAGE permission
+          cp web-wallet/src-tauri/android-template/AndroidManifest.xml \
+             web-wallet/src-tauri/gen/android/app/src/main/AndroidManifest.xml
+
       - name: Setup Android signing
         run: |
           # Decode keystore from secret
