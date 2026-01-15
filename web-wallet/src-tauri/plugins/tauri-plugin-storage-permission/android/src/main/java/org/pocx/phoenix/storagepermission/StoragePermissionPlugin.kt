@@ -9,6 +9,7 @@ import android.provider.Settings
 import app.tauri.annotation.Command
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 
 /**
@@ -32,7 +33,9 @@ class StoragePermissionPlugin(private val activity: Activity) : Plugin(activity)
             // Android 10 and below don't need this special permission
             true
         }
-        invoke.resolve(hasAccess)
+        val result = JSObject()
+        result.put("value", hasAccess)
+        invoke.resolve(result)
     }
 
     /**
@@ -59,6 +62,6 @@ class StoragePermissionPlugin(private val activity: Activity) : Plugin(activity)
                 }
             }
         }
-        invoke.resolve()
+        invoke.resolve(JSObject())
     }
 }
