@@ -455,12 +455,13 @@ interface ChainModalData {
           </div>
           <div class="section-content">
             <div class="radio-group">
-              <label class="radio-option">
+              <label class="radio-option" [class.disabled]="appMode.isMobile()">
                 <input
                   type="radio"
                   name="addressMode"
                   [checked]="!useCustomAddress()"
                   (change)="useCustomAddress.set(false)"
+                  [disabled]="appMode.isMobile()"
                 />
                 <div class="radio-label">
                   <div class="radio-label-main">{{ 'setup_use_wallet_address' | i18n }}</div>
@@ -2451,7 +2452,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
-  private readonly appMode = inject(AppModeService);
+  readonly appMode = inject(AppModeService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly miningRpc = inject(MiningRpcService);
@@ -2671,6 +2672,13 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   });
 
   async ngOnInit(): Promise<void> {
+    // Android-specific defaults
+    if (this.appMode.isMobile()) {
+      this.useCustomAddress.set(true);  // No wallet on Android
+      this.directIo.set(false);          // Direct I/O not reliable on Android
+      this.miningDirectIo.set(false);    // Direct I/O not reliable on Android
+    }
+
     // Check for step query parameter FIRST to avoid visual jump
     const stepParam = this.route.snapshot.queryParamMap.get('step');
     if (stepParam) {
@@ -2750,11 +2758,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   /** Run benchmark for a single device (per-device button) */
   async runSingleDeviceBenchmark(deviceId: string): Promise<void> {
-    const address = this.useCustomAddress() ? this.customPlottingAddress() : this.walletAddress();
-    if (!address) {
-      console.error('[Benchmark] No address available');
-      return;
-    }
+    // Use hardcoded address for benchmarking (doesn't need user's actual address)
+    const benchmarkAddress = 'pocx1qj0hnnyffma7tru28dlj92efhujs6y24llwv8jm';
 
     const device = this.plotterDevices().find(d => d.deviceId === deviceId);
     if (!device) {
@@ -2781,7 +2786,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     });
 
     console.log(
-      `[Benchmark] Starting ${deviceId} with ${device.threads} threads, escalation=${this.escalation()}, zcb=${this.zeroCopyBuffers()}, address: ${address.substring(0, 20)}...`
+      `[Benchmark] Starting ${deviceId} with ${device.threads} threads, escalation=${this.escalation()}, zcb=${this.zeroCopyBuffers()}`
     );
     const startTime = performance.now();
 
@@ -2789,7 +2794,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       const result = await this.miningService.runBenchmark(
         deviceId,
         device.threads,
-        address,
+        benchmarkAddress,
         this.escalation(),
         this.zeroCopyBuffers()
       );
@@ -2806,6 +2811,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`[Benchmark] ${deviceId} failed:`, errorMsg);
+      if (this.appMode.isMobile()) {
+        alert(`Benchmark failed: ${errorMsg}`);
+      } else {
+        this.snackBar.open(`Benchmark failed: ${errorMsg}`, 'Dismiss', { duration: 8000 });
+      }
       this.benchmarkErrors.update(m => {
         const newMap = new Map(m);
         newMap.set(deviceId, errorMsg);
@@ -3370,9 +3380,21 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           const { AndroidFs } = await import('tauri-plugin-android-fs-api');
           const result = await AndroidFs.showOpenDirPicker({ localOnly: true });
           if (!result) return;
-          // Get a usable path from the AndroidFsUri
-          const fsPath = await AndroidFs.getFsPath(result);
-          paths = [typeof fsPath === 'string' ? fsPath : fsPath.toString()];
+
+          // Parse the content URI to get real filesystem path
+          // URI format: content://com.android.externalstorage.documents/tree/primary%3AFolder
+          // "primary:Folder" -> "/storage/emulated/0/Folder"
+          const uri = result.uri || JSON.stringify(result);
+          const decoded = decodeURIComponent(uri);
+          const match = decoded.match(/primary[:%]3?A?(.+?)(?:\/document|$)/i);
+          if (match) {
+            const folderPath = `/storage/emulated/0/${match[1].replace(/\/document.*/, '')}`;
+            paths = [folderPath];
+          } else {
+            // Fallback to prompt
+            const manualPath = window.prompt('Could not parse folder. Enter path manually:', '/storage/emulated/0/');
+            if (manualPath) paths = [manualPath];
+          }
         } catch (error) {
           console.error('Android folder picker failed:', error);
           // Fallback to text input if plugin fails

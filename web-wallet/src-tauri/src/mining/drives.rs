@@ -212,51 +212,157 @@ pub fn list_drives() -> Vec<DriveInfo> {
 /// Get drive info for a specific path
 pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
     let target_path = Path::new(path);
-    let disks = Disks::new_with_refreshed_list();
     let gib = 1024.0 * 1024.0 * 1024.0;
 
-    // Find the disk with the LONGEST matching mount point
-    // This is critical for Linux where "/" matches everything, but we want
-    // the most specific mount point (e.g., "/media/usb" over "/")
-    let mut best_match: Option<(&sysinfo::Disk, usize)> = None;
+    // On Android, sysinfo::Disks doesn't work properly for app storage paths
+    // Use statvfs to get space info directly from the path
+    #[cfg(target_os = "android")]
+    {
+        return get_drive_info_android(path);
+    }
 
-    for disk in disks.iter() {
-        let mount_point = disk.mount_point();
-        if target_path.starts_with(mount_point) {
-            let mount_len = mount_point.as_os_str().len();
-            match &best_match {
-                Some((_, best_len)) if mount_len <= *best_len => {
-                    // Current match is not longer, skip
-                }
-                _ => {
-                    // This is a longer (more specific) match
-                    best_match = Some((disk, mount_len));
+    #[cfg(not(target_os = "android"))]
+    {
+        let disks = Disks::new_with_refreshed_list();
+
+        // Find the disk with the LONGEST matching mount point
+        // This is critical for Linux where "/" matches everything, but we want
+        // the most specific mount point (e.g., "/media/usb" over "/")
+        let mut best_match: Option<(&sysinfo::Disk, usize)> = None;
+
+        for disk in disks.iter() {
+            let mount_point = disk.mount_point();
+            if target_path.starts_with(mount_point) {
+                let mount_len = mount_point.as_os_str().len();
+                match &best_match {
+                    Some((_, best_len)) if mount_len <= *best_len => {
+                        // Current match is not longer, skip
+                    }
+                    _ => {
+                        // This is a longer (more specific) match
+                        best_match = Some((disk, mount_len));
+                    }
                 }
             }
         }
+
+        // Build DriveInfo from the best matching disk
+        best_match.map(|(disk, _)| {
+            let mount_str = disk.mount_point().to_string_lossy().to_string();
+            let total_bytes = disk.total_space() as f64;
+            let free_bytes = disk.available_space() as f64;
+            let is_system = is_system_drive_path(&mount_str);
+
+            // Scan the specific path for plot files (not the mount point)
+            let scan = scan_plot_files(path);
+
+            DriveInfo {
+                path: path.to_string(),
+                label: disk.name().to_string_lossy().to_string(),
+                total_gib: total_bytes / gib,
+                free_gib: free_bytes / gib,
+                is_system_drive: is_system,
+                complete_files: scan.complete_count,
+                complete_size_gib: scan.complete_bytes as f64 / gib,
+                incomplete_files: scan.incomplete_count,
+                incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+                volume_id: get_volume_guid(path),
+            }
+        })
+    }
+}
+
+/// Android-specific drive info using statvfs
+#[cfg(target_os = "android")]
+fn get_drive_info_android(path: &str) -> Option<DriveInfo> {
+    use std::ffi::CString;
+    use std::os::raw::c_char;
+
+    let gib = 1024.0 * 1024.0 * 1024.0;
+    let target_path = Path::new(path);
+
+    // Create directory if it doesn't exist (Android may need this)
+    if !target_path.exists() {
+        if let Err(e) = std::fs::create_dir_all(target_path) {
+            log::warn!("Failed to create directory {}: {}", path, e);
+            // Continue anyway - we might still be able to get parent dir info
+        }
     }
 
-    // Build DriveInfo from the best matching disk
-    best_match.map(|(disk, _)| {
-        let mount_str = disk.mount_point().to_string_lossy().to_string();
-        let total_bytes = disk.total_space() as f64;
-        let free_bytes = disk.available_space() as f64;
-        let is_system = is_system_drive_path(&mount_str);
+    // Get filesystem stats using statvfs
+    #[repr(C)]
+    struct Statvfs {
+        f_bsize: u64,
+        f_frsize: u64,
+        f_blocks: u64,
+        f_bfree: u64,
+        f_bavail: u64,
+        f_files: u64,
+        f_ffree: u64,
+        f_favail: u64,
+        f_fsid: u64,
+        f_flag: u64,
+        f_namemax: u64,
+    }
 
-        // Scan the specific path for plot files (not the mount point)
-        let scan = scan_plot_files(path);
+    extern "C" {
+        fn statvfs(path: *const c_char, buf: *mut Statvfs) -> i32;
+    }
 
-        DriveInfo {
-            path: path.to_string(),
-            label: disk.name().to_string_lossy().to_string(),
-            total_gib: total_bytes / gib,
-            free_gib: free_bytes / gib,
-            is_system_drive: is_system,
-            complete_files: scan.complete_count,
-            complete_size_gib: scan.complete_bytes as f64 / gib,
-            incomplete_files: scan.incomplete_count,
-            incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
-            volume_id: get_volume_guid(path),
-        }
+    let c_path = match CString::new(path) {
+        Ok(p) => p,
+        Err(_) => return None,
+    };
+
+    let mut stat = Statvfs {
+        f_bsize: 0,
+        f_frsize: 0,
+        f_blocks: 0,
+        f_bfree: 0,
+        f_bavail: 0,
+        f_files: 0,
+        f_ffree: 0,
+        f_favail: 0,
+        f_fsid: 0,
+        f_flag: 0,
+        f_namemax: 0,
+    };
+
+    let result = unsafe { statvfs(c_path.as_ptr(), &mut stat) };
+
+    if result != 0 {
+        log::warn!("statvfs failed for path: {}", path);
+        return None;
+    }
+
+    let block_size = if stat.f_frsize > 0 {
+        stat.f_frsize
+    } else {
+        stat.f_bsize
+    };
+    let total_bytes = (stat.f_blocks * block_size) as f64;
+    let free_bytes = (stat.f_bavail * block_size) as f64;
+
+    // Scan for plot files
+    let scan = scan_plot_files(path);
+
+    // Extract a label from the path
+    let label = target_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Storage")
+        .to_string();
+
+    Some(DriveInfo {
+        path: path.to_string(),
+        label,
+        total_gib: total_bytes / gib,
+        free_gib: free_bytes / gib,
+        is_system_drive: false, // Android app storage is never system drive
+        complete_files: scan.complete_count,
+        complete_size_gib: scan.complete_bytes as f64 / gib,
+        incomplete_files: scan.incomplete_count,
+        incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+        volume_id: get_volume_guid(path),
     })
 }

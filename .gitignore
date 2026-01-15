@@ -29,6 +29,12 @@ npm-debug.log*
 
 # Tauri
 web-wallet/src-tauri/target/
+web-wallet/src-tauri/gen/
+
+# Android signing (never commit these!)
+*.keystore
+*.jks
+keystore.properties
 
 # Old Electron folder (deprecated)
 desktop/

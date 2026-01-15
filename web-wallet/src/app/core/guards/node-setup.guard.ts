@@ -2,16 +2,24 @@ import { inject } from '@angular/core';
 import { Router, CanActivateFn } from '@angular/router';
 import { ElectronService } from '../services/electron.service';
 import { NodeService } from '../../node';
+import { AppModeService } from '../services/app-mode.service';
 
 /**
  * NodeSetupGuard checks if node setup is required before allowing access to auth routes.
  * In desktop mode with managed node config but no node installed, redirects to /node/setup.
  * This guard should run BEFORE authGuard to ensure proper first-launch flow.
+ * Skipped on mobile (Android) - no local node support.
  */
 export const nodeSetupGuard: CanActivateFn = async () => {
   const electronService = inject(ElectronService);
   const nodeService = inject(NodeService);
   const router = inject(Router);
+  const appModeService = inject(AppModeService);
+
+  // Skip on mobile - no local node support
+  if (appModeService.isMobile()) {
+    return true;
+  }
 
   // Only check in desktop mode
   if (!electronService.isDesktop) {

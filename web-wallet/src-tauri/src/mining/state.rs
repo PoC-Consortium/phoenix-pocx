@@ -297,11 +297,21 @@ pub type SharedMiningState = Arc<Mutex<MiningState>>;
 
 /// Get the path to the mining config file
 pub fn get_config_file_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|mut path| {
-        path.push("phoenix-pocx");
-        path.push("mining-config.json");
-        path
-    })
+    #[cfg(target_os = "android")]
+    {
+        // On Android, use app's internal files directory (always writable)
+        let path = PathBuf::from("/data/data/org.pocx.phoenix/files/mining-config.json");
+        Some(path)
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        dirs::config_dir().map(|mut path| {
+            path.push("phoenix-pocx");
+            path.push("mining-config.json");
+            path
+        })
+    }
 }
 
 /// Load mining config from file

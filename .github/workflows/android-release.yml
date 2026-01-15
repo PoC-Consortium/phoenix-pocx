@@ -1,0 +1,129 @@
+name: Android Release
+
+on:
+  workflow_dispatch:  # Manual trigger only, no inputs needed
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    name: Build & Sign Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get latest release tag
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
+          if [ -z "$TAG" ]; then
+            echo "No release found!"
+            exit 1
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Found latest release: $TAG"
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk/ndk/25* /usr/local/lib/android/sdk/ndk/26* /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: web-wallet/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager --install "ndk;27.0.11718014"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.11718014" >> $GITHUB_ENV
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './web-wallet/src-tauri -> target'
+
+      - name: Install web-wallet dependencies
+        working-directory: web-wallet
+        run: npm ci
+
+      - name: Initialize Android project
+        working-directory: web-wallet
+        run: npx tauri android init
+
+      - name: Set Android app icon
+        run: |
+          # Copy pre-generated icons to Android res folder
+          cp -r web-wallet/src-tauri/android-icons/* web-wallet/src-tauri/gen/android/app/src/main/res/
+
+      - name: Setup Android signing
+        run: |
+          # Decode keystore from secret
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.keystore
+
+          # Replace generated build.gradle.kts with our signing-enabled template
+          cp web-wallet/src-tauri/android-template/build.gradle.kts \
+             web-wallet/src-tauri/gen/android/app/build.gradle.kts
+
+          # Create keystore.properties (CI only provides secrets, signing logic is in template)
+          cat > web-wallet/src-tauri/gen/android/keystore.properties <<EOF
+          storeFile=$HOME/release.keystore
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          EOF
+
+      - name: Build Android APK (ARM64 only)
+        working-directory: web-wallet
+        run: npx tauri android build --target aarch64
+
+      - name: Verify signed APK exists
+        id: verify
+        run: |
+          # Find release APK (must be signed, not unsigned)
+          APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*.apk" -type f | grep -v debug | grep -v unsigned | head -1)
+
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: No signed release APK found!"
+            echo "Available APKs:"
+            find web-wallet/src-tauri/gen/android -name "*.apk" -type f
+            exit 1
+          fi
+
+          echo "Found signed APK: $APK_FILE"
+          echo "apk_path=$APK_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload to latest release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          VERSION="${TAG#v}"
+          APK_FILE="${{ steps.verify.outputs.apk_path }}"
+
+          NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android-ARM64.apk"
+          cp "$APK_FILE" "$NEW_NAME"
+
+          echo "Uploading $NEW_NAME to release $TAG"
+          gh release upload "$TAG" "$NEW_NAME" --repo ${{ github.repository }} --clobber
+
+          echo "Successfully uploaded Android APK to $TAG"

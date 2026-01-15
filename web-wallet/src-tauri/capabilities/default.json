@@ -1,14 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "identifier": "default",
-  "description": "Default capabilities for Phoenix PoCX Wallet",
+  "description": "Default capabilities for Phoenix PoCX Wallet - all platforms",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "opener:default",
     "dialog:default",
     "notification:default",
-    "updater:default",
     {
       "identifier": "http:default",
       "allow": [

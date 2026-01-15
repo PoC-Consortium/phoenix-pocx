@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "android",
+  "description": "Android-only capabilities",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "permissions": [
+    "android-fs:default"
+  ]
+}
