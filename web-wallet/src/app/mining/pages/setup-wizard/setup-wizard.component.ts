@@ -3411,7 +3411,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
             paths = [folderPath];
           } else {
             // Fallback to prompt - URI format not recognized
-            this.miningService.addActivityLog('warn', 'Android: Could not parse folder URI, prompting for manual entry');
+            this.miningService.addActivityLog(
+              'warn',
+              'Android: Could not parse folder URI, prompting for manual entry'
+            );
             const manualPath = window.prompt(
               `Could not parse folder URI.\n\nRaw: ${decoded}\n\nEnter path manually:`,
               '/storage/emulated/0/'
