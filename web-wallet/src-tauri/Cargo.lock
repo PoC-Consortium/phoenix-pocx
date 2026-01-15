@@ -3679,6 +3679,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-sql",
+ "tauri-plugin-storage-permission",
  "tauri-plugin-updater",
  "tokio",
  "url",
@@ -5744,6 +5745,17 @@ dependencies = [
  "thiserror 2.0.17",
  "time",
  "tokio",
+]
+
+[[package]]
+name = "tauri-plugin-storage-permission"
+version = "0.1.0"
+dependencies = [
+ "jni",
+ "log",
+ "serde",
+ "tauri",
+ "tauri-plugin",
 ]
 
 [[package]]

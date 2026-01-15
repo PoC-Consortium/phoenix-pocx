@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "प्रमाणीकरण के लिए बेयरर टोकन",
   "setup_save": "सहेजें",
   "setup_add": "जोड़ें",
+  "setup_storage_permission_required": "इस ऐप को प्लॉट फ़ाइलों का पता लगाने और पढ़ने के लिए \"सभी फ़ाइलों तक पहुंच\" अनुमति की आवश्यकता है। सेटिंग्स खोलने और Phoenix के लिए इसे सक्षम करने के लिए OK टैप करें।",
   "plan_plotting_plan": "प्लॉटिंग योजना",
   "plan_tasks": "कार्य",
   "plan_remaining": "शेष",

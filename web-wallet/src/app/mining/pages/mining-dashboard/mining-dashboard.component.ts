@@ -585,12 +585,48 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       .main-content {
         flex: 1;
         padding: 16px;
-        overflow: hidden; /* Don't scroll main content - sections scroll internally */
+        overflow-y: auto; /* Allow scrolling when content exceeds viewport */
+        overflow-x: hidden;
         display: flex;
         flex-direction: column;
         gap: 12px;
         position: relative;
         min-height: 0; /* Allow flex children to shrink */
+      }
+
+      /* Always show scrollbar when content overflows */
+      .main-content::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .main-content::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+      }
+
+      .main-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+      }
+
+      .main-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.5);
+      }
+
+      /* Mobile/small screens: ensure content has intrinsic height for scrolling */
+      @media (max-height: 700px) {
+        .main-content {
+          display: block; /* Switch from flex to block for proper scroll behavior */
+          padding: 16px;
+        }
+
+        .main-content > * {
+          margin-bottom: 12px;
+        }
+
+        .main-content > *:last-child {
+          margin-bottom: 0;
+        }
       }
 
       /* Summary Cards Grid */
@@ -599,6 +635,7 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         grid-template-columns: repeat(4, 1fr);
         gap: 16px;
         flex-shrink: 0;
+        min-height: fit-content; /* Ensure cards don't collapse */
       }
 
       @media (max-width: 1100px) {
@@ -619,6 +656,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         padding: 16px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
         position: relative;
+        min-height: 100px; /* Prevent cards from collapsing */
+        min-width: 0; /* Allow cards to shrink in grid */
       }
 
       .summary-card .card-header {
@@ -1113,7 +1152,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         grid-template-columns: 1fr 1fr; /* Match 2+2 of 4-column summary cards */
         gap: 16px; /* Same gap as summary-cards */
         flex: 5; /* Take 5x space compared to activity section's 3x */
-        min-height: 0;
+        flex-shrink: 0; /* Don't shrink below min-height */
+        min-height: 250px; /* Minimum height for detail sections */
       }
 
       .left-stack {
@@ -1125,12 +1165,12 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
       .left-stack .section:first-child {
         flex: 2; /* Active Chains: 40% */
-        min-height: 0;
+        min-height: 120px;
       }
 
       .left-stack .deadline-history-section {
         flex: 3; /* Best Deadline: 60% */
-        min-height: 0;
+        min-height: 150px;
       }
 
       .right-column {
@@ -1141,12 +1181,38 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
 
       .right-column .drives-section {
         flex: 1;
-        min-height: 0;
+        min-height: 150px;
       }
 
       @media (max-width: 900px) {
         .detail-row {
           grid-template-columns: 1fr;
+        }
+      }
+
+      /* Small screens: use fixed heights instead of flex ratios */
+      @media (max-height: 700px) {
+        .detail-row {
+          flex: none;
+          min-height: auto;
+        }
+
+        .left-stack .section:first-child {
+          flex: none;
+          height: 150px;
+          min-height: 150px;
+        }
+
+        .left-stack .deadline-history-section {
+          flex: none;
+          height: 200px;
+          min-height: 200px;
+        }
+
+        .right-column .drives-section {
+          flex: none;
+          height: 200px;
+          min-height: 200px;
         }
       }
 
@@ -1180,10 +1246,12 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         padding: 10px 14px;
         flex: 1;
         overflow-y: auto;
+        overflow-x: auto; /* Allow horizontal scroll for tables on small screens */
       }
 
       table {
         width: 100%;
+        min-width: 300px; /* Minimum width to prevent column collapse */
         border-collapse: collapse;
       }
 
@@ -1352,7 +1420,17 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       /* Activity Section */
       .activity-section {
         flex: 3; /* Take 3x space compared to detail-row's 5x (~37.5%) */
-        min-height: 100px;
+        flex-shrink: 0; /* Don't shrink below min-height */
+        min-height: 120px;
+      }
+
+      /* Small screens: fixed height for activity */
+      @media (max-height: 700px) {
+        .activity-section {
+          flex: none;
+          height: 150px;
+          min-height: 150px;
+        }
       }
 
       .activity-section .section-content {

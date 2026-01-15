@@ -625,6 +625,7 @@
   "setup_auth_token_placeholder": "Kimlik doğrulama için taşıyıcı token",
   "setup_save": "Kaydet",
   "setup_add": "Ekle",
+  "setup_storage_permission_required": "Bu uygulama, plot dosyalarini algilamak ve okumak icin \"Tum dosyalara erisim\" iznine ihtiyac duyar. Ayarlari acmak ve Phoenix icin etkinlestirmek uzere Tamam'a dokunun.",
   "plan_plotting_plan": "Çizim Planı",
   "plan_tasks": "Görevler",
   "plan_remaining": "Kalan",

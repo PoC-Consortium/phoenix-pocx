@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Bearer token untuk autentikasi",
   "setup_save": "Simpan",
   "setup_add": "Tambah",
+  "setup_storage_permission_required": "Aplikasi ini membutuhkan izin \"Akses semua file\" untuk mendeteksi dan membaca file plot. Ketuk OK untuk membuka Pengaturan dan mengaktifkannya untuk Phoenix.",
   "plan_plotting_plan": "Rencana Plotting",
   "plan_tasks": "Tugas",
   "plan_remaining": "Tersisa",

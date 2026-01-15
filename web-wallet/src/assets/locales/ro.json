@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Token Bearer pentru autentificare",
   "setup_save": "Salvează",
   "setup_add": "Adaugă",
+  "setup_storage_permission_required": "Această aplicație are nevoie de permisiunea \"Acces la toate fișierele\" pentru a detecta și citi fișierele plot. Atinge OK pentru a deschide Setările și a o activa pentru Phoenix.",
   "plan_plotting_plan": "Plan de plotare",
   "plan_tasks": "Sarcini",
   "plan_remaining": "Rămas",

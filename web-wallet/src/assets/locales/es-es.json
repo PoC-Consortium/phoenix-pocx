@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Token Bearer para autenticación",
   "setup_save": "Guardar",
   "setup_add": "Agregar",
+  "setup_storage_permission_required": "Esta aplicacion necesita el permiso \"Acceso a todos los archivos\" para detectar y leer archivos de plot. Toca Aceptar para abrir Configuracion y habilitarlo para Phoenix.",
   "plan_plotting_plan": "Plan de plotting",
   "plan_tasks": "Tareas",
   "plan_remaining": "Restante",

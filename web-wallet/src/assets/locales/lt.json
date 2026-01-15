@@ -387,6 +387,7 @@
   "setup_auth_token_placeholder": "Bearer raktas autentifikacijai",
   "setup_save": "Issaugoti",
   "setup_add": "Prideti",
+  "setup_storage_permission_required": "Siai programai reikalingas leidimas \"Prieiga prie visu failu\", kad aptiktu ir skaitytu plot failus. Bakstelekite Gerai, kad atidarytumete Nustatymus ir ijungtumete Phoenix.",
   "plan_plotting_plan": "Braizmo planas",
   "plan_tasks": "Uzduotys",
   "plan_remaining": "Likę",
