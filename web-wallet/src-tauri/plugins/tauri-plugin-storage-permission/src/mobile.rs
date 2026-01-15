@@ -1,6 +1,6 @@
 //! Android-specific implementation using Tauri's mobile plugin system
 
-use tauri::{plugin::PluginHandle, Runtime};
+use tauri::{plugin::PluginHandle, Manager, Runtime};
 
 /// Check if the app has MANAGE_EXTERNAL_STORAGE permission
 pub fn has_all_files_access<R: Runtime>(app: tauri::AppHandle<R>) -> Result<bool, String> {
