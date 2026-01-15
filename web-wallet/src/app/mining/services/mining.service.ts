@@ -98,6 +98,11 @@ export class MiningService {
   // Dev mode detection (cached on init)
   private readonly _isDevMode = signal<boolean>(false);
 
+  // Platform detection for Android foreground service
+  private readonly _isAndroid = signal<boolean>(false);
+  private _lastNotificationUpdate = 0;
+  private static readonly NOTIFICATION_UPDATE_INTERVAL_MS = 1000; // Throttle to 1 update/sec
+
   // Miner runtime state
   private readonly _minerState = signal<MinerRuntimeState>({
     running: false,
@@ -215,6 +220,7 @@ export class MiningService {
     this.refreshState();
     this.refreshDevices();
     this.checkDevMode();
+    this.checkPlatform();
   }
 
   /**
@@ -230,6 +236,81 @@ export class MiningService {
     } catch {
       // Default to false if check fails
       this._isDevMode.set(false);
+    }
+  }
+
+  /**
+   * Check platform for Android-specific features
+   */
+  private async checkPlatform(): Promise<void> {
+    try {
+      const platform = await invoke<string>('get_platform');
+      this._isAndroid.set(platform === 'android');
+      if (platform === 'android') {
+        console.log('MiningService: Running on Android, foreground service available');
+      }
+    } catch {
+      this._isAndroid.set(false);
+    }
+  }
+
+  // ============================================================================
+  // Android Foreground Service (keeps app alive when backgrounded)
+  // ============================================================================
+
+  /**
+   * Start the Android foreground service with wake lock.
+   * @param mode 'mining' or 'plotting'
+   */
+  private async startForegroundService(mode: 'mining' | 'plotting'): Promise<void> {
+    if (!this._isAndroid()) return;
+
+    try {
+      await invoke('plugin:foreground-service|start_foreground_service', { mode });
+      this.addActivityLog('info', `Android: Started foreground service (${mode})`);
+    } catch (err) {
+      console.error('Failed to start foreground service:', err);
+      this.addActivityLog('warn', `Android: Failed to start foreground service - ${err}`);
+    }
+  }
+
+  /**
+   * Stop the Android foreground service.
+   * Only stops if neither mining nor plotting is active.
+   */
+  private async stopForegroundService(): Promise<void> {
+    if (!this._isAndroid()) return;
+
+    // Don't stop if mining or plotting is still active
+    if (this._minerState().running || this.plotterRunning()) {
+      return;
+    }
+
+    try {
+      await invoke('plugin:foreground-service|stop_foreground_service');
+      this.addActivityLog('info', 'Android: Stopped foreground service');
+    } catch (err) {
+      console.error('Failed to stop foreground service:', err);
+    }
+  }
+
+  /**
+   * Update the foreground service notification with progress.
+   * Throttled to avoid excessive updates.
+   */
+  private async updateForegroundNotification(text: string): Promise<void> {
+    if (!this._isAndroid()) return;
+
+    const now = Date.now();
+    if (now - this._lastNotificationUpdate < MiningService.NOTIFICATION_UPDATE_INTERVAL_MS) {
+      return; // Throttled
+    }
+    this._lastNotificationUpdate = now;
+
+    try {
+      await invoke('plugin:foreground-service|update_service_notification', { text });
+    } catch {
+      // Silently ignore notification update failures
     }
   }
 
@@ -985,7 +1066,12 @@ export class MiningService {
     const writingPercent = (p.writingWarps / p.totalWarps) * 50;
 
     const total = Math.min(100, hashingPercent + writingPercent);
-    this._plottingProgress.update(prev => ({ ...prev, progress: Math.round(total) }));
+    const progress = Math.round(total);
+    this._plottingProgress.update(prev => ({ ...prev, progress }));
+
+    // Update Android notification with progress (throttled internally)
+    const speed = p.speedMibS > 0 ? p.speedMibS.toFixed(0) : '...';
+    this.updateForegroundNotification(`Plotting: ${progress}% - ${speed} MiB/s`);
   }
 
   /**
@@ -1178,6 +1264,9 @@ export class MiningService {
       `MiningService: Executing batch ${batchId} with ${batchItems.length} items, ${totalBatchWarps} total warps`
     );
 
+    // Start Android foreground service for plotting (keeps app alive when backgrounded)
+    await this.startForegroundService('plotting');
+
     // Update batch tracking
     this._plottingProgress.update(p => ({
       ...p,
@@ -1203,6 +1292,9 @@ export class MiningService {
    * Reset plotting progress to initial state
    */
   resetPlottingProgress(): void {
+    // Stop Android foreground service if mining is also not running
+    this.stopForegroundService();
+
     this._plottingProgress.set({
       hashingWarps: 0,
       writingWarps: 0,
@@ -1760,6 +1852,9 @@ export class MiningService {
 
       // Set running immediately; event handler will update with chain info
       this._minerState.update(s => ({ ...s, running: true }));
+
+      // Start Android foreground service to keep app alive when backgrounded
+      await this.startForegroundService('mining');
     } catch (err) {
       this._error.set(`Failed to start miner: ${err}`);
       throw err;
@@ -1780,6 +1875,9 @@ export class MiningService {
 
       // Set stopped immediately; event handler will also update
       this._minerState.update(s => ({ ...s, running: false }));
+
+      // Stop Android foreground service if plotting is also not running
+      await this.stopForegroundService();
     } catch (err) {
       this._error.set(`Failed to stop miner: ${err}`);
       throw err;
