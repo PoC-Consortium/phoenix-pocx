@@ -2611,45 +2611,68 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   /**
    * Check if app has "All files access" permission on Android.
    * This is required to detect plot files created by other apps.
+   * Logs all steps to Recent Activity for debugging.
    */
   private async checkStoragePermission(): Promise<void> {
+    this.miningService.addActivityLog('info', 'Android: Checking storage permission...');
+
     try {
       const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
       this.hasStoragePermission.set(hasAccess);
 
-      if (!hasAccess) {
+      if (hasAccess) {
+        this.miningService.addActivityLog('info', 'Android: Storage permission granted');
+      } else {
+        this.miningService.addActivityLog('warn', 'Android: Storage permission NOT granted');
+
         // Show permission request dialog
         const message = this.i18n.get('setup_storage_permission_required');
         const fallbackMessage = 'This app needs "All files access" permission to detect and read plot files. Tap OK to open Settings and enable it for Phoenix.';
 
         if (confirm(message || fallbackMessage)) {
+          this.miningService.addActivityLog('info', 'Android: User accepted permission prompt');
           await this.requestStoragePermission();
+        } else {
+          this.miningService.addActivityLog('warn', 'Android: User declined permission prompt');
         }
       }
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.miningService.addActivityLog('error', `Android: Permission check failed - ${errorMsg}`);
       console.error('Failed to check storage permission:', err);
-      // Assume we have permission if check fails (non-Android or old Android)
-      this.hasStoragePermission.set(true);
+      // Don't assume permission on error - leave as false so user knows there's an issue
+      this.hasStoragePermission.set(false);
     }
   }
 
   /**
    * Request "All files access" permission by opening system settings.
+   * Logs progress to Recent Activity.
    */
   private async requestStoragePermission(): Promise<void> {
     try {
+      this.miningService.addActivityLog('info', 'Android: Opening system settings for permission...');
       await invoke('plugin:storage-permission|request_all_files_access');
+
       // After returning from settings, re-check permission
-      // Note: User may have granted or denied - we check again on next app focus
+      this.miningService.addActivityLog('info', 'Android: Returned from settings, re-checking...');
       setTimeout(async () => {
         try {
           const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
           this.hasStoragePermission.set(hasAccess);
-        } catch {
-          // Ignore
+          if (hasAccess) {
+            this.miningService.addActivityLog('info', 'Android: Permission now granted!');
+          } else {
+            this.miningService.addActivityLog('warn', 'Android: Permission still not granted');
+          }
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          this.miningService.addActivityLog('error', `Android: Re-check failed - ${errorMsg}`);
         }
       }, 1000);
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.miningService.addActivityLog('error', `Android: Failed to open settings - ${errorMsg}`);
       console.error('Failed to request storage permission:', err);
       alert('Could not open Settings. Please enable "All files access" for Phoenix manually in Settings > Privacy > Files and media.');
     }

@@ -2483,8 +2483,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly isFirstRun = signal(true);
 
   // Android storage permission state
-  readonly hasStoragePermission = signal(true); // Default true for non-Android
-  readonly permissionCheckDone = signal(false);
 
   // Benchmark state
   readonly benchmarkRunning = signal(false);
@@ -2677,16 +2675,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   });
 
   async ngOnInit(): Promise<void> {
-    // Android-specific defaults and permission check
+    // Android-specific defaults
     if (this.appMode.isMobile()) {
       this.useCustomAddress.set(true);  // No wallet on Android
       this.directIo.set(false);          // Direct I/O not reliable on Android
       this.miningDirectIo.set(false);    // Direct I/O not reliable on Android
-
-      // Check storage permission on Android
-      await this.checkStoragePermission();
-    } else {
-      this.permissionCheckDone.set(true);
     }
 
     // Check for step query parameter FIRST to avoid visual jump
@@ -3587,55 +3580,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       console.error('Failed to save configuration:', error);
     } finally {
       this.saving.set(false);
-    }
-  }
-
-  /**
-   * Check if app has "All files access" permission on Android.
-   * This is required to detect plot files created by other apps.
-   */
-  private async checkStoragePermission(): Promise<void> {
-    try {
-      const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
-      this.hasStoragePermission.set(hasAccess);
-
-      if (!hasAccess) {
-        // Show permission request dialog
-        const message = this.i18n.get('setup_storage_permission_required');
-        const fallbackMessage = 'This app needs "All files access" permission to detect and read plot files. Tap OK to open Settings and enable it for Phoenix.';
-
-        if (confirm(message || fallbackMessage)) {
-          await this.requestStoragePermission();
-        }
-      }
-    } catch (err) {
-      console.error('Failed to check storage permission:', err);
-      // Assume we have permission if check fails (non-Android or old Android)
-      this.hasStoragePermission.set(true);
-    } finally {
-      this.permissionCheckDone.set(true);
-    }
-  }
-
-  /**
-   * Request "All files access" permission by opening system settings.
-   */
-  async requestStoragePermission(): Promise<void> {
-    try {
-      await invoke('plugin:storage-permission|request_all_files_access');
-      // After returning from settings, re-check permission
-      // Note: User may have granted or denied - we check again on next app focus
-      setTimeout(async () => {
-        try {
-          const hasAccess = await invoke<boolean>('plugin:storage-permission|has_all_files_access');
-          this.hasStoragePermission.set(hasAccess);
-        } catch {
-          // Ignore
-        }
-      }, 1000);
-    } catch (err) {
-      console.error('Failed to request storage permission:', err);
-      alert('Could not open Settings. Please enable "All files access" for Phoenix manually in Settings > Privacy > Files and media.');
     }
   }
 }
