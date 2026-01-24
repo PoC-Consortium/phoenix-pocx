@@ -202,45 +202,53 @@ export function formatSpeed(bytesPerSec: number): string {
 }
 
 /**
- * Calculate ETA for download
+ * ETA values for translation
  */
-export function calculateEta(remainingBytes: number, speedBytesPerSec: number): string {
-  if (speedBytesPerSec <= 0) return '--';
+export interface EtaValues {
+  key: string | null;
+  params: Record<string, string | number>;
+}
+
+/**
+ * Calculate ETA values for download (returns translation key and params)
+ */
+export function getEtaValues(remainingBytes: number, speedBytesPerSec: number): EtaValues {
+  if (speedBytesPerSec <= 0) return { key: null, params: {} };
 
   const seconds = remainingBytes / speedBytesPerSec;
 
   if (seconds < 60) {
-    return `~${Math.ceil(seconds)} seconds`;
+    return { key: 'node_eta_seconds', params: { seconds: Math.ceil(seconds) } };
   } else if (seconds < 3600) {
-    return `~${Math.ceil(seconds / 60)} minutes`;
+    return { key: 'node_eta_minutes', params: { minutes: Math.ceil(seconds / 60) } };
   } else {
     const hours = Math.floor(seconds / 3600);
     const mins = Math.ceil((seconds % 3600) / 60);
-    return `~${hours}h ${mins}m`;
+    return { key: 'node_eta_hours_mins', params: { hours, mins } };
   }
 }
 
 /**
- * Get human-readable stage name
+ * Get translation key for download stage
  */
-export function getStageName(stage: DownloadStage): string {
+export function getStageKey(stage: DownloadStage): string {
   switch (stage) {
     case 'idle':
-      return 'Ready';
+      return 'node_stage_idle';
     case 'fetchingrelease':
-      return 'Fetching release info...';
+      return 'node_stage_fetchingrelease';
     case 'downloading':
-      return 'Downloading...';
+      return 'node_stage_downloading';
     case 'verifying':
-      return 'Verifying hash...';
+      return 'node_stage_verifying';
     case 'extracting':
-      return 'Extracting...';
+      return 'node_stage_extracting';
     case 'complete':
-      return 'Complete';
+      return 'node_stage_complete';
     case 'failed':
-      return 'Failed';
+      return 'node_stage_failed';
     default:
-      return 'Unknown';
+      return 'unknown';
   }
 }
 
