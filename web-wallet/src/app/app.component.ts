@@ -150,17 +150,10 @@ export class AppComponent implements OnInit, OnDestroy {
     // If we're showing the startup overlay, do the node startup
     if (this.isStartingNode()) {
       try {
-        // Check if node is already running
-        const existingPid = await this.nodeService.detectExistingNode();
-        if (!existingPid) {
-          await this.nodeService.startNode();
-        }
-
-        // Wait for RPC to be ready
-        const ready = await this.waitForNodeReady();
-        if (ready) {
-          await this.cookieAuth.refreshCredentials();
-        }
+        // Unified flow: detect, start if needed, wait for RPC, refresh credentials
+        await this.nodeService.ensureNodeReadyAndAuthenticated(
+          () => this.cookieAuth.refreshCredentials()
+        );
       } catch (err) {
         console.error('Error during node startup:', err);
       } finally {
@@ -306,27 +299,6 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch (error) {
       console.error('Failed to initialize close handler:', error);
     }
-  }
-
-  /**
-   * Wait for the node RPC to be ready.
-   * Returns true if ready, false if timeout.
-   */
-  private async waitForNodeReady(): Promise<boolean> {
-    const maxAttempts = 60; // 30 seconds max (60 * 500ms)
-    let attempts = 0;
-
-    while (attempts < maxAttempts) {
-      const isReady = await this.nodeService.isNodeReady();
-      if (isReady) {
-        return true;
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 500));
-      attempts++;
-    }
-
-    return false;
   }
 
   /**

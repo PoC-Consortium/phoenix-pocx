@@ -750,6 +750,54 @@ export class NodeService {
     return this.waitForNodeReady(timeoutSecs);
   }
 
+  /**
+   * Unified node startup flow: detect, start if needed, wait for RPC, refresh credentials.
+   * This is the single entry point for ensuring the node is ready and authenticated.
+   *
+   * @param refreshCredentials Callback to refresh cookie credentials (avoids circular dependency)
+   * @param timeoutSecs Timeout in seconds to wait for RPC (default: 60)
+   * @returns true if node is ready and credentials refreshed, false otherwise
+   */
+  async ensureNodeReadyAndAuthenticated(
+    refreshCredentials: () => Promise<boolean>,
+    timeoutSecs = 60
+  ): Promise<boolean> {
+    try {
+      // 1. Check if node is already running
+      const existingPid = await this.detectExistingNode();
+
+      // 2. Start if needed, wait for RPC
+      let ready: boolean;
+      if (existingPid) {
+        console.log('NodeService: Node already running (PID:', existingPid, '), waiting for RPC...');
+        ready = await this.waitForNodeReady(timeoutSecs);
+      } else {
+        console.log('NodeService: Starting node and waiting for RPC...');
+        ready = await this.startNodeAndWait(timeoutSecs);
+      }
+
+      if (!ready) {
+        console.error('NodeService: Node failed to become ready');
+        return false;
+      }
+
+      // 3. Refresh credentials (re-read cookie file)
+      console.log('NodeService: Refreshing credentials...');
+      const authSuccess = await refreshCredentials();
+      if (!authSuccess) {
+        console.error('NodeService: Failed to refresh credentials');
+        return false;
+      }
+
+      console.log('NodeService: Node ready and authenticated');
+      return true;
+    } catch (err) {
+      console.error('NodeService: ensureNodeReadyAndAuthenticated failed:', err);
+      this._error.set(`Node startup failed: ${err}`);
+      return false;
+    }
+  }
+
   // ============================================================================
   // Helper Methods
   // ============================================================================

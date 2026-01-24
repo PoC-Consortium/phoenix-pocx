@@ -17,6 +17,7 @@ import {
   getStageKey,
 } from '../../models';
 import { I18nPipe, I18nService } from '../../../core/i18n';
+import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 
 @Component({
   selector: 'app-node-setup',
@@ -611,6 +612,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  private readonly cookieAuth = inject(CookieAuthService);
 
   // State
   readonly currentStep = signal(0);
@@ -796,8 +798,11 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
       this.isStartingNode.set(true);
 
       try {
-        // Start node and wait for RPC to be ready
-        const ready = await this.nodeService.startNodeAndWait(60);
+        // Unified flow: detect, start if needed, wait for RPC, refresh credentials
+        const ready = await this.nodeService.ensureNodeReadyAndAuthenticated(
+          () => this.cookieAuth.refreshCredentials()
+        );
+
         if (!ready) {
           this.snackBar.open(this.i18n.get('node_setup_rpc_not_ready'), 'OK', {
             duration: 5000,
