@@ -159,7 +159,30 @@ pub fn get_platform_archive_pattern() -> &'static str {
 /// Find the appropriate asset for the current platform
 pub fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
     let pattern = get_platform_archive_pattern();
-    assets.iter().find(|a| a.name.contains(pattern))
+    let matching: Vec<_> = assets.iter().filter(|a| a.name.contains(pattern)).collect();
+
+    if matching.is_empty() {
+        return None;
+    }
+
+    // On macOS, prefer .tar.gz over .zip (zip only contains Qt app, no bitcoind)
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(asset) = matching.iter().find(|a| a.name.ends_with(".tar.gz")) {
+            return Some(asset);
+        }
+    }
+
+    // On Windows, prefer .zip over .exe (exe is NSIS installer, harder to extract)
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(asset) = matching.iter().find(|a| a.name.ends_with(".zip")) {
+            return Some(asset);
+        }
+    }
+
+    // Default: return first match
+    matching.into_iter().next()
 }
 
 /// Create HTTP client with appropriate headers
