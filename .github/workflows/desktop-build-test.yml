@@ -84,17 +84,23 @@ jobs:
 
           # Copy AppImage
           for f in "$BUNDLE_DIR/appimage/"*.AppImage; do
-            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
+            if [ -f "$f" ]; then
+              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
+            fi
           done
 
           # Copy deb
           for f in "$BUNDLE_DIR/deb/"*.deb; do
-            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
+            if [ -f "$f" ]; then
+              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
+            fi
           done
 
           # Copy rpm
           for f in "$BUNDLE_DIR/rpm/"*.rpm; do
-            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
+            if [ -f "$f" ]; then
+              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
+            fi
           done
 
       - name: Collect artifacts (macOS)
@@ -105,12 +111,16 @@ jobs:
 
           # Copy dmg
           for f in "$BUNDLE_DIR/dmg/"*.dmg; do
-            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
+            if [ -f "$f" ]; then
+              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
+            fi
           done
 
           # Copy app.tar.gz
           for f in "$BUNDLE_DIR/macos/"*.tar.gz; do
-            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
+            if [ -f "$f" ]; then
+              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
+            fi
           done
 
       - name: Collect artifacts (Windows)
@@ -122,12 +132,16 @@ jobs:
 
           # Copy NSIS installer
           for f in "$BUNDLE_DIR/nsis/"*-setup.exe; do
-            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
+            if [ -f "$f" ]; then
+              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
+            fi
           done
 
           # Copy MSI
           for f in "$BUNDLE_DIR/msi/"*.msi; do
-            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
+            if [ -f "$f" ]; then
+              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
+            fi
           done
 
       - name: Upload artifacts
