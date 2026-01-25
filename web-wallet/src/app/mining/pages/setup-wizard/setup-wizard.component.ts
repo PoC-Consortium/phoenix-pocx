@@ -939,12 +939,8 @@ interface ChainModalData {
                   (ngModelChange)="updateChainModal('poolUrl', $event)"
                 >
                   <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
-                  <option value="https://pool.pocx.io:8080">
-                    PoCX Pool Alpha (pool.pocx.io)
-                  </option>
-                  <option value="https://pool2.pocx.io:8080">
-                    PoCX Pool Beta (pool2.pocx.io)
-                  </option>
+                  <option value="https://pool.pocx.io:8080">PoCX Pool Alpha (pool.pocx.io)</option>
+                  <option value="https://pool2.pocx.io:8080">PoCX Pool Beta (pool2.pocx.io)</option>
                   <option value="https://community.pocx.io:8080">
                     Community Pool (community.pocx.io)
                   </option>

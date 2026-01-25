@@ -1966,6 +1966,8 @@ export class MiningService {
           resuming: info.resuming,
         },
       }));
+      // Update Android notification to show activity (helps prevent process kill)
+      this.updateForegroundNotification(`Mining: Block ${info.height} - Scanning...`);
     });
     this._minerUnlisteners.push(scanStartedUnlisten);
 
@@ -2002,6 +2004,9 @@ export class MiningService {
 
         // Smart cleanup of activity logs (idle moment after scan)
         this.cleanupActivityLogs();
+
+        // Update Android notification (helps prevent process kill)
+        this.updateForegroundNotification(`Mining: Block ${event.payload.height} - Round complete`);
       }
     });
     this._minerUnlisteners.push(scanStatusUnlisten);
@@ -2055,6 +2060,9 @@ export class MiningService {
             recentDeadlines: updatedDeadlines,
           };
         });
+
+        // Update Android notification with deadline info (helps prevent process kill)
+        this.updateForegroundNotification(`Mining: Deadline ${pocTime}s found`);
       }
     );
     this._minerUnlisteners.push(deadlineAcceptedUnlisten);

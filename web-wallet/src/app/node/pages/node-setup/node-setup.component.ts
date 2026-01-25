@@ -22,7 +22,14 @@ import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 @Component({
   selector: 'app-node-setup',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule, MatProgressBarModule, MatSnackBarModule, I18nPipe],
+  imports: [
+    CommonModule,
+    MatIconModule,
+    MatButtonModule,
+    MatProgressBarModule,
+    MatSnackBarModule,
+    I18nPipe,
+  ],
   template: `
     <div class="setup-container">
       <div class="logo-container">
@@ -49,7 +56,9 @@ import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
                 <div class="mode-details">
                   <div class="mode-title">
                     {{ 'node_setup_managed_title' | i18n }}
-                    <span class="recommended-badge">{{ 'node_setup_recommended_badge' | i18n }}</span>
+                    <span class="recommended-badge">{{
+                      'node_setup_recommended_badge' | i18n
+                    }}</span>
                   </div>
                   <div class="mode-desc">
                     {{ 'node_setup_managed_desc' | i18n }}
@@ -104,7 +113,9 @@ import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
             } @else if (downloadProgress()) {
               <div class="status-container">
                 <div class="progress-info">
-                  <span class="progress-stage">{{ getStageKey(downloadProgress()!.stage) | i18n }}</span>
+                  <span class="progress-stage">{{
+                    getStageKey(downloadProgress()!.stage) | i18n
+                  }}</span>
                   @if (downloadProgress()!.stage === 'downloading') {
                     <span class="progress-percent">{{ downloadPercent() | number: '1.0-0' }}%</span>
                   }
@@ -216,7 +227,9 @@ import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
                   </button>
                 }
               } @else if (isDownloading()) {
-                <button mat-stroked-button color="warn" (click)="cancelDownload()">{{ 'cancel' | i18n }}</button>
+                <button mat-stroked-button color="warn" (click)="cancelDownload()">
+                  {{ 'cancel' | i18n }}
+                </button>
               } @else {
                 <button mat-raised-button color="primary" (click)="startDownload()">
                   <mat-icon>download</mat-icon>
@@ -799,8 +812,8 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
 
       try {
         // Unified flow: detect, start if needed, wait for RPC, refresh credentials
-        const ready = await this.nodeService.ensureNodeReadyAndAuthenticated(
-          () => this.cookieAuth.refreshCredentials()
+        const ready = await this.nodeService.ensureNodeReadyAndAuthenticated(() =>
+          this.cookieAuth.refreshCredentials()
         );
 
         if (!ready) {

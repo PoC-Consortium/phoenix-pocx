@@ -769,7 +769,11 @@ export class NodeService {
       // 2. Start if needed, wait for RPC
       let ready: boolean;
       if (existingPid) {
-        console.log('NodeService: Node already running (PID:', existingPid, '), waiting for RPC...');
+        console.log(
+          'NodeService: Node already running (PID:',
+          existingPid,
+          '), waiting for RPC...'
+        );
         ready = await this.waitForNodeReady(timeoutSecs);
       } else {
         console.log('NodeService: Starting node and waiting for RPC...');

@@ -151,8 +151,8 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.isStartingNode()) {
       try {
         // Unified flow: detect, start if needed, wait for RPC, refresh credentials
-        await this.nodeService.ensureNodeReadyAndAuthenticated(
-          () => this.cookieAuth.refreshCredentials()
+        await this.nodeService.ensureNodeReadyAndAuthenticated(() =>
+          this.cookieAuth.refreshCredentials()
         );
       } catch (err) {
         console.error('Error during node startup:', err);

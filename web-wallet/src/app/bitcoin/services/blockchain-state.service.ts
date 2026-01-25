@@ -1,6 +1,11 @@
 import { Injectable, inject, signal, OnDestroy, computed } from '@angular/core';
 import { Subject, interval, takeUntil } from 'rxjs';
-import { BlockchainRpcService, BlockchainInfo, Block, PeerInfo } from './rpc/blockchain-rpc.service';
+import {
+  BlockchainRpcService,
+  BlockchainInfo,
+  Block,
+  PeerInfo,
+} from './rpc/blockchain-rpc.service';
 import { CookieAuthService } from '../../core/auth/cookie-auth.service';
 import { PocxNotificationService } from './pocx-notification.service';
 

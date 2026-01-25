@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -42,6 +43,7 @@ class MiningForegroundService : Service() {
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -57,6 +59,7 @@ class MiningForegroundService : Service() {
                 currentText = if (currentMode == "mining") "Mining active" else "Plotting active"
                 startForegroundWithNotification()
                 acquireWakeLock()
+                acquireWifiLock()
                 isRunning = true
             }
             ACTION_STOP -> {
@@ -66,7 +69,9 @@ class MiningForegroundService : Service() {
                 val text = intent.getStringExtra(EXTRA_TEXT)
                 if (text != null) {
                     currentText = text
-                    updateNotification()
+                    // Reaffirm foreground status on every update (Termux survival pattern)
+                    // This reminds Android the service is still actively doing work
+                    startForeground(NOTIFICATION_ID, buildNotification())
                 }
             }
         }
@@ -76,6 +81,7 @@ class MiningForegroundService : Service() {
 
     override fun onDestroy() {
         releaseWakeLock()
+        releaseWifiLock()
         isRunning = false
         super.onDestroy()
     }
@@ -162,8 +168,31 @@ class MiningForegroundService : Service() {
         wakeLock = null
     }
 
+    @Suppress("DEPRECATION")
+    private fun acquireWifiLock() {
+        if (wifiLock == null) {
+            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            wifiLock = wifiManager.createWifiLock(
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                "Phoenix::MiningWifiLock"
+            ).apply {
+                acquire() // Hold indefinitely - mining needs network connection
+            }
+        }
+    }
+
+    private fun releaseWifiLock() {
+        wifiLock?.let {
+            if (it.isHeld) {
+                it.release()
+            }
+        }
+        wifiLock = null
+    }
+
     private fun stopForegroundService() {
         releaseWakeLock()
+        releaseWifiLock()
         isRunning = false
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
