@@ -137,6 +137,38 @@ jobs:
             fi
           done
 
+      - name: Prepare macOS Miner wrapper app
+        if: matrix.os_name == 'macOS'
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          MAIN_APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d | head -1)
+          MINER_APP="web-wallet/src-tauri/macos/Phoenix PoCX Miner.app"
+
+          # Copy icon from main app to miner wrapper
+          cp "$MAIN_APP/Contents/Resources/icon.icns" "$MINER_APP/Contents/Resources/"
+
+          # Ensure launcher script is executable
+          chmod +x "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
+
+      - name: Recreate macOS DMG with both apps
+        if: matrix.os_name == 'macOS'
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          MAIN_APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d | head -1)
+          MINER_APP="web-wallet/src-tauri/macos/Phoenix PoCX Miner.app"
+
+          # Create temp directory for DMG contents
+          mkdir -p dmg_contents
+          cp -R "$MAIN_APP" dmg_contents/
+          cp -R "$MINER_APP" dmg_contents/
+
+          # Create Applications symlink
+          ln -s /Applications dmg_contents/Applications
+
+          # Remove old DMG and create new one with both apps
+          rm -f "$BUNDLE_DIR/dmg/"*.dmg
+          hdiutil create -volname "Phoenix PoCX Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+
       - name: Rename and upload artifacts (macOS)
         if: matrix.os_name == 'macOS'
         env:
