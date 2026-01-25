@@ -266,11 +266,12 @@ export class AppComponent implements OnInit, OnDestroy {
         event.preventDefault();
 
         // If only node needs to be stopped (no mining/plotting):
-        // - In mining-only mode: just shut down and exit (no dialog)
+        // - In mining-only mode: just exit without touching the node (we didn't start it)
         // - In wallet mode: ask user what to do
         if (!miningActive && !plottingActive && nodeRunning) {
           if (isMiningOnly) {
-            await this.showNodeShutdownDialog();
+            // Mining-only mode doesn't manage the node lifecycle - just exit
+            await invoke('exit_app');
           } else {
             await this.showKeepNodeRunningDialog();
           }
