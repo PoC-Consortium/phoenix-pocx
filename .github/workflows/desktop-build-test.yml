@@ -103,6 +103,11 @@ jobs:
             fi
           done
 
+      - name: Build macOS Miner launcher binary
+        if: matrix.os_name == 'macOS'
+        working-directory: web-wallet/src-tauri
+        run: cargo build --release --bin phoenix-pocx-miner --target ${{ matrix.target }}
+
       - name: Prepare macOS Miner wrapper app
         if: matrix.os_name == 'macOS'
         run: |
@@ -110,6 +115,7 @@ jobs:
           MAIN_APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d | head -1)
           MINER_APP="web-wallet/src-tauri/macos/Phoenix PoCX Miner.app"
           ICON_SRC="$MAIN_APP/Contents/Resources/Phoenix PoCX Wallet.icns"
+          MINER_BIN="web-wallet/src-tauri/target/${{ matrix.target }}/release/phoenix-pocx-miner"
 
           # Verify main app was built
           if [ -z "$MAIN_APP" ] || [ ! -d "$MAIN_APP" ]; then
@@ -125,12 +131,23 @@ jobs:
             exit 1
           fi
 
-          # Prepare miner wrapper
+          # Verify miner binary was built
+          if [ ! -f "$MINER_BIN" ]; then
+            echo "ERROR: Miner binary not found at $MINER_BIN"
+            exit 1
+          fi
+
+          # Prepare miner wrapper with compiled binary
           mkdir -p "$MINER_APP/Contents/Resources"
+          mkdir -p "$MINER_APP/Contents/MacOS"
           cp "$ICON_SRC" "$MINER_APP/Contents/Resources/icon.icns"
+          cp "$MINER_BIN" "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
           chmod +x "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
 
-          echo "Miner wrapper prepared successfully"
+          # Ad-hoc sign the miner app
+          codesign --force --deep -s - "$MINER_APP"
+
+          echo "Miner wrapper prepared successfully with native binary"
 
       - name: Recreate macOS DMG with both apps
         if: matrix.os_name == 'macOS'

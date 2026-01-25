@@ -12,6 +12,11 @@ default-run = "phoenix-pocx"
 name = "phoenix_pocx_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# macOS miner launcher - native binary to avoid Rosetta prompts
+[[bin]]
+name = "phoenix-pocx-miner"
+path = "src/bin/miner_launcher.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
