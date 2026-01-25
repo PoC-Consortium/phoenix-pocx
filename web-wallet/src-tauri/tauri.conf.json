@@ -46,18 +46,18 @@
       "appimage": {
         "bundleMediaFramework": false,
         "files": {
-          "usr/share/applications/phoenix-pocx-miner.desktop": "linux/phoenix-pocx-miner.desktop"
+          "/usr/share/applications/phoenix-pocx-miner.desktop": "linux/phoenix-pocx-miner.desktop"
         }
       },
       "deb": {
         "depends": [],
         "files": {
-          "usr/share/applications/phoenix-pocx-miner.desktop": "linux/phoenix-pocx-miner.desktop"
+          "/usr/share/applications/phoenix-pocx-miner.desktop": "linux/phoenix-pocx-miner.desktop"
         }
       },
       "rpm": {
         "files": {
-          "usr/share/applications/phoenix-pocx-miner.desktop": "linux/phoenix-pocx-miner.desktop"
+          "/usr/share/applications/phoenix-pocx-miner.desktop": "linux/phoenix-pocx-miner.desktop"
         }
       }
     },
