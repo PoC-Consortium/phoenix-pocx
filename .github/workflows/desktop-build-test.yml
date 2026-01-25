@@ -1,0 +1,138 @@
+name: Desktop Build (Test)
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  build:
+    name: Build (${{ matrix.label }})
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            label: Linux-x64
+            os_name: Linux
+            arch_name: x64
+          # Linux ARM64 (Raspberry Pi 4/5, ARM servers)
+          - platform: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            label: Linux-ARM64
+            os_name: Linux
+            arch_name: ARM64
+          # macOS Apple Silicon
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            label: macOS-AppleSilicon
+            os_name: macOS
+            arch_name: AppleSilicon
+          # macOS Intel
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            label: macOS-Intel
+            os_name: macOS
+            arch_name: Intel
+          # Windows x64
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            label: Windows-x64
+            os_name: Windows
+            arch_name: x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: web-wallet/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './web-wallet/src-tauri -> target'
+
+      - name: Install dependencies (Ubuntu)
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+
+      - name: Install web-wallet dependencies
+        working-directory: web-wallet
+        run: npm ci
+
+      - name: Build Tauri app
+        working-directory: web-wallet
+        run: npm run tauri build -- --target ${{ matrix.target }}
+
+      - name: Collect artifacts (Linux)
+        if: matrix.os_name == 'Linux'
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          mkdir -p artifacts
+
+          # Copy AppImage
+          for f in "$BUNDLE_DIR/appimage/"*.AppImage; do
+            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
+          done
+
+          # Copy deb
+          for f in "$BUNDLE_DIR/deb/"*.deb; do
+            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
+          done
+
+          # Copy rpm
+          for f in "$BUNDLE_DIR/rpm/"*.rpm; do
+            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
+          done
+
+      - name: Collect artifacts (macOS)
+        if: matrix.os_name == 'macOS'
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          mkdir -p artifacts
+
+          # Copy dmg
+          for f in "$BUNDLE_DIR/dmg/"*.dmg; do
+            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
+          done
+
+          # Copy app.tar.gz
+          for f in "$BUNDLE_DIR/macos/"*.tar.gz; do
+            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
+          done
+
+      - name: Collect artifacts (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          mkdir -p artifacts
+
+          # Copy NSIS installer
+          for f in "$BUNDLE_DIR/nsis/"*-setup.exe; do
+            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
+          done
+
+          # Copy MSI
+          for f in "$BUNDLE_DIR/msi/"*.msi; do
+            [ -f "$f" ] && cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Phoenix-PoCX-Wallet-${{ matrix.label }}-test
+          path: artifacts/*
+          retention-days: 14
