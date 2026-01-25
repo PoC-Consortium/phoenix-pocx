@@ -110,6 +110,9 @@ jobs:
           MAIN_APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d | head -1)
           MINER_APP="web-wallet/src-tauri/macos/Phoenix PoCX Miner.app"
 
+          # Ensure Resources directory exists (git doesn't track empty dirs)
+          mkdir -p "$MINER_APP/Contents/Resources"
+
           # Copy icon from main app to miner wrapper
           cp "$MAIN_APP/Contents/Resources/icon.icns" "$MINER_APP/Contents/Resources/"
 
