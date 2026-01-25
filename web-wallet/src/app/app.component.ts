@@ -105,10 +105,12 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     // Check if we need to wait for node startup (set synchronously before async code)
+    // Skip in mining-only mode - it doesn't manage the node lifecycle
     if (
       this.electronService.isDesktop &&
       this.nodeService.isManaged() &&
-      this.nodeService.isInstalled()
+      this.nodeService.isInstalled() &&
+      !this.appModeService.isMiningOnly()
     ) {
       this.isStartingNode.set(true);
     }
