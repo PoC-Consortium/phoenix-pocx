@@ -13,14 +13,23 @@ import {
   ReleaseAsset,
   formatBytes,
   formatSpeed,
-  calculateEta,
-  getStageName,
+  getEtaValues,
+  getStageKey,
 } from '../../models';
+import { I18nPipe, I18nService } from '../../../core/i18n';
+import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 
 @Component({
   selector: 'app-node-setup',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule, MatProgressBarModule, MatSnackBarModule],
+  imports: [
+    CommonModule,
+    MatIconModule,
+    MatButtonModule,
+    MatProgressBarModule,
+    MatSnackBarModule,
+    I18nPipe,
+  ],
   template: `
     <div class="setup-container">
       <div class="logo-container">
@@ -31,11 +40,11 @@ import {
         <!-- Step 1: Mode Selection -->
         @if (currentStep() === 0) {
           <div class="box-header">
-            <h2>Node Setup</h2>
+            <h2>{{ 'node_setup_title' | i18n }}</h2>
           </div>
 
           <div class="box-content">
-            <p class="intro-text">How would you like to connect to the Bitcoin-PoCX network?</p>
+            <p class="intro-text">{{ 'node_setup_intro_text' | i18n }}</p>
 
             <div class="mode-options">
               <div
@@ -46,12 +55,13 @@ import {
                 <mat-icon class="mode-icon">cloud_download</mat-icon>
                 <div class="mode-details">
                   <div class="mode-title">
-                    Managed Node
-                    <span class="recommended-badge">Recommended</span>
+                    {{ 'node_setup_managed_title' | i18n }}
+                    <span class="recommended-badge">{{
+                      'node_setup_recommended_badge' | i18n
+                    }}</span>
                   </div>
                   <div class="mode-desc">
-                    Phoenix downloads and manages Bitcoin-PoCX Core automatically. Best for most
-                    users.
+                    {{ 'node_setup_managed_desc' | i18n }}
                   </div>
                 </div>
               </div>
@@ -63,9 +73,9 @@ import {
               >
                 <mat-icon class="mode-icon">link</mat-icon>
                 <div class="mode-details">
-                  <div class="mode-title">External Node</div>
+                  <div class="mode-title">{{ 'node_setup_external_title' | i18n }}</div>
                   <div class="mode-desc">
-                    Connect to your own Bitcoin-PoCX node via RPC. For advanced users.
+                    {{ 'node_setup_external_desc' | i18n }}
                   </div>
                 </div>
               </div>
@@ -77,7 +87,7 @@ import {
             <div class="right-actions">
               <button mat-raised-button color="primary" (click)="continueFromModeSelection()">
                 <mat-icon>arrow_forward</mat-icon>
-                Continue
+                {{ 'node_setup_continue' | i18n }}
               </button>
             </div>
           </div>
@@ -86,24 +96,26 @@ import {
         <!-- Step 2: Node Installation (Managed only) -->
         @if (currentStep() === 1) {
           <div class="box-header">
-            <h2>Install Node</h2>
+            <h2>{{ 'node_setup_install_title' | i18n }}</h2>
           </div>
 
           <div class="box-content">
             @if (isInstalled()) {
               <div class="status-container success">
                 <mat-icon class="status-icon">check_circle</mat-icon>
-                <h3>Bitcoin-PoCX Core Installed</h3>
-                <p>Version: {{ nodeService.currentVersion() }}</p>
+                <h3>{{ 'node_setup_installed_success' | i18n }}</h3>
+                <p>{{ 'version' | i18n }}: {{ nodeService.currentVersion() }}</p>
                 <p class="verified-hint">
                   <mat-icon class="verified-icon">verified</mat-icon>
-                  SHA256 verified
+                  {{ 'node_setup_sha256_verified' | i18n }}
                 </p>
               </div>
             } @else if (downloadProgress()) {
               <div class="status-container">
                 <div class="progress-info">
-                  <span class="progress-stage">{{ getStageName(downloadProgress()!.stage) }}</span>
+                  <span class="progress-stage">{{
+                    getStageKey(downloadProgress()!.stage) | i18n
+                  }}</span>
                   @if (downloadProgress()!.stage === 'downloading') {
                     <span class="progress-percent">{{ downloadPercent() | number: '1.0-0' }}%</span>
                   }
@@ -120,12 +132,7 @@ import {
                       {{ formatBytes(downloadProgress()!.totalBytes) }}</span
                     >
                     <span>{{ formatSpeed(downloadProgress()!.speedBytesPerSec) }}</span>
-                    <span>{{
-                      calculateEta(
-                        downloadProgress()!.totalBytes - downloadProgress()!.downloadedBytes,
-                        downloadProgress()!.speedBytesPerSec
-                      )
-                    }}</span>
+                    <span>{{ getEtaString() }}</span>
                   </div>
                 } @else if (
                   downloadProgress()!.stage === 'verifying' ||
@@ -148,46 +155,46 @@ import {
               <div class="status-container">
                 @if (isFetchingRelease()) {
                   <mat-progress-bar mode="indeterminate" class="fetch-progress"></mat-progress-bar>
-                  <p>Fetching latest release...</p>
+                  <p>{{ 'node_setup_fetching_release' | i18n }}</p>
                 } @else if (releaseInfo()) {
                   <div class="release-info">
                     <div class="release-header">
                       <div class="release-title">
-                        <span class="version">Bitcoin-PoCX Core</span>
+                        <span class="version">{{ 'node_setup_bitcoin_pocx_core' | i18n }}</span>
                         <span class="version-badge">{{ releaseInfo()!.tag }}</span>
                       </div>
                     </div>
                     <div class="release-details">
                       <div class="detail-row">
-                        <span class="label">Platform:</span>
+                        <span class="label">{{ 'node_setup_platform_label' | i18n }}</span>
                         <span class="value">{{ getOsName() }} ({{ platformArch() }})</span>
                       </div>
                       @if (platformAsset()) {
                         <div class="detail-row">
-                          <span class="label">Download size:</span>
+                          <span class="label">{{ 'node_setup_download_size_label' | i18n }}</span>
                           <span class="value">{{ formatBytes(platformAsset()!.size) }}</span>
                         </div>
                         <div class="detail-row">
-                          <span class="label">File:</span>
+                          <span class="label">{{ 'node_setup_file_label' | i18n }}</span>
                           <span class="value file-name">{{ platformAsset()!.name }}</span>
                         </div>
                       }
                       @if (platformAsset()?.sha256) {
                         <div class="detail-row">
-                          <span class="label">SHA256:</span>
+                          <span class="label">{{ 'node_setup_sha256_label' | i18n }}</span>
                           <span class="value sha-value">{{ platformAsset()!.sha256 }}</span>
                         </div>
                       }
                       <div class="detail-row">
-                        <span class="label">Source:</span>
+                        <span class="label">{{ 'node_setup_source_label' | i18n }}</span>
                         <span class="value">github.com/PoC-Consortium/bitcoin</span>
                       </div>
                     </div>
                   </div>
                 } @else {
                   <mat-icon class="download-icon">cloud_download</mat-icon>
-                  <p>Click the button below to download and install Bitcoin-PoCX Core.</p>
-                  <p class="source-hint">Source: github.com/PoC-Consortium/bitcoin</p>
+                  <p>{{ 'node_setup_download_instruction' | i18n }}</p>
+                  <p class="source-hint">{{ 'node_setup_source_hint' | i18n }}</p>
                 }
                 @if (nodeService.error()) {
                   <div class="error-message">
@@ -203,7 +210,7 @@ import {
             <div class="left-actions">
               <button mat-stroked-button (click)="back()">
                 <mat-icon>arrow_back</mat-icon>
-                Back
+                {{ 'back' | i18n }}
               </button>
             </div>
             <div class="right-actions">
@@ -211,20 +218,22 @@ import {
                 @if (isStartingNode()) {
                   <button mat-raised-button color="primary" disabled>
                     <mat-icon class="spin">sync</mat-icon>
-                    Starting Node...
+                    {{ 'node_setup_starting_node' | i18n }}
                   </button>
                 } @else {
                   <button mat-raised-button color="primary" (click)="finish()">
                     <mat-icon>arrow_forward</mat-icon>
-                    Get Started
+                    {{ 'node_setup_get_started' | i18n }}
                   </button>
                 }
               } @else if (isDownloading()) {
-                <button mat-stroked-button color="warn" (click)="cancelDownload()">Cancel</button>
+                <button mat-stroked-button color="warn" (click)="cancelDownload()">
+                  {{ 'cancel' | i18n }}
+                </button>
               } @else {
                 <button mat-raised-button color="primary" (click)="startDownload()">
                   <mat-icon>download</mat-icon>
-                  Download & Install
+                  {{ 'node_setup_download_install' | i18n }}
                 </button>
               }
             </div>
@@ -615,6 +624,8 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   readonly nodeService = inject(NodeService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly i18n = inject(I18nService);
+  private readonly cookieAuth = inject(CookieAuthService);
 
   // State
   readonly currentStep = signal(0);
@@ -634,8 +645,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   // Helper methods exposed to template
   formatBytes = formatBytes;
   formatSpeed = formatSpeed;
-  calculateEta = calculateEta;
-  getStageName = getStageName;
+  getStageKey = getStageKey;
 
   async ngOnInit(): Promise<void> {
     await this.nodeService.initialize();
@@ -692,14 +702,30 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Get a human-readable OS name
+   * Get a human-readable OS name (translated)
    */
   getOsName(): string {
     const platform = navigator.platform.toLowerCase();
-    if (platform.includes('win')) return 'Windows';
-    if (platform.includes('mac')) return 'macOS';
-    if (platform.includes('linux')) return 'Linux';
-    return 'Unknown';
+    if (platform.includes('win')) return this.i18n.get('node_os_windows');
+    if (platform.includes('mac')) return this.i18n.get('node_os_macos');
+    if (platform.includes('linux')) return this.i18n.get('node_os_linux');
+    return this.i18n.get('unknown');
+  }
+
+  /**
+   * Get translated ETA string for download progress
+   */
+  getEtaString(): string {
+    const progress = this.downloadProgress();
+    if (!progress) return '--';
+
+    const { key, params } = getEtaValues(
+      progress.totalBytes - progress.downloadedBytes,
+      progress.speedBytesPerSec
+    );
+
+    if (!key) return '--';
+    return this.i18n.get(key, params);
   }
 
   selectMode(mode: NodeMode): void {
@@ -765,7 +791,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
     );
 
     if (version) {
-      this.snackBar.open(`Bitcoin-PoCX Core ${version} installed successfully`, 'OK', {
+      this.snackBar.open(this.i18n.get('node_setup_install_success', { version }), 'OK', {
         duration: 5000,
       });
     }
@@ -785,16 +811,19 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
       this.isStartingNode.set(true);
 
       try {
-        // Start node and wait for RPC to be ready
-        const ready = await this.nodeService.startNodeAndWait(60);
+        // Unified flow: detect, start if needed, wait for RPC, refresh credentials
+        const ready = await this.nodeService.ensureNodeReadyAndAuthenticated(() =>
+          this.cookieAuth.refreshCredentials()
+        );
+
         if (!ready) {
-          this.snackBar.open('Node started but RPC not ready yet. You may need to wait.', 'OK', {
+          this.snackBar.open(this.i18n.get('node_setup_rpc_not_ready'), 'OK', {
             duration: 5000,
           });
         }
       } catch (err) {
         console.error('Failed to start node:', err);
-        this.snackBar.open('Failed to start node. Continuing anyway...', 'OK', {
+        this.snackBar.open(this.i18n.get('node_setup_start_failed'), 'OK', {
           duration: 3000,
         });
       } finally {

@@ -1,6 +1,11 @@
-import { Injectable, inject, signal, OnDestroy } from '@angular/core';
+import { Injectable, inject, signal, OnDestroy, computed } from '@angular/core';
 import { Subject, interval, takeUntil } from 'rxjs';
-import { BlockchainRpcService, BlockchainInfo, Block } from './rpc/blockchain-rpc.service';
+import {
+  BlockchainRpcService,
+  BlockchainInfo,
+  Block,
+  PeerInfo,
+} from './rpc/blockchain-rpc.service';
 import { CookieAuthService } from '../../core/auth/cookie-auth.service';
 import { PocxNotificationService } from './pocx-notification.service';
 
@@ -9,6 +14,22 @@ import { PocxNotificationService } from './pocx-notification.service';
  */
 export interface PoCXBlock extends Block {
   base_target?: number;
+}
+
+/**
+ * Sync phase enum for UI display
+ */
+export type SyncPhase = 'connecting' | 'header_sync' | 'block_sync' | 'synced';
+
+/**
+ * Sync state with phase and progress information
+ */
+export interface SyncState {
+  phase: SyncPhase;
+  percent: number;
+  blocks: number;
+  headers: number;
+  targetHeight: number;
 }
 
 // PoCX constants for network capacity calculation
@@ -53,9 +74,16 @@ export class BlockchainStateService implements OnDestroy {
   readonly initialBlockDownload = signal(false);
   readonly difficulty = signal(0);
 
+  // Peer-derived signals
+  readonly peerTargetHeight = signal(0);
+  readonly peerCount = signal(0);
+
   // Best block signals (from getBlock)
   readonly lastBlockTime = signal(0);
   readonly baseTarget = signal<number | null>(null);
+
+  // Computed sync state with phase detection
+  readonly syncState = computed<SyncState>(() => this.calculateSyncState());
 
   // Loading state
   readonly isLoading = signal(false);
@@ -101,9 +129,14 @@ export class BlockchainStateService implements OnDestroy {
     this.lastError.set(null);
 
     try {
-      // Get blockchain info
-      const info = await this.blockchainRpc.getBlockchainInfo();
+      // Get blockchain info and peer info in parallel
+      const [info, peers] = await Promise.all([
+        this.blockchainRpc.getBlockchainInfo(),
+        this.blockchainRpc.getPeerInfo().catch(() => [] as PeerInfo[]),
+      ]);
+
       this.updateFromBlockchainInfo(info);
+      this.updateFromPeerInfo(peers);
 
       // Get best block for additional info (time, base_target)
       if (info.bestblockhash) {
@@ -163,7 +196,77 @@ export class BlockchainStateService implements OnDestroy {
   }
 
   /**
+   * Update signals from PeerInfo response
+   */
+  private updateFromPeerInfo(peers: PeerInfo[]): void {
+    this.peerCount.set(peers.length);
+
+    // Get target height from the highest peer starting height
+    if (peers.length > 0) {
+      const maxHeight = Math.max(...peers.map(p => p.startingheight || 0));
+      this.peerTargetHeight.set(maxHeight);
+    }
+  }
+
+  /**
+   * Calculate sync state with phase detection
+   */
+  private calculateSyncState(): SyncState {
+    const blocks = this.blockHeight();
+    const headers = this.headers();
+    const ibd = this.initialBlockDownload();
+    const targetHeight = this.peerTargetHeight();
+    const verifyProgress = this.verificationProgress();
+
+    // Fully synced
+    if (!ibd && verifyProgress > 0.9999) {
+      return {
+        phase: 'synced',
+        percent: 100,
+        blocks,
+        headers,
+        targetHeight,
+      };
+    }
+
+    // No peers yet - connecting
+    if (targetHeight === 0) {
+      return {
+        phase: 'connecting',
+        percent: 0,
+        blocks,
+        headers,
+        targetHeight: 0,
+      };
+    }
+
+    // Phase 1: Header sync (headers catching up to peer-reported height)
+    // Use 99.5% threshold to account for new blocks during sync
+    if (headers < targetHeight * 0.995) {
+      const headerPercent = (headers / targetHeight) * 100;
+      return {
+        phase: 'header_sync',
+        percent: Math.min(Math.max(headerPercent, 0), 99.9),
+        blocks,
+        headers,
+        targetHeight,
+      };
+    }
+
+    // Phase 2: Block sync (blocks catching up to headers)
+    const blockPercent = headers > 0 ? (blocks / headers) * 100 : 0;
+    return {
+      phase: 'block_sync',
+      percent: Math.min(Math.max(blockPercent, 0), 99.9),
+      blocks,
+      headers,
+      targetHeight,
+    };
+  }
+
+  /**
    * Get sync progress as percentage (0-100)
+   * @deprecated Use syncState signal instead
    */
   getSyncProgress(): number {
     return Math.round(this.verificationProgress() * 100);
@@ -173,7 +276,7 @@ export class BlockchainStateService implements OnDestroy {
    * Check if blockchain is fully synced
    */
   isSynced(): boolean {
-    return !this.initialBlockDownload() && this.verificationProgress() > 0.9999;
+    return this.syncState().phase === 'synced';
   }
 
   /**

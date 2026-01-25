@@ -66,12 +66,26 @@ pub enum RpcAuth {
     },
 }
 
+/// Chain type for UI purposes
+/// - Solo: Built-in solo mining via local managed node
+/// - Pool: Built-in pool from predefined list
+/// - Custom: User-defined chain/pool endpoint
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ChainType {
+    #[default]
+    Solo,
+    Pool,
+    Custom,
+}
+
 /// Chain configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainConfig {
     pub id: String,
     pub name: String,
+    pub chain_type: ChainType,
     pub rpc_transport: RpcTransport,
     pub rpc_host: String,
     pub rpc_port: u16,

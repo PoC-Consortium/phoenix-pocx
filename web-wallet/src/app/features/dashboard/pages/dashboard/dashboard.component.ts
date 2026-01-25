@@ -80,8 +80,8 @@ const _BLOCK_TIME_MINUTES = 2;
                 <span class="label">{{ 'status' | i18n }}:</span>
                 <span
                   class="value"
-                  [class.syncing]="blockchainInfo().initialblockdownload"
-                  [class.synced]="!blockchainInfo().initialblockdownload"
+                  [class.syncing]="syncState().phase !== 'synced'"
+                  [class.synced]="syncState().phase === 'synced'"
                 >
                   {{ getSyncStateWithProgress() }}
                 </span>
@@ -955,6 +955,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     difficulty: this.blockchainState.difficulty(),
   }));
 
+  // Sync state for phase-aware progress display
+  syncState = computed(() => this.blockchainState.syncState());
+
   // Balance from WalletService
   totalBalance = computed(() => this.walletService.balance());
   pendingBalance = computed(() => this.walletService.unconfirmedBalance());
@@ -1192,22 +1195,37 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   getSyncProgress(): string {
-    const info = this.blockchainInfo();
-    if (info?.verificationprogress) {
-      return (info.verificationprogress * 100).toFixed(2);
-    }
-    return '0.00';
+    const state = this.syncState();
+    return state.percent.toFixed(2);
   }
 
   getSyncStateWithProgress(): string {
-    const info = this.blockchainInfo();
-    if (!info) return this.i18n.get('unknown');
+    const state = this.syncState();
 
-    if (info.initialblockdownload) {
-      const progress = this.getSyncProgress();
-      return `${this.i18n.get('syncing')} (${progress}%)`;
+    switch (state.phase) {
+      case 'connecting':
+        return this.i18n.get('sync_connecting');
+
+      case 'header_sync':
+        return this.i18n.get('sync_headers_progress', {
+          percent: state.percent.toFixed(1),
+          headers: state.headers.toLocaleString(),
+          target: state.targetHeight.toLocaleString(),
+        });
+
+      case 'block_sync':
+        return this.i18n.get('sync_blocks_progress', {
+          percent: state.percent.toFixed(1),
+          blocks: state.blocks.toLocaleString(),
+          headers: state.headers.toLocaleString(),
+        });
+
+      case 'synced':
+        return this.i18n.get('synced');
+
+      default:
+        return this.i18n.get('unknown');
     }
-    return this.i18n.get('synced');
   }
 
   getNetworkCapacity(): string {

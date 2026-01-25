@@ -39,17 +39,23 @@ import {
 } from '../../models';
 
 type ChainMode = 'solo' | 'pool' | 'custom';
+type AuthType = 'none' | 'userpass' | 'cookie';
 
 interface ChainModalData {
   mode: ChainMode;
+  // Common fields
   chainName: string;
+  // Pool mode
   poolUrl: string;
-  poolToken: string;
+  // Custom mode
   customUrl: string;
-  customApiPath: string;
   customMode: 'solo' | 'pool';
   customBlockTime: number;
-  customToken: string;
+  // Auth fields (for pool and custom modes)
+  authType: AuthType;
+  authUsername: string;
+  authPassword: string;
+  authCookiePath: string;
 }
 
 @Component({
@@ -891,7 +897,10 @@ interface ChainModalData {
                 <button
                   class="mode-tab"
                   [class.active]="chainModalData().mode === 'solo'"
+                  [class.disabled]="appMode.isMobile()"
+                  [disabled]="appMode.isMobile()"
                   (click)="setChainMode('solo')"
+                  [title]="appMode.isMobile() ? ('setup_solo_not_available_mobile' | i18n) : ''"
                 >
                   {{ 'setup_solo_local' | i18n }}
                 </button>
@@ -930,26 +939,44 @@ interface ChainModalData {
                   (ngModelChange)="updateChainModal('poolUrl', $event)"
                 >
                   <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
-                  <option value="https://pool.pocx.io:8080/api">
-                    PoCX Pool Alpha (pool.pocx.io)
-                  </option>
-                  <option value="https://pool2.pocx.io:8080/api">
-                    PoCX Pool Beta (pool2.pocx.io)
-                  </option>
-                  <option value="https://community.pocx.io:8080/api">
+                  <option value="https://pool.pocx.io:8080">PoCX Pool Alpha (pool.pocx.io)</option>
+                  <option value="https://pool2.pocx.io:8080">PoCX Pool Beta (pool2.pocx.io)</option>
+                  <option value="https://community.pocx.io:8080">
                     Community Pool (community.pocx.io)
                   </option>
                 </select>
               </div>
-              <div class="form-group">
-                <label>{{ 'setup_bearer_token' | i18n }}</label>
-                <input
-                  type="text"
-                  [ngModel]="chainModalData().poolToken"
-                  (ngModelChange)="updateChainModal('poolToken', $event)"
-                  [placeholder]="'setup_pool_token_placeholder' | i18n"
-                />
+              <!-- Auth Type for Pool -->
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label>{{ 'setup_authentication' | i18n }}</label>
+                <select
+                  [ngModel]="chainModalData().authType"
+                  (ngModelChange)="updateChainModal('authType', $event)"
+                >
+                  <option value="none">{{ 'setup_auth_none' | i18n }}</option>
+                  <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
+                </select>
               </div>
+              @if (chainModalData().authType === 'userpass') {
+                <div class="form-row" style="margin-bottom: 16px;">
+                  <div class="form-group">
+                    <label>{{ 'setup_username' | i18n }}</label>
+                    <input
+                      type="text"
+                      [ngModel]="chainModalData().authUsername"
+                      (ngModelChange)="updateChainModal('authUsername', $event)"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>{{ 'setup_password' | i18n }}</label>
+                    <input
+                      type="password"
+                      [ngModel]="chainModalData().authPassword"
+                      (ngModelChange)="updateChainModal('authPassword', $event)"
+                    />
+                  </div>
+                </div>
+              }
             }
 
             <!-- Custom Mode -->
@@ -972,18 +999,9 @@ interface ChainModalData {
                   placeholder="https://example.com:8332"
                 />
               </div>
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label>{{ 'setup_api_path' | i18n }}</label>
-                <input
-                  type="text"
-                  [ngModel]="chainModalData().customApiPath"
-                  (ngModelChange)="updateChainModal('customApiPath', $event)"
-                  placeholder="/api"
-                />
-              </div>
               <div class="form-row" style="margin-bottom: 16px;">
                 <div class="form-group">
-                  <label>{{ 'setup_mode' | i18n }}</label>
+                  <label>{{ 'setup_submission_mode' | i18n }}</label>
                   <select
                     [ngModel]="chainModalData().customMode"
                     (ngModelChange)="updateChainModal('customMode', $event)"
@@ -1001,15 +1019,37 @@ interface ChainModalData {
                   />
                 </div>
               </div>
-              <div class="form-group">
-                <label>{{ 'setup_auth_token' | i18n }}</label>
-                <input
-                  type="text"
-                  [ngModel]="chainModalData().customToken"
-                  (ngModelChange)="updateChainModal('customToken', $event)"
-                  [placeholder]="'setup_auth_token_placeholder' | i18n"
-                />
+              <!-- Auth Type for Custom (same as Pool: None or UserPass) -->
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label>{{ 'setup_authentication' | i18n }}</label>
+                <select
+                  [ngModel]="chainModalData().authType"
+                  (ngModelChange)="updateChainModal('authType', $event)"
+                >
+                  <option value="none">{{ 'setup_auth_none' | i18n }}</option>
+                  <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
+                </select>
               </div>
+              @if (chainModalData().authType === 'userpass') {
+                <div class="form-row" style="margin-bottom: 16px;">
+                  <div class="form-group">
+                    <label>{{ 'setup_username' | i18n }}</label>
+                    <input
+                      type="text"
+                      [ngModel]="chainModalData().authUsername"
+                      (ngModelChange)="updateChainModal('authUsername', $event)"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label>{{ 'setup_password' | i18n }}</label>
+                    <input
+                      type="password"
+                      [ngModel]="chainModalData().authPassword"
+                      (ngModelChange)="updateChainModal('authPassword', $event)"
+                    />
+                  </div>
+                </div>
+              }
             }
           </div>
           <div class="modal-footer">
@@ -2548,12 +2588,13 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     mode: 'solo',
     chainName: '',
     poolUrl: '',
-    poolToken: '',
     customUrl: '',
-    customApiPath: '',
     customMode: 'solo',
     customBlockTime: 120,
-    customToken: '',
+    authType: 'none',
+    authUsername: '',
+    authPassword: '',
+    authCookiePath: '',
   });
 
   // Computed values - GiB based
@@ -2978,39 +3019,56 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Step 1: Chain management
   showChainModal(): void {
     this.editingChain.set(null);
+    // Default to 'pool' on mobile since solo requires local node
+    const defaultMode = this.appMode.isMobile() ? 'pool' : 'solo';
     this.chainModalData.set({
-      mode: 'solo',
+      mode: defaultMode,
       chainName: '',
       poolUrl: '',
-      poolToken: '',
       customUrl: '',
-      customApiPath: '',
       customMode: 'solo',
       customBlockTime: 120,
-      customToken: '',
+      authType: 'none',
+      authUsername: '',
+      authPassword: '',
+      authCookiePath: '',
     });
     this.chainModalOpen.set(true);
   }
 
   editChain(chain: ChainConfig): void {
     this.editingChain.set(chain);
+
     // Build URL from chain config for display
     const chainUrl = `${chain.rpcTransport}://${chain.rpcHost}:${chain.rpcPort}`;
-    // Determine if this is a "custom" chain (user-defined pool endpoint)
-    const isCustomPool =
-      chain.mode === 'pool' && chain.rpcHost && !chain.rpcHost.includes('pocx.io');
-    // Extract token from auth
-    const authToken = chain.rpcAuth.type === 'user_pass' ? chain.rpcAuth.password : '';
+
+    // Extract auth fields based on auth type
+    let authType: AuthType = 'none';
+    let authUsername = '';
+    let authPassword = '';
+    let authCookiePath = '';
+
+    if (chain.rpcAuth.type === 'user_pass') {
+      authType = 'userpass';
+      authUsername = chain.rpcAuth.username;
+      authPassword = chain.rpcAuth.password;
+    } else if (chain.rpcAuth.type === 'cookie') {
+      authType = 'cookie';
+      authCookiePath = chain.rpcAuth.cookiePath || '';
+    }
+
+    // Use chainType directly - no more guessing!
     this.chainModalData.set({
-      mode: isCustomPool ? 'custom' : chain.mode,
+      mode: chain.chainType,
       chainName: chain.name,
-      poolUrl: chain.mode === 'pool' && !isCustomPool ? chainUrl : '',
-      poolToken: authToken,
-      customUrl: isCustomPool ? chainUrl : '',
-      customApiPath: '', // API path no longer used
+      poolUrl: chain.chainType === 'pool' ? chainUrl : '',
+      customUrl: chain.chainType === 'custom' ? chainUrl : '',
       customMode: chain.mode,
       customBlockTime: chain.blockTimeSeconds || 120,
-      customToken: authToken,
+      authType,
+      authUsername,
+      authPassword,
+      authCookiePath,
     });
     this.chainModalOpen.set(true);
   }
@@ -3035,12 +3093,25 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     let chain: ChainConfig;
     const id = editing?.id || crypto.randomUUID();
 
+    // Build RpcAuth based on authType (used for pool and custom modes)
+    const buildRpcAuth = (): ChainConfig['rpcAuth'] => {
+      switch (data.authType) {
+        case 'userpass':
+          return { type: 'user_pass', username: data.authUsername, password: data.authPassword };
+        case 'cookie':
+          return { type: 'cookie', cookiePath: data.authCookiePath || undefined };
+        default:
+          return { type: 'none' };
+      }
+    };
+
     if (data.mode === 'solo') {
       // Solo mode uses wallet RPC settings (host/port read from wallet config)
       // rpcAuth is cookie with no path - backend reads cookie from wallet settings
       chain = {
         id,
         name: 'PoCX Testnet (Local)',
+        chainType: 'solo',
         rpcTransport: 'http',
         rpcHost: '127.0.0.1', // Will be overridden from wallet settings
         rpcPort: 18332, // Will be overridden from wallet settings
@@ -3063,12 +3134,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       chain = {
         id,
         name: poolName,
+        chainType: 'pool',
         rpcTransport: transport,
         rpcHost: host,
         rpcPort: port,
-        rpcAuth: data.poolToken
-          ? { type: 'user_pass', username: 'pool', password: data.poolToken }
-          : { type: 'none' },
+        rpcAuth: buildRpcAuth(),
         blockTimeSeconds: 120,
         mode: 'pool',
         enabled: true,
@@ -3081,12 +3151,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       chain = {
         id,
         name: data.chainName || 'Custom Chain',
+        chainType: 'custom',
         rpcTransport: transport,
         rpcHost: host,
         rpcPort: port,
-        rpcAuth: data.customToken
-          ? { type: 'user_pass', username: 'user', password: data.customToken }
-          : { type: 'none' },
+        rpcAuth: buildRpcAuth(),
         blockTimeSeconds: data.customBlockTime,
         mode: data.customMode,
         enabled: true,

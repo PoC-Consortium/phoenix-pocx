@@ -1,10 +1,7 @@
-name: Android Release
+name: Android Build (Test)
 
 on:
-  workflow_dispatch:  # Manual trigger only, no inputs needed
-
-permissions:
-  contents: write
+  workflow_dispatch:  # Manual trigger only
 
 jobs:
   build-android:
@@ -12,19 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Get latest release tag
-        id: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
-          if [ -z "$TAG" ]; then
-            echo "No release found!"
-            exit 1
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Found latest release: $TAG"
 
       - name: Free disk space
         run: |
@@ -115,8 +99,8 @@ jobs:
         working-directory: web-wallet
         run: npx tauri android build --target aarch64
 
-      - name: Verify signed APK exists
-        id: verify
+      - name: Find signed APK
+        id: find-apk
         run: |
           # Find release APK (must be signed, not unsigned)
           APK_FILE=$(find web-wallet/src-tauri/gen/android -name "*.apk" -type f | grep -v debug | grep -v unsigned | head -1)
@@ -131,18 +115,9 @@ jobs:
           echo "Found signed APK: $APK_FILE"
           echo "apk_path=$APK_FILE" >> $GITHUB_OUTPUT
 
-      - name: Upload to latest release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ steps.release.outputs.tag }}"
-          VERSION="${TAG#v}"
-          APK_FILE="${{ steps.verify.outputs.apk_path }}"
-
-          NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android-ARM64.apk"
-          cp "$APK_FILE" "$NEW_NAME"
-
-          echo "Uploading $NEW_NAME to release $TAG"
-          gh release upload "$TAG" "$NEW_NAME" --repo ${{ github.repository }} --clobber
-
-          echo "Successfully uploaded Android APK to $TAG"
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Phoenix-PoCX-Miner-Android-ARM64-test
+          path: ${{ steps.find-apk.outputs.apk_path }}
+          retention-days: 14

@@ -63,9 +63,18 @@ export type RpcAuth =
   | { type: 'user_pass'; username: string; password: string }
   | { type: 'cookie'; cookiePath?: string };
 
+/**
+ * Chain type for UI purposes:
+ * - solo: Built-in solo mining via local managed node
+ * - pool: Built-in pool from predefined list
+ * - custom: User-defined chain/pool endpoint
+ */
+export type ChainType = 'solo' | 'pool' | 'custom';
+
 export interface ChainConfig {
   id: string;
   name: string;
+  chainType: ChainType;
   rpcTransport: RpcTransport;
   rpcHost: string;
   rpcPort: number;
