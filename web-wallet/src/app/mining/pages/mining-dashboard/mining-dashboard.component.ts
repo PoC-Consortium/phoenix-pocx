@@ -1377,6 +1377,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
       .status-dot.ready {
         background: #4caf50;
       }
+      .status-dot.unavailable {
+        background: #ef5350;
+      }
 
       .mini-progress-wrapper {
         display: flex;
@@ -2163,6 +2166,8 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
    * - queued: Drive needs more plotting before mining
    */
   getDriveStatusClass(drive: DriveConfig): string {
+    // Check if drive is unavailable (no info in cache)
+    if (!this.driveInfos().has(drive.path)) return 'unavailable';
     if (this.isDrivePlotting(drive)) {
       if (this.miningService.plotterUIState() === 'stopping') return 'stopping';
       return 'plotting';
@@ -2173,12 +2178,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   /**
    * Get human-readable drive status.
+   * Unavailable = drive not accessible
    * Ready = will be in mining
    * Plotting = currently being plotted
    * Stopping = finishing current task before stopping
    * Queued = not yet mining, needs more plotting
    */
   getDriveStatus(drive: DriveConfig): string {
+    // Check if drive is unavailable (no info in cache)
+    if (!this.driveInfos().has(drive.path)) return this.i18n.get('mining_unavailable');
     if (this.isDrivePlotting(drive)) {
       // Show "Stopping" if we're in stopping state
       if (this.miningService.plotterUIState() === 'stopping')

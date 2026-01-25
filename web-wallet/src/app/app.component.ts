@@ -1,10 +1,11 @@
-import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal, DOCUMENT } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BlockchainStateService } from './bitcoin/services/blockchain-state.service';
 import { ElectronService, UpdateInfo } from './core/services/electron.service';
 import { AppModeService } from './core/services/app-mode.service';
+import { PlatformService } from './core/services/platform.service';
 import { CookieAuthService } from './core/auth/cookie-auth.service';
 import { NotificationService } from './shared/services';
 import { MiningService } from './mining/services';
@@ -69,9 +70,11 @@ import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confi
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
+  private readonly document = inject(DOCUMENT);
   private readonly blockchainState = inject(BlockchainStateService);
   private readonly electronService = inject(ElectronService);
   private readonly appModeService = inject(AppModeService);
+  private readonly platformService = inject(PlatformService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly dialog = inject(MatDialog);
   private readonly notification = inject(NotificationService);
@@ -88,6 +91,9 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Start blockchain state polling - runs continuously for all components
     this.blockchainState.startPolling();
+
+    // Add platform class to body for platform-specific styling (e.g., Android safe area)
+    this.initPlatformClass();
 
     // If in mining-only mode, redirect to miner route immediately
     if (this.appModeService.isMiningOnly()) {
@@ -128,6 +134,17 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.nodeStatusInterval) {
       clearInterval(this.nodeStatusInterval);
       this.nodeStatusInterval = null;
+    }
+  }
+
+  /**
+   * Add platform-specific class to body for CSS targeting.
+   * Adds 'platform-android' on Android for safe area inset handling.
+   */
+  private async initPlatformClass(): Promise<void> {
+    await this.platformService.initialize();
+    if (this.platformService.isAndroid) {
+      this.document.body.classList.add('platform-android');
     }
   }
 

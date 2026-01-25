@@ -26,6 +26,7 @@ import {
 import {
   DriveInfo,
   DriveConfig,
+  DisplayDrive,
   ChainConfig,
   CpuConfig,
   CpuInfo,
@@ -707,107 +708,150 @@ interface ChainModalData {
               </div>
             </div>
 
-            @for (drive of availableDrives(); track drive.path) {
-              <div class="drive-card" [class.system-drive]="drive.isSystemDrive">
-                <!-- Line 1: Path + Capacity + Actions -->
-                <div class="drive-header">
-                  <span class="drive-path">{{ drive.path }}</span>
-                  <span class="capacity-badge"
-                    >{{ 'setup_total_capacity' | i18n }} {{ formatSize(drive.totalGib) }}</span
-                  >
-                  @if (drive.isSystemDrive) {
-                    <span class="system-badge" [title]="'setup_system_drive_warning' | i18n"
-                      >&#9888;</span
+            @for (drive of availableDrives(); track getDrivePath(drive)) {
+              @if (drive.available) {
+                <div class="drive-card" [class.system-drive]="drive.info.isSystemDrive">
+                  <!-- Line 1: Path + Capacity + Actions -->
+                  <div class="drive-header">
+                    <span class="drive-path">{{ drive.info.path }}</span>
+                    <span class="capacity-badge"
+                      >{{ 'setup_total_capacity' | i18n }}
+                      {{ formatSize(drive.info.totalGib) }}</span
                     >
-                  }
-                  <div class="drive-actions">
-                    <button
-                      class="drive-refresh"
-                      (click)="refreshDrive(drive)"
-                      [title]="'setup_refresh' | i18n"
-                    >
-                      &#8635;
-                    </button>
-                    <button class="drive-remove" (click)="removeDrive(drive)">&#10005;</button>
+                    @if (drive.info.isSystemDrive) {
+                      <span class="system-badge" [title]="'setup_system_drive_warning' | i18n"
+                        >&#9888;</span
+                      >
+                    }
+                    <div class="drive-actions">
+                      <button
+                        class="drive-refresh"
+                        (click)="refreshDriveByPath(drive.info.path)"
+                        [title]="'setup_refresh' | i18n"
+                      >
+                        &#8635;
+                      </button>
+                      <button class="drive-remove" (click)="removeDriveByPath(drive.info.path)">
+                        &#10005;
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <!-- Line 2: Segmented Bar -->
-                <div class="segment-bar-container">
-                  <div class="segment-bar">
-                    @if (getOtherDataGib(drive) > 0) {
-                      <div
-                        class="segment other"
-                        [style.flex]="getOtherDataGib(drive)"
-                        [title]="'setup_other_data_tooltip' | i18n"
-                      >
-                        <span class="segment-label">{{ formatSize(getOtherDataGib(drive)) }}</span>
-                      </div>
-                    }
-                    @if (drive.completeSizeGib > 0) {
-                      <div
-                        class="segment existing"
-                        [style.flex]="drive.completeSizeGib"
-                        [title]="'setup_plotted_tooltip' | i18n"
-                      >
-                        <span class="segment-label">{{ formatSize(drive.completeSizeGib) }}</span>
-                      </div>
-                    }
-                    @if (drive.incompleteSizeGib > 0) {
-                      <div
-                        class="segment unfinished"
-                        [style.flex]="drive.incompleteSizeGib"
-                        [title]="'setup_unfinished_tooltip' | i18n"
-                      >
-                        <span class="segment-label">{{ formatSize(drive.incompleteSizeGib) }}</span>
-                      </div>
-                    }
-                    @if (getToPlotGib(drive) > 0) {
-                      <div
-                        class="segment allocated"
-                        [style.flex]="getToPlotGib(drive)"
-                        [title]="'setup_to_plot_tooltip' | i18n"
-                      >
-                        <span class="segment-label">+{{ formatSize(getToPlotGib(drive)) }}</span>
-                      </div>
-                    }
-                    @if (getRemainingFree(drive) > 0) {
-                      <div
-                        class="segment free"
-                        [style.flex]="getRemainingFree(drive)"
-                        [title]="'setup_free_tooltip' | i18n"
-                      >
-                        <span class="segment-label"
-                          >{{ formatSize(getRemainingFree(drive)) }} {{ 'setup_free' | i18n }}</span
+                  <!-- Line 2: Segmented Bar -->
+                  <div class="segment-bar-container">
+                    <div class="segment-bar">
+                      @if (getOtherDataGibFromInfo(drive.info) > 0) {
+                        <div
+                          class="segment other"
+                          [style.flex]="getOtherDataGibFromInfo(drive.info)"
+                          [title]="'setup_other_data_tooltip' | i18n"
                         >
-                      </div>
+                          <span class="segment-label">{{
+                            formatSize(getOtherDataGibFromInfo(drive.info))
+                          }}</span>
+                        </div>
+                      }
+                      @if (drive.info.completeSizeGib > 0) {
+                        <div
+                          class="segment existing"
+                          [style.flex]="drive.info.completeSizeGib"
+                          [title]="'setup_plotted_tooltip' | i18n"
+                        >
+                          <span class="segment-label">{{
+                            formatSize(drive.info.completeSizeGib)
+                          }}</span>
+                        </div>
+                      }
+                      @if (drive.info.incompleteSizeGib > 0) {
+                        <div
+                          class="segment unfinished"
+                          [style.flex]="drive.info.incompleteSizeGib"
+                          [title]="'setup_unfinished_tooltip' | i18n"
+                        >
+                          <span class="segment-label">{{
+                            formatSize(drive.info.incompleteSizeGib)
+                          }}</span>
+                        </div>
+                      }
+                      @if (getToPlotGibFromInfo(drive.info) > 0) {
+                        <div
+                          class="segment allocated"
+                          [style.flex]="getToPlotGibFromInfo(drive.info)"
+                          [title]="'setup_to_plot_tooltip' | i18n"
+                        >
+                          <span class="segment-label"
+                            >+{{ formatSize(getToPlotGibFromInfo(drive.info)) }}</span
+                          >
+                        </div>
+                      }
+                      @if (getRemainingFreeFromInfo(drive.info) > 0) {
+                        <div
+                          class="segment free"
+                          [style.flex]="getRemainingFreeFromInfo(drive.info)"
+                          [title]="'setup_free_tooltip' | i18n"
+                        >
+                          <span class="segment-label"
+                            >{{ formatSize(getRemainingFreeFromInfo(drive.info)) }}
+                            {{ 'setup_free' | i18n }}</span
+                          >
+                        </div>
+                      }
+                    </div>
+                  </div>
+
+                  <!-- Line 3: Slider (0 to free space = new space to plot) -->
+                  <div class="drive-controls">
+                    <input
+                      type="range"
+                      class="slider"
+                      min="0"
+                      [max]="getNewPlotMaxFromInfo(drive.info)"
+                      [ngModel]="getNewPlotValueFromInfo(drive.info)"
+                      (ngModelChange)="onNewPlotChangeByPath(drive.info.path, $event)"
+                      step="1"
+                    />
+                    <div class="gib-input">
+                      <input
+                        type="number"
+                        min="0"
+                        [max]="getNewPlotMaxFromInfo(drive.info)"
+                        [ngModel]="getNewPlotValueFromInfo(drive.info)"
+                        (ngModelChange)="onNewPlotChangeByPath(drive.info.path, $event)"
+                      />
+                      <span class="unit">GiB</span>
+                    </div>
+                  </div>
+                </div>
+              } @else {
+                <!-- Unavailable drive card -->
+                <div class="drive-card unavailable-drive">
+                  <div class="drive-header">
+                    <span class="drive-path">{{ drive.path }}</span>
+                    <span class="unavailable-badge">{{ 'setup_drive_unavailable' | i18n }}</span>
+                    <div class="drive-actions">
+                      <button
+                        class="drive-refresh"
+                        (click)="refreshDriveByPath(drive.path)"
+                        [title]="'setup_refresh' | i18n"
+                      >
+                        &#8635;
+                      </button>
+                      <button class="drive-remove" (click)="removeDriveByPath(drive.path)">
+                        &#10005;
+                      </button>
+                    </div>
+                  </div>
+                  <div class="unavailable-message">
+                    <span>{{ 'setup_drive_unavailable_hint' | i18n }}</span>
+                    @if (drive.allocatedGib > 0) {
+                      <span class="configured-size"
+                        >({{ 'setup_configured' | i18n }}:
+                        {{ formatSize(drive.allocatedGib) }})</span
+                      >
                     }
                   </div>
                 </div>
-
-                <!-- Line 3: Slider (0 to free space = new space to plot) -->
-                <div class="drive-controls">
-                  <input
-                    type="range"
-                    class="slider"
-                    min="0"
-                    [max]="getNewPlotMax(drive)"
-                    [ngModel]="getNewPlotValue(drive)"
-                    (ngModelChange)="onNewPlotChange(drive, $event)"
-                    step="1"
-                  />
-                  <div class="gib-input">
-                    <input
-                      type="number"
-                      min="0"
-                      [max]="getNewPlotMax(drive)"
-                      [ngModel]="getNewPlotValue(drive)"
-                      (ngModelChange)="onNewPlotChange(drive, $event)"
-                    />
-                    <span class="unit">GiB</span>
-                  </div>
-                </div>
-              </div>
+              }
             }
 
             @if (availableDrives().length === 0) {
@@ -2111,6 +2155,36 @@ interface ChainModalData {
         background: #fff8e1;
       }
 
+      .drive-card.unavailable-drive {
+        border-color: #ef5350;
+        background: #ffebee;
+        opacity: 0.85;
+      }
+
+      .unavailable-badge {
+        padding: 2px 8px;
+        background: #ef5350;
+        color: white;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .unavailable-message {
+        font-size: 12px;
+        color: #c62828;
+        padding: 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .unavailable-message .configured-size {
+        color: #757575;
+        font-style: italic;
+      }
+
       /* Line 1: Path + Actions */
       .drive-header {
         display: flex;
@@ -2542,13 +2616,19 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly gpus = signal<GpuInfo[]>([]);
   readonly systemMemoryGib = signal(0); // Available system RAM
 
-  // Derive available drives from service cache based on driveConfigs
-  readonly availableDrives = computed(() => {
+  // Derive display drives from service cache based on driveConfigs
+  // Includes unavailable drives (configured but removed) so users can delete them
+  readonly availableDrives = computed<DisplayDrive[]>(() => {
     const configs = this.driveConfigs();
     const cache = this.miningService.driveInfoCache();
-    return configs
-      .map(config => cache.get(config.path))
-      .filter((info): info is DriveInfo => info !== undefined);
+    return configs.map(config => {
+      const info = cache.get(config.path);
+      if (info) {
+        return { available: true, info, allocatedGib: config.allocatedGib };
+      } else {
+        return { available: false, path: config.path, allocatedGib: config.allocatedGib };
+      }
+    });
   });
 
   // Step 1: Chain + CPU Config
@@ -2603,13 +2683,19 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   });
 
   readonly plottedGib = computed(() => {
-    // Only complete .pocx files count as "plotted"
-    return this.availableDrives().reduce((sum, d) => sum + d.completeSizeGib, 0);
+    // Only complete .pocx files count as "plotted" - skip unavailable drives
+    return this.availableDrives().reduce(
+      (sum, d) => sum + (d.available ? d.info.completeSizeGib : 0),
+      0
+    );
   });
 
   readonly unfinishedGib = computed(() => {
-    // Incomplete .tmp files that need to be finished
-    return this.availableDrives().reduce((sum, d) => sum + d.incompleteSizeGib, 0);
+    // Incomplete .tmp files that need to be finished - skip unavailable drives
+    return this.availableDrives().reduce(
+      (sum, d) => sum + (d.available ? d.info.incompleteSizeGib : 0),
+      0
+    );
   });
 
   readonly toPlotGib = computed(() => {
@@ -3339,9 +3425,12 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   getDriveAllocatedGib(path: string): number {
     const config = this.driveConfigs().find(d => d.path === path);
     if (config) return config.allocatedGib;
-    // Default to max allocatable (fill the drive)
-    const drive = this.availableDrives().find(d => d.path === path);
-    return drive ? this.getMaxAllocatable(drive) : 0;
+    // Default to max allocatable (fill the drive) - only for available drives
+    const drive = this.availableDrives().find(d => this.getDrivePath(d) === path);
+    if (drive?.available) {
+      return this.getMaxAllocatable(drive.info);
+    }
+    return 0;
   }
 
   onDriveAllocatedChange(drive: DriveInfo, value: number): void {
@@ -3615,6 +3704,76 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     // Only update driveConfigs - cache keeps entry (harmless orphan)
     // availableDrives computed signal auto-updates when driveConfigs changes
     this.driveConfigs.update(configs => configs.filter(c => c.path !== drive.path));
+  }
+
+  // ================== DisplayDrive helper methods ==================
+  // These methods support the template which uses DisplayDrive union type
+
+  /** Get the path from a DisplayDrive (works for both available and unavailable) */
+  getDrivePath(drive: DisplayDrive): string {
+    return drive.available ? drive.info.path : drive.path;
+  }
+
+  /** Refresh drive info by path - works for both available and unavailable drives */
+  async refreshDriveByPath(path: string): Promise<void> {
+    try {
+      await this.miningService.getDriveInfo(path);
+    } catch (error) {
+      console.error('Failed to refresh drive info:', error);
+    }
+  }
+
+  /** Remove drive config by path - works for both available and unavailable drives */
+  removeDriveByPath(path: string): void {
+    this.driveConfigs.update(configs => configs.filter(c => c.path !== path));
+  }
+
+  /** Get other data size from DriveInfo */
+  getOtherDataGibFromInfo(info: DriveInfo): number {
+    const otherData = info.totalGib - info.completeSizeGib - info.incompleteSizeGib - info.freeGib;
+    return Math.max(0, Math.round(otherData));
+  }
+
+  /** Get to-plot size from DriveInfo (allocated minus already plotted) */
+  getToPlotGibFromInfo(info: DriveInfo): number {
+    const allocated = this.getDriveAllocatedGib(info.path);
+    const alreadyPlotted = info.completeSizeGib + info.incompleteSizeGib;
+    return Math.max(0, allocated - alreadyPlotted);
+  }
+
+  /** Get remaining free space from DriveInfo (free minus to-plot) */
+  getRemainingFreeFromInfo(info: DriveInfo): number {
+    const toPlot = this.getToPlotGibFromInfo(info);
+    return Math.max(0, info.freeGib - toPlot);
+  }
+
+  /** Get max new plot space from DriveInfo (free space, minus system reserve if needed) */
+  getNewPlotMaxFromInfo(info: DriveInfo): number {
+    if (info.isSystemDrive) {
+      const minFreeRequired = info.totalGib * 0.2;
+      return Math.floor(Math.max(0, info.freeGib - minFreeRequired));
+    }
+    return Math.floor(info.freeGib);
+  }
+
+  /** Get current new-to-plot value from DriveInfo (allocated minus already plotted) */
+  getNewPlotValueFromInfo(info: DriveInfo): number {
+    const allocated = this.getDriveAllocatedGib(info.path);
+    const plotted = Math.floor(info.completeSizeGib + info.incompleteSizeGib);
+    return Math.max(0, allocated - plotted);
+  }
+
+  /** Handle slider change for new-to-plot by path */
+  onNewPlotChangeByPath(path: string, newToPlot: number): void {
+    const cache = this.miningService.driveInfoCache();
+    const info = cache.get(path);
+    if (info) {
+      const plotted = Math.floor(info.completeSizeGib + info.incompleteSizeGib);
+      const totalAllocated = plotted + newToPlot;
+      this.driveConfigs.update(configs =>
+        configs.map(c => (c.path === path ? { ...c, allocatedGib: totalAllocated } : c))
+      );
+    }
   }
 
   // Save and start
