@@ -65,6 +65,16 @@ pub fn extract_bitcoind(
             .map_err(|e| format!("Failed to set executable permission: {}", e))?;
     }
 
+    // On macOS, clear quarantine attribute to allow unsigned binaries to run
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+        let _ = Command::new("xattr")
+            .args(["-cr", bitcoind_dest.to_str().unwrap_or("")])
+            .output();
+        log::info!("Cleared quarantine attribute on bitcoind");
+    }
+
     // Update progress
     progress.stage = DownloadStage::Complete;
     state.set_download_progress(Some(progress.clone()));
