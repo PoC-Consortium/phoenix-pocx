@@ -44,10 +44,21 @@
     "publisher": "PoC Consortium",
     "linux": {
       "appimage": {
-        "bundleMediaFramework": false
+        "bundleMediaFramework": false,
+        "files": {
+          "linux/phoenix-pocx-miner.desktop": "usr/share/applications/phoenix-pocx-miner.desktop"
+        }
       },
       "deb": {
-        "depends": []
+        "depends": [],
+        "files": {
+          "linux/phoenix-pocx-miner.desktop": "usr/share/applications/phoenix-pocx-miner.desktop"
+        }
+      },
+      "rpm": {
+        "files": {
+          "linux/phoenix-pocx-miner.desktop": "usr/share/applications/phoenix-pocx-miner.desktop"
+        }
       }
     },
     "macOS": {
