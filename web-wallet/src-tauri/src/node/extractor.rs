@@ -1,6 +1,6 @@
 //! Archive extraction for node binaries
 //!
-//! Handles extracting bitcoind from zip (Windows) and tar.gz (Unix) archives.
+//! Handles extracting bitcoind from zip (Windows), tar.gz (Linux), and dmg (macOS) archives.
 
 use super::config::NodeConfig;
 use super::state::{DownloadStage, SharedNodeState};
@@ -49,6 +49,15 @@ pub fn extract_bitcoind(
         extract_from_7z(archive_path, &dest_dir)?;
     } else if archive_name.ends_with(".tar.gz") || archive_name.ends_with(".tgz") {
         extract_from_tar_gz(archive_path, &bitcoind_dest)?;
+    } else if archive_name.ends_with(".dmg") {
+        #[cfg(target_os = "macos")]
+        {
+            extract_from_dmg(archive_path, &bitcoind_dest)?;
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            return Err("DMG extraction is only supported on macOS".to_string());
+        }
     } else {
         return Err(format!("Unknown archive format: {}", archive_name));
     }
@@ -172,6 +181,121 @@ fn extract_from_tar_gz(archive_path: &Path, dest: &Path) -> Result<(), String> {
     Err(format!("{} not found in archive", BITCOIND_BINARY))
 }
 
+/// Extract bitcoind from a DMG disk image (macOS only)
+#[cfg(target_os = "macos")]
+fn extract_from_dmg(archive_path: &Path, dest: &Path) -> Result<(), String> {
+    use std::process::Command;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    // Create unique temp mount point using timestamp and process ID
+    let unique_id = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let mount_point = std::env::temp_dir().join(format!("phoenix-btc-{}-{}", std::process::id(), unique_id));
+
+    fs::create_dir_all(&mount_point)
+        .map_err(|e| format!("Failed to create mount point: {}", e))?;
+
+    log::info!("Mounting DMG to {}", mount_point.display());
+
+    // Mount DMG to our private mount point
+    let mount_result = Command::new("hdiutil")
+        .args([
+            "attach",
+            archive_path.to_str().ok_or("Invalid archive path")?,
+            "-mountpoint",
+            mount_point.to_str().ok_or("Invalid mount point path")?,
+            "-nobrowse",
+            "-readonly",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run hdiutil: {}", e))?;
+
+    if !mount_result.status.success() {
+        let _ = fs::remove_dir(&mount_point);
+        return Err(format!(
+            "Failed to mount DMG: {}",
+            String::from_utf8_lossy(&mount_result.stderr)
+        ));
+    }
+
+    // Search for bitcoind in the mounted DMG
+    // Bitcoin Core packages it inside an .app bundle
+    let result = find_and_copy_bitcoind(&mount_point, dest);
+
+    // Always unmount and clean up (even on error)
+    log::info!("Unmounting DMG");
+    let _ = Command::new("hdiutil")
+        .args(["detach", mount_point.to_str().unwrap_or(""), "-force"])
+        .output();
+
+    // Remove our temp mount point directory
+    let _ = fs::remove_dir(&mount_point);
+
+    result
+}
+
+/// Find bitcoind in a mounted DMG and copy it to destination
+#[cfg(target_os = "macos")]
+fn find_and_copy_bitcoind(mount_point: &Path, dest: &Path) -> Result<(), String> {
+    // Known locations in Bitcoin Core DMG
+    let known_app_names = ["Bitcoin-Qt.app", "Bitcoin Core.app", "Bitcoin-PoCX.app"];
+
+    // First try known .app locations
+    for app_name in &known_app_names {
+        let bitcoind_path = mount_point.join(app_name).join("Contents/MacOS/bitcoind");
+        if bitcoind_path.exists() {
+            log::info!("Found bitcoind at {}", bitcoind_path.display());
+            return copy_bitcoind(&bitcoind_path, dest);
+        }
+    }
+
+    // If not found, search for any .app bundle containing bitcoind
+    if let Ok(entries) = fs::read_dir(mount_point) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map(|e| e == "app").unwrap_or(false) {
+                let bitcoind_path = path.join("Contents/MacOS/bitcoind");
+                if bitcoind_path.exists() {
+                    log::info!("Found bitcoind at {}", bitcoind_path.display());
+                    return copy_bitcoind(&bitcoind_path, dest);
+                }
+            }
+        }
+    }
+
+    // Also check for bitcoind directly in mount root (some archives)
+    let direct_path = mount_point.join("bitcoind");
+    if direct_path.exists() {
+        log::info!("Found bitcoind at {}", direct_path.display());
+        return copy_bitcoind(&direct_path, dest);
+    }
+
+    // Check bin/ directory
+    let bin_path = mount_point.join("bin/bitcoind");
+    if bin_path.exists() {
+        log::info!("Found bitcoind at {}", bin_path.display());
+        return copy_bitcoind(&bin_path, dest);
+    }
+
+    Err(format!("{} not found in DMG", BITCOIND_BINARY))
+}
+
+/// Copy bitcoind to destination
+#[cfg(target_os = "macos")]
+fn copy_bitcoind(src: &Path, dest: &Path) -> Result<(), String> {
+    // Ensure parent directory exists
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create destination directory: {}", e))?;
+    }
+
+    fs::copy(src, dest)
+        .map_err(|e| format!("Failed to copy bitcoind: {}", e))?;
+
+    Ok(())
+}
 
 /// Clean up downloaded archive
 pub fn cleanup_archive(archive_path: &Path) -> Result<(), String> {
