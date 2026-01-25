@@ -51,6 +51,15 @@ export interface DriveInfo {
   volumeId?: string; // Volume GUID for same-drive detection (handles mount points)
 }
 
+/**
+ * Wrapper for drive display that handles unavailable drives.
+ * When a configured drive is removed/unavailable, we still show it
+ * in the UI so users can remove it from config.
+ */
+export type DisplayDrive =
+  | { available: true; info: DriveInfo; allocatedGib: number }
+  | { available: false; path: string; allocatedGib: number };
+
 // ============================================================================
 // Configuration Models
 // ============================================================================

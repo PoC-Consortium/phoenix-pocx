@@ -26,6 +26,11 @@ body {
   background-color: #eaf0f6;
 }
 
+// Android safe area - prevents content from overlapping system status bar
+body.platform-android {
+  padding-top: env(safe-area-inset-top, 24px);
+}
+
 // Dark theme body
 .dark-theme body,
 body.dark-theme {
