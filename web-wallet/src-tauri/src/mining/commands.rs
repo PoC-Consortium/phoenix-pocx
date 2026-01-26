@@ -477,6 +477,7 @@ pub async fn start_mining(
             block_time_seconds: chain_config.block_time_seconds,
             submission_mode,
             target_quality: None,
+            accounts: vec![], // Per-account overrides not used in wallet GUI
         };
 
         chains.push(chain);
