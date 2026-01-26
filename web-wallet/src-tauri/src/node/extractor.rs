@@ -1,6 +1,6 @@
 //! Archive extraction for node binaries
 //!
-//! Handles extracting bitcoind from zip (Windows) and tar.gz (Unix) archives.
+//! Handles extracting bitcoind from zip (Windows) and tar.gz (Linux/macOS) archives.
 
 use super::config::NodeConfig;
 use super::state::{DownloadStage, SharedNodeState};
@@ -63,6 +63,34 @@ pub fn extract_bitcoind(
         perms.set_mode(0o755);
         fs::set_permissions(&bitcoind_dest, perms)
             .map_err(|e| format!("Failed to set executable permission: {}", e))?;
+    }
+
+    // On macOS, clear quarantine attribute and ad-hoc sign to allow binary to run
+    #[cfg(target_os = "macos")]
+    {
+        use std::process::Command;
+
+        // Clear quarantine attribute
+        let _ = Command::new("xattr")
+            .args(["-cr", bitcoind_dest.to_str().unwrap_or("")])
+            .output();
+        log::info!("Cleared quarantine attribute on bitcoind");
+
+        // Ad-hoc sign the binary (required on modern macOS for unsigned binaries)
+        let sign_result = Command::new("codesign")
+            .args(["--force", "--deep", "-s", "-", bitcoind_dest.to_str().unwrap_or("")])
+            .output();
+        match sign_result {
+            Ok(output) if output.status.success() => {
+                log::info!("Ad-hoc signed bitcoind");
+            }
+            Ok(output) => {
+                log::warn!("codesign warning: {}", String::from_utf8_lossy(&output.stderr));
+            }
+            Err(e) => {
+                log::warn!("Failed to run codesign: {}", e);
+            }
+        }
     }
 
     // Update progress
@@ -148,8 +176,9 @@ fn extract_from_tar_gz(archive_path: &Path, dest: &Path) -> Result<(), String> {
 
         let path_str = path.to_string_lossy();
 
-        // Check if this is the bitcoind binary (in bin/ directory)
-        if path_str.ends_with(&format!("bin/{}", BITCOIND_BINARY)) {
+        // Check if this is the bitcoind binary (flexible search like zip extraction)
+        // Matches: bin/bitcoind, Bitcoin-Qt.app/Contents/MacOS/bitcoind, or just bitcoind
+        if path_str.ends_with(BITCOIND_BINARY) && !path_str.contains("test") {
             log::info!("Found {} at {}", BITCOIND_BINARY, path_str);
 
             // Ensure parent directory exists
@@ -171,7 +200,6 @@ fn extract_from_tar_gz(archive_path: &Path, dest: &Path) -> Result<(), String> {
 
     Err(format!("{} not found in archive", BITCOIND_BINARY))
 }
-
 
 /// Clean up downloaded archive
 pub fn cleanup_archive(archive_path: &Path) -> Result<(), String> {

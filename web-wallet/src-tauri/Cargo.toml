@@ -12,6 +12,11 @@ default-run = "phoenix-pocx"
 name = "phoenix_pocx_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# macOS miner launcher - native binary to avoid Rosetta prompts
+[[bin]]
+name = "phoenix-pocx-miner"
+path = "src/bin/miner_launcher.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -42,9 +47,9 @@ num_cpus = "1.16"
 tokio = { version = "1", features = ["full"] }
 
 # PoCX mining libraries
-pocx_miner = "1.0.0-rc.5"
-pocx_plotter = { version = "1.0.0-rc.5", features = ["opencl"] }
-pocx_address = "1.0.0-rc.5"
+pocx_miner = "1.0.0-rc.6"
+pocx_plotter = { version = "1.0.0-rc.6", features = ["opencl"] }
+pocx_address = "1.0.0-rc.6"
 
 # OpenCL for GPU detection (dynamic loading - no build-time SDK required)
 opencl3 = { version = "0.10", features = ["dynamic"] }
