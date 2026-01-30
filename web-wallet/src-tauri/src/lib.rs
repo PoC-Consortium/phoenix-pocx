@@ -256,6 +256,7 @@ fn is_elevated() -> bool {
 
 /// Restart the application with elevated (admin) privileges
 /// On Windows, this uses ShellExecute with "runas" verb to trigger UAC prompt
+/// Preserves original command line arguments (e.g., --mining-only)
 /// Returns true if restart was initiated, false if failed or cancelled
 #[tauri::command]
 async fn restart_elevated(app: tauri::AppHandle) -> bool {
@@ -271,6 +272,10 @@ async fn restart_elevated(app: tauri::AppHandle) -> bool {
             Err(_) => return false,
         };
 
+        // Collect original command line arguments (skip executable name)
+        let args: Vec<String> = std::env::args().skip(1).collect();
+        let args_str = args.join(" ");
+
         // Convert paths to wide strings for Windows API
         let exe_wide: Vec<u16> = OsStr::new(exe_path.as_os_str())
             .encode_wide()
@@ -282,13 +287,18 @@ async fn restart_elevated(app: tauri::AppHandle) -> bool {
             .chain(std::iter::once(0))
             .collect();
 
-        // Use ShellExecuteW to restart with elevation
+        let args_wide: Vec<u16> = OsStr::new(&args_str)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        // Use ShellExecuteW to restart with elevation, preserving arguments
         let result = unsafe {
             windows_sys::Win32::UI::Shell::ShellExecuteW(
                 ptr::null_mut(),
                 verb_wide.as_ptr(),
                 exe_wide.as_ptr(),
-                ptr::null(),
+                if args_str.is_empty() { ptr::null() } else { args_wide.as_ptr() },
                 ptr::null(),
                 windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
             )
