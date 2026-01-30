@@ -92,7 +92,13 @@ jobs:
         working-directory: web-wallet
         run: npm ci
 
-      - name: Build Tauri app
+      - name: Build Tauri app (Windows - NSIS only, skip MSI for pre-release versions)
+        if: matrix.os_name == 'Windows'
+        working-directory: web-wallet
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles nsis
+
+      - name: Build Tauri app (macOS/Linux)
+        if: matrix.os_name != 'Windows'
         working-directory: web-wallet
         run: npm run tauri build -- --target ${{ matrix.target }}
 
