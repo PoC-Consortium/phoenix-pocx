@@ -97,13 +97,8 @@ jobs:
         working-directory: web-wallet
         run: npm run tauri build -- --target ${{ matrix.target }} --bundles nsis
 
-      - name: Build Tauri app (macOS - app only, DMG created manually with miner)
-        if: matrix.os_name == 'macOS'
-        working-directory: web-wallet
-        run: npm run tauri build -- --target ${{ matrix.target }} --bundles app
-
-      - name: Build Tauri app (Linux)
-        if: matrix.os_name == 'Linux'
+      - name: Build Tauri app (macOS/Linux)
+        if: matrix.os_name != 'Windows'
         working-directory: web-wallet
         run: npm run tauri build -- --target ${{ matrix.target }}
 
@@ -194,7 +189,7 @@ jobs:
 
           echo "Miner wrapper prepared successfully with native binary"
 
-      - name: Create macOS DMG with both apps
+      - name: Recreate macOS DMG with both apps
         if: matrix.os_name == 'macOS'
         run: |
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
@@ -209,8 +204,8 @@ jobs:
           # Create Applications symlink
           ln -s /Applications dmg_contents/Applications
 
-          # Create DMG directory and build DMG with both apps
-          mkdir -p "$BUNDLE_DIR/dmg"
+          # Remove old DMG and create new one with both apps
+          rm -f "$BUNDLE_DIR/dmg/"*.dmg
           hdiutil create -volname "Phoenix PoCX Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
 
       - name: Rename and upload artifacts (macOS)
