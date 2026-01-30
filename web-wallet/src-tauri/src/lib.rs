@@ -3,16 +3,22 @@ use std::fs;
 use std::path::PathBuf;
 #[cfg(desktop)]
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 // Logging module
 mod logging;
+
+// Aggregator module
+pub mod aggregator;
 
 // Mining module
 pub mod mining;
 
 // Node management module
 pub mod node;
+
+// Update checking module
+pub mod update;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
 
@@ -116,7 +122,7 @@ pub fn expand_path(path: &str) -> String {
 }
 
 /// Build cookie file path from dataDirectory and network
-fn build_cookie_path(data_directory: &str, network: &str) -> PathBuf {
+pub(crate) fn build_cookie_path(data_directory: &str, network: &str) -> PathBuf {
     let expanded_dir = expand_path(data_directory);
     let base_path = PathBuf::from(&expanded_dir);
 
@@ -461,17 +467,14 @@ pub fn run() {
     let node_state = node::create_node_state();
     let node_manager = node::NodeManager::new();
 
+    // Create shared aggregator state
+    let aggregator_state = aggregator::state::create_aggregator_state();
+
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init());
-
-    // Desktop-only plugins
-    #[cfg(not(target_os = "android"))]
-    {
-        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-    }
 
     // Android-only plugins
     #[cfg(target_os = "android")]
@@ -492,6 +495,7 @@ pub fn run() {
         .manage(plotter_runtime)
         .manage(node_state)
         .manage(node_manager)
+        .manage(aggregator_state)
         .setup(|app| {
             // Set app handle for TauriEventAppender (log forwarding to frontend)
             logging::set_app_handle(app.handle().clone());
@@ -506,6 +510,10 @@ pub fn run() {
             // Register miner callback for mining events (with state for deadline persistence)
             let state = app.state::<mining::state::SharedMiningState>().inner().clone();
             mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
+
+            // Register aggregator callback (OnceLock - must be done once at startup)
+            let agg_state = app.state::<aggregator::state::SharedAggregatorState>().inner().clone();
+            aggregator::callback::TauriAggregatorCallback::register(app.handle().clone(), agg_state);
 
             // Set window title based on launch mode (desktop only)
             #[cfg(not(target_os = "android"))]
@@ -607,36 +615,18 @@ pub fn run() {
                     );
                 }
                 "check_update" => {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.eval(
-                            r#"
-                            (async () => {
-                                try {
-                                    const { check } = await import('@tauri-apps/plugin-updater');
-                                    const update = await check();
-                                    if (update) {
-                                        if (confirm('A new version (' + update.version + ') is available!\n\nWould you like to download it now?')) {
-                                            window.open('https://github.com/PoC-Consortium/phoenix-pocx/releases/latest', '_blank');
-                                        }
-                                    } else {
-                                        alert('You are running the latest version.');
-                                    }
-                                } catch (e) {
-                                    console.error('Update check failed:', e);
-                                    alert('Could not check for updates.\n\nPlease visit https://github.com/PoC-Consortium/phoenix-pocx/releases to check manually.');
-                                }
-                            })();
-                            "#,
-                        );
-                    }
+                    // Emit event to frontend to trigger update check and show dialog
+                    let _ = app.emit("menu:check-update", ());
                 }
                 "about" => {
                     if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.eval(
+                        let version = env!("CARGO_PKG_VERSION");
+                        let _ = window.eval(&format!(
                             r#"
-                            alert('Phoenix PoCX Wallet v2.0.0\n\nA secure and easy-to-use wallet for Bitcoin-PoCX.\n\nhttps://www.bitcoin-pocx.org\n\n© 2025 The Proof of Capacity Consortium');
+                            alert('Phoenix PoCX Wallet v{}\n\nA secure and easy-to-use wallet for Bitcoin-PoCX.\n\nhttps://www.bitcoin-pocx.org\n\n© 2025 The Proof of Capacity Consortium');
                             "#,
-                        );
+                            version
+                        ));
                     }
                 }
                 _ => {}
@@ -743,6 +733,17 @@ pub fn run() {
             // Plotter execution commands
             mining::commands::execute_plot_item,
             mining::commands::execute_plot_batch,
+            // Aggregator commands
+            aggregator::commands::get_aggregator_config,
+            aggregator::commands::save_aggregator_config,
+            aggregator::commands::start_aggregator,
+            aggregator::commands::stop_aggregator,
+            aggregator::commands::is_aggregator_running,
+            aggregator::commands::get_aggregator_status,
+            aggregator::commands::get_aggregator_stats,
+            // Update commands
+            update::get_app_version,
+            update::check_wallet_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

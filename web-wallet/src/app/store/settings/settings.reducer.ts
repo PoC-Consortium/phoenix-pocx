@@ -6,6 +6,7 @@ import {
   getDefaultRpcPort,
   defaultNodeConfig,
   defaultNotificationSettings,
+  defaultAggregatorSettings,
 } from './settings.state';
 
 /**
@@ -27,6 +28,10 @@ export const settingsReducer = createReducer(
       notifications: {
         ...state.notifications,
         ...(settings.notifications || {}),
+      },
+      aggregator: {
+        ...state.aggregator,
+        ...(settings.aggregator || {}),
       },
     };
   }),
@@ -162,6 +167,26 @@ export const settingsReducer = createReducer(
     })
   ),
 
+  // Aggregator
+  on(
+    SettingsActions.updateAggregatorSettings,
+    (state, { aggregator }): SettingsState => ({
+      ...state,
+      aggregator: {
+        ...state.aggregator,
+        ...aggregator,
+      },
+    })
+  ),
+
+  on(
+    SettingsActions.setAggregatorSettings,
+    (state, { aggregator }): SettingsState => ({
+      ...state,
+      aggregator,
+    })
+  ),
+
   // Reset
   on(
     SettingsActions.resetSettings,
@@ -169,6 +194,7 @@ export const settingsReducer = createReducer(
       ...initialSettingsState,
       nodeConfig: { ...defaultNodeConfig },
       notifications: { ...defaultNotificationSettings },
+      aggregator: { ...defaultAggregatorSettings },
     })
   )
 );

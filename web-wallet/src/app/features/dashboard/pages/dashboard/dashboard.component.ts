@@ -35,9 +35,6 @@ import {
   FeeBumpDialogResult,
 } from '../../../transactions/components/fee-bump-dialog/fee-bump-dialog.component';
 
-// PoCX block time constant for chart calculations (TODO: use in balance chart)
-const _BLOCK_TIME_MINUTES = 2;
-
 @Component({
   selector: 'app-dashboard',
   standalone: true,

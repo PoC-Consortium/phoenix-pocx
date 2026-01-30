@@ -128,6 +128,14 @@ export interface MiningConfig {
   hddWakeupSeconds: number;
   // Note: plotPlan has been removed - plan is now runtime-only in PlotterState
   simulationMode?: boolean; // Dev only: run plotter in benchmark mode (no disk writes)
+  autoStart?: boolean; // Auto-start mining when app launches (after node ready)
+
+  // Miner advanced settings
+  pollInterval?: number; // Mining info poll interval in ms (default 1000)
+  timeout?: number; // Request timeout in ms (default 5000)
+  enableOnTheFlyCompression?: boolean; // On-the-fly decompression for compressed plots
+  threadPinning?: boolean; // Pin CPU threads for better performance
+  miningDirectIo?: boolean; // Use Direct I/O for mining (separate from plotter directIo)
 
   // Wallet RPC settings for solo mining
   // These mirror the wallet's connection settings for deadline submission

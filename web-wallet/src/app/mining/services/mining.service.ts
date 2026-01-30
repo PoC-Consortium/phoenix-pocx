@@ -155,6 +155,7 @@ export class MiningService {
   readonly config = computed(() => this._state()?.config ?? null);
   readonly isDevMode = this._isDevMode.asReadonly();
   readonly simulationMode = computed(() => this._state()?.config.simulationMode ?? false);
+  readonly autoStart = computed(() => this._state()?.config.autoStart ?? false);
 
   // Miner state computed values
   readonly minerState = this._minerState.asReadonly();
@@ -480,6 +481,29 @@ export class MiningService {
     const success = await this.saveConfig(updatedConfig);
     if (success) {
       console.log(`MiningService: Simulation mode ${enabled ? 'enabled' : 'disabled'}`);
+    }
+    return success;
+  }
+
+  /**
+   * Toggle auto-start mode
+   * When enabled, mining starts automatically after node is ready
+   */
+  async toggleAutoStart(enabled: boolean): Promise<boolean> {
+    const config = this.config();
+    if (!config) {
+      this._error.set('No config loaded');
+      return false;
+    }
+
+    const updatedConfig: MiningConfig = {
+      ...config,
+      autoStart: enabled,
+    };
+
+    const success = await this.saveConfig(updatedConfig);
+    if (success) {
+      console.log(`MiningService: Auto-start ${enabled ? 'enabled' : 'disabled'}`);
     }
     return success;
   }
@@ -1877,6 +1901,40 @@ export class MiningService {
     } catch (err) {
       this._error.set(`Failed to stop miner: ${err}`);
       throw err;
+    }
+  }
+
+  /**
+   * Auto-start mining if enabled in config.
+   * Called after node is ready in app startup.
+   */
+  async autoStartMining(): Promise<void> {
+    await this.refreshState();
+    const config = this.config();
+    if (!config?.autoStart) {
+      return;
+    }
+
+    // Only auto-start if we have chains and drives configured
+    if (!config.chains?.length || !config.drives?.length) {
+      console.log('MiningService: Auto-start skipped - no chains or drives configured');
+      return;
+    }
+
+    // Only auto-start if not already running
+    if (this._minerState().running) {
+      console.log('MiningService: Auto-start skipped - miner already running');
+      return;
+    }
+
+    console.log('MiningService: Auto-start enabled, starting miner...');
+    try {
+      await this.initializeMining();
+      await this.startMiner();
+      this.addActivityLog('info', 'Mining auto-started');
+    } catch (err) {
+      console.error('MiningService: Auto-start failed:', err);
+      this.addActivityLog('error', `Auto-start failed: ${err}`);
     }
   }
 

@@ -209,6 +209,20 @@ pub struct MiningConfig {
     pub hdd_wakeup_seconds: i64,
     #[serde(default)]
     pub simulation_mode: bool, // Dev only: run plotter in benchmark mode (no disk writes)
+    #[serde(default)]
+    pub auto_start: bool, // Auto-start mining when app launches (after node ready)
+
+    // Miner advanced settings
+    #[serde(default = "default_poll_interval")]
+    pub poll_interval: u64, // Mining info poll interval in ms (default 1000)
+    #[serde(default = "default_timeout")]
+    pub timeout: u64, // Request timeout in ms (default 5000)
+    #[serde(default = "default_enable_on_the_fly_compression")]
+    pub enable_on_the_fly_compression: bool, // On-the-fly decompression for compressed plots
+    #[serde(default = "default_thread_pinning")]
+    pub thread_pinning: bool, // Pin CPU threads for better performance
+    #[serde(default = "default_mining_direct_io")]
+    pub mining_direct_io: bool, // Use Direct I/O for mining (separate from plotter direct_io)
 
     // Wallet RPC settings for solo mining
     // These mirror the wallet's connection settings for deadline submission
@@ -242,6 +256,26 @@ fn default_parallel_drives() -> u32 {
     1
 }
 
+fn default_poll_interval() -> u64 {
+    1000
+}
+
+fn default_timeout() -> u64 {
+    5000
+}
+
+fn default_enable_on_the_fly_compression() -> bool {
+    true
+}
+
+fn default_thread_pinning() -> bool {
+    true
+}
+
+fn default_mining_direct_io() -> bool {
+    true
+}
+
 impl Default for MiningConfig {
     fn default() -> Self {
         Self {
@@ -263,6 +297,12 @@ impl Default for MiningConfig {
             parallel_drives: 1,
             hdd_wakeup_seconds: 30,
             simulation_mode: false,
+            auto_start: false,
+            poll_interval: default_poll_interval(),
+            timeout: default_timeout(),
+            enable_on_the_fly_compression: default_enable_on_the_fly_compression(),
+            thread_pinning: default_thread_pinning(),
+            mining_direct_io: default_mining_direct_io(),
             wallet_rpc_host: default_wallet_rpc_host(),
             wallet_rpc_port: default_wallet_rpc_port(),
             wallet_data_directory: String::new(),

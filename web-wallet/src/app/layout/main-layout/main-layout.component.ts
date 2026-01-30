@@ -5,6 +5,7 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
+import { MatDialog } from '@angular/material/dialog';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { Subject, takeUntil } from 'rxjs';
 import { I18nPipe } from '../../core/i18n';
@@ -12,6 +13,8 @@ import { BalanceDisplayComponent } from '../../shared';
 import { WalletManagerService } from '../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../bitcoin/services/wallet/wallet.service';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
+import { AggregatorService } from '../../aggregator/services/aggregator.service';
+import { AppUpdateService } from '../../core/services/app-update.service';
 
 interface NavItem {
   path: string;
@@ -56,7 +59,19 @@ interface NavGroup {
         <!-- Header with Logo and Toggle -->
         <div class="sidenav-header">
           <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="logo" />
-          <span class="logo-text">Phoenix PoCX</span>
+          <div class="logo-section">
+            <span class="logo-text">Phoenix PoCX</span>
+            @if (appVersion()) {
+              <div class="header-version" (click)="onVersionClick()">
+                <span class="version-text">v{{ appVersion() }}</span>
+                @if (showUpdateBadge()) {
+                  <span class="update-badge" title="{{ 'update_available' | i18n }}">
+                    <mat-icon>arrow_upward</mat-icon>
+                  </span>
+                }
+              </div>
+            }
+          </div>
           <button mat-icon-button class="sidenav-toggle" (click)="sidenav.toggle()">
             <mat-icon>close</mat-icon>
           </button>
@@ -90,7 +105,7 @@ interface NavGroup {
           </mat-nav-list>
 
           <!-- Grouped Navigation -->
-          @for (group of navGroups; track group.id) {
+          @for (group of navGroups(); track group.id) {
             <div class="nav-group">
               <div class="nav-group-title">{{ group.titleKey | i18n }}</div>
               <mat-nav-list class="nav-section">
@@ -184,10 +199,50 @@ interface NavGroup {
         height: 32px;
       }
 
+      .logo-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
       .logo-text {
         font-size: 15px;
         font-weight: 600;
-        flex: 1;
+      }
+
+      .header-version {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        margin-top: 1px;
+
+        .version-text {
+          font-size: 10px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .update-badge {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 14px;
+          height: 14px;
+          background: #4caf50;
+          border-radius: 50%;
+
+          .mat-icon {
+            font-size: 10px;
+            width: 10px;
+            height: 10px;
+            color: white;
+          }
+        }
+
+        &:hover .version-text {
+          color: rgba(255, 255, 255, 0.8);
+        }
       }
 
       .sidenav-toggle {
@@ -361,6 +416,9 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly breakpointObserver = inject(BreakpointObserver);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
+  private readonly aggregatorService = inject(AggregatorService);
+  private readonly appUpdateService = inject(AppUpdateService);
+  private readonly dialog = inject(MatDialog);
   private readonly destroy$ = new Subject<void>();
 
   isMobile = signal(false);
@@ -368,34 +426,48 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   // Balance from centralized WalletService - auto-updates via polling
   currentBalance = computed(() => this.walletService.totalBalance());
 
-  navGroups: NavGroup[] = [
-    {
-      id: 'transactions',
-      titleKey: 'transactions',
-      items: [
-        { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },
-        { path: '/send', icon: 'send', labelKey: 'send' },
-        { path: '/receive', icon: 'call_received', labelKey: 'receive' },
-        { path: '/contacts', icon: 'contacts', labelKey: 'contacts' },
-      ],
-    },
-    {
-      id: 'mining',
-      titleKey: 'mining',
-      items: [
-        { path: '/mining', icon: 'hardware', labelKey: 'mining_dashboard' },
-        { path: '/forging-assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' },
-      ],
-    },
-    {
-      id: 'network',
-      titleKey: 'network',
-      items: [
-        { path: '/blocks', icon: 'apps', labelKey: 'blocks' },
-        { path: '/peers', icon: 'device_hub', labelKey: 'peers' },
-      ],
-    },
-  ];
+  // App version and update badge
+  appVersion = computed(() => this.appUpdateService.currentVersion());
+  showUpdateBadge = computed(() => this.appUpdateService.showUpdateBadge());
+
+  navGroups = computed<NavGroup[]>(() => {
+    const miningItems: NavItem[] = [
+      { path: '/mining', icon: 'hardware', labelKey: 'mining_dashboard' },
+    ];
+
+    // Aggregator sits right below mining dashboard when enabled
+    if (this.aggregatorService.config().enabled) {
+      miningItems.push({ path: '/aggregator', icon: 'hub', labelKey: 'aggregator' });
+    }
+
+    miningItems.push({ path: '/forging-assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' });
+
+    return [
+      {
+        id: 'transactions',
+        titleKey: 'transactions',
+        items: [
+          { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },
+          { path: '/send', icon: 'send', labelKey: 'send' },
+          { path: '/receive', icon: 'call_received', labelKey: 'receive' },
+          { path: '/contacts', icon: 'contacts', labelKey: 'contacts' },
+        ],
+      },
+      {
+        id: 'mining',
+        titleKey: 'mining',
+        items: miningItems,
+      },
+      {
+        id: 'network',
+        titleKey: 'network',
+        items: [
+          { path: '/blocks', icon: 'apps', labelKey: 'blocks' },
+          { path: '/peers', icon: 'device_hub', labelKey: 'peers' },
+        ],
+      },
+    ];
+  });
 
   ngOnInit(): void {
     // Handle responsive breakpoints
@@ -411,6 +483,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       this.currentWalletName.set(walletName || 'No Wallet');
     });
     // Note: Balance is now handled by WalletService with auto-refresh
+
+    // Load aggregator config so nav shows/hides aggregator item
+    this.aggregatorService.loadConfig();
+
+    // Subscribe to menu:check-update events to show update dialog
+    this.appUpdateService.showUpdateDialog$.pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.onVersionClick();
+    });
   }
 
   ngOnDestroy(): void {
@@ -421,5 +501,31 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   logout(): void {
     this.walletManager.setActiveWallet(null);
     this.router.navigate(['/auth']);
+  }
+
+  /**
+   * Handle click on version display - show update dialog if available
+   */
+  async onVersionClick(): Promise<void> {
+    const updateInfo = this.appUpdateService.updateInfo();
+    if (!updateInfo) {
+      return;
+    }
+
+    const { UpdateDialogComponent } = await import(
+      '../../shared/components/update-dialog/update-dialog.component'
+    );
+
+    const dialogRef = this.dialog.open(UpdateDialogComponent, {
+      data: updateInfo,
+      disableClose: false,
+      autoFocus: false,
+    });
+
+    dialogRef.afterClosed().subscribe((result: { dismissed?: boolean } | null) => {
+      if (result?.dismissed) {
+        this.appUpdateService.dismissUpdate();
+      }
+    });
   }
 }

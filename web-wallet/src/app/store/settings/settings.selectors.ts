@@ -88,3 +88,17 @@ export const selectHasCustomFeeRate = createSelector(
   selectCustomFeeRate,
   feeRate => feeRate !== null
 );
+
+// ============================================================
+// Aggregator
+// ============================================================
+
+export const selectAggregatorSettings = createSelector(
+  selectSettingsState,
+  state => state.aggregator
+);
+
+export const selectAggregatorEnabled = createSelector(
+  selectAggregatorSettings,
+  aggregator => aggregator.enabled
+);

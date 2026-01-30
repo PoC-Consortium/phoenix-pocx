@@ -45,6 +45,13 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
               <span class="card-title"
                 ><mat-icon>hardware</mat-icon>{{ 'mining_status' | i18n }}</span
               >
+              <mat-checkbox
+                class="autostart-checkbox"
+                [checked]="miningService.autoStart()"
+                (change)="toggleAutoStart($event.checked)"
+                [matTooltip]="'mining_autostart_tooltip' | i18n"
+                >{{ 'mining_autostart' | i18n }}</mat-checkbox
+              >
             </div>
             <div class="status-row">
               <span class="status-indicator" [class]="getStatusIndicatorClass()"></span>
@@ -702,7 +709,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         color: rgba(255, 255, 255, 0.7);
       }
 
-      .sim-checkbox {
+      .sim-checkbox,
+      .autostart-checkbox {
         position: absolute;
         right: 0;
         top: 0;
@@ -713,7 +721,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         line-height: 1 !important;
       }
 
-      .sim-checkbox ::ng-deep {
+      .sim-checkbox ::ng-deep,
+      .autostart-checkbox ::ng-deep {
         .mdc-form-field {
           height: auto !important;
         }
@@ -746,7 +755,8 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
         }
       }
 
-      .capacity-card .card-header {
+      .capacity-card .card-header,
+      .mining-status-card .card-header {
         position: relative;
       }
 
@@ -2501,6 +2511,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       this.miningService.addActivityLog('info', this.i18n.get('mining_simulation_enabled'));
     } else {
       this.miningService.addActivityLog('info', this.i18n.get('mining_simulation_disabled'));
+    }
+  }
+
+  async toggleAutoStart(enabled: boolean): Promise<void> {
+    await this.miningService.toggleAutoStart(enabled);
+    if (enabled) {
+      this.miningService.addActivityLog('info', this.i18n.get('mining_autostart_enabled'));
+    } else {
+      this.miningService.addActivityLog('info', this.i18n.get('mining_autostart_disabled'));
     }
   }
 

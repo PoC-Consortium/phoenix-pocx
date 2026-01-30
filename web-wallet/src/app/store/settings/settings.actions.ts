@@ -5,6 +5,7 @@ import {
   SettingsState,
   NodeConfig,
   NotificationSettings,
+  AggregatorSettings,
 } from './settings.state';
 
 /**
@@ -46,6 +47,10 @@ export const SettingsActions = createActionGroup({
     // Advanced
     'Toggle Debug Mode': emptyProps(),
     'Set Custom Fee Rate': props<{ feeRate: number | null }>(),
+
+    // Aggregator
+    'Update Aggregator Settings': props<{ aggregator: Partial<AggregatorSettings> }>(),
+    'Set Aggregator Settings': props<{ aggregator: AggregatorSettings }>(),
 
     // Reset
     'Reset Settings': emptyProps(),

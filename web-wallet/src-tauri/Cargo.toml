@@ -1,6 +1,6 @@
 [package]
 name = "phoenix-pocx"
-version = "2.0.0"
+version = "2.0.0-rc8"
 description = "Phoenix PoCX Wallet - Bitcoin-PoCX Desktop Wallet"
 authors = ["The Proof of Capacity Consortium <development@pocx.io>"]
 license = "GPL-3.0"
@@ -47,9 +47,10 @@ num_cpus = "1.16"
 tokio = { version = "1", features = ["full"] }
 
 # PoCX mining libraries
-pocx_miner = "1.0.0-rc.6"
-pocx_plotter = { version = "1.0.0-rc.6", features = ["opencl"] }
-pocx_address = "1.0.0-rc.6"
+pocx_miner = "1.0.0-rc.8"
+pocx_plotter = { version = "1.0.0-rc.8", features = ["opencl"] }
+pocx_address = "1.0.0-rc.8"
+pocx_aggregator = "1.0.0-rc.8"
 
 # OpenCL for GPU detection (dynamic loading - no build-time SDK required)
 opencl3 = { version = "0.10", features = ["dynamic"] }
@@ -80,14 +81,14 @@ windows-sys = { version = "0.59", features = [
     "Win32_Storage_FileSystem",
 ] }
 
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
-
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "24"
 tauri-plugin-storage-permission = { path = "plugins/tauri-plugin-storage-permission" }
 tauri-plugin-foreground-service = { path = "plugins/tauri-plugin-foreground-service" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 panic = "abort"
