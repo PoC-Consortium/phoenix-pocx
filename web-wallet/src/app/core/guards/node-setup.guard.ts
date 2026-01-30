@@ -8,7 +8,7 @@ import { AppModeService } from '../services/app-mode.service';
  * NodeSetupGuard checks if node setup is required before allowing access to auth routes.
  * In desktop mode with managed node config but no node installed, redirects to /node/setup.
  * This guard should run BEFORE authGuard to ensure proper first-launch flow.
- * Skipped on mobile (Android) - no local node support.
+ * Skipped on mobile (Android) and mining-only mode (miner operates independently).
  */
 export const nodeSetupGuard: CanActivateFn = async () => {
   const electronService = inject(ElectronService);
@@ -18,6 +18,11 @@ export const nodeSetupGuard: CanActivateFn = async () => {
 
   // Skip on mobile - no local node support
   if (appModeService.isMobile()) {
+    return true;
+  }
+
+  // Skip in mining-only mode - miner operates independently of node
+  if (appModeService.isMiningOnly()) {
     return true;
   }
 
