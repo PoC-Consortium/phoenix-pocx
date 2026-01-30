@@ -1,15 +1,18 @@
-import { Component, inject, OnInit, OnDestroy, signal, DOCUMENT } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal, DOCUMENT, NgZone } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { Router, RouterOutlet } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BlockchainStateService } from './bitcoin/services/blockchain-state.service';
-import { ElectronService, UpdateInfo } from './core/services/electron.service';
+import { ElectronService } from './core/services/electron.service';
 import { AppModeService } from './core/services/app-mode.service';
 import { PlatformService } from './core/services/platform.service';
+import { AppUpdateService } from './core/services/app-update.service';
 import { CookieAuthService } from './core/auth/cookie-auth.service';
 import { NotificationService } from './shared/services';
 import { MiningService } from './mining/services';
 import { NodeService } from './node';
+import { AggregatorService } from './aggregator/services/aggregator.service';
 import { I18nService } from './core/i18n';
 import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -75,15 +78,19 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly electronService = inject(ElectronService);
   private readonly appModeService = inject(AppModeService);
   private readonly platformService = inject(PlatformService);
+  private readonly appUpdateService = inject(AppUpdateService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly dialog = inject(MatDialog);
   private readonly notification = inject(NotificationService);
   private readonly miningService = inject(MiningService);
   private readonly nodeService = inject(NodeService);
+  private readonly aggregatorService = inject(AggregatorService);
   private readonly i18n = inject(I18nService);
 
+  private readonly ngZone = inject(NgZone);
   private closeUnlisten: (() => void) | null = null;
   private nodeStatusInterval: ReturnType<typeof setInterval> | null = null;
+  private updateDialogSubscription: Subscription | null = null;
 
   /** Signal to show node startup overlay */
   readonly isStartingNode = signal(false);
@@ -118,8 +125,13 @@ export class AppComponent implements OnInit, OnDestroy {
     // Initialize managed node service
     this.initNodeService();
 
-    // Set up update notification listeners (Electron only)
-    this.initUpdateListeners();
+    // Initialize update checking service
+    this.appUpdateService.initialize();
+
+    // Subscribe to menu:check-update events to show update dialog (works even when logged out)
+    this.updateDialogSubscription = this.appUpdateService.showUpdateDialog$.subscribe(() => {
+      this.showUpdateDialog();
+    });
 
     // Set up window close handler (Tauri only)
     this.initCloseHandler();
@@ -136,6 +148,12 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.nodeStatusInterval) {
       clearInterval(this.nodeStatusInterval);
       this.nodeStatusInterval = null;
+    }
+
+    // Clean up update dialog subscription
+    if (this.updateDialogSubscription) {
+      this.updateDialogSubscription.unsubscribe();
+      this.updateDialogSubscription = null;
     }
   }
 
@@ -181,6 +199,16 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     }
 
+    // Auto-start aggregator if enabled in config (after node is ready)
+    this.aggregatorService
+      .autoStart()
+      .catch(err => console.error('Aggregator auto-start failed:', err));
+
+    // Auto-start mining if enabled in config (after node is ready)
+    this.miningService
+      .autoStartMining()
+      .catch(err => console.error('Mining auto-start failed:', err));
+
     // Start periodic status refresh (every 30 seconds)
     this.nodeStatusInterval = setInterval(async () => {
       try {
@@ -189,50 +217,6 @@ export class AppComponent implements OnInit, OnDestroy {
         // Silently ignore status refresh errors
       }
     }, 30000);
-  }
-
-  /**
-   * Initialize update notification listeners for desktop
-   */
-  private initUpdateListeners(): void {
-    if (!this.electronService.isDesktop) {
-      return;
-    }
-
-    // Listen for new version notifications
-    this.electronService.onNewVersion((updateInfo: UpdateInfo) => {
-      this.showUpdateDialog(updateInfo);
-    });
-
-    // Listen for "no update available" (manual check)
-    this.electronService.onNewVersionCheckNoUpdate(() => {
-      this.notification.info('You are running the latest version');
-    });
-
-    // Listen for download started
-    this.electronService.onNewVersionDownloadStarted(() => {
-      this.notification.success('Download started in your browser');
-    });
-  }
-
-  /**
-   * Show the update dialog (lazy-loaded to reduce initial bundle)
-   */
-  private async showUpdateDialog(updateInfo: UpdateInfo): Promise<void> {
-    const { UpdateDialogComponent } =
-      await import('./shared/components/update-dialog/update-dialog.component');
-
-    const dialogRef = this.dialog.open(UpdateDialogComponent, {
-      data: updateInfo,
-      disableClose: false,
-      autoFocus: false,
-    });
-
-    dialogRef.afterClosed().subscribe((assetUrl: string | null) => {
-      if (assetUrl) {
-        this.electronService.selectVersionAsset(assetUrl);
-      }
-    });
   }
 
   /**
@@ -255,11 +239,12 @@ export class AppComponent implements OnInit, OnDestroy {
         const plottingActive =
           this.miningService.plotterUIState() === 'plotting' ||
           this.miningService.plotterUIState() === 'stopping';
+        const aggregatorActive = this.aggregatorService.isRunning();
         const nodeRunning = this.nodeService.isManaged() && this.nodeService.isRunning();
         const isMiningOnly = this.appModeService.isMiningOnly();
 
         // If nothing active and node not running, just exit
-        if (!miningActive && !plottingActive && !nodeRunning) {
+        if (!miningActive && !plottingActive && !aggregatorActive && !nodeRunning) {
           await invoke('exit_app');
           return;
         }
@@ -267,10 +252,10 @@ export class AppComponent implements OnInit, OnDestroy {
         // Prevent immediate close to show confirmation/shutdown dialog
         event.preventDefault();
 
-        // If only node needs to be stopped (no mining/plotting):
+        // If only node needs to be stopped (no mining/plotting/aggregator):
         // - In mining-only mode: just exit without touching the node (we didn't start it)
         // - In wallet mode: ask user what to do
-        if (!miningActive && !plottingActive && nodeRunning) {
+        if (!miningActive && !plottingActive && !aggregatorActive && nodeRunning) {
           if (isMiningOnly) {
             // Mining-only mode doesn't manage the node lifecycle - just exit
             await invoke('exit_app');
@@ -280,15 +265,13 @@ export class AppComponent implements OnInit, OnDestroy {
           return;
         }
 
-        // Mining or plotting is active - show confirmation dialog
-        let activityMessage: string;
-        if (miningActive && plottingActive) {
-          activityMessage = this.i18n.get('exit_confirm_mining_plotting');
-        } else if (miningActive) {
-          activityMessage = this.i18n.get('exit_confirm_mining');
-        } else {
-          activityMessage = this.i18n.get('exit_confirm_plotting');
-        }
+        // Mining, plotting, or aggregator is active - show confirmation dialog
+        const activities: string[] = [];
+        if (miningActive) activities.push(this.i18n.get('mining') || 'Mining');
+        if (plottingActive) activities.push(this.i18n.get('plotting') || 'Plotting');
+        if (aggregatorActive) activities.push(this.i18n.get('aggregator') || 'Aggregator');
+
+        const activityMessage = `${activities.join(', ')} ${activities.length > 1 ? 'are' : 'is'} active.`;
 
         const message = `${activityMessage}\n\n${this.i18n.get('exit_confirm_message')}`;
 
@@ -306,9 +289,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
         dialogRef.afterClosed().subscribe(async (confirmed: boolean) => {
           if (confirmed) {
-            // If node needs to be stopped, show shutdown dialog; otherwise just exit
+            // If node is running, ask user if they want to keep it running
             if (nodeRunning) {
-              await this.showNodeShutdownDialog();
+              await this.showKeepNodeRunningDialog();
             } else {
               const { invoke } = await import('@tauri-apps/api/core');
               await invoke('exit_app');
@@ -398,5 +381,33 @@ export class AppComponent implements OnInit, OnDestroy {
 
       attempts++;
     }
+  }
+
+  /**
+   * Show the update dialog (triggered from Help menu).
+   * Works even when logged out.
+   */
+  private async showUpdateDialog(): Promise<void> {
+    const updateInfo = this.appUpdateService.updateInfo();
+    if (!updateInfo) {
+      return;
+    }
+
+    const { UpdateDialogComponent } =
+      await import('./shared/components/update-dialog/update-dialog.component');
+
+    this.ngZone.run(() => {
+      const dialogRef = this.dialog.open(UpdateDialogComponent, {
+        data: updateInfo,
+        disableClose: false,
+        autoFocus: false,
+      });
+
+      dialogRef.afterClosed().subscribe((result: { dismissed?: boolean } | null) => {
+        if (result?.dismissed) {
+          this.appUpdateService.dismissUpdate();
+        }
+      });
+    });
   }
 }

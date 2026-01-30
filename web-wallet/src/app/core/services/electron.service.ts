@@ -44,27 +44,6 @@ export interface NotificationResult {
 }
 
 /**
- * Update asset information
- */
-export interface UpdateAsset {
-  name: string;
-  url: string;
-  size: number;
-}
-
-/**
- * Update information from GitHub releases
- */
-export interface UpdateInfo {
-  currentVersion: string;
-  newVersion: string;
-  os: string;
-  assets: UpdateAsset[];
-  releaseUrl: string;
-  releaseNotes: string;
-}
-
-/**
  * Type definition for the Electron API exposed via preload script (legacy)
  */
 interface ElectronAPI {
@@ -75,10 +54,6 @@ interface ElectronAPI {
   showFolderDialog: (options?: FolderDialogOptions) => Promise<string | null>;
   showNotification: (options: NotificationOptions) => Promise<NotificationResult>;
   onRouteTo: (callback: (route: string) => void) => void;
-  onNewVersion: (callback: (updateInfo: UpdateInfo) => void) => void;
-  onNewVersionCheckNoUpdate: (callback: () => void) => void;
-  onNewVersionDownloadStarted: (callback: () => void) => void;
-  selectVersionAsset: (assetUrl: string) => void;
   isElectron: boolean;
 }
 
@@ -328,56 +303,6 @@ export class ElectronService {
       }
     } else {
       window.open(url, '_blank');
-    }
-  }
-
-  /**
-   * Register callback for new version notifications (Electron only for now)
-   * @param callback - Function to call when new version is available
-   */
-  onNewVersion(callback: (updateInfo: UpdateInfo) => void): void {
-    if (this.isElectron && window.electronAPI?.onNewVersion) {
-      window.electronAPI.onNewVersion(updateInfo => {
-        this.ngZone.run(() => callback(updateInfo));
-      });
-    }
-    // TODO: Implement Tauri updater events
-  }
-
-  /**
-   * Register callback for "no update available" notifications
-   * @param callback - Function to call when no update is found
-   */
-  onNewVersionCheckNoUpdate(callback: () => void): void {
-    if (this.isElectron && window.electronAPI?.onNewVersionCheckNoUpdate) {
-      window.electronAPI.onNewVersionCheckNoUpdate(() => {
-        this.ngZone.run(() => callback());
-      });
-    }
-  }
-
-  /**
-   * Register callback for download started notifications
-   * @param callback - Function to call when download starts
-   */
-  onNewVersionDownloadStarted(callback: () => void): void {
-    if (this.isElectron && window.electronAPI?.onNewVersionDownloadStarted) {
-      window.electronAPI.onNewVersionDownloadStarted(() => {
-        this.ngZone.run(() => callback());
-      });
-    }
-  }
-
-  /**
-   * Select an asset to download (Electron only)
-   * @param assetUrl - URL of the asset to download
-   */
-  selectVersionAsset(assetUrl: string): void {
-    if (this.isElectron && window.electronAPI?.selectVersionAsset) {
-      window.electronAPI.selectVersionAsset(assetUrl);
-    } else if (this.isTauri) {
-      // In Tauri, just open the URL
-      this.openExternal(assetUrl);
     }
   }
 }

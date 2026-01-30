@@ -459,7 +459,6 @@ pub async fn start_mining(
             match rpc_transport {
                 pocx_miner::RpcTransport::Http => "http",
                 pocx_miner::RpcTransport::Https => "https",
-                pocx_miner::RpcTransport::Ipc => "ipc",
             },
             chain_config.rpc_host,
             chain_config.rpc_port,
@@ -472,7 +471,6 @@ pub async fn start_mining(
             rpc_transport,
             rpc_host: chain_config.rpc_host.clone(),
             rpc_port: chain_config.rpc_port,
-            ipc_path: None, // IPC not supported via wallet GUI
             rpc_auth,
             block_time_seconds: chain_config.block_time_seconds,
             submission_mode,
@@ -526,14 +524,14 @@ pub async fn start_mining(
     // Build miner configuration
     let miner_cfg = pocx_miner::Cfg {
         chains,
-        get_mining_info_interval: 1000,
-        timeout: 5000,
+        get_mining_info_interval: config.poll_interval,
+        timeout: config.timeout,
         plot_dirs,
-        hdd_use_direct_io: config.direct_io,
+        hdd_use_direct_io: config.mining_direct_io,
         hdd_wakeup_after: config.hdd_wakeup_seconds,
         hdd_read_cache_in_warps: 16,
         cpu_threads: config.cpu_config.mining_threads as usize,
-        cpu_thread_pinning: true,
+        cpu_thread_pinning: config.thread_pinning,
         show_progress: false, // We use our own UI
         line_progress: false, // We use callbacks
         benchmark: None,
@@ -543,7 +541,7 @@ pub async fn start_mining(
         logfile_max_size: 10,
         console_log_pattern: "{m}{n}".to_string(),
         logfile_log_pattern: "{d(%Y-%m-%d %H:%M:%S)} [{l}] {m}{n}".to_string(),
-        enable_on_the_fly_compression: config.compression_level > 0,
+        enable_on_the_fly_compression: config.enable_on_the_fly_compression,
     };
 
     // Clone state for the spawned task
@@ -762,7 +760,10 @@ pub async fn run_device_benchmark(
 
 /// Reset mining configuration to defaults
 #[tauri::command]
-pub fn reset_mining_config(state: State<SharedMiningState>) -> CommandResult<()> {
+pub fn reset_mining_config(
+    state: State<SharedMiningState>,
+    aggregator_state: State<crate::aggregator::state::SharedAggregatorState>,
+) -> CommandResult<()> {
     // Check if plotting is active before allowing reset
     match state.lock() {
         Ok(state_guard) => {
@@ -794,10 +795,25 @@ pub fn reset_mining_config(state: State<SharedMiningState>) -> CommandResult<()>
         Ok(mut state_guard) => {
             state_guard.config = MiningConfig::default();
             state_guard.is_configured = false;
-            CommandResult::ok(())
         }
-        Err(e) => CommandResult::err(format!("Failed to reset config: {}", e)),
+        Err(e) => return CommandResult::err(format!("Failed to reset config: {}", e)),
     }
+
+    // Also reset aggregator config
+    if let Some(agg_path) = crate::aggregator::state::get_config_file_path() {
+        if agg_path.exists() {
+            if let Err(e) = std::fs::remove_file(&agg_path) {
+                log::warn!("Failed to delete aggregator config file: {}", e);
+            } else {
+                log::info!("Deleted aggregator config file: {:?}", agg_path);
+            }
+        }
+    }
+    if let Ok(mut inner) = aggregator_state.lock() {
+        inner.config = crate::aggregator::state::AggregatorConfig::default();
+    }
+
+    CommandResult::ok(())
 }
 
 // ============================================================================

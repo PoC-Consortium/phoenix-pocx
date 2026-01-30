@@ -14,9 +14,11 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@ngrx/store';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MiningService } from '../../services';
+import { AggregatorService } from '../../../aggregator/services/aggregator.service';
 import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletRpcService } from '../../../bitcoin/services/rpc/wallet-rpc.service';
 import { MiningRpcService } from '../../../bitcoin/services/rpc/mining-rpc.service';
+import { NodeService } from '../../../node';
 import {
   selectRpcHost,
   selectRpcPort,
@@ -57,6 +59,8 @@ interface ChainModalData {
   authUsername: string;
   authPassword: string;
   authCookiePath: string;
+  // Aggregator toggle (solo mode only)
+  aggregatorEnabled: boolean;
 }
 
 @Component({
@@ -167,6 +171,9 @@ interface ChainModalData {
                       }}
                     </div>
                   </div>
+                  @if (chain.chainType === 'solo' && aggregatorService.config().enabled) {
+                    <mat-icon class="aggregator-badge" title="Aggregator enabled">hub</mat-icon>
+                  }
                   <span class="chain-mode" [class]="chain.mode">
                     {{ chain.mode === 'solo' ? ('setup_solo' | i18n) : ('setup_pool' | i18n) }}
                   </span>
@@ -886,7 +893,7 @@ interface ChainModalData {
                   />
                 </div>
               </div>
-              <div class="form-row">
+              <div class="checkbox-row standalone">
                 <label class="checkbox-option">
                   <input
                     type="checkbox"
@@ -941,10 +948,10 @@ interface ChainModalData {
                 <button
                   class="mode-tab"
                   [class.active]="chainModalData().mode === 'solo'"
-                  [class.disabled]="appMode.isMobile()"
-                  [disabled]="appMode.isMobile()"
+                  [class.disabled]="soloTabDisabled()"
+                  [disabled]="soloTabDisabled()"
                   (click)="setChainMode('solo')"
-                  [title]="appMode.isMobile() ? ('setup_solo_not_available_mobile' | i18n) : ''"
+                  [title]="soloTabDisabledReason()"
                 >
                   {{ 'setup_solo_local' | i18n }}
                 </button>
@@ -971,6 +978,21 @@ interface ChainModalData {
                 <strong>{{ 'setup_solo_mining_info' | i18n }}</strong
                 ><br />
                 {{ 'setup_solo_mining_desc' | i18n }}
+              </div>
+              <div class="form-group aggregator-toggle" style="margin-top: 16px;">
+                <label class="toggle-row">
+                  <input
+                    type="checkbox"
+                    [checked]="chainModalData().aggregatorEnabled"
+                    (change)="updateChainModal('aggregatorEnabled', $any($event.target).checked)"
+                  />
+                  <span class="toggle-label">
+                    <strong>Enable Aggregator</strong><br />
+                    <span class="toggle-desc"
+                      >Accept submissions from remote miners on this node's RPC port</span
+                    >
+                  </span>
+                </label>
               </div>
             }
 
@@ -1423,6 +1445,14 @@ interface ChainModalData {
       .chain-mode.pool {
         background: rgba(25, 118, 210, 0.15);
         color: #1565c0;
+      }
+
+      .aggregator-badge {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        color: #1e3a5f;
+        opacity: 0.7;
       }
 
       .chain-actions {
@@ -2383,6 +2413,29 @@ interface ChainModalData {
         color: #2e7d32;
       }
 
+      .aggregator-toggle .toggle-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: pointer;
+      }
+
+      .aggregator-toggle .toggle-row input[type='checkbox'] {
+        margin-top: 3px;
+        width: 16px;
+        height: 16px;
+      }
+
+      .aggregator-toggle .toggle-label {
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      .aggregator-toggle .toggle-desc {
+        color: rgba(0, 0, 0, 0.54);
+        font-size: 12px;
+      }
+
       /* Buttons */
       .btn {
         padding: 10px 20px;
@@ -2572,6 +2625,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly miningRpc = inject(MiningRpcService);
   private readonly store = inject(Store);
   private readonly i18n = inject(I18nService);
+  readonly aggregatorService = inject(AggregatorService);
+  private readonly nodeService = inject(NodeService);
 
   // Wallet settings for solo mining (synced to mining config)
   private readonly walletRpcHost = toSignal(this.store.select(selectRpcHost), {
@@ -2675,6 +2730,20 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     authUsername: '',
     authPassword: '',
     authCookiePath: '',
+    aggregatorEnabled: false,
+  });
+
+  /** Solo tab is disabled on mobile or when a solo chain already exists (and not editing one) */
+  readonly soloTabDisabled = computed(() => {
+    if (this.appMode.isMobile()) return true;
+    if (this.editingChain()?.chainType === 'solo') return false; // Allow editing existing solo
+    return this.chainConfigs().some(c => c.chainType === 'solo');
+  });
+
+  readonly soloTabDisabledReason = computed(() => {
+    if (this.appMode.isMobile()) return this.i18n.get('setup_solo_not_available_mobile') || '';
+    if (this.soloTabDisabled()) return 'Solo chain already configured';
+    return '';
   });
 
   // Computed values - GiB based
@@ -3060,7 +3129,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           this.customPlottingAddress.set(config.plottingAddress);
           this.useCustomAddress.set(true);
         }
-        // Load other settings
+        // Load plotter settings
         if (config.escalation) {
           this.escalation.set(config.escalation);
         }
@@ -3070,8 +3139,33 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         if (config.parallelDrives) {
           this.parallelDrives.set(config.parallelDrives);
         }
+        if (config.compressionLevel !== undefined) {
+          this.compressionLevel.set(config.compressionLevel.toString());
+        }
+        if (config.directIo !== undefined) {
+          this.directIo.set(config.directIo);
+        }
+        if (config.zeroCopyBuffers !== undefined) {
+          this.zeroCopyBuffers.set(config.zeroCopyBuffers);
+        }
+        // Load miner settings
         if (config.hddWakeupSeconds) {
           this.hddWakeup.set(config.hddWakeupSeconds);
+        }
+        if (config.pollInterval) {
+          this.pollInterval.set(config.pollInterval);
+        }
+        if (config.timeout) {
+          this.timeout.set(config.timeout);
+        }
+        if (config.enableOnTheFlyCompression !== undefined) {
+          this.compressionEnabled.set(config.enableOnTheFlyCompression);
+        }
+        if (config.threadPinning !== undefined) {
+          this.threadPinning.set(config.threadPinning);
+        }
+        if (config.miningDirectIo !== undefined) {
+          this.miningDirectIo.set(config.miningDirectIo);
         }
       }
     } catch (error) {
@@ -3118,6 +3212,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       authUsername: '',
       authPassword: '',
       authCookiePath: '',
+      aggregatorEnabled: this.aggregatorService.config().enabled,
     });
     this.chainModalOpen.set(true);
   }
@@ -3155,6 +3250,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       authUsername,
       authPassword,
       authCookiePath,
+      aggregatorEnabled:
+        chain.chainType === 'solo' ? this.aggregatorService.config().enabled : false,
     });
     this.chainModalOpen.set(true);
   }
@@ -3176,6 +3273,20 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     const data = this.chainModalData();
     const editing = this.editingChain();
 
+    // Prevent duplicate solo chain (only one allowed)
+    if (data.mode === 'solo' && !editing) {
+      const hasSolo = this.chainConfigs().some(c => c.chainType === 'solo');
+      if (hasSolo) {
+        this.snackBar.open(
+          this.i18n.get('setup_solo_already_exists') ||
+            'Solo chain already configured. Only one solo chain is allowed.',
+          this.i18n.get('close') || 'Close',
+          { duration: 4000 }
+        );
+        return;
+      }
+    }
+
     let chain: ChainConfig;
     const id = editing?.id || crypto.randomUUID();
 
@@ -3192,16 +3303,21 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     };
 
     if (data.mode === 'solo') {
-      // Solo mode uses wallet RPC settings (host/port read from wallet config)
-      // rpcAuth is cookie with no path - backend reads cookie from wallet settings
+      // When aggregator is enabled, miner connects to local aggregator (no auth).
+      // Otherwise, miner connects directly to wallet RPC (cookie auth).
+      const walletRpcPort =
+        this.nodeService.config().rpcPort ||
+        (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
+      const aggregatorPort = walletRpcPort + 1;
+      const useAggregator = data.aggregatorEnabled;
       chain = {
         id,
-        name: 'PoCX Testnet (Local)',
+        name: useAggregator ? 'PoCX Testnet (Aggregator)' : 'PoCX Testnet (Local)',
         chainType: 'solo',
         rpcTransport: 'http',
-        rpcHost: '127.0.0.1', // Will be overridden from wallet settings
-        rpcPort: 18332, // Will be overridden from wallet settings
-        rpcAuth: { type: 'cookie' }, // Backend reads cookie from wallet settings
+        rpcHost: '127.0.0.1',
+        rpcPort: useAggregator ? aggregatorPort : walletRpcPort,
+        rpcAuth: useAggregator ? { type: 'none' } : { type: 'cookie' },
         blockTimeSeconds: 120,
         mode: 'solo',
         enabled: true,
@@ -3255,6 +3371,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       this.chainConfigs.update(chains => [...chains, chain]);
     }
 
+    // Handle aggregator toggle for solo chains
+    if (data.mode === 'solo') {
+      this.updateAggregatorFromSoloChain(chain, data.aggregatorEnabled);
+    }
+
     this.closeChainModal();
   }
 
@@ -3273,7 +3394,51 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   }
 
   removeChain(chain: ChainConfig): void {
+    // If removing a solo chain, disable aggregator
+    if (chain.chainType === 'solo') {
+      this.updateAggregatorFromSoloChain(chain, false);
+    }
     this.chainConfigs.update(chains => chains.filter(c => c.id !== chain.id));
+  }
+
+  /**
+   * Update aggregator config based on solo chain settings.
+   * Upstream = wallet's RPC (same as what the solo chain uses).
+   * Listen address = 0.0.0.0 with the same RPC port.
+   */
+  private updateAggregatorFromSoloChain(chain: ChainConfig, enabled: boolean): void {
+    // Aggregator listens on upstream RPC port + 1, forwards to wallet RPC
+    const walletRpcPort =
+      this.nodeService.config().rpcPort ||
+      (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
+    const aggregatorPort = walletRpcPort + 1;
+    const config = {
+      enabled,
+      listenAddress: `0.0.0.0:${aggregatorPort}`,
+      upstreamName: 'local',
+      upstreamRpcHost: '127.0.0.1',
+      upstreamRpcPort: walletRpcPort,
+      submissionMode: 'wallet' as const,
+      blockTimeSecs: chain.blockTimeSeconds,
+    };
+
+    this.aggregatorService.saveConfig(config).then(saved => {
+      if (saved) {
+        if (enabled) {
+          // Start aggregator if it's not already running
+          if (!this.aggregatorService.isRunning()) {
+            this.aggregatorService.initListeners().then(() => {
+              this.aggregatorService.start();
+            });
+          }
+        } else {
+          // Stop aggregator if running
+          if (this.aggregatorService.isRunning()) {
+            this.aggregatorService.stop();
+          }
+        }
+      }
+    });
   }
 
   // Chain drag and drop reordering using CDK
@@ -3801,6 +3966,12 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         lowPriority: this.lowPriority(),
         parallelDrives: this.parallelDrives(),
         hddWakeupSeconds: this.hddWakeup(),
+        // Miner advanced settings
+        pollInterval: this.pollInterval(),
+        timeout: this.timeout(),
+        enableOnTheFlyCompression: this.compressionEnabled(),
+        threadPinning: this.threadPinning(),
+        miningDirectIo: this.miningDirectIo(),
         // Wallet RPC settings for solo mining
         walletRpcHost: this.walletRpcHost(),
         walletRpcPort: this.walletRpcPort(),
@@ -3810,7 +3981,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
       if (!success) {
         console.error('Failed to save configuration - service returned false');
-        // TODO: Show error to user
+        this.snackBar.open(
+          this.i18n.get('mining_config_save_failed') || 'Failed to save configuration',
+          this.i18n.get('dismiss') || 'Dismiss',
+          { duration: 5000, panelClass: ['snackbar-error'] }
+        );
         return;
       }
 
@@ -3830,6 +4005,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       await this.router.navigate(['/mining']);
     } catch (error) {
       console.error('Failed to save configuration:', error);
+      this.snackBar.open(
+        this.i18n.get('mining_config_save_failed') || 'Failed to save configuration',
+        this.i18n.get('dismiss') || 'Dismiss',
+        { duration: 5000, panelClass: ['snackbar-error'] }
+      );
     } finally {
       this.saving.set(false);
     }

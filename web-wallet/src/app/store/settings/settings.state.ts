@@ -55,6 +55,24 @@ export interface NotificationSettings {
 }
 
 /**
+ * Aggregator settings
+ */
+export interface AggregatorSettings {
+  enabled: boolean;
+  listenAddress: string;
+  upstreamName: string;
+}
+
+/**
+ * Default aggregator settings
+ */
+export const defaultAggregatorSettings: AggregatorSettings = {
+  enabled: false,
+  listenAddress: '0.0.0.0:8080',
+  upstreamName: 'local',
+};
+
+/**
  * Settings state
  */
 export interface SettingsState {
@@ -78,6 +96,9 @@ export interface SettingsState {
   // Advanced
   debugMode: boolean;
   customFeeRate: number | null;
+
+  // Aggregator
+  aggregator: AggregatorSettings;
 }
 
 /**
@@ -126,6 +147,8 @@ export const initialSettingsState: SettingsState = {
 
   debugMode: false,
   customFeeRate: null,
+
+  aggregator: { ...defaultAggregatorSettings },
 };
 
 /**

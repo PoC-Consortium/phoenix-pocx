@@ -148,6 +148,10 @@ export const routes: Routes = [
         loadChildren: () => import('./mining/mining.routes').then(m => m.MINING_ROUTES),
       },
       {
+        path: 'aggregator',
+        loadChildren: () => import('./aggregator/aggregator.routes').then(m => m.AGGREGATOR_ROUTES),
+      },
+      {
         path: '',
         redirectTo: 'dashboard',
         pathMatch: 'full',
