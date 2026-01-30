@@ -232,8 +232,7 @@ export class AggregatorService {
    * Save config to backend and handle start/stop based on state change
    */
   async saveConfig(config: AggregatorConfig): Promise<boolean> {
-    // Determine current state (was running?)
-    const wasRunning = this.isRunning();
+    // Determine current state (should be running based on config?)
     const oldShouldRun = this.shouldAggregatorRun(this._config());
 
     try {
