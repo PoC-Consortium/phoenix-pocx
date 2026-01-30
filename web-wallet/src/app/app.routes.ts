@@ -149,8 +149,7 @@ export const routes: Routes = [
       },
       {
         path: 'aggregator',
-        loadChildren: () =>
-          import('./aggregator/aggregator.routes').then(m => m.AGGREGATOR_ROUTES),
+        loadChildren: () => import('./aggregator/aggregator.routes').then(m => m.AGGREGATOR_ROUTES),
       },
       {
         path: '',

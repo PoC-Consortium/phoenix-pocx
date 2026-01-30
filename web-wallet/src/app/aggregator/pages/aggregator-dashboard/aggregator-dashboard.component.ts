@@ -58,80 +58,82 @@ import { I18nPipe } from '../../../core/i18n';
       </div>
     </div>
   `,
-  styles: [`
-    :host {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
-    }
+  styles: [
+    `
+      :host {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
 
-    .dashboard {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      overflow: hidden;
-      min-height: 0;
-    }
+      .dashboard {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+        min-height: 0;
+      }
 
-    .main-content {
-      flex: 1;
-      padding: 16px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      position: relative;
-      min-height: 0;
-    }
-
-    .detail-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      min-height: 200px;
-    }
-
-    @media (max-width: 900px) {
-      .detail-row {
-        grid-template-columns: 1fr;
+      .main-content {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        display: flex;
+        flex-direction: column;
         gap: 12px;
+        position: relative;
+        min-height: 0;
       }
-    }
 
-    .offline-placeholder {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 48px;
-      color: rgba(0,0,0,0.38);
-      background: #ffffff;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    }
+      .detail-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        min-height: 200px;
+      }
 
-    .offline-placeholder mat-icon {
-      font-size: 64px;
-      width: 64px;
-      height: 64px;
-      margin-bottom: 16px;
-    }
+      @media (max-width: 900px) {
+        .detail-row {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+      }
 
-    .offline-placeholder p {
-      font-size: 14px;
-      text-align: center;
-    }
-
-    :host-context(.dark-theme) {
       .offline-placeholder {
-        color: rgba(255,255,255,0.38);
-        background: #1e1e1e;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 48px;
+        color: rgba(0, 0, 0, 0.38);
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
       }
-    }
-  `],
+
+      .offline-placeholder mat-icon {
+        font-size: 64px;
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+      }
+
+      .offline-placeholder p {
+        font-size: 14px;
+        text-align: center;
+      }
+
+      :host-context(.dark-theme) {
+        .offline-placeholder {
+          color: rgba(255, 255, 255, 0.38);
+          background: #1e1e1e;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+      }
+    `,
+  ],
 })
 export class AggregatorDashboardComponent implements OnInit, OnDestroy {
   readonly aggregatorService = inject(AggregatorService);

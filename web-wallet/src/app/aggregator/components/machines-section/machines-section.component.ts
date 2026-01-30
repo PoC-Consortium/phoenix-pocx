@@ -35,12 +35,18 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
                   <td>{{ row.totalCapacityTib.toFixed(2) }} TiB</td>
                   <td>{{ row.submissions24h }}</td>
                   <td>
-                    <span class="status-dot" [class.active]="row.isActive" [class.inactive]="!row.isActive"></span>
+                    <span
+                      class="status-dot"
+                      [class.active]="row.isActive"
+                      [class.inactive]="!row.isActive"
+                    ></span>
                     {{ row.isActive ? ('active' | i18n) : ('aggregator_offline' | i18n) }}
                   </td>
                   <td>
                     @if (row.accounts.length > 0) {
-                      <mat-icon class="expand-icon">{{ expandedId() === row.machineId ? 'expand_less' : 'expand_more' }}</mat-icon>
+                      <mat-icon class="expand-icon">{{
+                        expandedId() === row.machineId ? 'expand_less' : 'expand_more'
+                      }}</mat-icon>
                     }
                   </td>
                 </tr>
@@ -55,7 +61,11 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
                   <span class="mono">{{ truncate(acct.accountId) }}</span>
                   <span>{{ acct.capacityTib.toFixed(2) }} TiB</span>
                   <span>{{ acct.submissions24h }} {{ 'aggregator_subs_suffix' | i18n }}</span>
-                  <span class="status-dot" [class.active]="acct.isActive" [class.inactive]="!acct.isActive"></span>
+                  <span
+                    class="status-dot"
+                    [class.active]="acct.isActive"
+                    [class.inactive]="!acct.isActive"
+                  ></span>
                 </div>
               }
             </div>
@@ -64,126 +74,168 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
       </div>
     </div>
   `,
-  styles: [`
-    .section {
-      background: #ffffff;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-    }
+  styles: [
+    `
+      .section {
+        background: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
 
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 16px;
-      background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-      flex-shrink: 0;
-    }
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        flex-shrink: 0;
+      }
 
-    .section-title {
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #ffffff;
-    }
+      .section-title {
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #ffffff;
+      }
 
-    .section-content {
-      padding: 10px 14px;
-      overflow-x: auto;
-      overflow-y: auto;
-      flex: 1;
-    }
+      .section-content {
+        padding: 10px 14px;
+        overflow-x: auto;
+        overflow-y: auto;
+        flex: 1;
+      }
 
-    table {
-      width: 100%;
-      min-width: 350px;
-      border-collapse: collapse;
-    }
+      table {
+        width: 100%;
+        min-width: 350px;
+        border-collapse: collapse;
+      }
 
-    th {
-      text-align: left;
-      padding: 5px 6px;
-      font-size: 9px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgb(0, 35, 65);
-      border-bottom: 1px solid #e0e0e0;
-    }
+      th {
+        text-align: left;
+        padding: 5px 6px;
+        font-size: 9px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgb(0, 35, 65);
+        border-bottom: 1px solid #e0e0e0;
+      }
 
-    td {
-      padding: 5px 6px;
-      font-size: 11px;
-      border-bottom: 1px solid #f0f0f0;
-      color: rgb(0, 35, 65);
-    }
+      td {
+        padding: 5px 6px;
+        font-size: 11px;
+        border-bottom: 1px solid #f0f0f0;
+        color: rgb(0, 35, 65);
+      }
 
-    tr:last-child td { border-bottom: none; }
-    tr { cursor: pointer; }
-    tr:hover { background: rgba(0, 0, 0, 0.02); }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      tr {
+        cursor: pointer;
+      }
+      tr:hover {
+        background: rgba(0, 0, 0, 0.02);
+      }
 
-    .mono { font-family: 'Consolas', monospace; font-size: 11px; }
-    .no-data { padding: 24px; text-align: center; color: rgba(0,0,0,0.38); font-size: 13px; }
+      .mono {
+        font-family: 'Consolas', monospace;
+        font-size: 11px;
+      }
+      .no-data {
+        padding: 24px;
+        text-align: center;
+        color: rgba(0, 0, 0, 0.38);
+        font-size: 13px;
+      }
 
-    .status-dot {
-      display: inline-block;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      margin-right: 5px;
-    }
-    .status-dot.active { background: #4caf50; box-shadow: 0 0 4px #4caf50; }
-    .status-dot.inactive { background: #9e9e9e; }
+      .status-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        margin-right: 5px;
+      }
+      .status-dot.active {
+        background: #4caf50;
+        box-shadow: 0 0 4px #4caf50;
+      }
+      .status-dot.inactive {
+        background: #9e9e9e;
+      }
 
-    .expand-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-      color: rgba(0, 35, 65, 0.5);
-    }
+      .expand-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        color: rgba(0, 35, 65, 0.5);
+      }
 
-    .expanded-detail {
-      padding: 12px 16px;
-      background: rgba(0,0,0,0.03);
-      border-radius: 4px;
-      margin-top: 4px;
-    }
+      .expanded-detail {
+        padding: 12px 16px;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
+        margin-top: 4px;
+      }
 
-    .detail-title {
-      font-weight: 500;
-      margin-bottom: 8px;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: rgba(0, 35, 65, 0.6);
-    }
+      .detail-title {
+        font-weight: 500;
+        margin-bottom: 8px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(0, 35, 65, 0.6);
+      }
 
-    .detail-row {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      padding: 4px 0;
-      font-size: 11px;
-      color: rgb(0, 35, 65);
-    }
+      .detail-row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        padding: 4px 0;
+        font-size: 11px;
+        color: rgb(0, 35, 65);
+      }
 
-    :host-context(.dark-theme) {
-      .section { background: #1e1e1e; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
-      .no-data { color: rgba(255,255,255,0.38); }
-      th { color: rgba(255,255,255,0.7); border-bottom-color: rgba(255,255,255,0.1); }
-      td { color: #e0e0e0; border-bottom-color: rgba(255,255,255,0.05); }
-      tr:hover { background: rgba(255,255,255,0.03); }
-      .expand-icon { color: rgba(255,255,255,0.5); }
-      .expanded-detail { background: rgba(255,255,255,0.05); }
-      .detail-title { color: rgba(255,255,255,0.5); }
-      .detail-row { color: #e0e0e0; }
-    }
-  `],
+      :host-context(.dark-theme) {
+        .section {
+          background: #1e1e1e;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        .no-data {
+          color: rgba(255, 255, 255, 0.38);
+        }
+        th {
+          color: rgba(255, 255, 255, 0.7);
+          border-bottom-color: rgba(255, 255, 255, 0.1);
+        }
+        td {
+          color: #e0e0e0;
+          border-bottom-color: rgba(255, 255, 255, 0.05);
+        }
+        tr:hover {
+          background: rgba(255, 255, 255, 0.03);
+        }
+        .expand-icon {
+          color: rgba(255, 255, 255, 0.5);
+        }
+        .expanded-detail {
+          background: rgba(255, 255, 255, 0.05);
+        }
+        .detail-title {
+          color: rgba(255, 255, 255, 0.5);
+        }
+        .detail-row {
+          color: #e0e0e0;
+        }
+      }
+    `,
+  ],
 })
 export class MachinesSectionComponent {
   private readonly i18n = inject(I18nService);

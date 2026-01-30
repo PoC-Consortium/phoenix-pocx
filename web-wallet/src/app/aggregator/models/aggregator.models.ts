@@ -151,7 +151,7 @@ export interface SubmissionInfo {
   generationSignature: string;
   seed: string;
   nonce: number;
-  compression: number;  // X value (compression level)
+  compression: number; // X value (compression level)
   quality: number;
 }
 

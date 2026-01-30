@@ -988,7 +988,9 @@ interface ChainModalData {
                   />
                   <span class="toggle-label">
                     <strong>Enable Aggregator</strong><br />
-                    <span class="toggle-desc">Accept submissions from remote miners on this node's RPC port</span>
+                    <span class="toggle-desc"
+                      >Accept submissions from remote miners on this node's RPC port</span
+                    >
                   </span>
                 </label>
               </div>
@@ -3248,7 +3250,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       authUsername,
       authPassword,
       authCookiePath,
-      aggregatorEnabled: chain.chainType === 'solo' ? this.aggregatorService.config().enabled : false,
+      aggregatorEnabled:
+        chain.chainType === 'solo' ? this.aggregatorService.config().enabled : false,
     });
     this.chainModalOpen.set(true);
   }
@@ -3275,7 +3278,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       const hasSolo = this.chainConfigs().some(c => c.chainType === 'solo');
       if (hasSolo) {
         this.snackBar.open(
-          this.i18n.get('setup_solo_already_exists') || 'Solo chain already configured. Only one solo chain is allowed.',
+          this.i18n.get('setup_solo_already_exists') ||
+            'Solo chain already configured. Only one solo chain is allowed.',
           this.i18n.get('close') || 'Close',
           { duration: 4000 }
         );
@@ -3301,7 +3305,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     if (data.mode === 'solo') {
       // When aggregator is enabled, miner connects to local aggregator (no auth).
       // Otherwise, miner connects directly to wallet RPC (cookie auth).
-      const walletRpcPort = this.nodeService.config().rpcPort || (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
+      const walletRpcPort =
+        this.nodeService.config().rpcPort ||
+        (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
       const aggregatorPort = walletRpcPort + 1;
       const useAggregator = data.aggregatorEnabled;
       chain = {
@@ -3402,7 +3408,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
    */
   private updateAggregatorFromSoloChain(chain: ChainConfig, enabled: boolean): void {
     // Aggregator listens on upstream RPC port + 1, forwards to wallet RPC
-    const walletRpcPort = this.nodeService.config().rpcPort || (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
+    const walletRpcPort =
+      this.nodeService.config().rpcPort ||
+      (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
     const aggregatorPort = walletRpcPort + 1;
     const config = {
       enabled,

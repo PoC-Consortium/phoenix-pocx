@@ -185,7 +185,7 @@ export class AggregatorService {
         const acct = this.truncateId(event.payload.accountId);
         const machine = this.truncateId(event.payload.machineId);
         this.addActivityLog('info', `Miner connected: ${acct} (${machine})`);
-      }),
+      })
     );
   }
 
@@ -332,9 +332,7 @@ export class AggregatorService {
    */
   async refreshStatus(): Promise<void> {
     try {
-      const result = await invoke<CommandResult<AggregatorStatusResponse>>(
-        'get_aggregator_status'
-      );
+      const result = await invoke<CommandResult<AggregatorStatusResponse>>('get_aggregator_status');
       if (result.success && result.data) {
         this._status.set(result.data.status);
         this._config.set(result.data.config);
@@ -349,9 +347,7 @@ export class AggregatorService {
    */
   async refreshStats(): Promise<void> {
     try {
-      const result = await invoke<CommandResult<StatsSnapshot | null>>(
-        'get_aggregator_stats'
-      );
+      const result = await invoke<CommandResult<StatsSnapshot | null>>('get_aggregator_stats');
       if (result.success && result.data != null) {
         this._stats.set(result.data);
       }

@@ -305,5 +305,4 @@ export class ElectronService {
       window.open(url, '_blank');
     }
   }
-
 }

@@ -440,7 +440,11 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       miningItems.push({ path: '/aggregator', icon: 'hub', labelKey: 'aggregator' });
     }
 
-    miningItems.push({ path: '/forging-assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' });
+    miningItems.push({
+      path: '/forging-assignment',
+      icon: 'swap_horiz',
+      labelKey: 'forging_assignment',
+    });
 
     return [
       {
@@ -512,9 +516,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const { UpdateDialogComponent } = await import(
-      '../../shared/components/update-dialog/update-dialog.component'
-    );
+    const { UpdateDialogComponent } =
+      await import('../../shared/components/update-dialog/update-dialog.component');
 
     const dialogRef = this.dialog.open(UpdateDialogComponent, {
       data: updateInfo,

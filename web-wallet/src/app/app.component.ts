@@ -200,14 +200,14 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     // Auto-start aggregator if enabled in config (after node is ready)
-    this.aggregatorService.autoStart().catch(err =>
-      console.error('Aggregator auto-start failed:', err)
-    );
+    this.aggregatorService
+      .autoStart()
+      .catch(err => console.error('Aggregator auto-start failed:', err));
 
     // Auto-start mining if enabled in config (after node is ready)
-    this.miningService.autoStartMining().catch(err =>
-      console.error('Mining auto-start failed:', err)
-    );
+    this.miningService
+      .autoStartMining()
+      .catch(err => console.error('Mining auto-start failed:', err));
 
     // Start periodic status refresh (every 30 seconds)
     this.nodeStatusInterval = setInterval(async () => {
@@ -393,9 +393,8 @@ export class AppComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const { UpdateDialogComponent } = await import(
-      './shared/components/update-dialog/update-dialog.component'
-    );
+    const { UpdateDialogComponent } =
+      await import('./shared/components/update-dialog/update-dialog.component');
 
     this.ngZone.run(() => {
       const dialogRef = this.dialog.open(UpdateDialogComponent, {
