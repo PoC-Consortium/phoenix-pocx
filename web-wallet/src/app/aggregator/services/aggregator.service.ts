@@ -229,12 +229,13 @@ export class AggregatorService {
   }
 
   /**
-   * Save config to backend and handle start/stop based on state change
+   * Save config to backend.
+   * NOTE: This does NOT auto-start/stop the aggregator. Lifecycle is managed by:
+   * - autoStart() on app launch
+   * - syncAggregatorState() in setup wizard after mining config is saved
+   * - Explicit start/stop calls from the dashboard
    */
   async saveConfig(config: AggregatorConfig): Promise<boolean> {
-    // Determine current state (should be running based on config?)
-    const oldShouldRun = this.shouldAggregatorRun(this._config());
-
     try {
       const result = await invoke<CommandResult<void>>('save_aggregator_config', { config });
       if (!result.success) {
@@ -243,23 +244,6 @@ export class AggregatorService {
       }
 
       this._config.set(config);
-
-      // Determine new state (should run now?)
-      const newShouldRun = this.shouldAggregatorRun(config);
-
-      // Handle state transitions
-      if (oldShouldRun && !newShouldRun) {
-        // Was ON, now OFF → stop
-        console.log('Aggregator: config changed to OFF, stopping...');
-        await this.stop();
-      } else if (!oldShouldRun && newShouldRun) {
-        // Was OFF, now ON → start
-        console.log('Aggregator: config changed to ON, starting...');
-        await this.initListeners();
-        await this.start();
-      }
-      // If still same state, do nothing
-
       return true;
     } catch (e) {
       this._error.set(`Failed to save config: ${e}`);
