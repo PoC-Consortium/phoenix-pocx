@@ -18,6 +18,7 @@ import {
 } from '../../models';
 import { I18nPipe, I18nService } from '../../../core/i18n';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
+import { AppUpdateService } from '../../../core/services/app-update.service';
 
 @Component({
   selector: 'app-node-setup',
@@ -241,7 +242,7 @@ import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
         }
       </div>
 
-      <p class="version-info">v2.0.0</p>
+      <p class="version-info">v{{ appVersion() }}</p>
     </div>
   `,
   styles: [
@@ -626,6 +627,10 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
   private readonly cookieAuth = inject(CookieAuthService);
+  private readonly appUpdateService = inject(AppUpdateService);
+
+  /** App version from backend */
+  readonly appVersion = this.appUpdateService.currentVersion;
 
   // State
   readonly currentStep = signal(0);

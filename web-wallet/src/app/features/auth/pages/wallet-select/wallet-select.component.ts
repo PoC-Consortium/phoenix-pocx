@@ -14,6 +14,7 @@ import {
   WalletSummary,
 } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
+import { AppUpdateService } from '../../../../core/services/app-update.service';
 
 /**
  * WalletSelectComponent displays available wallets and options to create/import.
@@ -245,7 +246,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
         </div>
       </div>
 
-      <p class="version-info">v2.0.0</p>
+      <p class="version-info">v{{ appVersion() }}</p>
     </div>
   `,
   styles: [
@@ -615,7 +616,11 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  private readonly appUpdateService = inject(AppUpdateService);
   private readonly destroy$ = new Subject<void>();
+
+  /** App version from backend */
+  readonly appVersion = this.appUpdateService.currentVersion;
 
   // State signals
   isConnecting = signal(true);

@@ -1,4 +1,5 @@
-import { Component, inject, OnInit, OnDestroy, signal, DOCUMENT } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal, DOCUMENT, NgZone } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { Router, RouterOutlet } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -86,8 +87,10 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly aggregatorService = inject(AggregatorService);
   private readonly i18n = inject(I18nService);
 
+  private readonly ngZone = inject(NgZone);
   private closeUnlisten: (() => void) | null = null;
   private nodeStatusInterval: ReturnType<typeof setInterval> | null = null;
+  private updateDialogSubscription: Subscription | null = null;
 
   /** Signal to show node startup overlay */
   readonly isStartingNode = signal(false);
@@ -125,6 +128,11 @@ export class AppComponent implements OnInit, OnDestroy {
     // Initialize update checking service
     this.appUpdateService.initialize();
 
+    // Subscribe to menu:check-update events to show update dialog (works even when logged out)
+    this.updateDialogSubscription = this.appUpdateService.showUpdateDialog$.subscribe(() => {
+      this.showUpdateDialog();
+    });
+
     // Set up window close handler (Tauri only)
     this.initCloseHandler();
   }
@@ -140,6 +148,12 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.nodeStatusInterval) {
       clearInterval(this.nodeStatusInterval);
       this.nodeStatusInterval = null;
+    }
+
+    // Clean up update dialog subscription
+    if (this.updateDialogSubscription) {
+      this.updateDialogSubscription.unsubscribe();
+      this.updateDialogSubscription = null;
     }
   }
 
@@ -367,5 +381,34 @@ export class AppComponent implements OnInit, OnDestroy {
 
       attempts++;
     }
+  }
+
+  /**
+   * Show the update dialog (triggered from Help menu).
+   * Works even when logged out.
+   */
+  private async showUpdateDialog(): Promise<void> {
+    const updateInfo = this.appUpdateService.updateInfo();
+    if (!updateInfo) {
+      return;
+    }
+
+    const { UpdateDialogComponent } = await import(
+      './shared/components/update-dialog/update-dialog.component'
+    );
+
+    this.ngZone.run(() => {
+      const dialogRef = this.dialog.open(UpdateDialogComponent, {
+        data: updateInfo,
+        disableClose: false,
+        autoFocus: false,
+      });
+
+      dialogRef.afterClosed().subscribe((result: { dismissed?: boolean } | null) => {
+        if (result?.dismissed) {
+          this.appUpdateService.dismissUpdate();
+        }
+      });
+    });
   }
 }
