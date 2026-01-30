@@ -15,6 +15,7 @@ import { Store } from '@ngrx/store';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MiningService } from '../../services';
 import { AggregatorService } from '../../../aggregator/services/aggregator.service';
+import { AggregatorConfig } from '../../../aggregator/models/aggregator.models';
 import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletRpcService } from '../../../bitcoin/services/rpc/wallet-rpc.service';
 import { MiningRpcService } from '../../../bitcoin/services/rpc/mining-rpc.service';
@@ -2716,6 +2717,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly hddWakeup = signal(30);
   readonly miningDirectIo = signal(true);
 
+  // Pending aggregator config - saved only on Save & Close, not when chain modal is saved
+  readonly pendingAggregatorConfig = signal<AggregatorConfig | null>(null);
+
   // Chain modal
   readonly chainModalOpen = signal(false);
   readonly editingChain = signal<ChainConfig | null>(null);
@@ -3402,9 +3406,12 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Update aggregator config based on solo chain settings.
+   * Update pending aggregator config based on solo chain settings.
    * Upstream = wallet's RPC (same as what the solo chain uses).
    * Listen address = 0.0.0.0 with the same RPC port.
+   *
+   * NOTE: This only updates a local signal - nothing is saved to backend.
+   * The config is persisted in saveAndStart() after the mining config is saved.
    */
   private updateAggregatorFromSoloChain(chain: ChainConfig, enabled: boolean): void {
     // Aggregator listens on upstream RPC port + 1, forwards to wallet RPC
@@ -3412,33 +3419,49 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       this.nodeService.config().rpcPort ||
       (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
     const aggregatorPort = walletRpcPort + 1;
-    const config = {
+    const config: AggregatorConfig = {
       enabled,
       listenAddress: `0.0.0.0:${aggregatorPort}`,
       upstreamName: 'local',
       upstreamRpcHost: '127.0.0.1',
       upstreamRpcPort: walletRpcPort,
-      submissionMode: 'wallet' as const,
+      submissionMode: 'wallet',
       blockTimeSecs: chain.blockTimeSeconds,
     };
 
-    this.aggregatorService.saveConfig(config).then(saved => {
-      if (saved) {
-        if (enabled) {
-          // Start aggregator if it's not already running
-          if (!this.aggregatorService.isRunning()) {
-            this.aggregatorService.initListeners().then(() => {
-              this.aggregatorService.start();
-            });
-          }
-        } else {
-          // Stop aggregator if running
-          if (this.aggregatorService.isRunning()) {
-            this.aggregatorService.stop();
-          }
-        }
-      }
-    });
+    // Store in local signal - will be saved in saveAndStart()
+    this.pendingAggregatorConfig.set(config);
+  }
+
+  /**
+   * Save pending aggregator config and sync lifecycle.
+   * Called after mining config is persisted in saveAndStart().
+   */
+  private async syncAggregatorState(): Promise<void> {
+    // First, save pending aggregator config if there is one
+    const pendingConfig = this.pendingAggregatorConfig();
+    if (pendingConfig) {
+      console.log(
+        'Saving pending aggregator config:',
+        pendingConfig.enabled ? 'enabled' : 'disabled'
+      );
+      await this.aggregatorService.saveConfig(pendingConfig);
+      this.pendingAggregatorConfig.set(null); // Clear pending
+    }
+
+    // Now manage lifecycle based on saved config
+    const config = this.aggregatorService.config();
+    const hasSoloChain = this.chainConfigs().some(c => c.chainType === 'solo');
+    const shouldRun = config.enabled && hasSoloChain;
+
+    if (shouldRun && !this.aggregatorService.isRunning()) {
+      console.log('Starting aggregator after config save');
+      await this.aggregatorService.initListeners();
+      await this.aggregatorService.start();
+    } else if (!shouldRun && this.aggregatorService.isRunning()) {
+      console.log('Stopping aggregator after config save');
+      await this.aggregatorService.stop();
+    }
   }
 
   // Chain drag and drop reordering using CDK
@@ -3990,6 +4013,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       }
 
       console.log('Configuration saved successfully');
+
+      // Sync aggregator state now that mining config is persisted
+      await this.syncAggregatorState();
 
       // Auto-generate plot plan if there are drives with allocations
       if (this.driveConfigs().length > 0) {
