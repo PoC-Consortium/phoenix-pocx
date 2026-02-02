@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -101,7 +101,7 @@ import { AppUpdateService } from '../../../core/services/app-update.service';
           </div>
 
           <div class="box-content">
-            @if (isInstalled()) {
+            @if (isInstalled() && !isUpdateMode()) {
               <div class="status-container success">
                 <mat-icon class="status-icon">check_circle</mat-icon>
                 <h3>{{ 'node_setup_installed_success' | i18n }}</h3>
@@ -215,7 +215,7 @@ import { AppUpdateService } from '../../../core/services/app-update.service';
               </button>
             </div>
             <div class="right-actions">
-              @if (isInstalled()) {
+              @if (isInstalled() && !isUpdateMode()) {
                 @if (isStartingNode()) {
                   <button mat-raised-button color="primary" disabled>
                     <mat-icon class="spin">sync</mat-icon>
@@ -624,6 +624,7 @@ import { AppUpdateService } from '../../../core/services/app-update.service';
 export class NodeSetupComponent implements OnInit, OnDestroy {
   readonly nodeService = inject(NodeService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
   private readonly cookieAuth = inject(CookieAuthService);
@@ -639,6 +640,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   readonly isFetchingRelease = signal(false);
   readonly platformArch = signal<string>('unknown');
   readonly isStartingNode = signal(false);
+  readonly isUpdateMode = signal(false);
 
   // Computed values
   readonly isInstalled = computed(() => this.nodeService.isInstalled());
@@ -656,6 +658,15 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
     await this.nodeService.initialize();
     const config = this.nodeService.config();
     this.selectedMode.set(config.mode);
+
+    // Check if we're in update mode (navigated from settings with ?update=true)
+    const updateParam = this.route.snapshot.queryParamMap.get('update');
+    if (updateParam === 'true' && config.mode === 'managed') {
+      this.isUpdateMode.set(true);
+      // Skip mode selection and go directly to install step
+      this.currentStep.set(1);
+      this.fetchReleaseInfo();
+    }
   }
 
   ngOnDestroy(): void {}
@@ -775,7 +786,12 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   }
 
   back(): void {
-    this.currentStep.set(0);
+    if (this.isUpdateMode()) {
+      // In update mode, go back to settings instead of mode selection
+      this.router.navigate(['/settings']);
+    } else {
+      this.currentStep.set(0);
+    }
   }
 
   async startDownload(): Promise<void> {
@@ -796,6 +812,8 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
     );
 
     if (version) {
+      // Clear update mode so the success screen shows
+      this.isUpdateMode.set(false);
       this.snackBar.open(this.i18n.get('node_setup_install_success', { version }), 'OK', {
         duration: 5000,
       });
