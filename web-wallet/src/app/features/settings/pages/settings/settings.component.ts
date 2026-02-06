@@ -1559,8 +1559,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Navigate to node setup page to install the update
-    this.router.navigate(['/node/setup']);
+    // Navigate to node setup page with update flag to skip mode selection
+    this.router.navigate(['/node/setup'], { queryParams: { update: 'true' } });
   }
 
   navigateToNodeSetup(): void {
