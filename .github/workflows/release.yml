@@ -102,6 +102,51 @@ jobs:
         working-directory: web-wallet
         run: npm run tauri build -- --target ${{ matrix.target }}
 
+      - name: Fix AppImage - Remove bundled EGL/Wayland libs
+        if: matrix.os_name == 'Linux'
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          APPIMAGE=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage" -type f | head -1)
+
+          if [ -z "$APPIMAGE" ] || [ ! -f "$APPIMAGE" ]; then
+            echo "ERROR: AppImage not found in $BUNDLE_DIR/appimage"
+            exit 1
+          fi
+
+          echo "Processing AppImage: $APPIMAGE"
+
+          # Extract AppImage
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract
+
+          # Remove hardware-specific EGL libraries (must come from host GPU driver)
+          echo "Removing bundled EGL libraries..."
+          rm -fv squashfs-root/usr/lib/libEGL.so* || true
+          rm -fv squashfs-root/usr/lib/x86_64-linux-gnu/libEGL.so* || true
+          rm -fv squashfs-root/usr/lib/aarch64-linux-gnu/libEGL.so* || true
+
+          # Remove Wayland libraries (must come from host compositor)
+          echo "Removing bundled Wayland libraries..."
+          rm -fv squashfs-root/usr/lib/libwayland-client.so* || true
+          rm -fv squashfs-root/usr/lib/libwayland-server.so* || true
+          rm -fv squashfs-root/usr/lib/libwayland-cursor.so* || true
+          rm -fv squashfs-root/usr/lib/libwayland-egl.so* || true
+
+          # Download appimagetool for repacking
+          ARCH=$(uname -m)
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${ARCH}.AppImage" -O appimagetool
+          chmod +x appimagetool
+
+          # Repack AppImage
+          echo "Repacking AppImage..."
+          rm -f "$APPIMAGE"
+          ARCH="$ARCH" ./appimagetool squashfs-root "$APPIMAGE"
+
+          # Cleanup
+          rm -rf squashfs-root appimagetool
+
+          echo "AppImage fixed successfully: $APPIMAGE"
+
       - name: Get version from tag
         id: version
         shell: bash
