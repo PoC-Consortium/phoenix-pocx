@@ -631,7 +631,10 @@ interface ConnectionTestResult {
                         <span class="debug-file-label">{{ 'debug_mining_config' | i18n }}</span>
                         <span class="debug-file-name">mining-config.json</span>
                       </div>
-                      <button mat-stroked-button (click)="openConfigFile(debugPaths()!.miningConfig)">
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.miningConfig)"
+                      >
                         <mat-icon>open_in_new</mat-icon>
                         {{ 'debug_open' | i18n }}
                       </button>
@@ -641,7 +644,10 @@ interface ConnectionTestResult {
                         <span class="debug-file-label">{{ 'debug_aggregator_config' | i18n }}</span>
                         <span class="debug-file-name">aggregator-config.json</span>
                       </div>
-                      <button mat-stroked-button (click)="openConfigFile(debugPaths()!.aggregatorConfig)">
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.aggregatorConfig)"
+                      >
                         <mat-icon>open_in_new</mat-icon>
                         {{ 'debug_open' | i18n }}
                       </button>
@@ -651,7 +657,10 @@ interface ConnectionTestResult {
                         <span class="debug-file-label">{{ 'debug_bitcoin_config' | i18n }}</span>
                         <span class="debug-file-name">bitcoin.conf</span>
                       </div>
-                      <button mat-stroked-button (click)="openConfigFile(debugPaths()!.bitcoinConf)">
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.bitcoinConf)"
+                      >
                         <mat-icon>open_in_new</mat-icon>
                         {{ 'debug_open' | i18n }}
                       </button>
@@ -681,7 +690,10 @@ interface ConnectionTestResult {
                         <span class="debug-file-label">{{ 'debug_bitcoin_log' | i18n }}</span>
                         <span class="debug-file-name">debug.log</span>
                       </div>
-                      <button mat-stroked-button (click)="openConfigFile(debugPaths()!.bitcoinDebugLog)">
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.bitcoinDebugLog)"
+                      >
                         <mat-icon>open_in_new</mat-icon>
                         {{ 'debug_open' | i18n }}
                       </button>
@@ -706,7 +718,9 @@ interface ConnectionTestResult {
                     </div>
                     <div class="debug-info-row">
                       <span class="debug-info-label">{{ 'debug_node_version' | i18n }}</span>
-                      <span class="debug-info-value">{{ nodeService.currentVersion() || 'N/A' }}</span>
+                      <span class="debug-info-value">{{
+                        nodeService.currentVersion() || 'N/A'
+                      }}</span>
                     </div>
                   </div>
                   <div class="debug-actions-row">
