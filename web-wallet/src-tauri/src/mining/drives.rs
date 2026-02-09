@@ -247,7 +247,7 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
         }
 
         // Build DriveInfo from the best matching disk
-        best_match.map(|(disk, _)| {
+        let result = best_match.map(|(disk, _)| {
             let mount_str = disk.mount_point().to_string_lossy().to_string();
             let total_bytes = disk.total_space() as f64;
             let free_bytes = disk.available_space() as f64;
@@ -268,7 +268,14 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
                 incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
                 volume_id: get_volume_guid(path),
             }
-        })
+        });
+
+        if result.is_some() {
+            return result;
+        }
+
+        // Fallback: sysinfo didn't find the drive (e.g., network mount)
+        get_drive_info_fallback(path)
     }
 }
 
@@ -359,6 +366,116 @@ fn get_drive_info_android(path: &str) -> Option<DriveInfo> {
         total_gib: total_bytes / gib,
         free_gib: free_bytes / gib,
         is_system_drive: false, // Android app storage is never system drive
+        complete_files: scan.complete_count,
+        complete_size_gib: scan.complete_bytes as f64 / gib,
+        incomplete_files: scan.incomplete_count,
+        incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+        volume_id: get_volume_guid(path),
+    })
+}
+
+/// Fallback drive info using OS-native filesystem stat calls.
+/// Used when sysinfo doesn't find the drive (e.g., network mounts like SMB/NFS).
+#[cfg(unix)]
+fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
+    use std::ffi::CString;
+
+    let gib = 1024.0 * 1024.0 * 1024.0;
+    let target_path = Path::new(path);
+
+    if !target_path.exists() {
+        return None;
+    }
+
+    let c_path = CString::new(path).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+
+    let result = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };
+    if result != 0 {
+        log::warn!("statvfs fallback failed for path: {}", path);
+        return None;
+    }
+
+    let block_size = if stat.f_frsize > 0 {
+        stat.f_frsize as u64
+    } else {
+        stat.f_bsize as u64
+    };
+    let total_bytes = (stat.f_blocks as u64 * block_size) as f64;
+    let free_bytes = (stat.f_bavail as u64 * block_size) as f64;
+
+    let scan = scan_plot_files(path);
+
+    let label = target_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Network Drive")
+        .to_string();
+
+    Some(DriveInfo {
+        path: path.to_string(),
+        label,
+        total_gib: total_bytes / gib,
+        free_gib: free_bytes / gib,
+        is_system_drive: false,
+        complete_files: scan.complete_count,
+        complete_size_gib: scan.complete_bytes as f64 / gib,
+        incomplete_files: scan.incomplete_count,
+        incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+        volume_id: get_volume_guid(path),
+    })
+}
+
+/// Fallback drive info using GetDiskFreeSpaceExW.
+/// Used when sysinfo doesn't find the drive (e.g., network mounts like SMB/CIFS).
+#[cfg(windows)]
+fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    let gib = 1024.0 * 1024.0 * 1024.0;
+    let target_path = Path::new(path);
+
+    if !target_path.exists() {
+        return None;
+    }
+
+    let mut path_wide: Vec<u16> = OsStr::new(path).encode_wide().collect();
+    path_wide.push(0); // null terminator
+
+    let mut free_bytes_available: u64 = 0;
+    let mut total_bytes: u64 = 0;
+    let mut _total_free_bytes: u64 = 0;
+
+    let result = unsafe {
+        GetDiskFreeSpaceExW(
+            path_wide.as_ptr(),
+            &mut free_bytes_available,
+            &mut total_bytes,
+            &mut _total_free_bytes,
+        )
+    };
+
+    if result == 0 {
+        log::warn!("GetDiskFreeSpaceExW fallback failed for path: {}", path);
+        return None;
+    }
+
+    let scan = scan_plot_files(path);
+
+    let label = target_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Network Drive")
+        .to_string();
+
+    Some(DriveInfo {
+        path: path.to_string(),
+        label,
+        total_gib: total_bytes as f64 / gib,
+        free_gib: free_bytes_available as f64 / gib,
+        is_system_drive: false,
         complete_files: scan.complete_count,
         complete_size_gib: scan.complete_bytes as f64 / gib,
         incomplete_files: scan.incomplete_count,

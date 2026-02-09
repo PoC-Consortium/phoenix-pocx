@@ -159,9 +159,7 @@ impl Default for NodeConfig {
 impl NodeConfig {
     /// Get the path to the node config file
     pub fn config_path() -> PathBuf {
-        let config_dir = dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("Phoenix-PoCX");
+        let config_dir = crate::app_data_dir();
 
         // Ensure directory exists
         let _ = fs::create_dir_all(&config_dir);
@@ -207,34 +205,7 @@ impl NodeConfig {
 
     /// Get the path where the managed node binary is stored
     pub fn managed_node_dir() -> PathBuf {
-        #[cfg(target_os = "windows")]
-        {
-            dirs::data_local_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join("Phoenix-PoCX")
-                .join("node")
-        }
-
-        #[cfg(target_os = "macos")]
-        {
-            dirs::data_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join("Phoenix-PoCX")
-                .join("node")
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".phoenix-pocx")
-                .join("node")
-        }
-
-        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-        {
-            PathBuf::from(".").join("node")
-        }
+        crate::app_data_dir().join("node")
     }
 
     /// Get the path to the bitcoind binary

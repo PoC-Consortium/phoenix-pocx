@@ -2,7 +2,7 @@ import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { MatTabsModule } from '@angular/material/tabs';
+import { MatTabsModule, MatTabChangeEvent } from '@angular/material/tabs';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -22,7 +22,7 @@ import { NotificationService } from '../../../../shared/services';
 import { RpcClientService } from '../../../../bitcoin/services/rpc/rpc-client.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { PlatformService } from '../../../../core/services/platform.service';
-import { ElectronService } from '../../../../core/services/electron.service';
+import { ElectronService, DebugPaths } from '../../../../core/services/electron.service';
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { SettingsActions } from '../../../../store/settings/settings.actions';
 import {
@@ -86,7 +86,7 @@ interface ConnectionTestResult {
 
       <!-- Tab Content -->
       <div class="settings-content">
-        <mat-tab-group animationDuration="200ms">
+        <mat-tab-group animationDuration="200ms" (selectedTabChange)="onTabChange($event)">
           <!-- Tab 1: Node Configuration -->
           <mat-tab [label]="'node_configuration' | i18n">
             <div class="tab-content">
@@ -587,6 +587,152 @@ interface ConnectionTestResult {
               </div>
             </div>
           </mat-tab>
+          <!-- Tab 4: Debug & Logs -->
+          <mat-tab [label]="'debug_logs' | i18n">
+            <div class="tab-content">
+              <div class="debug-container">
+                <!-- App Data Directory -->
+                <div class="config-section">
+                  <div class="debug-info-header">
+                    <mat-icon>folder</mat-icon>
+                    <h3 class="section-title">{{ 'debug_app_data_dir' | i18n }}</h3>
+                  </div>
+                  <p class="debug-description">{{ 'debug_app_data_dir_desc' | i18n }}</p>
+                  @if (debugPaths()) {
+                    <div class="debug-path">{{ debugPaths()!.appDataDir }}</div>
+                    <div class="debug-actions-row">
+                      <button mat-stroked-button (click)="revealFolder(debugPaths()!.appDataDir)">
+                        <mat-icon>folder_open</mat-icon>
+                        {{ 'debug_open_folder' | i18n }}
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                <!-- Configuration Files -->
+                <div class="config-section">
+                  <div class="debug-info-header">
+                    <mat-icon>settings</mat-icon>
+                    <h3 class="section-title">{{ 'debug_config_files' | i18n }}</h3>
+                  </div>
+                  @if (debugPaths()) {
+                    <div class="debug-file-item">
+                      <div class="debug-file-info">
+                        <span class="debug-file-label">{{ 'debug_node_config' | i18n }}</span>
+                        <span class="debug-file-name">node_config.json</span>
+                      </div>
+                      <button mat-stroked-button (click)="openConfigFile(debugPaths()!.nodeConfig)">
+                        <mat-icon>open_in_new</mat-icon>
+                        {{ 'debug_open' | i18n }}
+                      </button>
+                    </div>
+                    <div class="debug-file-item">
+                      <div class="debug-file-info">
+                        <span class="debug-file-label">{{ 'debug_mining_config' | i18n }}</span>
+                        <span class="debug-file-name">mining-config.json</span>
+                      </div>
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.miningConfig)"
+                      >
+                        <mat-icon>open_in_new</mat-icon>
+                        {{ 'debug_open' | i18n }}
+                      </button>
+                    </div>
+                    <div class="debug-file-item">
+                      <div class="debug-file-info">
+                        <span class="debug-file-label">{{ 'debug_aggregator_config' | i18n }}</span>
+                        <span class="debug-file-name">aggregator-config.json</span>
+                      </div>
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.aggregatorConfig)"
+                      >
+                        <mat-icon>open_in_new</mat-icon>
+                        {{ 'debug_open' | i18n }}
+                      </button>
+                    </div>
+                    <div class="debug-file-item">
+                      <div class="debug-file-info">
+                        <span class="debug-file-label">{{ 'debug_bitcoin_config' | i18n }}</span>
+                        <span class="debug-file-name">bitcoin.conf</span>
+                      </div>
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.bitcoinConf)"
+                      >
+                        <mat-icon>open_in_new</mat-icon>
+                        {{ 'debug_open' | i18n }}
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                <!-- Log Files -->
+                <div class="config-section">
+                  <div class="debug-info-header">
+                    <mat-icon>description</mat-icon>
+                    <h3 class="section-title">{{ 'debug_log_files' | i18n }}</h3>
+                  </div>
+                  @if (debugPaths()) {
+                    <div class="debug-file-item">
+                      <div class="debug-file-info">
+                        <span class="debug-file-label">{{ 'debug_app_log' | i18n }}</span>
+                        <span class="debug-file-name">logs/</span>
+                      </div>
+                      <button mat-stroked-button (click)="revealFolder(debugPaths()!.logsDir)">
+                        <mat-icon>folder_open</mat-icon>
+                        {{ 'debug_open_folder' | i18n }}
+                      </button>
+                    </div>
+                    <div class="debug-file-item">
+                      <div class="debug-file-info">
+                        <span class="debug-file-label">{{ 'debug_bitcoin_log' | i18n }}</span>
+                        <span class="debug-file-name">debug.log</span>
+                      </div>
+                      <button
+                        mat-stroked-button
+                        (click)="openConfigFile(debugPaths()!.bitcoinDebugLog)"
+                      >
+                        <mat-icon>open_in_new</mat-icon>
+                        {{ 'debug_open' | i18n }}
+                      </button>
+                    </div>
+                  }
+                </div>
+
+                <!-- System Info -->
+                <div class="config-section">
+                  <div class="debug-info-header">
+                    <mat-icon>info</mat-icon>
+                    <h3 class="section-title">{{ 'debug_system_info' | i18n }}</h3>
+                  </div>
+                  <div class="debug-system-info">
+                    <div class="debug-info-row">
+                      <span class="debug-info-label">{{ 'debug_app_version' | i18n }}</span>
+                      <span class="debug-info-value">{{ debugAppVersion() }}</span>
+                    </div>
+                    <div class="debug-info-row">
+                      <span class="debug-info-label">{{ 'debug_platform' | i18n }}</span>
+                      <span class="debug-info-value">{{ debugPlatform() }}</span>
+                    </div>
+                    <div class="debug-info-row">
+                      <span class="debug-info-label">{{ 'debug_node_version' | i18n }}</span>
+                      <span class="debug-info-value">{{
+                        nodeService.currentVersion() || 'N/A'
+                      }}</span>
+                    </div>
+                  </div>
+                  <div class="debug-actions-row">
+                    <button mat-stroked-button (click)="copySystemInfo()">
+                      <mat-icon>content_copy</mat-icon>
+                      {{ 'debug_copy_all' | i18n }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </mat-tab>
         </mat-tab-group>
       </div>
     </div>
@@ -1049,6 +1195,116 @@ interface ConnectionTestResult {
         gap: 8px;
       }
 
+      /* Debug & Logs Styles */
+      .debug-container {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      .debug-info-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+
+        mat-icon {
+          color: rgba(0, 0, 0, 0.54);
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+
+        .section-title {
+          margin: 0;
+        }
+      }
+
+      .debug-description {
+        margin: 0 0 12px 0;
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.6);
+      }
+
+      .debug-path {
+        font-family: monospace;
+        font-size: 13px;
+        background: #f5f5f5;
+        padding: 8px 12px;
+        border-radius: 4px;
+        word-break: break-all;
+        margin-bottom: 12px;
+        color: rgba(0, 0, 0, 0.87);
+      }
+
+      .debug-file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+        gap: 12px;
+
+        &:last-child {
+          border-bottom: none;
+        }
+      }
+
+      .debug-file-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .debug-file-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: rgba(0, 0, 0, 0.87);
+      }
+
+      .debug-file-name {
+        font-family: monospace;
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.54);
+      }
+
+      .debug-actions-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      .debug-system-info {
+        background: #f5f5f5;
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .debug-info-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+
+        &:last-child {
+          border-bottom: none;
+        }
+      }
+
+      .debug-info-label {
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.6);
+      }
+
+      .debug-info-value {
+        font-size: 13px;
+        font-weight: 500;
+        font-family: monospace;
+        color: rgba(0, 0, 0, 0.87);
+      }
+
       /* Responsive */
       @media (max-width: 600px) {
         .settings-content {
@@ -1139,6 +1395,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
     nodeDisconnected: true,
     syncComplete: true,
   };
+
+  // Debug & Logs state
+  debugPaths = signal<DebugPaths | null>(null);
+  debugAppVersion = signal('');
+  debugPlatform = signal('');
 
   // UI state
   isTesting = signal(false);
@@ -1565,6 +1826,50 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   navigateToNodeSetup(): void {
     this.router.navigate(['/node/setup']);
+  }
+
+  // ============================================================
+  // Debug & Logs
+  // ============================================================
+
+  onTabChange(event: MatTabChangeEvent): void {
+    // Tab index 3 is the Debug & Logs tab
+    if (event.index === 3 && !this.debugPaths()) {
+      this.loadDebugPaths();
+    }
+  }
+
+  async loadDebugPaths(): Promise<void> {
+    const paths = await this.electron.getDebugPaths();
+    this.debugPaths.set(paths);
+
+    const [version, platform] = await Promise.all([
+      this.electron.isTauri
+        ? import('@tauri-apps/api/core').then(m => m.invoke<string>('get_app_version'))
+        : Promise.resolve('N/A'),
+      this.electron.getPlatform(),
+    ]);
+    this.debugAppVersion.set(version);
+    this.debugPlatform.set(platform);
+  }
+
+  async openConfigFile(path: string): Promise<void> {
+    await this.electron.revealInExplorer(path);
+  }
+
+  async revealFolder(path: string): Promise<void> {
+    await this.electron.openFolder(path);
+  }
+
+  async copySystemInfo(): Promise<void> {
+    const lines = [
+      `App Version: ${this.debugAppVersion()}`,
+      `Platform: ${this.debugPlatform()}`,
+      `Node Version: ${this.nodeService.currentVersion() || 'N/A'}`,
+      `App Data Dir: ${this.debugPaths()?.appDataDir || 'N/A'}`,
+    ];
+    await navigator.clipboard.writeText(lines.join('\n'));
+    this.notification.success(this.i18n.get('debug_copied'));
   }
 
   /**
