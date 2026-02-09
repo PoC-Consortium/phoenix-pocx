@@ -6,7 +6,6 @@ use super::state::{
 use crate::mining::commands::CommandResult;
 use crate::node::state::SharedNodeState;
 use serde::Serialize;
-use std::path::PathBuf;
 use tauri::State;
 
 /// Aggregator status response
@@ -117,10 +116,7 @@ pub async fn start_aggregator(
     );
 
     // Database path in app data dir
-    let db_path = dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.pocx.phoenix")
-        .join("aggregator.db");
+    let db_path = crate::app_data_dir().join("aggregator.db");
 
     // Ensure parent directory exists
     if let Some(parent) = db_path.parent() {

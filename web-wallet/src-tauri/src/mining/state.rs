@@ -360,11 +360,7 @@ pub fn get_config_file_path() -> Option<PathBuf> {
 
     #[cfg(not(target_os = "android"))]
     {
-        dirs::config_dir().map(|mut path| {
-            path.push("phoenix-pocx");
-            path.push("mining-config.json");
-            path
-        })
+        Some(crate::app_data_dir().join("mining-config.json"))
     }
 }
 

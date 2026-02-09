@@ -3808,6 +3808,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         }
 
         if (!driveInfo) {
+          this.snackBar.open(
+            this.i18n.get('mining_drive_info_failed', { path }),
+            this.i18n.get('dismiss'),
+            { duration: 6000 }
+          );
           continue;
         }
 
