@@ -81,6 +81,45 @@ pub struct CookieReadResult {
     pub path: Option<String>,
 }
 
+/// Get the consolidated app data directory for all Phoenix PoCX data.
+///
+/// All configs, logs, node binary, and databases go here.
+/// - Windows: `%LocalAppData%\Phoenix PoCX Data`
+/// - Linux:   `~/.local/share/phoenix-pocx`
+/// - macOS:   `~/Library/Application Support/Phoenix PoCX Data`
+pub fn app_data_dir() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        dirs::data_local_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Phoenix PoCX Data")
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        dirs::data_local_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("phoenix-pocx")
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("Phoenix PoCX Data")
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        PathBuf::from("/data/data/org.pocx.phoenix/files")
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos", target_os = "android")))]
+    {
+        PathBuf::from(".").join("phoenix-pocx")
+    }
+}
+
 /// Expand environment variables and ~ in paths
 /// Windows: %VAR% style
 /// Unix: ~ expands to HOME
@@ -221,6 +260,82 @@ fn get_launch_mode() -> String {
             "wallet".to_string()
         }
     }
+}
+
+/// Debug paths for troubleshooting
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugPaths {
+    pub app_data_dir: String,
+    pub node_config: String,
+    pub mining_config: String,
+    pub aggregator_config: String,
+    pub bitcoin_conf: String,
+    pub logs_dir: String,
+    pub bitcoin_debug_log: String,
+}
+
+/// Get all relevant debug/config paths for the Debug & Logs settings tab
+#[tauri::command]
+fn get_debug_paths() -> DebugPaths {
+    let data_dir = app_data_dir();
+    let node_config = node::config::NodeConfig::load();
+    let bitcoin_data_dir = node_config.get_data_directory();
+
+    let network_subdir = match node_config.network {
+        node::config::Network::Mainnet => None,
+        node::config::Network::Testnet => Some("testnet"),
+        node::config::Network::Regtest => Some("regtest"),
+    };
+
+    let debug_log_path = match network_subdir {
+        Some(sub) => bitcoin_data_dir.join(sub).join("debug.log"),
+        None => bitcoin_data_dir.join("debug.log"),
+    };
+
+    DebugPaths {
+        app_data_dir: data_dir.to_string_lossy().to_string(),
+        node_config: node::config::NodeConfig::config_path().to_string_lossy().to_string(),
+        mining_config: mining::state::get_config_file_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        aggregator_config: aggregator::state::get_config_file_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        bitcoin_conf: node_config.bitcoin_conf_path().to_string_lossy().to_string(),
+        logs_dir: data_dir.join("logs").to_string_lossy().to_string(),
+        bitcoin_debug_log: debug_log_path.to_string_lossy().to_string(),
+    }
+}
+
+/// Open a folder in the system file manager
+#[tauri::command]
+fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+
+    Ok(())
 }
 
 /// Force exit the application
@@ -457,11 +572,7 @@ fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize log4rs with console, file, and Tauri event appenders
-    // Log files go to: {app_data}/com.pocx.phoenix/logs/phoenix.1.log
-    let log_dir = dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("com.pocx.phoenix")
-        .join("logs");
+    let log_dir = app_data_dir().join("logs");
 
     if let Err(e) = logging::init_logger(log_dir.clone()) {
         eprintln!("Failed to initialize logger: {}. Log dir: {:?}", e, log_dir);
@@ -655,6 +766,9 @@ pub fn run() {
             is_dev,
             get_launch_mode,
             exit_app,
+            // Debug commands
+            get_debug_paths,
+            open_folder,
             // Elevation commands
             is_elevated,
             restart_elevated,

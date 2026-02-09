@@ -20,6 +20,19 @@ export interface CookieReadResult {
 }
 
 /**
+ * Debug paths returned by the Tauri backend
+ */
+export interface DebugPaths {
+  appDataDir: string;
+  nodeConfig: string;
+  miningConfig: string;
+  aggregatorConfig: string;
+  bitcoinConf: string;
+  logsDir: string;
+  bitcoinDebugLog: string;
+}
+
+/**
  * Options for folder dialog
  */
 export interface FolderDialogOptions {
@@ -303,6 +316,67 @@ export class ElectronService {
       }
     } else {
       window.open(url, '_blank');
+    }
+  }
+
+  /**
+   * Get all debug/config paths from the Tauri backend
+   */
+  async getDebugPaths(): Promise<DebugPaths | null> {
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        return await invoke<DebugPaths>('get_debug_paths');
+      } catch (error) {
+        console.error('Error getting debug paths:', error);
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Open a folder directly in the system file manager
+   * @param path - Directory path to open
+   */
+  async openFolder(path: string): Promise<void> {
+    if (this.isTauri) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('open_folder', { path });
+      } catch (error) {
+        console.error('Error opening folder:', error);
+      }
+    }
+  }
+
+  /**
+   * Reveal a file or folder in the system file manager (Explorer/Finder)
+   * @param path - Path to reveal
+   */
+  async revealInExplorer(path: string): Promise<void> {
+    if (this.isTauri) {
+      try {
+        const { revealItemInDir } = await import('@tauri-apps/plugin-opener');
+        await revealItemInDir(path);
+      } catch (error) {
+        console.error('Error revealing path:', error);
+      }
+    }
+  }
+
+  /**
+   * Open a file with the system default application
+   * @param path - Path to the file to open
+   */
+  async openFile(path: string): Promise<void> {
+    if (this.isTauri) {
+      try {
+        const { openPath } = await import('@tauri-apps/plugin-opener');
+        await openPath(path);
+      } catch (error) {
+        console.error('Error opening file:', error);
+      }
     }
   }
 }
