@@ -169,20 +169,20 @@ pub(crate) fn build_cookie_path(data_directory: &str, network: &str) -> PathBuf 
         return base_path.join(".cookie");
     }
 
-    // For testnet, Bitcoin Core uses "testnet3" folder (for testnet v3)
-    // Try testnet3 first, then fall back to testnet
+    // For testnet, Bitcoin-PoCX uses "testnet" folder
+    // Try testnet first, then fall back to testnet3 (standard Bitcoin Core)
     if network == "testnet" {
-        let testnet3_cookie = base_path.join("testnet3").join(".cookie");
-        if testnet3_cookie.exists() {
-            return testnet3_cookie;
-        }
-        // Fall back to testnet folder
         let testnet_cookie = base_path.join("testnet").join(".cookie");
         if testnet_cookie.exists() {
             return testnet_cookie;
         }
-        // Default to testnet3 (most common)
-        return testnet3_cookie;
+        // Fall back to testnet3 folder (standard Bitcoin Core)
+        let testnet3_cookie = base_path.join("testnet3").join(".cookie");
+        if testnet3_cookie.exists() {
+            return testnet3_cookie;
+        }
+        // Default to testnet (Bitcoin-PoCX default)
+        return testnet_cookie;
     }
 
     // regtest uses regtest folder
