@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Поки немає відправлень",
   "aggregator_offline": "Офлайн",
   "aggregator_offline_message": "Агрегатор офлайн. Натисніть Старт, щоб приймати відправлення від віддалених майнерів.",
-  "aggregator_poc_time": "Час PoC",
   "aggregator_press_start": "Натисніть Старт, щоб почати приймати відправлення",
   "aggregator_quality": "Якість",
   "aggregator_recent_activity": "Недавня активність",

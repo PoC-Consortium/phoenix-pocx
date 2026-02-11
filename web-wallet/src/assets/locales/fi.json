@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Ei vielä lähetyksiä",
   "aggregator_offline": "Offline",
   "aggregator_offline_message": "Aggregaattori on offline-tilassa. Paina Käynnistä hyväksyäksesi lähetyksiä etälouhijoilta.",
-  "aggregator_poc_time": "PoC-aika",
   "aggregator_press_start": "Paina Käynnistä aloittaaksesi lähetysten vastaanoton",
   "aggregator_quality": "Laatu",
   "aggregator_recent_activity": "Viimeaikainen toiminta",

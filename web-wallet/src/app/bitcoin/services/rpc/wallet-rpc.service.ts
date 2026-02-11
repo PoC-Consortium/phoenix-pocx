@@ -367,21 +367,22 @@ export class WalletRpcService {
       feeRate?: number;
     } = {}
   ): Promise<string> {
-    return this.rpc.call<string>(
-      'sendtoaddress',
-      [
-        address,
-        amount,
-        options.comment ?? '',
-        options.commentTo ?? '',
-        options.subtractFeeFromAmount ?? false,
-        options.replaceable ?? true,
-        options.confTarget ?? 6,
-        'unset', // estimate_mode
-        options.feeRate ?? null,
-      ],
-      walletName
-    );
+    // Bitcoin Core sendtoaddress positional params:
+    // 0:address, 1:amount, 2:comment, 3:comment_to, 4:subtractfeefromamount,
+    // 5:replaceable, 6:conf_target, 7:estimate_mode, 8:avoid_reuse, 9:fee_rate
+    const params: unknown[] = [
+      address,
+      amount,
+      options.comment ?? '',
+      options.commentTo ?? '',
+      options.subtractFeeFromAmount ?? false,
+      options.replaceable ?? true,
+      options.feeRate ? null : (options.confTarget ?? 6), // skip conf_target when fee_rate is set
+      options.feeRate ? null : 'unset', // skip estimate_mode when fee_rate is set
+      false, // avoid_reuse
+      options.feeRate ?? null,
+    ];
+    return this.rpc.call<string>('sendtoaddress', params, walletName);
   }
 
   /**

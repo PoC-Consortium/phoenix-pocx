@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "サブミッションなし",
   "aggregator_offline": "オフライン",
   "aggregator_offline_message": "アグリゲーターはオフラインです。リモートマイナーからのサブミッションを受け付けるにはスタートを押してください。",
-  "aggregator_poc_time": "PoC時間",
   "aggregator_press_start": "サブミッションの受付を開始するにはスタートを押してください",
   "aggregator_quality": "品質",
   "aggregator_recent_activity": "最近のアクティビティ",

@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Δεν υπάρχουν ακόμα υποβολές",
   "aggregator_offline": "Εκτός σύνδεσης",
   "aggregator_offline_message": "Ο aggregator είναι εκτός σύνδεσης. Πατήστε Έναρξη για αποδοχή υποβολών από απομακρυσμένους miners.",
-  "aggregator_poc_time": "Χρόνος PoC",
   "aggregator_press_start": "Πατήστε Έναρξη για να αρχίσετε να δέχεστε υποβολές",
   "aggregator_quality": "Ποιότητα",
   "aggregator_recent_activity": "Πρόσφατη δραστηριότητα",

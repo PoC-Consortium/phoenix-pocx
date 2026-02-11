@@ -383,7 +383,7 @@ export class MiningRpcService {
    * @param walletName - Wallet containing the plot address
    * @param plotAddress - Address that owns the plot
    * @param forgingAddress - Address to delegate forging to
-   * @param feeRate - Optional fee rate in sat/vB
+   * @param feeRate - Optional fee rate in sat/vB (converted to BTC/kvB for the RPC)
    */
   async createForgingAssignment(
     walletName: string,
@@ -393,7 +393,8 @@ export class MiningRpcService {
   ): Promise<CreateAssignmentResult> {
     const params: unknown[] = [plotAddress, forgingAddress];
     if (feeRate !== undefined) {
-      params.push(feeRate);
+      // RPC expects BTC/kvB, UI uses sat/vB: 1 sat/vB = 0.00001 BTC/kvB
+      params.push(feeRate / 100_000);
     }
     return this.rpc.call<CreateAssignmentResult>('create_assignment', params, walletName);
   }
@@ -405,7 +406,7 @@ export class MiningRpcService {
    *
    * @param walletName - Wallet containing the plot address
    * @param plotAddress - Address to revoke assignment for
-   * @param feeRate - Optional fee rate in sat/vB
+   * @param feeRate - Optional fee rate in sat/vB (converted to BTC/kvB for the RPC)
    */
   async revokeForgingAssignment(
     walletName: string,
@@ -414,7 +415,8 @@ export class MiningRpcService {
   ): Promise<RevokeAssignmentResult> {
     const params: unknown[] = [plotAddress];
     if (feeRate !== undefined) {
-      params.push(feeRate);
+      // RPC expects BTC/kvB, UI uses sat/vB: 1 sat/vB = 0.00001 BTC/kvB
+      params.push(feeRate / 100_000);
     }
     return this.rpc.call<RevokeAssignmentResult>('revoke_assignment', params, walletName);
   }

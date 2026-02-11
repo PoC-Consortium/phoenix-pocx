@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Пока нет отправок",
   "aggregator_offline": "Офлайн",
   "aggregator_offline_message": "Агрегатор офлайн. Нажмите Старт, чтобы принимать отправки от удаленных майнеров.",
-  "aggregator_poc_time": "Время PoC",
   "aggregator_press_start": "Нажмите Старт, чтобы начать принимать отправки",
   "aggregator_quality": "Качество",
   "aggregator_recent_activity": "Недавняя активность",

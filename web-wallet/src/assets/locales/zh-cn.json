@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "暂无提交",
   "aggregator_offline": "离线",
   "aggregator_offline_message": "聚合器离线。按开始接受远程矿工的提交。",
-  "aggregator_poc_time": "PoC 时间",
   "aggregator_press_start": "按开始以接受提交",
   "aggregator_quality": "质量",
   "aggregator_recent_activity": "近期活动",

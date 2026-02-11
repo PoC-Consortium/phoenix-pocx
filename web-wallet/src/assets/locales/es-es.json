@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Sin envíos aún",
   "aggregator_offline": "Sin conexión",
   "aggregator_offline_message": "El agregador está sin conexión. Presione Iniciar para aceptar envíos de mineros remotos.",
-  "aggregator_poc_time": "Tiempo PoC",
   "aggregator_press_start": "Presione Iniciar para comenzar a aceptar envíos",
   "aggregator_quality": "Calidad",
   "aggregator_recent_activity": "Actividad reciente",
