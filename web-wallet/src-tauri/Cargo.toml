@@ -1,6 +1,6 @@
 [package]
 name = "phoenix-pocx"
-version = "2.0.0-rc8"
+version = "2.0.0-rc9"
 description = "Phoenix PoCX Wallet - Bitcoin-PoCX Desktop Wallet"
 authors = ["The Proof of Capacity Consortium <development@pocx.io>"]
 license = "GPL-3.0"
@@ -47,10 +47,10 @@ num_cpus = "1.16"
 tokio = { version = "1", features = ["full"] }
 
 # PoCX mining libraries
-pocx_miner = "1.0.0-rc.8"
-pocx_plotter = { version = "1.0.0-rc.8", features = ["opencl"] }
-pocx_address = "1.0.0-rc.8"
-pocx_aggregator = "1.0.0-rc.8"
+pocx_miner = "1.0.0-rc.9"
+pocx_plotter = { version = "1.0.0-rc.9", features = ["opencl"] }
+pocx_address = "1.0.0-rc.9"
+pocx_aggregator = "1.0.0-rc.9"
 
 # OpenCL for GPU detection (dynamic loading - no build-time SDK required)
 opencl3 = { version = "0.10", features = ["dynamic"] }

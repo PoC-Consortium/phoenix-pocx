@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "अभी तक कोई सबमिशन नहीं",
   "aggregator_offline": "ऑफ़लाइन",
   "aggregator_offline_message": "एग्रीगेटर ऑफ़लाइन है। रिमोट माइनर्स से सबमिशन स्वीकार करने के लिए स्टार्ट दबाएं।",
-  "aggregator_poc_time": "PoC समय",
   "aggregator_press_start": "सबमिशन स्वीकार करना शुरू करने के लिए स्टार्ट दबाएं",
   "aggregator_quality": "गुणवत्ता",
   "aggregator_recent_activity": "हाल की गतिविधि",

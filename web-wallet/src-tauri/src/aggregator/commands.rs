@@ -137,8 +137,8 @@ pub async fn start_aggregator(
                 cookie_path: Some(cookie_path.to_string_lossy().to_string()),
             },
             submission_mode,
+            block_time_secs: config.block_time_secs,
         },
-        block_time_secs: config.block_time_secs,
         cache: Default::default(),
         database: pocx_aggregator::config::DatabaseConfig {
             path: db_path.to_string_lossy().to_string(),

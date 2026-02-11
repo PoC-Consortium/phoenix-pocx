@@ -56,7 +56,7 @@ export interface StatsSnapshot {
 export interface CurrentBlockBest {
   height: number;
   bestPocTime: number | null;
-  bestQuality: number | null;
+  bestRawQuality: number | null;
   bestAccountId: string | null;
   bestMachineId: string | null;
 }
@@ -152,7 +152,7 @@ export interface SubmissionInfo {
   seed: string;
   nonce: number;
   compression: number; // X value (compression level)
-  quality: number;
+  rawQuality: number;
 }
 
 /**
@@ -167,7 +167,7 @@ export interface AcceptedInfo {
   seed: string;
   nonce: number;
   compression: number;
-  quality: number;
+  rawQuality: number;
   pocTime: number;
 }
 
@@ -186,7 +186,7 @@ export interface RejectedInfo {
  */
 export interface ForwardedInfo {
   accountId: string;
-  quality: number;
+  rawQuality: number;
   poolName: string;
 }
 

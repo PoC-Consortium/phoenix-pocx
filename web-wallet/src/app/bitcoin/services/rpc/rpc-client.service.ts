@@ -325,6 +325,14 @@ export class RpcClientService implements OnDestroy {
           throw new Error('Access forbidden. Check rpcallowip configuration.');
         } else if (response.status === 404) {
           throw new Error('Wallet not found or RPC method not available.');
+        } else if (response.status === 500) {
+          // Bitcoin Core returns HTTP 500 for JSON-RPC errors — the body
+          // still contains a valid JSON-RPC response with error details.
+          try {
+            return (await response.json()) as RpcResponse<T>;
+          } catch {
+            throw new Error('Internal Bitcoin Core error');
+          }
         }
         throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
       }

@@ -60,12 +60,12 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
         @if (hasBest()) {
           <div class="stat-row">
             <div class="stat-item">
-              <span class="stat-label">{{ 'aggregator_poc_time' | i18n }}</span>
-              <span class="stat-value">{{ stats()!.currentBlockBest.bestPocTime }}s</span>
+              <span class="stat-label">{{ 'mining_best_deadline' | i18n }}</span>
+              <span class="stat-value">{{ formatDeadline(stats()!.currentBlockBest.bestPocTime!) }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">{{ 'aggregator_quality' | i18n }}</span>
-              <span class="stat-value">{{ stats()!.currentBlockBest.bestQuality }}</span>
+              <span class="stat-value">{{ stats()!.currentBlockBest.bestRawQuality }}</span>
             </div>
           </div>
           <div class="stat-item">
@@ -359,6 +359,23 @@ export class SummaryStatsComponent {
       default:
         return this.i18n.get('aggregator_offline');
     }
+  }
+
+  formatDeadline(seconds: number): string {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    }
+    if (seconds < 86400) {
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${mins}m`;
+    }
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    return `${days}d ${hours}h`;
   }
 
   getSubText(): string {

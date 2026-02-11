@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Nessun invio ancora",
   "aggregator_offline": "Offline",
   "aggregator_offline_message": "L'aggregatore è offline. Premi Avvia per accettare invii da miner remoti.",
-  "aggregator_poc_time": "Tempo PoC",
   "aggregator_press_start": "Premi Avvia per iniziare ad accettare invii",
   "aggregator_quality": "Qualità",
   "aggregator_recent_activity": "Attività recente",

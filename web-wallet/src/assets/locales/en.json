@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "No submissions yet",
   "aggregator_offline": "Offline",
   "aggregator_offline_message": "Aggregator is offline. Press Start to accept submissions from remote miners.",
-  "aggregator_poc_time": "PoC Time",
   "aggregator_press_start": "Press Start to begin accepting submissions",
   "aggregator_quality": "Quality",
   "aggregator_recent_activity": "Recent Activity",

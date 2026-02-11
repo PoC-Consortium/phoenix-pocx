@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Aucune soumission pour l'instant",
   "aggregator_offline": "Hors ligne",
   "aggregator_offline_message": "L'agrégateur est hors ligne. Appuyez sur Démarrer pour accepter les soumissions des mineurs distants.",
-  "aggregator_poc_time": "Temps PoC",
   "aggregator_press_start": "Appuyez sur Démarrer pour commencer à accepter les soumissions",
   "aggregator_quality": "Qualité",
   "aggregator_recent_activity": "Activité récente",

@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Encara sense enviaments",
   "aggregator_offline": "Fora de línia",
   "aggregator_offline_message": "L'agregador està fora de línia. Premeu Iniciar per acceptar enviaments de miners remots.",
-  "aggregator_poc_time": "Temps PoC",
   "aggregator_press_start": "Premeu Iniciar per començar a acceptar enviaments",
   "aggregator_quality": "Qualitat",
   "aggregator_recent_activity": "Activitat recent",

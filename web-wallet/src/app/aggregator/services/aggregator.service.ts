@@ -157,20 +157,20 @@ export class AggregatorService {
       await listen<SubmissionInfo>('aggregator:submission-received', event => {
         const p = event.payload;
         // Format: received: height=26760, account=...cb71, machine=192.168.1.50, seed=...83ef, nonce=2569540, X=5, quality=807
-        const log = `received: height=${p.height}, account=${this.truncateId(p.accountId)}, machine=${p.machineId ?? 'unknown'}, seed=${this.truncateId(p.seed)}, nonce=${p.nonce}, X=${p.compression}, quality=${p.quality}`;
+        const log = `received: height=${p.height}, account=${this.truncateId(p.accountId)}, machine=${p.machineId ?? 'unknown'}, seed=${this.truncateId(p.seed)}, nonce=${p.nonce}, X=${p.compression}, quality=${p.rawQuality}`;
         this.addActivityLog('info', log);
       }),
 
       await listen<ForwardedInfo>('aggregator:submission-forwarded', event => {
         const p = event.payload;
-        const log = `forwarded: account=${this.truncateId(p.accountId)}, quality=${p.quality}, pool=${p.poolName}`;
+        const log = `forwarded: account=${this.truncateId(p.accountId)}, quality=${p.rawQuality}, pool=${p.poolName}`;
         this.addActivityLog('info', log);
       }),
 
       await listen<AcceptedInfo>('aggregator:submission-accepted', event => {
         const p = event.payload;
         // Format: accepted: height=26760, account=...cb71, seed=...83ef, nonce=2569540, X=5, quality=807, time=254s
-        const log = `accepted: height=${p.height}, account=${this.truncateId(p.accountId)}, seed=${this.truncateId(p.seed)}, nonce=${p.nonce}, X=${p.compression}, quality=${p.quality}, time=${p.pocTime}s`;
+        const log = `accepted: height=${p.height}, account=${this.truncateId(p.accountId)}, seed=${this.truncateId(p.seed)}, nonce=${p.nonce}, X=${p.compression}, quality=${p.rawQuality}, time=${p.pocTime}s`;
         this.addActivityLog('success', log);
       }),
 

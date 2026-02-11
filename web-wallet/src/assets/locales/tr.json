@@ -35,7 +35,6 @@
   "aggregator_no_submissions": "Henüz gönderim yok",
   "aggregator_offline": "Çevrimdışı",
   "aggregator_offline_message": "Toplayıcı çevrimdışı. Uzak madencilerden gönderim kabul etmek için Başlat'a basın.",
-  "aggregator_poc_time": "PoC Süresi",
   "aggregator_press_start": "Gönderim kabul etmeye başlamak için Başlat'a basın",
   "aggregator_quality": "Kalite",
   "aggregator_recent_activity": "Son Aktivite",
