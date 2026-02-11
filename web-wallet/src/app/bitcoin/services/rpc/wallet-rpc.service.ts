@@ -378,8 +378,8 @@ export class WalletRpcService {
       options.subtractFeeFromAmount ?? false,
       options.replaceable ?? true,
       options.feeRate ? null : (options.confTarget ?? 6), // skip conf_target when fee_rate is set
-      options.feeRate ? null : 'unset',                   // skip estimate_mode when fee_rate is set
-      false,                                              // avoid_reuse
+      options.feeRate ? null : 'unset', // skip estimate_mode when fee_rate is set
+      false, // avoid_reuse
       options.feeRate ?? null,
     ];
     return this.rpc.call<string>('sendtoaddress', params, walletName);

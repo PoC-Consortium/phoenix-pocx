@@ -61,7 +61,9 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
           <div class="stat-row">
             <div class="stat-item">
               <span class="stat-label">{{ 'mining_best_deadline' | i18n }}</span>
-              <span class="stat-value">{{ formatDeadline(stats()!.currentBlockBest.bestPocTime!) }}</span>
+              <span class="stat-value">{{
+                formatDeadline(stats()!.currentBlockBest.bestPocTime!)
+              }}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">{{ 'aggregator_quality' | i18n }}</span>

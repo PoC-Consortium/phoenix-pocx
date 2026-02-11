@@ -1259,8 +1259,8 @@ export class SendComponent implements OnInit, OnDestroy {
       // Use explicit fee_rate when available (custom or estimated), conf_target as fallback
       const feeRate =
         this.selectedFeeOption?.label === 'fee_custom'
-          ? this.customFeeRate ?? undefined
-          : this.selectedFeeOption?.feeRate ?? undefined;
+          ? (this.customFeeRate ?? undefined)
+          : (this.selectedFeeOption?.feeRate ?? undefined);
 
       const txid = await this.walletRpc.sendToAddress(
         walletName,
