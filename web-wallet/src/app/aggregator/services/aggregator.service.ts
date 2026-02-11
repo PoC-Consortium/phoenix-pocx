@@ -348,6 +348,18 @@ export class AggregatorService {
     await this.loadConfig();
     const cfg = this._config();
     if (this.shouldAggregatorRun(cfg)) {
+      // Verify node is actually ready before starting — pocx_protocol calls
+      // process::exit() if cookie auth fails, which would kill the entire app
+      try {
+        const nodeReady = await invoke<boolean>('is_node_ready');
+        if (!nodeReady) {
+          console.log('Aggregator auto-start skipped: node is not ready');
+          return;
+        }
+      } catch {
+        console.log('Aggregator auto-start skipped: could not check node status');
+        return;
+      }
       console.log('Aggregator auto-start: enabled + solo chain configured, starting...');
       await this.initListeners();
       await this.start();
