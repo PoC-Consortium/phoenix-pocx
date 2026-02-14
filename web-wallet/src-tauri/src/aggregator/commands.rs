@@ -97,9 +97,14 @@ pub async fn start_aggregator(
         }
     };
 
-    // Use node config for cookie auth and as fallback for upstream port
+    // Use node config as source of truth for upstream host/port/auth
     let node_config = node_state.get_config();
     let effective_port = node_config.effective_rpc_port();
+    let upstream_rpc_host = if node_config.rpc_host.is_empty() {
+        config.upstream_rpc_host.clone()
+    } else {
+        node_config.rpc_host.clone()
+    };
     let upstream_rpc_port = if config.upstream_rpc_port > 0 { config.upstream_rpc_port } else { effective_port };
     let listen_address = if config.listen_address.ends_with(":0") || config.listen_address.ends_with(":1") {
         format!("0.0.0.0:{}", effective_port + 1)
@@ -107,13 +112,25 @@ pub async fn start_aggregator(
         config.listen_address.clone()
     };
 
-    // Build cookie path from node config for upstream RPC auth
-    let data_dir = node_config.get_data_directory();
-    let network_str = node_config.network.as_str();
-    let cookie_path = crate::build_cookie_path(
-        &data_dir.to_string_lossy(),
-        network_str,
-    );
+    // Build upstream RPC auth from node config
+    let rpc_auth = match node_config.auth_method {
+        crate::node::config::AuthMethod::Userpass => {
+            let username = node_config.rpc_user.clone().unwrap_or_default();
+            let password = node_config.rpc_password.clone().unwrap_or_default();
+            pocx_aggregator::config::RpcAuth::UserPass { username, password }
+        }
+        crate::node::config::AuthMethod::Cookie => {
+            let data_dir = node_config.get_data_directory();
+            let network_str = node_config.network.as_str();
+            let cookie_path = crate::build_cookie_path(
+                &data_dir.to_string_lossy(),
+                network_str,
+            );
+            pocx_aggregator::config::RpcAuth::Cookie {
+                cookie_path: Some(cookie_path.to_string_lossy().to_string()),
+            }
+        }
+    };
 
     // Database path in app data dir
     let db_path = crate::app_data_dir().join("aggregator.db");
@@ -131,11 +148,9 @@ pub async fn start_aggregator(
         upstream: pocx_aggregator::config::UpstreamConfig {
             name: config.upstream_name.clone(),
             rpc_transport: pocx_aggregator::config::RpcTransport::Http,
-            rpc_host: config.upstream_rpc_host.clone(),
+            rpc_host: upstream_rpc_host,
             rpc_port: upstream_rpc_port,
-            rpc_auth: pocx_aggregator::config::RpcAuth::Cookie {
-                cookie_path: Some(cookie_path.to_string_lossy().to_string()),
-            },
+            rpc_auth,
             submission_mode,
             block_time_secs: config.block_time_secs,
         },

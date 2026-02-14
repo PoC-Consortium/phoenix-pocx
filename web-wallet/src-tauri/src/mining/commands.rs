@@ -369,6 +369,7 @@ pub fn update_plotter_device(
 pub async fn start_mining(
     app_handle: AppHandle,
     state: State<'_, SharedMiningState>,
+    node_state: State<'_, crate::node::SharedNodeState>,
 ) -> Result<CommandResult<()>, ()> {
     // Clear any previous stop request
     pocx_miner::clear_stop_request();
@@ -403,6 +404,38 @@ pub async fn start_mining(
         state_guard.mining_status = MiningStatus::Starting;
     }
 
+    // Get current node config to override solo chain settings at startup.
+    // This ensures chain configs always reflect the active node (managed or external)
+    // even if they were persisted with different settings.
+    let node_config = node_state.get_config();
+
+    // Build node-derived auth and host for solo chains that connect directly to the node.
+    // This ensures persisted chain configs always use the current node settings.
+    let node_rpc_host = if node_config.rpc_host.is_empty() {
+        "127.0.0.1".to_string()
+    } else {
+        node_config.rpc_host.clone()
+    };
+    let node_rpc_port = node_config.effective_rpc_port();
+    let node_rpc_auth = match node_config.auth_method {
+        crate::node::config::AuthMethod::Userpass => {
+            let username = node_config.rpc_user.clone().unwrap_or_default();
+            let password = node_config.rpc_password.clone().unwrap_or_default();
+            pocx_miner::RpcAuth::UserPass { username, password }
+        }
+        crate::node::config::AuthMethod::Cookie => {
+            let data_dir = node_config.get_data_directory();
+            let network_str = node_config.network.as_str();
+            let cookie_path = crate::build_cookie_path(
+                &data_dir.to_string_lossy(),
+                network_str,
+            );
+            pocx_miner::RpcAuth::Cookie {
+                cookie_path: Some(cookie_path.to_string_lossy().to_string()),
+            }
+        }
+    };
+
     // Build chains from config
     let mut chains = Vec::new();
     for chain_config in &config.chains {
@@ -410,43 +443,42 @@ pub async fn start_mining(
             continue;
         }
 
+        // Solo chains that auth directly with the node (not via aggregator) get
+        // their host/port/auth overridden from current node config.
+        let is_direct_solo = chain_config.chain_type == super::state::ChainType::Solo
+            && chain_config.rpc_auth != super::state::RpcAuth::None;
+
         // Map transport
         let rpc_transport = match chain_config.rpc_transport {
             super::state::RpcTransport::Http => pocx_miner::RpcTransport::Http,
             super::state::RpcTransport::Https => pocx_miner::RpcTransport::Https,
         };
 
-        // Map auth - for cookie auth with no explicit path, use wallet settings to build path
-        let rpc_auth = match &chain_config.rpc_auth {
-            super::state::RpcAuth::None => pocx_miner::RpcAuth::None,
-            super::state::RpcAuth::UserPass { username, password } => {
-                pocx_miner::RpcAuth::UserPass {
-                    username: username.clone(),
-                    password: password.clone(),
+        // For direct solo chains, use node config auth; otherwise use chain's own auth
+        let rpc_auth = if is_direct_solo {
+            node_rpc_auth.clone()
+        } else {
+            match &chain_config.rpc_auth {
+                super::state::RpcAuth::None => pocx_miner::RpcAuth::None,
+                super::state::RpcAuth::UserPass { username, password } => {
+                    pocx_miner::RpcAuth::UserPass {
+                        username: username.clone(),
+                        password: password.clone(),
+                    }
                 }
-            }
-            super::state::RpcAuth::Cookie { cookie_path } => {
-                // Cookie auth: pass cookie path to miner (miner reads the cookie itself)
-                let path = if cookie_path.is_some() {
-                    // Explicit cookie path provided
-                    cookie_path.clone()
-                } else {
-                    // No explicit path - build from wallet settings
-                    build_cookie_path(&config.wallet_data_directory, &config.wallet_network)
-                };
-
-                if path.is_some() {
-                    log::info!("Chain {}: using cookie path {:?}", chain_config.name, path);
-                } else {
-                    log::warn!(
-                        "Chain {}: cookie auth requires wallet data directory to be configured",
-                        chain_config.name
-                    );
+                super::state::RpcAuth::Cookie { cookie_path } => {
+                    let path = if cookie_path.is_some() {
+                        cookie_path.clone()
+                    } else {
+                        build_cookie_path(&config.wallet_data_directory, &config.wallet_network)
+                    };
+                    pocx_miner::RpcAuth::Cookie { cookie_path: path }
                 }
-
-                pocx_miner::RpcAuth::Cookie { cookie_path: path }
             }
         };
+
+        let rpc_host = if is_direct_solo { node_rpc_host.clone() } else { chain_config.rpc_host.clone() };
+        let rpc_port = if is_direct_solo { node_rpc_port } else { chain_config.rpc_port };
 
         let submission_mode = match chain_config.mode {
             super::state::SubmissionMode::Solo => pocx_miner::SubmissionMode::Wallet,
@@ -460,8 +492,8 @@ pub async fn start_mining(
                 pocx_miner::RpcTransport::Http => "http",
                 pocx_miner::RpcTransport::Https => "https",
             },
-            chain_config.rpc_host,
-            chain_config.rpc_port,
+            rpc_host,
+            rpc_port,
             rpc_auth,
             submission_mode
         );
@@ -469,13 +501,13 @@ pub async fn start_mining(
         let chain = pocx_miner::Chain {
             name: chain_config.name.clone(),
             rpc_transport,
-            rpc_host: chain_config.rpc_host.clone(),
-            rpc_port: chain_config.rpc_port,
+            rpc_host,
+            rpc_port,
             rpc_auth,
             block_time_seconds: chain_config.block_time_seconds,
             submission_mode,
             target_quality: None,
-            accounts: vec![], // Per-account overrides not used in wallet GUI
+            accounts: vec![],
         };
 
         chains.push(chain);
