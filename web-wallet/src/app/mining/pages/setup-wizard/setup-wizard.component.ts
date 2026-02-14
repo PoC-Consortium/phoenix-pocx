@@ -3308,20 +3308,28 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
     if (data.mode === 'solo') {
       // When aggregator is enabled, miner connects to local aggregator (no auth).
-      // Otherwise, miner connects directly to wallet RPC (cookie auth).
-      const walletRpcPort =
-        this.nodeService.config().rpcPort ||
-        (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
+      // Otherwise, miner connects directly to wallet RPC node.
+      const nodeConfig = this.nodeService.config();
+      const walletRpcHost = nodeConfig.rpcHost || '127.0.0.1';
+      const walletRpcPort = nodeConfig.rpcPort || (nodeConfig.network === 'mainnet' ? 8332 : 18332);
       const aggregatorPort = walletRpcPort + 1;
       const useAggregator = data.aggregatorEnabled;
+
+      // Build auth based on node config: aggregator needs no auth (local),
+      // direct solo uses whatever the node is configured with
+      const directAuth: ChainConfig['rpcAuth'] =
+        nodeConfig.authMethod === 'userpass' && nodeConfig.rpcUser
+          ? { type: 'user_pass', username: nodeConfig.rpcUser, password: nodeConfig.rpcPassword }
+          : { type: 'cookie' };
+
       chain = {
         id,
         name: useAggregator ? 'PoCX Testnet (Aggregator)' : 'PoCX Testnet (Local)',
         chainType: 'solo',
         rpcTransport: 'http',
-        rpcHost: '127.0.0.1',
+        rpcHost: useAggregator ? '127.0.0.1' : walletRpcHost,
         rpcPort: useAggregator ? aggregatorPort : walletRpcPort,
-        rpcAuth: useAggregator ? { type: 'none' } : { type: 'cookie' },
+        rpcAuth: useAggregator ? { type: 'none' } : directAuth,
         blockTimeSeconds: 120,
         mode: 'solo',
         enabled: true,
@@ -3414,16 +3422,16 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
    * The config is persisted in saveAndStart() after the mining config is saved.
    */
   private updateAggregatorFromSoloChain(chain: ChainConfig, enabled: boolean): void {
-    // Aggregator listens on upstream RPC port + 1, forwards to wallet RPC
-    const walletRpcPort =
-      this.nodeService.config().rpcPort ||
-      (this.nodeService.config().network === 'mainnet' ? 8332 : 18332);
+    // Aggregator listens on upstream RPC port + 1, forwards to wallet RPC node
+    const nodeConfig = this.nodeService.config();
+    const walletRpcHost = nodeConfig.rpcHost || '127.0.0.1';
+    const walletRpcPort = nodeConfig.rpcPort || (nodeConfig.network === 'mainnet' ? 8332 : 18332);
     const aggregatorPort = walletRpcPort + 1;
     const config: AggregatorConfig = {
       enabled,
       listenAddress: `0.0.0.0:${aggregatorPort}`,
       upstreamName: 'local',
-      upstreamRpcHost: '127.0.0.1',
+      upstreamRpcHost: walletRpcHost,
       upstreamRpcPort: walletRpcPort,
       submissionMode: 'wallet',
       blockTimeSecs: chain.blockTimeSeconds,

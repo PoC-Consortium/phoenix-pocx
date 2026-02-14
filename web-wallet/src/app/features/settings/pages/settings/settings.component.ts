@@ -34,12 +34,14 @@ import {
   NotificationSettings,
   getDefaultRpcPort,
   getDefaultDataDirectory,
+  defaultNodeConfig,
 } from '../../../../store/settings/settings.state';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MiningService } from '../../../../mining/services';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { NodeService, NodeMode } from '../../../../node';
+import { AggregatorService } from '../../../../aggregator/services/aggregator.service';
 
 interface ConnectionTestResult {
   success: boolean;
@@ -93,25 +95,29 @@ interface ConnectionTestResult {
               <div class="config-container">
                 <!-- Connection Mode Section -->
                 <div class="config-section">
-                  <h3 class="section-title">Connection Mode</h3>
+                  <h3 class="section-title">{{ 'connection_mode' | i18n }}</h3>
                   <mat-radio-group
                     [ngModel]="nodeMode()"
-                    (ngModelChange)="onNodeModeChange($event)"
+                    (ngModelChange)="onNodeModeToggle($event)"
                     class="horizontal-radio-group"
                   >
-                    <mat-radio-button value="managed">Managed Node</mat-radio-button>
-                    <mat-radio-button value="external">External Node</mat-radio-button>
+                    <mat-radio-button value="managed">{{
+                      'node_managed_node' | i18n
+                    }}</mat-radio-button>
+                    <mat-radio-button value="external">{{
+                      'node_external_node' | i18n
+                    }}</mat-radio-button>
                   </mat-radio-group>
                 </div>
 
                 <!-- Managed Node Section -->
                 @if (nodeMode() === 'managed') {
                   <div class="config-section">
-                    <h3 class="section-title">Managed Node Status</h3>
+                    <h3 class="section-title">{{ 'node_managed_status' | i18n }}</h3>
                     @if (nodeService.isInstalled()) {
                       <div class="node-status-card">
                         <div class="status-row">
-                          <span class="status-label">Status:</span>
+                          <span class="status-label">{{ 'status' | i18n }}:</span>
                           <span
                             class="status-value"
                             [class.running]="nodeService.isRunning()"
@@ -120,22 +126,22 @@ interface ConnectionTestResult {
                             <mat-icon>{{
                               nodeService.isRunning() ? 'check_circle' : 'cancel'
                             }}</mat-icon>
-                            {{ nodeService.isRunning() ? 'Running' : 'Stopped' }}
+                            {{ nodeService.isRunning() ? ('running' | i18n) : ('stopped' | i18n) }}
                           </span>
                         </div>
                         <div class="status-row">
-                          <span class="status-label">Version:</span>
+                          <span class="status-label">{{ 'version' | i18n }}:</span>
                           <span class="status-value">{{
-                            nodeService.currentVersion() || 'Unknown'
+                            nodeService.currentVersion() || ('unknown' | i18n)
                           }}</span>
                         </div>
                         <div class="status-row">
-                          <span class="status-label">Network:</span>
+                          <span class="status-label">{{ 'network' | i18n }}:</span>
                           <span class="status-value">{{ nodeService.network() }}</span>
                         </div>
                         @if (nodeService.status().pid) {
                           <div class="status-row">
-                            <span class="status-label">PID:</span>
+                            <span class="status-label">{{ 'pid' | i18n }}:</span>
                             <span class="status-value">{{ nodeService.status().pid }}</span>
                           </div>
                         }
@@ -154,7 +160,7 @@ interface ConnectionTestResult {
                             } @else {
                               <mat-icon>stop</mat-icon>
                             }
-                            Stop Node
+                            {{ 'node_stop' | i18n }}
                           </button>
                           <button
                             mat-stroked-button
@@ -162,7 +168,7 @@ interface ConnectionTestResult {
                             [disabled]="isStoppingNode()"
                           >
                             <mat-icon>refresh</mat-icon>
-                            Restart
+                            {{ 'node_restart' | i18n }}
                           </button>
                         } @else {
                           <button
@@ -176,17 +182,17 @@ interface ConnectionTestResult {
                             } @else {
                               <mat-icon>play_arrow</mat-icon>
                             }
-                            Start Node
+                            {{ 'node_start' | i18n }}
                           </button>
                         }
                       </div>
                     } @else {
                       <div class="node-not-installed">
                         <mat-icon>cloud_download</mat-icon>
-                        <p>Bitcoin-PoCX Core is not installed.</p>
+                        <p>{{ 'node_not_installed' | i18n }}</p>
                         <button mat-raised-button color="primary" (click)="navigateToNodeSetup()">
                           <mat-icon>download</mat-icon>
-                          Download & Install
+                          {{ 'node_download_install' | i18n }}
                         </button>
                       </div>
                     }
@@ -194,31 +200,52 @@ interface ConnectionTestResult {
 
                   @if (nodeService.isInstalled()) {
                     <div class="config-section">
-                      <h3 class="section-title">Updates</h3>
+                      <h3 class="section-title">{{ 'node_updates' | i18n }}</h3>
                       <div class="update-row">
                         <div class="update-info">
-                          <span>Current: {{ nodeService.currentVersion() || 'Unknown' }}</span>
+                          <span
+                            >{{ 'current' | i18n }}:
+                            {{ nodeService.currentVersion() || ('unknown' | i18n) }}</span
+                          >
                           @if (nodeService.hasUpdate()) {
                             <span class="update-badge"
-                              >Update Available: {{ nodeService.updateInfo()?.latestVersion }}</span
+                              >{{ 'update_available' | i18n }}:
+                              {{ nodeService.updateInfo()?.latestVersion }}</span
                             >
                           }
                         </div>
                         <div class="update-actions">
                           <button mat-stroked-button (click)="checkForNodeUpdate()">
                             <mat-icon>update</mat-icon>
-                            Check for Updates
+                            {{ 'node_check_updates' | i18n }}
                           </button>
                           @if (nodeService.hasUpdate()) {
                             <button mat-raised-button color="primary" (click)="updateNode()">
                               <mat-icon>download</mat-icon>
-                              Update Node
+                              {{ 'node_update' | i18n }}
                             </button>
                           }
                         </div>
                       </div>
                     </div>
                   }
+
+                  <!-- Save & Apply (managed mode) -->
+                  <div class="action-buttons">
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      (click)="saveAndApply()"
+                      [disabled]="isSaving()"
+                    >
+                      @if (isSaving()) {
+                        <mat-spinner diameter="20"></mat-spinner>
+                      } @else {
+                        <mat-icon>save</mat-icon>
+                      }
+                      {{ 'save_apply' | i18n }}
+                    </button>
+                  </div>
                 }
 
                 <!-- External Node Section -->
@@ -227,13 +254,13 @@ interface ConnectionTestResult {
                   <div class="config-section">
                     <h3 class="section-title">{{ 'network' | i18n }}</h3>
                     <mat-radio-group
-                      [(ngModel)]="nodeConfig.network"
+                      [(ngModel)]="activeConfig.network"
                       (change)="onNetworkChange()"
                       class="horizontal-radio-group"
                     >
-                      <mat-radio-button value="mainnet">Mainnet</mat-radio-button>
-                      <mat-radio-button value="testnet">Testnet</mat-radio-button>
-                      <mat-radio-button value="regtest">Regtest</mat-radio-button>
+                      <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
+                      <mat-radio-button value="testnet">{{ 'testnet' | i18n }}</mat-radio-button>
+                      <mat-radio-button value="regtest">{{ 'regtest' | i18n }}</mat-radio-button>
                     </mat-radio-group>
                   </div>
 
@@ -243,70 +270,75 @@ interface ConnectionTestResult {
                     <div class="form-row">
                       <mat-form-field appearance="outline" class="half-width">
                         <mat-label>{{ 'rpc_host' | i18n }}</mat-label>
-                        <input matInput [(ngModel)]="nodeConfig.rpcHost" />
+                        <input matInput [(ngModel)]="activeConfig.rpcHost" />
                       </mat-form-field>
                       <mat-form-field appearance="outline" class="half-width">
                         <mat-label>{{ 'rpc_port' | i18n }}</mat-label>
                         <input
                           matInput
                           type="number"
-                          [(ngModel)]="nodeConfig.rpcPort"
+                          [(ngModel)]="activeConfig.rpcPort"
                           min="1"
                           max="65535"
                         />
                       </mat-form-field>
                     </div>
-
-                    <div class="form-row">
-                      <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>{{ 'data_directory' | i18n }}</mat-label>
-                        <input matInput [(ngModel)]="nodeConfig.dataDirectory" />
-                        <button
-                          mat-icon-button
-                          matSuffix
-                          (click)="browseDataDirectory()"
-                          [matTooltip]="'browse' | i18n"
-                        >
-                          <mat-icon>folder_open</mat-icon>
-                        </button>
-                      </mat-form-field>
-                    </div>
-
-                    @if (nodeConfig.network !== 'mainnet') {
-                      <mat-form-field appearance="outline" class="half-width">
-                        <mat-label>{{ 'testnet_subdirectory' | i18n }}</mat-label>
-                        <input matInput [(ngModel)]="nodeConfig.testnetSubdir" />
-                      </mat-form-field>
-                    }
                   </div>
 
                   <!-- Authentication Section -->
                   <div class="config-section">
                     <h3 class="section-title">{{ 'authentication' | i18n }}</h3>
                     <mat-radio-group
-                      [(ngModel)]="nodeConfig.authMethod"
+                      [(ngModel)]="activeConfig.authMethod"
                       class="vertical-radio-group"
                     >
                       <mat-radio-button value="cookie"
-                        >{{ 'cookie_based' | i18n }} ({{ 'recommended' | i18n }})</mat-radio-button
+                        >{{ 'cookie_based' | i18n }} ({{ 'local_node' | i18n }})</mat-radio-button
                       >
+
+                      @if (activeConfig.authMethod === 'cookie') {
+                        <div class="auth-sub-fields">
+                          <div class="form-row">
+                            <mat-form-field appearance="outline" class="full-width">
+                              <mat-label>{{ 'data_directory' | i18n }}</mat-label>
+                              <input matInput [(ngModel)]="activeConfig.dataDirectory" />
+                              <button
+                                mat-icon-button
+                                matSuffix
+                                (click)="browseDataDirectory()"
+                                [matTooltip]="'browse' | i18n"
+                              >
+                                <mat-icon>folder_open</mat-icon>
+                              </button>
+                            </mat-form-field>
+                          </div>
+
+                          @if (activeConfig.network !== 'mainnet') {
+                            <mat-form-field appearance="outline" class="half-width">
+                              <mat-label>{{ 'testnet_subdirectory' | i18n }}</mat-label>
+                              <input matInput [(ngModel)]="activeConfig.testnetSubdir" />
+                            </mat-form-field>
+                          }
+                        </div>
+                      }
+
                       <mat-radio-button value="credentials">{{
                         'username_password' | i18n
                       }}</mat-radio-button>
-                    </mat-radio-group>
 
-                    @if (nodeConfig.authMethod === 'credentials') {
-                      <div class="credentials-fields">
-                        <mat-form-field appearance="outline" class="full-width">
-                          <mat-label>{{ 'username' | i18n }}</mat-label>
-                          <input matInput [(ngModel)]="nodeConfig.username" />
-                        </mat-form-field>
-                        <mat-form-field appearance="outline" class="full-width">
-                          <mat-label>{{ 'password' | i18n }}</mat-label>
-                          <input matInput type="password" [(ngModel)]="nodeConfig.password" />
-                        </mat-form-field>
-                      </div>
-                    }
+                      @if (activeConfig.authMethod === 'credentials') {
+                        <div class="auth-sub-fields">
+                          <mat-form-field appearance="outline" class="full-width">
+                            <mat-label>{{ 'username' | i18n }}</mat-label>
+                            <input matInput [(ngModel)]="activeConfig.username" />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline" class="full-width">
+                            <mat-label>{{ 'password' | i18n }}</mat-label>
+                            <input matInput type="password" [(ngModel)]="activeConfig.password" />
+                          </mat-form-field>
+                        </div>
+                      }
+                    </mat-radio-group>
                   </div>
 
                   <!-- Connection Test Result -->
@@ -347,6 +379,10 @@ interface ConnectionTestResult {
 
                   <!-- Action Buttons -->
                   <div class="action-buttons">
+                    <button mat-stroked-button (click)="resetExternalToDefaults()">
+                      <mat-icon>restart_alt</mat-icon>
+                      {{ 'reset_to_defaults' | i18n }}
+                    </button>
                     <button mat-stroked-button (click)="testConnection()" [disabled]="isTesting()">
                       @if (isTesting()) {
                         <mat-spinner diameter="20"></mat-spinner>
@@ -358,7 +394,7 @@ interface ConnectionTestResult {
                     <button
                       mat-raised-button
                       color="primary"
-                      (click)="saveNodeConfig()"
+                      (click)="saveAndApply()"
                       [disabled]="isSaving()"
                     >
                       @if (isSaving()) {
@@ -821,8 +857,8 @@ interface ConnectionTestResult {
         width: 100%;
       }
 
-      .credentials-fields {
-        margin-top: 16px;
+      .auth-sub-fields {
+        margin: 8px 0 0 32px;
       }
 
       .test-result {
@@ -1350,6 +1386,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly walletRpc = inject(WalletRpcService);
   private readonly walletManager = inject(WalletManagerService);
   readonly nodeService = inject(NodeService);
+  private readonly aggregatorService = inject(AggregatorService);
   private readonly destroy$ = new Subject<void>();
 
   // Managed node state
@@ -1371,18 +1408,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
   isValidatingWif = signal(false);
   isImportingWif = signal(false);
 
-  // Node configuration (local copy for editing)
-  nodeConfig: NodeConfig = {
-    coinType: 'bitcoin-pocx',
-    network: 'testnet',
-    rpcHost: '127.0.0.1',
-    rpcPort: 18332,
-    dataDirectory: '',
-    testnetSubdir: 'testnet',
-    authMethod: 'cookie',
-    username: '',
-    password: '',
-  };
+  // Independent temp configs for each mode (switching radio doesn't lose settings)
+  managedTempConfig: NodeConfig = { ...defaultNodeConfig };
+  externalTempConfig: NodeConfig = { ...defaultNodeConfig };
+
+  /** Returns the temp config for the currently selected mode */
+  get activeConfig(): NodeConfig {
+    return this.nodeMode() === 'managed' ? this.managedTempConfig : this.externalTempConfig;
+  }
 
   // Notification settings (local copy for editing)
   notifications: NotificationSettings = {
@@ -1411,16 +1444,27 @@ export class SettingsComponent implements OnInit, OnDestroy {
     await this.nodeService.initialize();
     this.nodeMode.set(this.nodeService.mode());
 
-    // Load node config from store
+    // Populate managed temp config: always localhost, cookie auth, network-default port
+    const rustConfig = this.nodeService.config();
+    const managedNetwork = rustConfig.network || 'testnet';
+    const defaultDataDir = getDefaultDataDirectory('bitcoin-pocx', this.platform.platform);
+    this.managedTempConfig = {
+      ...defaultNodeConfig,
+      network: managedNetwork,
+      rpcPort: getDefaultRpcPort(managedNetwork),
+      dataDirectory: defaultDataDir,
+    };
+
+    // Load external config from NgRx store (persisted external settings)
     this.store
       .select(selectNodeConfig)
       .pipe(takeUntil(this.destroy$))
       .subscribe(config => {
-        this.nodeConfig = { ...config };
+        this.externalTempConfig = { ...config };
         // Set default data directory if empty
-        if (!this.nodeConfig.dataDirectory) {
-          this.nodeConfig.dataDirectory = getDefaultDataDirectory(
-            this.nodeConfig.coinType,
+        if (!this.externalTempConfig.dataDirectory) {
+          this.externalTempConfig.dataDirectory = getDefaultDataDirectory(
+            this.externalTempConfig.coinType,
             this.platform.platform
           );
         }
@@ -1460,7 +1504,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   onNetworkChange(): void {
     // Update port based on network
-    this.nodeConfig.rpcPort = getDefaultRpcPort(this.nodeConfig.network);
+    this.activeConfig.rpcPort = getDefaultRpcPort(this.activeConfig.network);
 
     // Clear test result
     this.testResult.set(null);
@@ -1474,11 +1518,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     const selectedPath = await this.electron.showFolderDialog({
       title: this.i18n.get('select_data_directory'),
-      defaultPath: this.nodeConfig.dataDirectory,
+      defaultPath: this.activeConfig.dataDirectory,
     });
 
     if (selectedPath) {
-      this.nodeConfig.dataDirectory = selectedPath;
+      this.activeConfig.dataDirectory = selectedPath;
       this.testResult.set(null);
     }
   }
@@ -1491,24 +1535,24 @@ export class SettingsComponent implements OnInit, OnDestroy {
       // Get credentials based on auth method from form values
       let credentials: { username: string; password: string } | null = null;
 
-      if (this.nodeConfig.authMethod === 'cookie') {
+      if (this.activeConfig.authMethod === 'cookie') {
         // Read cookie with form's dataDirectory and network (not from store)
         credentials = await this.cookieAuth.readCookieWithConfig(
-          this.nodeConfig.dataDirectory,
-          this.nodeConfig.network
+          this.activeConfig.dataDirectory,
+          this.activeConfig.network
         );
       } else {
         // Use credentials from form
         credentials = {
-          username: this.nodeConfig.username,
-          password: this.nodeConfig.password,
+          username: this.activeConfig.username,
+          password: this.activeConfig.password,
         };
       }
 
       // Test connection with form values
       const result = await this.rpcClient.testWithConfig({
-        host: this.nodeConfig.rpcHost,
-        port: this.nodeConfig.rpcPort,
+        host: this.activeConfig.rpcHost,
+        port: this.activeConfig.rpcPort,
         credentials,
       });
 
@@ -1524,24 +1568,71 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
-  async saveNodeConfig(): Promise<void> {
+  async saveAndApply(): Promise<void> {
     this.isSaving.set(true);
 
     try {
-      // Dispatch action to save config to store
-      this.store.dispatch(SettingsActions.setNodeConfig({ config: { ...this.nodeConfig } }));
+      const mode = this.nodeMode();
+      const config = this.activeConfig;
 
-      // Refresh global cookie cache with new settings
-      if (this.nodeConfig.authMethod === 'cookie') {
+      // If switching from managed → external while managed node is running, confirm first
+      const previousMode = this.nodeService.mode();
+      if (previousMode === 'managed' && mode === 'external' && this.nodeService.isRunning()) {
+        const action = await this.promptManagedNodeAction();
+        if (action === null) {
+          this.isSaving.set(false);
+          return;
+        }
+        if (action === 'stop') {
+          await this.stopManagedNode();
+        }
+        // 'keep' — leave the node running, just switch mode
+      }
+
+      // 1. Persist mode to Rust
+      await this.nodeService.setMode(mode);
+
+      // 2. Persist NgRx store config
+      this.store.dispatch(SettingsActions.setNodeConfig({ config: { ...config } }));
+
+      // 3. Sync to Rust-side NodeConfig (used by miner/aggregator)
+      const rustConfig = this.nodeService.config();
+      await this.nodeService.saveConfig({
+        ...rustConfig,
+        mode,
+        network: config.network,
+        rpcHost: config.rpcHost,
+        rpcPort: config.rpcPort,
+        dataDirectory: config.dataDirectory,
+        authMethod: config.authMethod === 'credentials' ? 'userpass' : 'cookie',
+        rpcUser: config.username,
+        rpcPassword: config.password,
+      });
+
+      // 4. Apply credentials
+      if (config.authMethod === 'cookie') {
         await this.cookieAuth.refreshCredentials();
+      } else {
+        this.cookieAuth.setManualCredentials(config.username, config.password);
       }
 
-      // Test connection after save
-      await this.testConnection();
-
-      if (this.testResult()?.success) {
-        this.notification.success(this.i18n.get('settings_saved'));
+      // 5. Handle managed node lifecycle
+      if (mode === 'managed') {
+        if (!this.nodeService.isRunning() && this.nodeService.isInstalled()) {
+          await this.startManagedNode();
+        }
       }
+
+      // 6. Restart miner/aggregator if running with solo chains
+      await this.restartMiningServicesIfNeeded();
+
+      // 7. Notify and redirect to wallet selection
+      this.notification.success(this.i18n.get('settings_saved'));
+      this.walletManager.setActiveWallet(null);
+      this.router.navigate(['/auth']);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save configuration';
+      this.notification.error(message);
     } finally {
       this.isSaving.set(false);
     }
@@ -1728,9 +1819,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
   // Managed Node Controls
   // ============================================================
 
-  async onNodeModeChange(mode: NodeMode): Promise<void> {
+  /**
+   * UI-only mode toggle — no backend calls, no store dispatches.
+   * Just switches which temp config the form shows.
+   * Mode is persisted only on Save & Apply.
+   */
+  onNodeModeToggle(mode: NodeMode): void {
     this.nodeMode.set(mode);
-    await this.nodeService.setMode(mode);
+    this.testResult.set(null);
   }
 
   async startManagedNode(): Promise<void> {
@@ -1893,5 +1989,82 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     console.warn('Node RPC did not become ready within timeout');
     return false;
+  }
+
+  /**
+   * Show confirmation dialog when switching from managed to external
+   * while the managed node is running.
+   * Returns 'stop' to stop node and switch, 'keep' to keep running and switch, or null to cancel.
+   */
+  private promptManagedNodeAction(): Promise<'stop' | 'keep' | null> {
+    return new Promise(resolve => {
+      const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+        width: '440px',
+        data: {
+          title: this.i18n.get('node_managed_running_title'),
+          message: this.i18n.get('node_managed_running_message'),
+          confirmText: this.i18n.get('node_stop'),
+          secondaryText: this.i18n.get('keep_running'),
+          cancelText: this.i18n.get('cancel'),
+          type: 'warning',
+        },
+      });
+      dialogRef.afterClosed().subscribe(result => {
+        if (result === true) resolve('stop');
+        else if (result === 'secondary') resolve('keep');
+        else resolve(null);
+      });
+    });
+  }
+
+  /**
+   * Restart miner and aggregator if they're running with solo chains.
+   * Solo chains connect directly to the local node, so they need
+   * to be restarted when node config changes.
+   */
+  private async restartMiningServicesIfNeeded(): Promise<void> {
+    const minerWasRunning = this.miningService.minerRunning();
+    const aggregatorWasRunning = this.aggregatorService.isRunning();
+
+    if (!minerWasRunning && !aggregatorWasRunning) return;
+
+    // Check if any solo chains are configured
+    const config = this.miningService.config();
+    const hasSoloChains = config?.chains?.some(c => c.chainType === 'solo') ?? false;
+    if (!hasSoloChains) return;
+
+    // Stop miner first, then aggregator
+    if (minerWasRunning) {
+      await this.miningService.stopMiner();
+    }
+    if (aggregatorWasRunning) {
+      await this.aggregatorService.stop();
+    }
+
+    // Small delay for clean shutdown
+    await new Promise(r => setTimeout(r, 500));
+
+    // Restart in reverse order: aggregator first, then miner
+    if (aggregatorWasRunning) {
+      await this.aggregatorService.start();
+    }
+    if (minerWasRunning) {
+      await this.miningService.startMiner();
+    }
+  }
+
+  /**
+   * Reset external mode settings to defaults.
+   */
+  resetExternalToDefaults(): void {
+    this.externalTempConfig = {
+      ...defaultNodeConfig,
+      coinType: this.externalTempConfig.coinType,
+      dataDirectory: getDefaultDataDirectory(
+        this.externalTempConfig.coinType,
+        this.platform.platform
+      ),
+    };
+    this.testResult.set(null);
   }
 }

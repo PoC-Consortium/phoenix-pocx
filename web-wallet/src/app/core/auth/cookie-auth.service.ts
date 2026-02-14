@@ -81,6 +81,21 @@ export class CookieAuthService {
       } else {
         // For external mode, use settings store
         const storeConfig = await firstValueFrom(this.store.select(selectNodeConfig));
+
+        // If using username/password auth, apply credentials directly (no cookie needed)
+        if (
+          storeConfig.authMethod === 'credentials' &&
+          storeConfig.username &&
+          storeConfig.password
+        ) {
+          console.log('CookieAuthService: Using stored username/password credentials');
+          this.credentialsSubject.next({
+            username: storeConfig.username,
+            password: storeConfig.password,
+          });
+          return true;
+        }
+
         dataDirectory = storeConfig.dataDirectory;
         network = storeConfig.network;
         console.log('CookieAuthService: Using external mode config:', { dataDirectory, network });
