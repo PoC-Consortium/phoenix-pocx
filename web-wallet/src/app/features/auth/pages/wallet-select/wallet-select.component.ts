@@ -91,12 +91,16 @@ import { AppUpdateService } from '../../../../core/services/app-update.service';
             </div>
           }
 
-          <!-- Empty State -->
+          <!-- Welcome State (no wallets yet) -->
           @if (!isConnecting() && !connectionError() && !isLoading() && wallets().length === 0) {
-            <div class="empty-state">
-              <mat-icon class="empty-icon">account_balance_wallet</mat-icon>
-              <p>{{ 'no_wallets_found' | i18n }}</p>
-              <p class="hint">{{ 'create_or_import_wallet' | i18n }}</p>
+            <div class="welcome-state">
+              <mat-icon class="welcome-icon">rocket_launch</mat-icon>
+              <h3>{{ 'welcome_heading' | i18n }}</h3>
+              <p class="welcome-node-status">
+                <mat-icon class="node-ready-icon">check_circle</mat-icon>
+                {{ 'welcome_node_ready' | i18n }}
+              </p>
+              <p class="welcome-body">{{ 'welcome_body' | i18n }}</p>
             </div>
           }
 
@@ -374,7 +378,7 @@ import { AppUpdateService } from '../../../../core/services/app-update.service';
         }
       }
 
-      .empty-state {
+      .welcome-state {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -382,22 +386,42 @@ import { AppUpdateService } from '../../../../core/services/app-update.service';
         padding: 48px 24px;
         text-align: center;
 
-        .empty-icon {
-          font-size: 64px;
-          width: 64px;
-          height: 64px;
-          color: rgba(0, 0, 0, 0.2);
+        .welcome-icon {
+          font-size: 48px;
+          width: 48px;
+          height: 48px;
+          color: #2196f3;
         }
 
-        p {
+        h3 {
           margin: 16px 0 0;
-          color: rgba(0, 0, 0, 0.6);
+          font-size: 20px;
+          font-weight: 500;
+          color: rgba(0, 0, 0, 0.87);
+        }
 
-          &.hint {
-            margin-top: 8px;
-            font-size: 14px;
-            color: rgba(0, 0, 0, 0.4);
+        .welcome-node-status {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin: 16px 0 0;
+          color: #4caf50;
+          font-size: 14px;
+          font-weight: 500;
+
+          .node-ready-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
           }
+        }
+
+        .welcome-body {
+          margin: 12px 0 0;
+          color: rgba(0, 0, 0, 0.6);
+          font-size: 14px;
+          line-height: 1.5;
+          max-width: 400px;
         }
       }
 
