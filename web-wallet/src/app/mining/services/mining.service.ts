@@ -213,7 +213,9 @@ export class MiningService {
     const stats = this.planStats();
     const speed = this._currentPlottingSpeed();
     if (!stats) return '--';
-    return this.plotPlanService.formatEta(stats.remainingGib, speed);
+    // Subtract resumeOffset: plan counts full item size but part is already done
+    const resumeOffset = this._plottingProgress().resumeOffset;
+    return this.plotPlanService.formatEta(stats.remainingGib - resumeOffset, speed);
   });
 
   constructor() {
@@ -991,9 +993,12 @@ export class MiningService {
       console.log('MiningService: Plotter started:', event.payload);
       const { totalWarps, resumeOffset } = event.payload;
 
+      // totalWarps from pocx_plotter = remaining work; add resumeOffset to get full file size
+      const fullTotalWarps = totalWarps + resumeOffset;
+
       this._plottingProgress.update(p => ({
         ...p,
-        totalWarps,
+        totalWarps: fullTotalWarps,
         resumeOffset, // Store offset for speed calculation
         hashingWarps: resumeOffset, // Already hashed (for progress)
         writingWarps: resumeOffset, // Already written (for progress)
