@@ -3,7 +3,7 @@
 
     <!-- Foreground service permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <!-- Wake lock to keep CPU running -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -15,11 +15,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application>
-        <!-- Foreground service for mining/plotting -->
+        <!-- Foreground service for mining/plotting (specialUse: no timeout, runs indefinitely) -->
         <service
             android:name=".MiningForegroundService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Low-power Proof-of-Capacity mining that reads pre-generated plot files from disk and submits deadlines to the network, running continuously in the background for days with minimal resource usage" />
+        </service>
 
         <!-- Broadcast receiver for notification stop button -->
         <receiver
