@@ -80,9 +80,13 @@ export class AggregatorService {
     const newEntry: ActivityLogEntry = { id: now, timestamp: now, type, message };
 
     this._activityLogs.update(logs => {
-      // Basic cleanup: remove anything older than 24h (absolute max)
+      const updated = [newEntry, ...logs];
+      // Pop stale entries from tail (oldest last, O(1) amortized)
       const cutoff = now - AggregatorService.WARN_ERROR_LOG_AGE_MS;
-      return [newEntry, ...logs.filter(log => log.timestamp > cutoff)];
+      while (updated.length > 0 && updated[updated.length - 1].timestamp < cutoff) {
+        updated.pop();
+      }
+      return updated;
     });
   }
 
