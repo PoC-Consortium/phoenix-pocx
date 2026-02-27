@@ -1372,7 +1372,9 @@ export class MiningService {
       const config = this._state()?.config;
       const chainCount = Math.max(1, config?.chains.filter(c => c.enabled).length ?? 1);
       const limit = chainCount * MAX_CAPACITY_DATAPOINTS;
-      const result = await invoke<CommandResult<DeadlineEntry[]>>('get_recent_deadlines', { limit });
+      const result = await invoke<CommandResult<DeadlineEntry[]>>('get_recent_deadlines', {
+        limit,
+      });
       return result.success && result.data ? result.data : [];
     } catch {
       return [];
@@ -2081,24 +2083,29 @@ export class MiningService {
     this._minerUnlisteners.push(scanProgressUnlisten);
 
     // miner:scan-status - fetch deadlines from backend on round finish (single source of truth)
-    const scanStatusUnlisten = await listen<MinerScanStatusEvent>('miner:scan-status', async event => {
-      if (event.payload.status === 'finished') {
-        // Fetch bounded deadline list from backend (720/chain cap enforced there)
-        const deadlines = await this.fetchRecentDeadlines();
-        this._minerState.update(s => ({ ...s, recentDeadlines: deadlines }));
-        this._capacityDeadlines.set(deadlines);
-        this._capacityChartVersion.update(v => v + 1);
+    const scanStatusUnlisten = await listen<MinerScanStatusEvent>(
+      'miner:scan-status',
+      async event => {
+        if (event.payload.status === 'finished') {
+          // Fetch bounded deadline list from backend (720/chain cap enforced there)
+          const deadlines = await this.fetchRecentDeadlines();
+          this._minerState.update(s => ({ ...s, recentDeadlines: deadlines }));
+          this._capacityDeadlines.set(deadlines);
+          this._capacityChartVersion.update(v => v + 1);
 
-        // Update capacity cache (survives navigation)
-        this.updateCapacityCache();
+          // Update capacity cache (survives navigation)
+          this.updateCapacityCache();
 
-        // Smart cleanup of activity logs (idle moment after scan)
-        this.cleanupActivityLogs();
+          // Smart cleanup of activity logs (idle moment after scan)
+          this.cleanupActivityLogs();
 
-        // Update Android notification (helps prevent process kill)
-        this.updateForegroundNotification(`Mining: Block ${event.payload.height} - Round complete`);
+          // Update Android notification (helps prevent process kill)
+          this.updateForegroundNotification(
+            `Mining: Block ${event.payload.height} - Round complete`
+          );
+        }
       }
-    });
+    );
     this._minerUnlisteners.push(scanStatusUnlisten);
 
     // miner:deadline-accepted
