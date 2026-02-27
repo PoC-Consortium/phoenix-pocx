@@ -7,10 +7,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
@@ -24,6 +26,7 @@ import androidx.core.app.NotificationCompat
 class MiningForegroundService : Service() {
 
     companion object {
+        private const val TAG = "PhoenixForeground"
         const val ACTION_START = "org.pocx.phoenix.foregroundservice.START"
         const val ACTION_STOP = "org.pocx.phoenix.foregroundservice.STOP"
         const val ACTION_UPDATE = "org.pocx.phoenix.foregroundservice.UPDATE"
@@ -71,7 +74,11 @@ class MiningForegroundService : Service() {
                     currentText = text
                     // Reaffirm foreground status on every update (Termux survival pattern)
                     // This reminds Android the service is still actively doing work
-                    startForeground(NOTIFICATION_ID, buildNotification())
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        startForeground(NOTIFICATION_ID, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                    } else {
+                        startForeground(NOTIFICATION_ID, buildNotification())
+                    }
                 }
             }
         }
@@ -84,6 +91,24 @@ class MiningForegroundService : Service() {
         releaseWifiLock()
         isRunning = false
         super.onDestroy()
+    }
+
+    /**
+     * Safety net: if Android somehow times out this service (shouldn't happen with specialUse),
+     * log it and stop gracefully to avoid ANR.
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "Foreground service timed out (startId=$startId, type=$fgsType), stopping")
+        stopForegroundService()
+    }
+
+    /**
+     * Called when user swipes the app from recents. Re-deliver the start intent
+     * so START_STICKY can restart the service and keep mining/plotting alive.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.d(TAG, "Task removed, service will restart via START_STICKY")
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun createNotificationChannel() {
@@ -104,7 +129,11 @@ class MiningForegroundService : Service() {
 
     private fun startForegroundWithNotification() {
         val notification = buildNotification()
-        startForeground(NOTIFICATION_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     private fun buildNotification(): Notification {
