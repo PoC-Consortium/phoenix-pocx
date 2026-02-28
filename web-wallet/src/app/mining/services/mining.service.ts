@@ -376,8 +376,10 @@ export class MiningService {
     this._plotterInitialized = true;
     console.log('MiningService: First start - initializing plotting');
 
-    // Refresh both states
-    await this.refreshState();
+    // Use cached state if available (loadState already fetched it), refresh plotter state
+    if (!this._state()) {
+      await this.refreshState();
+    }
     await this.refreshPlotterState();
 
     // If plotter is already running, set up listeners
@@ -420,8 +422,10 @@ export class MiningService {
     this._minerInitialized = true;
     console.log('MiningService: Initializing mining');
 
-    // Refresh state to get current mining status
-    await this.refreshState();
+    // Use cached state if available (loadState already fetched it)
+    if (!this._state()) {
+      await this.refreshState();
+    }
 
     const state = this._state();
     if (!state) {
@@ -439,13 +443,14 @@ export class MiningService {
       this._minerState.update(s => ({ ...s, running: true }));
     }
 
-    // Sync persisted deadlines from backend state to miner runtime state
-    if (state.recentDeadlines.length > 0) {
-      console.log('MiningService: Syncing', state.recentDeadlines.length, 'persisted deadlines');
-      this._minerState.update(s => ({
-        ...s,
-        recentDeadlines: state.recentDeadlines,
-      }));
+    // Sync deadlines from backend (single source of truth, already bounded at 720/chain)
+    const deadlines = await this.fetchRecentDeadlines();
+    if (deadlines.length > 0) {
+      console.log('MiningService: Syncing', deadlines.length, 'deadlines from backend');
+      this._minerState.update(s => ({ ...s, recentDeadlines: deadlines }));
+      this._capacityDeadlines.set(deadlines);
+      // Rebuild capacity cache so chart shows immediately (e.g. after webview reload)
+      this.updateCapacityCache();
     }
   }
 
@@ -1348,10 +1353,32 @@ export class MiningService {
     };
 
     this._activityLogs.update(logs => {
-      // Basic cleanup: remove anything older than 24h (absolute max)
+      const updated = [newEntry, ...logs];
+      // Pop stale entries from tail (oldest last, O(1) amortized)
       const cutoff = now - MiningService.WARN_ERROR_LOG_AGE_MS;
-      return [newEntry, ...logs.filter(log => log.timestamp > cutoff)];
+      while (updated.length > 0 && updated[updated.length - 1].timestamp < cutoff) {
+        updated.pop();
+      }
+      return updated;
     });
+  }
+
+  /**
+   * Fetch recent deadlines from the backend (single source of truth).
+   * Backend enforces 720-per-chain cap with dedup and fork detection.
+   */
+  private async fetchRecentDeadlines(): Promise<DeadlineEntry[]> {
+    try {
+      const config = this._state()?.config;
+      const chainCount = Math.max(1, config?.chains.filter(c => c.enabled).length ?? 1);
+      const limit = chainCount * MAX_CAPACITY_DATAPOINTS;
+      const result = await invoke<CommandResult<DeadlineEntry[]>>('get_recent_deadlines', {
+        limit,
+      });
+      return result.success && result.data ? result.data : [];
+    } catch {
+      return [];
+    }
   }
 
   /**
@@ -2055,59 +2082,46 @@ export class MiningService {
     );
     this._minerUnlisteners.push(scanProgressUnlisten);
 
-    // miner:scan-status - triggers capacity chart update on round finish
-    const scanStatusUnlisten = await listen<MinerScanStatusEvent>('miner:scan-status', event => {
-      if (event.payload.status === 'finished') {
-        // Snapshot deadlines for capacity chart (update on round finish)
-        this._capacityDeadlines.set([...this._minerState().recentDeadlines]);
-        this._capacityChartVersion.update(v => v + 1);
+    // miner:scan-status - fetch deadlines from backend on round finish (single source of truth)
+    const scanStatusUnlisten = await listen<MinerScanStatusEvent>(
+      'miner:scan-status',
+      async event => {
+        if (event.payload.status === 'finished') {
+          // Fetch bounded deadline list from backend (720/chain cap enforced there)
+          const deadlines = await this.fetchRecentDeadlines();
+          this._minerState.update(s => ({ ...s, recentDeadlines: deadlines }));
+          this._capacityDeadlines.set(deadlines);
+          this._capacityChartVersion.update(v => v + 1);
 
-        // Update capacity cache (survives navigation)
-        this.updateCapacityCache();
+          // Update capacity cache (survives navigation)
+          this.updateCapacityCache();
 
-        // Smart cleanup of activity logs (idle moment after scan)
-        this.cleanupActivityLogs();
+          // Smart cleanup of activity logs (idle moment after scan)
+          this.cleanupActivityLogs();
 
-        // Update Android notification (helps prevent process kill)
-        this.updateForegroundNotification(`Mining: Block ${event.payload.height} - Round complete`);
+          // Update Android notification (helps prevent process kill)
+          this.updateForegroundNotification(
+            `Mining: Block ${event.payload.height} - Round complete`
+          );
+        }
       }
-    });
+    );
     this._minerUnlisteners.push(scanStatusUnlisten);
 
     // miner:deadline-accepted
-    // Backend only emits events for best deadlines, account is pre-converted to bech32
+    // Only update live best-deadline display; full deadline list fetched from backend on scan-finished
     const deadlineAcceptedUnlisten = await listen<MinerDeadlineAcceptedEvent>(
       'miner:deadline-accepted',
       event => {
         const d = event.payload;
         const pocTime = d.pocTime < 86400 ? d.pocTime : Number.MAX_SAFE_INTEGER;
 
+        // Update current block's best deadline (live card display)
         this._minerState.update(s => {
-          const entry: DeadlineEntry = {
-            id: Date.now(),
-            chainName: d.chain,
-            account: d.account,
-            height: d.height,
-            nonce: d.nonce,
-            deadline: pocTime,
-            qualityRaw: d.qualityRaw,
-            baseTarget: d.baseTarget,
-            submitted: true,
-            timestamp: Date.now(),
-          };
-
-          // Replace existing deadline for same chain+height (backend guarantees best-only)
-          const filtered = s.recentDeadlines.filter(
-            dl => !(dl.chainName === d.chain && dl.height === d.height)
-          );
-          // Note: 720-per-chain trimming handled by backend (state.rs)
-          const updatedDeadlines = [entry, ...filtered];
-
           const currentBlock = s.currentBlock[d.chain];
           if (currentBlock && (!currentBlock.bestDeadline || pocTime < currentBlock.bestDeadline)) {
             return {
               ...s,
-              recentDeadlines: updatedDeadlines,
               currentBlock: {
                 ...s.currentBlock,
                 [d.chain]: {
@@ -2117,11 +2131,7 @@ export class MiningService {
               },
             };
           }
-
-          return {
-            ...s,
-            recentDeadlines: updatedDeadlines,
-          };
+          return s;
         });
 
         // Update Android notification with deadline info (helps prevent process kill)
