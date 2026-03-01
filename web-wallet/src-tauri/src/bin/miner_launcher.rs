@@ -4,9 +4,9 @@
 //! This is used for the macOS "Phoenix PoCX Miner.app" wrapper to avoid
 //! Rosetta prompts that occur with shell script executables.
 
-use std::process::Command;
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
+use std::process::Command;
 
 fn main() {
     let main_app_name = "Phoenix PoCX Wallet.app";
@@ -34,16 +34,18 @@ fn main() {
     ];
 
     // Find the main app
-    let main_app = search_paths
-        .into_iter()
-        .flatten()
-        .find(|p| p.exists());
+    let main_app = search_paths.into_iter().flatten().find(|p| p.exists());
 
     match main_app {
         Some(app_path) => {
             // Launch the main app with --mining-only
             let status = Command::new("open")
-                .args(["-a", app_path.to_str().unwrap_or(""), "--args", "--mining-only"])
+                .args([
+                    "-a",
+                    app_path.to_str().unwrap_or(""),
+                    "--args",
+                    "--mining-only",
+                ])
                 .status();
 
             if let Err(e) = status {

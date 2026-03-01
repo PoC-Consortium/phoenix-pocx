@@ -169,16 +169,16 @@ pub enum PlotPlanItem {
 pub struct DeadlineEntry {
     pub id: i64,
     pub chain_name: String,
-    pub account: String,        // bech32 format (converted in backend)
+    pub account: String, // bech32 format (converted in backend)
     pub height: u64,
     pub nonce: u64,
     pub deadline: u64,
-    pub quality_raw: u64,       // Raw quality for effective capacity calculations
-    pub base_target: u64,       // Block's base target for capacity calculations
+    pub quality_raw: u64, // Raw quality for effective capacity calculations
+    pub base_target: u64, // Block's base target for capacity calculations
     pub submitted: bool,
     pub timestamp: i64,
     #[serde(default)]
-    pub gensig: String,         // Generation signature for fork detection
+    pub gensig: String, // Generation signature for fork detection
 }
 
 /// Full mining configuration
@@ -403,11 +403,12 @@ pub fn save_config(config: &MiningConfig, reason: &str) -> Result<(), String> {
 
     // Ensure parent directory exists
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("Failed to create config directory: {}", e))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
     }
 
-    let content =
-        serde_json::to_string_pretty(config).map_err(|e| format!("Failed to serialize config: {}", e))?;
+    let content = serde_json::to_string_pretty(config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
     fs::write(&path, content).map_err(|e| format!("Failed to write config file: {}", e))?;
 
@@ -468,9 +469,11 @@ pub fn add_deadline(state: &SharedMiningState, deadline: DeadlineEntry) -> Deadl
         let gensig = deadline.gensig.clone();
 
         // Check if we already have an entry for this chain+height
-        if let Some(existing) = state.recent_deadlines.iter_mut().find(|d| {
-            d.chain_name == chain_name && d.height == height
-        }) {
+        if let Some(existing) = state
+            .recent_deadlines
+            .iter_mut()
+            .find(|d| d.chain_name == chain_name && d.height == height)
+        {
             // Fork detection: if gensig changed, this is a new block at same height
             if !existing.gensig.is_empty() && existing.gensig != gensig {
                 // Fork detected - replace entry entirely

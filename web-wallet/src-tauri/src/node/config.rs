@@ -53,7 +53,6 @@ impl Network {
             Network::Regtest => 18443,
         }
     }
-
 }
 
 impl FromStr for Network {
@@ -182,7 +181,8 @@ impl NodeConfig {
 
         // Ensure parent directory exists
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("Failed to create config dir: {}", e))?;
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create config dir: {}", e))?;
         }
 
         let contents = serde_json::to_string_pretty(self)
@@ -294,7 +294,10 @@ impl NodeConfig {
             Network::Regtest => "[regtest]",
         };
 
-        lines.push(format!("# RPC settings for {} (localhost only for security)", self.network.as_str()));
+        lines.push(format!(
+            "# RPC settings for {} (localhost only for security)",
+            self.network.as_str()
+        ));
         lines.push(section.to_string());
         lines.push("rpcbind=127.0.0.1".to_string());
         lines.push("rpcallowip=127.0.0.1".to_string());

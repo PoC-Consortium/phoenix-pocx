@@ -39,11 +39,7 @@ impl NodeManager {
     /// Check if bitcoind is running by looking for the process
     pub fn is_node_running() -> bool {
         let mut sys = System::new();
-        sys.refresh_processes_specifics(
-            ProcessesToUpdate::All,
-            true,
-            ProcessRefreshKind::new(),
-        );
+        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
 
         for process in sys.processes().values() {
             let name = process.name().to_string_lossy().to_lowercase();
@@ -57,11 +53,7 @@ impl NodeManager {
     /// Find the PID of a running bitcoind process
     pub fn find_node_pid() -> Option<u32> {
         let mut sys = System::new();
-        sys.refresh_processes_specifics(
-            ProcessesToUpdate::All,
-            true,
-            ProcessRefreshKind::new(),
-        );
+        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
 
         for (pid, process) in sys.processes() {
             let name = process.name().to_string_lossy().to_lowercase();
@@ -152,7 +144,9 @@ impl NodeManager {
 
         // Start the process
         log::info!("Starting bitcoind: {:?}", cmd);
-        let child = cmd.spawn().map_err(|e| format!("Failed to start bitcoind: {}", e))?;
+        let child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to start bitcoind: {}", e))?;
 
         let pid = child.id();
         log::info!("bitcoind started with PID {}", pid);
@@ -188,17 +182,18 @@ impl NodeManager {
         let config = state.get_config();
         let rpc_result = std::thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().ok()?;
-            rt.block_on(async {
-                super::rpc::stop_node_gracefully(&config).await.ok()
-            })
-        }).join();
+            rt.block_on(async { super::rpc::stop_node_gracefully(&config).await.ok() })
+        })
+        .join();
 
         match rpc_result {
             Ok(Some(_)) => {
                 log::info!("RPC stop command sent - node will shutdown gracefully");
             }
             _ => {
-                log::warn!("RPC stop command failed - node may not be running or RPC not available");
+                log::warn!(
+                    "RPC stop command failed - node may not be running or RPC not available"
+                );
             }
         }
 

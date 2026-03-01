@@ -5,11 +5,13 @@
 use super::callback::TauriPlotterCallback;
 use super::devices::{detect_devices, DeviceInfo};
 use super::drives::{get_drive_info, list_drives, DriveInfo};
-use super::plotter::{self, PlotExecutionResult, PlotPlan, PlotterState, SharedPlotterRuntime, StopType};
+use super::plotter::{
+    self, PlotExecutionResult, PlotPlan, PlotterState, SharedPlotterRuntime, StopType,
+};
 use super::state::{
     get_config_file_path, save_config, ChainConfig, CpuConfig, DeadlineEntry, DriveConfig,
-    MiningConfig, MiningState, MiningStatus, PlotPlanItem,
-    PlotterDeviceConfig, PlottingStatus, SharedMiningState,
+    MiningConfig, MiningState, MiningStatus, PlotPlanItem, PlotterDeviceConfig, PlottingStatus,
+    SharedMiningState,
 };
 use crate::expand_path;
 use serde::Serialize;
@@ -112,9 +114,7 @@ pub fn get_plot_drive_info(path: String) -> CommandResult<DriveInfo> {
 /// Returns config and basic state. For plotter-specific state (plan, progress),
 /// use get_plotter_state instead.
 #[tauri::command]
-pub fn get_mining_state(
-    state: State<SharedMiningState>,
-) -> CommandResult<MiningState> {
+pub fn get_mining_state(state: State<SharedMiningState>) -> CommandResult<MiningState> {
     log::debug!("[CMD] get_mining_state called");
     match state.lock() {
         Ok(state) => CommandResult::ok(state.clone()),
@@ -135,11 +135,13 @@ pub fn get_plotter_state(
     plotter_runtime: State<SharedPlotterRuntime>,
 ) -> CommandResult<PlotterState> {
     let state = plotter_runtime.get_state();
-    log::info!("[CMD] get_plotter_state: running={}, stop_type={:?}, plan_items={}, current_index={}",
+    log::info!(
+        "[CMD] get_plotter_state: running={}, stop_type={:?}, plan_items={}, current_index={}",
         state.running,
         state.stop_type,
         state.plan.as_ref().map(|p| p.items.len()).unwrap_or(0),
-        state.current_index);
+        state.current_index
+    );
     CommandResult::ok(state)
 }
 
@@ -180,10 +182,7 @@ pub fn save_mining_config(
 
 /// Add a chain configuration
 #[tauri::command]
-pub fn add_chain_config(
-    chain: ChainConfig,
-    state: State<SharedMiningState>,
-) -> CommandResult<()> {
+pub fn add_chain_config(chain: ChainConfig, state: State<SharedMiningState>) -> CommandResult<()> {
     match state.lock() {
         Ok(mut state) => {
             // Check for duplicate
@@ -260,10 +259,7 @@ pub fn reorder_chain_priorities(
 
 /// Add a drive configuration
 #[tauri::command]
-pub fn add_drive_config(
-    drive: DriveConfig,
-    state: State<SharedMiningState>,
-) -> CommandResult<()> {
+pub fn add_drive_config(drive: DriveConfig, state: State<SharedMiningState>) -> CommandResult<()> {
     match state.lock() {
         Ok(mut state) => {
             // Check for duplicate
@@ -285,7 +281,12 @@ pub fn update_drive_config(
 ) -> CommandResult<()> {
     match state.lock() {
         Ok(mut state) => {
-            if let Some(existing) = state.config.drives.iter_mut().find(|d| d.path == drive.path) {
+            if let Some(existing) = state
+                .config
+                .drives
+                .iter_mut()
+                .find(|d| d.path == drive.path)
+            {
                 *existing = drive;
                 CommandResult::ok(())
             } else {
@@ -319,10 +320,7 @@ pub fn remove_drive_config(path: String, state: State<SharedMiningState>) -> Com
 
 /// Update CPU configuration
 #[tauri::command]
-pub fn update_cpu_config(
-    config: CpuConfig,
-    state: State<SharedMiningState>,
-) -> CommandResult<()> {
+pub fn update_cpu_config(config: CpuConfig, state: State<SharedMiningState>) -> CommandResult<()> {
     match state.lock() {
         Ok(mut state) => {
             state.config.cpu_config = config;
@@ -426,10 +424,7 @@ pub async fn start_mining(
         crate::node::config::AuthMethod::Cookie => {
             let data_dir = node_config.get_data_directory();
             let network_str = node_config.network.as_str();
-            let cookie_path = crate::build_cookie_path(
-                &data_dir.to_string_lossy(),
-                network_str,
-            );
+            let cookie_path = crate::build_cookie_path(&data_dir.to_string_lossy(), network_str);
             pocx_miner::RpcAuth::Cookie {
                 cookie_path: Some(cookie_path.to_string_lossy().to_string()),
             }
@@ -477,8 +472,16 @@ pub async fn start_mining(
             }
         };
 
-        let rpc_host = if is_direct_solo { node_rpc_host.clone() } else { chain_config.rpc_host.clone() };
-        let rpc_port = if is_direct_solo { node_rpc_port } else { chain_config.rpc_port };
+        let rpc_host = if is_direct_solo {
+            node_rpc_host.clone()
+        } else {
+            chain_config.rpc_host.clone()
+        };
+        let rpc_port = if is_direct_solo {
+            node_rpc_port
+        } else {
+            chain_config.rpc_port
+        };
 
         let submission_mode = match chain_config.mode {
             super::state::SubmissionMode::Solo => pocx_miner::SubmissionMode::Wallet,
@@ -528,7 +531,9 @@ pub async fn start_mining(
                 if !is_ready {
                     log::info!(
                         "Drive {} not ready for mining: {:.1} GiB plotted of {} GiB allocated",
-                        d.path, info.complete_size_gib, d.allocated_gib
+                        d.path,
+                        info.complete_size_gib,
+                        d.allocated_gib
                     );
                 }
                 is_ready
@@ -547,7 +552,7 @@ pub async fn start_mining(
             state_guard.mining_status = MiningStatus::Stopped;
         }
         return Ok(CommandResult::err(
-            "No ready drives for mining. Drives must be fully plotted before mining can start."
+            "No ready drives for mining. Drives must be fully plotted before mining can start.",
         ));
     }
 
@@ -684,7 +689,10 @@ pub async fn run_device_benchmark(
         let gpus = super::devices::detect_gpus();
         let is_apu = gpus
             .iter()
-            .find(|g| g.id == device_id || device_id.starts_with(&format!("{}:{}:", g.platform_index, g.device_index)))
+            .find(|g| {
+                g.id == device_id
+                    || device_id.starts_with(&format!("{}:{}:", g.platform_index, g.device_index))
+            })
             .map(|g| g.is_apu)
             .unwrap_or(false);
 
@@ -782,7 +790,10 @@ pub async fn run_device_benchmark(
             }))
         }
         Ok((Err(e), _)) => Ok(CommandResult::err(format!("Benchmark failed: {}", e))),
-        Err(e) => Ok(CommandResult::err(format!("Benchmark task panicked: {}", e)))
+        Err(e) => Ok(CommandResult::err(format!(
+            "Benchmark task panicked: {}",
+            e
+        ))),
     }
 }
 
@@ -956,7 +967,11 @@ pub fn set_plot_plan(
     plan: PlotPlan,
     plotter_runtime: State<SharedPlotterRuntime>,
 ) -> CommandResult<()> {
-    log::info!("[CMD] set_plot_plan: {} items, hash={}", plan.items.len(), plan.config_hash);
+    log::info!(
+        "[CMD] set_plot_plan: {} items, hash={}",
+        plan.items.len(),
+        plan.config_hash
+    );
     for (i, item) in plan.items.iter().enumerate() {
         log::info!("[CMD]   item[{}]: {:?}", i, item);
     }
@@ -967,9 +982,7 @@ pub fn set_plot_plan(
 /// Clear the plot plan from runtime
 /// Also clears any pending stop request
 #[tauri::command]
-pub fn clear_plot_plan(
-    plotter_runtime: State<SharedPlotterRuntime>,
-) -> CommandResult<()> {
+pub fn clear_plot_plan(plotter_runtime: State<SharedPlotterRuntime>) -> CommandResult<()> {
     log::info!("[CMD] clear_plot_plan called");
     plotter_runtime.clear_plan();
     plotter_runtime.clear_stop();
@@ -994,7 +1007,11 @@ pub async fn start_plot_plan(
     // Get plan from runtime
     let plan = match plotter_runtime.get_plan() {
         Some(p) => p,
-        None => return Ok(CommandResult::err("No plot plan exists. Generate a plan first.")),
+        None => {
+            return Ok(CommandResult::err(
+                "No plot plan exists. Generate a plan first.",
+            ))
+        }
     };
 
     // Check if already running
@@ -1010,7 +1027,11 @@ pub async fn start_plot_plan(
 
     // Get current item
     let item = plan.items[current_index].clone();
-    log::debug!("[CMD] start_plot_plan: starting at index {}, item: {:?}", current_index, item);
+    log::debug!(
+        "[CMD] start_plot_plan: starting at index {}, item: {:?}",
+        current_index,
+        item
+    );
 
     Ok(CommandResult::ok(item))
 }
@@ -1063,8 +1084,13 @@ pub async fn advance_plot_plan(
     let current_index = plotter_runtime.advance_index();
     let total = plan.items.len();
 
-    log::info!("[CMD] advance_plot_plan: index {} → {}, total {}, stop_type {:?}",
-        current_index.saturating_sub(1), current_index, total, stop_type);
+    log::info!(
+        "[CMD] advance_plot_plan: index {} → {}, total {}, stop_type {:?}",
+        current_index.saturating_sub(1),
+        current_index,
+        total,
+        stop_type
+    );
 
     // Check if plan is complete
     if current_index >= total {
@@ -1116,7 +1142,10 @@ pub async fn advance_plot_plan(
             }
 
             // Still in same batch but soft stop requested - continue
-            log::debug!("[EXEC] soft stop: still in batch {}, continuing", prev_batch.unwrap_or(0));
+            log::debug!(
+                "[EXEC] soft stop: still in batch {}, continuing",
+                prev_batch.unwrap_or(0)
+            );
         }
         StopType::None => {
             // Normal execution
@@ -1173,7 +1202,10 @@ pub async fn execute_plot_item(
             Ok(CommandResult::ok(result))
         }
         Err(e) => {
-            log::error!("[CMD] execute_plot_item: plotter::execute_plot_item returned error: {}", e);
+            log::error!(
+                "[CMD] execute_plot_item: plotter::execute_plot_item returned error: {}",
+                e
+            );
             Ok(CommandResult::err(e))
         }
     }
@@ -1220,17 +1252,12 @@ pub async fn execute_plot_batch(
 
 /// Check if plotter is currently running
 #[tauri::command]
-pub fn is_plotter_running(
-    plotter_runtime: State<'_, SharedPlotterRuntime>,
-) -> CommandResult<bool> {
+pub fn is_plotter_running(plotter_runtime: State<'_, SharedPlotterRuntime>) -> CommandResult<bool> {
     CommandResult::ok(plotter_runtime.is_running())
 }
 
 /// Get the current stop type
 #[tauri::command]
-pub fn get_stop_type(
-    plotter_runtime: State<'_, SharedPlotterRuntime>,
-) -> CommandResult<StopType> {
+pub fn get_stop_type(plotter_runtime: State<'_, SharedPlotterRuntime>) -> CommandResult<StopType> {
     CommandResult::ok(plotter_runtime.get_stop_type())
 }
-

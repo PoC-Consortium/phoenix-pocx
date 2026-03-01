@@ -55,10 +55,7 @@ pub async fn check_wallet_update() -> Result<WalletUpdateInfo, String> {
         .map_err(|e| format!("Failed to fetch release info: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "GitHub API returned status: {}",
-            response.status()
-        ));
+        return Err(format!("GitHub API returned status: {}", response.status()));
     }
 
     let release: GitHubRelease = response
@@ -195,16 +192,16 @@ mod tests {
         assert!(!is_newer_version("1.9.9", "2.0.0"));
 
         // Pre-release comparisons
-        assert!(is_newer_version("2.0.0", "2.0.0-rc7"));     // Final > RC
-        assert!(is_newer_version("2.0.0", "2.0.0-rc.1"));    // Final > RC
+        assert!(is_newer_version("2.0.0", "2.0.0-rc7")); // Final > RC
+        assert!(is_newer_version("2.0.0", "2.0.0-rc.1")); // Final > RC
         assert!(is_newer_version("2.0.0-rc8", "2.0.0-rc7")); // RC8 > RC7
         assert!(is_newer_version("2.0.0-rc10", "2.0.0-rc9")); // RC10 > RC9
-        assert!(!is_newer_version("2.0.0-rc7", "2.0.0"));    // RC < Final
+        assert!(!is_newer_version("2.0.0-rc7", "2.0.0")); // RC < Final
         assert!(!is_newer_version("2.0.0-rc7", "2.0.0-rc7")); // Same
         assert!(!is_newer_version("2.0.0-rc7", "2.0.0-rc8")); // RC7 < RC8
 
         // Mixed scenarios
-        assert!(is_newer_version("2.0.1-rc1", "2.0.0"));     // Higher patch wins
-        assert!(!is_newer_version("2.0.0-rc1", "2.0.1"));    // Lower patch loses
+        assert!(is_newer_version("2.0.1-rc1", "2.0.0")); // Higher patch wins
+        assert!(!is_newer_version("2.0.0-rc1", "2.0.1")); // Lower patch loses
     }
 }

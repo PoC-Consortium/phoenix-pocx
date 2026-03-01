@@ -83,7 +83,9 @@ pub type SharedAggregatorState = Arc<Mutex<AggregatorInner>>;
 pub fn get_config_file_path() -> Option<PathBuf> {
     #[cfg(target_os = "android")]
     {
-        Some(PathBuf::from("/data/data/org.pocx.phoenix/files/aggregator-config.json"))
+        Some(PathBuf::from(
+            "/data/data/org.pocx.phoenix/files/aggregator-config.json",
+        ))
     }
 
     #[cfg(not(target_os = "android"))]

@@ -3,7 +3,6 @@
 //! These commands are exposed to the frontend for controlling the managed node.
 
 use super::config::{NodeConfig, NodeMode, NodePaths};
-use tauri::Emitter;
 use super::downloader::{
     self, check_for_update, fetch_all_releases, fetch_latest_release, fetch_sha256sums,
     find_hash_for_file, ReleaseInfo, UpdateInfo,
@@ -12,6 +11,7 @@ use super::extractor::{cleanup_archive, extract_bitcoind, get_download_dir};
 use super::hasher::verify_file_hash;
 use super::manager::NodeManager;
 use super::state::{DownloadProgress, DownloadStage, NodeStatus, SharedNodeState};
+use tauri::Emitter;
 use tauri::{AppHandle, State};
 
 // ============================================================================
@@ -46,7 +46,10 @@ pub fn get_node_config(state: State<'_, SharedNodeState>) -> NodeConfig {
 
 /// Save the node configuration
 #[tauri::command]
-pub fn set_node_config(config: NodeConfig, state: State<'_, SharedNodeState>) -> Result<(), String> {
+pub fn set_node_config(
+    config: NodeConfig,
+    state: State<'_, SharedNodeState>,
+) -> Result<(), String> {
     state.set_config(config)
 }
 
@@ -174,13 +177,19 @@ pub async fn fetch_asset_sha256(tag: String, asset_name: String) -> Result<Strin
 #[tauri::command]
 pub fn get_platform_arch() -> String {
     #[cfg(target_arch = "x86_64")]
-    { "x86_64".to_string() }
+    {
+        "x86_64".to_string()
+    }
 
     #[cfg(target_arch = "aarch64")]
-    { "aarch64 (ARM64)".to_string() }
+    {
+        "aarch64 (ARM64)".to_string()
+    }
 
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
-    { "unknown".to_string() }
+    {
+        "unknown".to_string()
+    }
 }
 
 /// Check for node updates
@@ -252,10 +261,7 @@ pub async fn download_and_install_from_asset(
     state.set_download_progress(None);
 
     // Emit completion event
-    let _ = app.emit(
-        "node:installed",
-        serde_json::json!({ "version": version }),
-    );
+    let _ = app.emit("node:installed", serde_json::json!({ "version": version }));
 
     log::info!("Node {} installed successfully", version);
 
@@ -286,10 +292,7 @@ pub fn cancel_node_download(state: State<'_, SharedNodeState>) {
 
 /// Set the network (mainnet, testnet, regtest)
 #[tauri::command]
-pub fn set_node_network(
-    network: String,
-    state: State<'_, SharedNodeState>,
-) -> Result<(), String> {
+pub fn set_node_network(network: String, state: State<'_, SharedNodeState>) -> Result<(), String> {
     let mut config = state.get_config();
     config.network = network.parse().unwrap_or_default();
     state.set_config(config)

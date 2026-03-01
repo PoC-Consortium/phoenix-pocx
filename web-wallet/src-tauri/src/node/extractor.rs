@@ -78,14 +78,23 @@ pub fn extract_bitcoind(
 
         // Ad-hoc sign the binary (required on modern macOS for unsigned binaries)
         let sign_result = Command::new("codesign")
-            .args(["--force", "--deep", "-s", "-", bitcoind_dest.to_str().unwrap_or("")])
+            .args([
+                "--force",
+                "--deep",
+                "-s",
+                "-",
+                bitcoind_dest.to_str().unwrap_or(""),
+            ])
             .output();
         match sign_result {
             Ok(output) if output.status.success() => {
                 log::info!("Ad-hoc signed bitcoind");
             }
             Ok(output) => {
-                log::warn!("codesign warning: {}", String::from_utf8_lossy(&output.stderr));
+                log::warn!(
+                    "codesign warning: {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
             }
             Err(e) => {
                 log::warn!("Failed to run codesign: {}", e);
@@ -105,8 +114,7 @@ pub fn extract_bitcoind(
 
 /// Extract bitcoind from a ZIP archive (Windows)
 fn extract_from_zip(archive_path: &Path, dest: &Path) -> Result<(), String> {
-    let file =
-        File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
+    let file = File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
 
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| format!("Failed to read ZIP archive: {}", e))?;
@@ -124,8 +132,8 @@ fn extract_from_zip(archive_path: &Path, dest: &Path) -> Result<(), String> {
         }
     }
 
-    let entry_name = bitcoind_entry_name
-        .ok_or_else(|| format!("{} not found in archive", BITCOIND_BINARY))?;
+    let entry_name =
+        bitcoind_entry_name.ok_or_else(|| format!("{} not found in archive", BITCOIND_BINARY))?;
 
     log::info!("Found {} at {}", BITCOIND_BINARY, entry_name);
 
@@ -143,8 +151,7 @@ fn extract_from_zip(archive_path: &Path, dest: &Path) -> Result<(), String> {
     let mut outfile =
         File::create(dest).map_err(|e| format!("Failed to create destination file: {}", e))?;
 
-    io::copy(&mut entry, &mut outfile)
-        .map_err(|e| format!("Failed to extract file: {}", e))?;
+    io::copy(&mut entry, &mut outfile).map_err(|e| format!("Failed to extract file: {}", e))?;
 
     Ok(())
 }
@@ -156,8 +163,7 @@ fn extract_from_7z(_archive_path: &Path, _dest_dir: &Path) -> Result<(), String>
 
 /// Extract bitcoind from a tar.gz archive (Unix)
 fn extract_from_tar_gz(archive_path: &Path, dest: &Path) -> Result<(), String> {
-    let file =
-        File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
+    let file = File::open(archive_path).map_err(|e| format!("Failed to open archive: {}", e))?;
 
     let gz = flate2::read::GzDecoder::new(file);
     let mut archive = tar::Archive::new(gz);
@@ -204,8 +210,7 @@ fn extract_from_tar_gz(archive_path: &Path, dest: &Path) -> Result<(), String> {
 /// Clean up downloaded archive
 pub fn cleanup_archive(archive_path: &Path) -> Result<(), String> {
     if archive_path.exists() {
-        fs::remove_file(archive_path)
-            .map_err(|e| format!("Failed to remove archive: {}", e))?;
+        fs::remove_file(archive_path).map_err(|e| format!("Failed to remove archive: {}", e))?;
         log::info!("Cleaned up archive: {}", archive_path.display());
     }
     Ok(())

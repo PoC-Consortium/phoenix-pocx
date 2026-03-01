@@ -108,7 +108,10 @@ pub fn detect_gpus() -> Vec<GpuInfo> {
     plotter_gpus
         .into_iter()
         .map(|g| {
-            let gpu_id = format!("{}:{}:{}", g.platform_index, g.device_index, g.compute_units);
+            let gpu_id = format!(
+                "{}:{}:{}",
+                g.platform_index, g.device_index, g.compute_units
+            );
             GpuInfo {
                 id: gpu_id,
                 name: g.name,
@@ -139,4 +142,3 @@ pub fn detect_devices() -> DeviceInfo {
         available_memory_mb: sys.available_memory() / 1024 / 1024,
     }
 }
-

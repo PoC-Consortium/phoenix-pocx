@@ -1,8 +1,6 @@
 //! Tauri command handlers for aggregator operations
 
-use super::state::{
-    save_config, AggregatorConfig, AggregatorStatus, SharedAggregatorState,
-};
+use super::state::{save_config, AggregatorConfig, AggregatorStatus, SharedAggregatorState};
 use crate::mining::commands::CommandResult;
 use crate::node::state::SharedNodeState;
 use serde::Serialize;
@@ -67,9 +65,11 @@ pub async fn start_aggregator(
             Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
         };
 
-        if inner.status == (AggregatorStatus::Running {
-            listen_address: String::new(),
-        }) {
+        if inner.status
+            == (AggregatorStatus::Running {
+                listen_address: String::new(),
+            })
+        {
             // Check more precisely
             if matches!(inner.status, AggregatorStatus::Running { .. }) {
                 return Ok(CommandResult::err("Aggregator is already running"));
@@ -105,12 +105,17 @@ pub async fn start_aggregator(
     } else {
         node_config.rpc_host.clone()
     };
-    let upstream_rpc_port = if config.upstream_rpc_port > 0 { config.upstream_rpc_port } else { effective_port };
-    let listen_address = if config.listen_address.ends_with(":0") || config.listen_address.ends_with(":1") {
-        format!("0.0.0.0:{}", effective_port + 1)
+    let upstream_rpc_port = if config.upstream_rpc_port > 0 {
+        config.upstream_rpc_port
     } else {
-        config.listen_address.clone()
+        effective_port
     };
+    let listen_address =
+        if config.listen_address.ends_with(":0") || config.listen_address.ends_with(":1") {
+            format!("0.0.0.0:{}", effective_port + 1)
+        } else {
+            config.listen_address.clone()
+        };
 
     // Build upstream RPC auth from node config
     let rpc_auth = match node_config.auth_method {
@@ -122,10 +127,7 @@ pub async fn start_aggregator(
         crate::node::config::AuthMethod::Cookie => {
             let data_dir = node_config.get_data_directory();
             let network_str = node_config.network.as_str();
-            let cookie_path = crate::build_cookie_path(
-                &data_dir.to_string_lossy(),
-                network_str,
-            );
+            let cookie_path = crate::build_cookie_path(&data_dir.to_string_lossy(), network_str);
             pocx_aggregator::config::RpcAuth::Cookie {
                 cookie_path: Some(cookie_path.to_string_lossy().to_string()),
             }
@@ -142,7 +144,7 @@ pub async fn start_aggregator(
 
     let agg_config = pocx_aggregator::Config {
         server: pocx_aggregator::config::ServerConfig {
-            listen_address: listen_address,
+            listen_address,
             auth: Default::default(),
         },
         upstream: pocx_aggregator::config::UpstreamConfig {
@@ -189,7 +191,10 @@ pub async fn start_aggregator(
 
         // Ensure status is updated on exit
         if let Ok(mut inner) = state_clone.lock() {
-            if matches!(inner.status, AggregatorStatus::Running { .. } | AggregatorStatus::Starting) {
+            if matches!(
+                inner.status,
+                AggregatorStatus::Running { .. } | AggregatorStatus::Starting
+            ) {
                 inner.status = AggregatorStatus::Stopped;
             }
         }
@@ -223,9 +228,7 @@ pub async fn stop_aggregator(
 
 /// Check if aggregator is running
 #[tauri::command]
-pub fn is_aggregator_running(
-    state: State<SharedAggregatorState>,
-) -> CommandResult<bool> {
+pub fn is_aggregator_running(state: State<SharedAggregatorState>) -> CommandResult<bool> {
     match state.lock() {
         Ok(inner) => {
             let running = matches!(inner.status, AggregatorStatus::Running { .. });

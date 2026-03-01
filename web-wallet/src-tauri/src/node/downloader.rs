@@ -103,9 +103,9 @@ impl From<GitHubRelease> for ReleaseInfo {
 impl From<GitHubAsset> for ReleaseAsset {
     fn from(asset: GitHubAsset) -> Self {
         // Extract SHA256 hash from digest (format: "sha256:hash")
-        let sha256 = asset.digest.and_then(|d| {
-            d.strip_prefix("sha256:").map(|h| h.to_string())
-        });
+        let sha256 = asset
+            .digest
+            .and_then(|d| d.strip_prefix("sha256:").map(|h| h.to_string()));
 
         Self {
             name: asset.name,
@@ -121,27 +121,27 @@ impl From<GitHubAsset> for ReleaseAsset {
 pub fn get_platform_archive_pattern() -> &'static str {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
-        "win64"  // Matches win64-setup.exe or win64.zip
+        "win64" // Matches win64-setup.exe or win64.zip
     }
 
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
     {
-        "x86_64-apple-darwin"  // Matches .zip or .tar.gz
+        "x86_64-apple-darwin" // Matches .zip or .tar.gz
     }
 
     #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
-        "arm64-apple-darwin"  // Matches .zip or .tar.gz
+        "arm64-apple-darwin" // Matches .zip or .tar.gz
     }
 
     #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
     {
-        "x86_64-linux-gnu"  // Matches .tar.gz
+        "x86_64-linux-gnu" // Matches .tar.gz
     }
 
     #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
     {
-        "aarch64-linux-gnu"  // Matches .tar.gz
+        "aarch64-linux-gnu" // Matches .tar.gz
     }
 
     #[cfg(not(any(
@@ -210,10 +210,7 @@ pub async fn fetch_latest_release() -> Result<ReleaseInfo, String> {
         .map_err(|e| format!("Failed to fetch release: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "GitHub API returned status {}",
-            response.status()
-        ));
+        return Err(format!("GitHub API returned status {}", response.status()));
     }
 
     let release: GitHubRelease = response
@@ -241,10 +238,7 @@ pub async fn fetch_all_releases() -> Result<Vec<ReleaseInfo>, String> {
         .map_err(|e| format!("Failed to fetch releases: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "GitHub API returned status {}",
-            response.status()
-        ));
+        return Err(format!("GitHub API returned status {}", response.status()));
     }
 
     let releases: Vec<GitHubRelease> = response
@@ -327,10 +321,7 @@ pub async fn download_file(
         .map_err(|e| format!("Failed to start download: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "Download failed with status {}",
-            response.status()
-        ));
+        return Err(format!("Download failed with status {}", response.status()));
     }
 
     let total_size = response.content_length().unwrap_or(0);
@@ -351,8 +342,7 @@ pub async fn download_file(
     let _ = app.emit("node:download-progress", &progress);
 
     // Open file for writing
-    let mut file =
-        File::create(&dest).map_err(|e| format!("Failed to create file: {}", e))?;
+    let mut file = File::create(&dest).map_err(|e| format!("Failed to create file: {}", e))?;
 
     // Download with progress
     let mut stream = response.bytes_stream();

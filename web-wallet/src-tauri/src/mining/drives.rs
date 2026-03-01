@@ -57,7 +57,10 @@ fn get_volume_guid(path: &str) -> Option<String> {
     };
 
     if result != 0 {
-        let len = volume_name.iter().position(|&c| c == 0).unwrap_or(volume_name.len());
+        let len = volume_name
+            .iter()
+            .position(|&c| c == 0)
+            .unwrap_or(volume_name.len());
         Some(String::from_utf16_lossy(&volume_name[..len]))
     } else {
         None
@@ -151,9 +154,7 @@ fn scan_plot_files(path: &str) -> PlotFileScan {
                 continue;
             }
 
-            let file_size = std::fs::metadata(&file_path)
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let file_size = std::fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
 
             if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
                 match ext {

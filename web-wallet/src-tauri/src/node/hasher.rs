@@ -105,7 +105,11 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         file.write_all(b"test content").unwrap();
 
-        let result = verify_file_hash(file.path(), "0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+        let result = verify_file_hash(
+            file.path(),
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .unwrap();
 
         assert!(!result.matches);
     }
