@@ -1537,7 +1537,7 @@ export class MiningService {
       }
       throw new Error(result.error || 'Benchmark failed');
     } catch (err) {
-      throw new Error(`Benchmark failed: ${err}`);
+      throw new Error(`Benchmark failed: ${err}`, { cause: err });
     }
   }
 
