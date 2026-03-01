@@ -129,8 +129,7 @@ impl NodeRpcClient {
     /// Check if the node is ready by calling getblockchaininfo
     pub async fn is_ready(&self) -> bool {
         // Try to get blockchain info - if it works, node is ready
-        let result: Result<serde_json::Value, _> =
-            self.call("getblockchaininfo", vec![]).await;
+        let result: Result<serde_json::Value, _> = self.call("getblockchaininfo", vec![]).await;
         result.is_ok()
     }
 
@@ -150,7 +149,10 @@ pub async fn wait_for_node_ready(config: &NodeConfig, timeout_secs: u64) -> Resu
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(timeout_secs);
 
-    log::info!("Waiting for node to be ready (timeout: {}s)...", timeout_secs);
+    log::info!(
+        "Waiting for node to be ready (timeout: {}s)...",
+        timeout_secs
+    );
 
     loop {
         if start.elapsed() > timeout {

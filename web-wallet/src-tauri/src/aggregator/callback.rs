@@ -34,7 +34,8 @@ impl<R: Runtime> AggregatorCallback for TauriAggregatorCallback<R> {
     fn on_started(&self, info: &pocx_aggregator::AggregatorStartedInfo) {
         log::info!(
             "Aggregator started: listening on {}, upstream={}",
-            info.listen_address, info.upstream_name
+            info.listen_address,
+            info.upstream_name
         );
 
         // Update state
@@ -57,7 +58,9 @@ impl<R: Runtime> AggregatorCallback for TauriAggregatorCallback<R> {
     }
 
     fn on_submission_forwarded(&self, info: &pocx_aggregator::ForwardedInfo) {
-        let _ = self.app_handle.emit("aggregator:submission-forwarded", info);
+        let _ = self
+            .app_handle
+            .emit("aggregator:submission-forwarded", info);
     }
 
     fn on_submission_accepted(&self, info: &pocx_aggregator::AcceptedInfo) {
@@ -87,7 +90,9 @@ impl<R: Runtime> AggregatorCallback for TauriAggregatorCallback<R> {
     fn on_stats_updated(&self, snapshot: &pocx_aggregator::StatsSnapshot) {
         log::debug!(
             "Stats updated: miners={}, machines={}, height={}",
-            snapshot.unique_miners, snapshot.unique_machines, snapshot.current_height
+            snapshot.unique_miners,
+            snapshot.unique_machines,
+            snapshot.current_height
         );
 
         // Cache the stats in state

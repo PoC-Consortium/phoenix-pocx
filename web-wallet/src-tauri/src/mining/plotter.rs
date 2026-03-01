@@ -193,7 +193,11 @@ impl PlotterRuntime {
 
     /// Set the current plan
     pub fn set_plan(&self, plan: PlotPlan) {
-        log::debug!("[PLOTTER] plan set: {} items, hash={}", plan.items.len(), plan.config_hash);
+        log::debug!(
+            "[PLOTTER] plan set: {} items, hash={}",
+            plan.items.len(),
+            plan.config_hash
+        );
         *self.plan.lock().unwrap() = Some(plan);
         self.current_index.store(0, Ordering::SeqCst);
     }
@@ -249,7 +253,9 @@ impl PlotterRuntime {
     pub fn has_more_items(&self) -> bool {
         let plan = self.plan.lock().unwrap();
         let index = self.current_index.load(Ordering::SeqCst);
-        plan.as_ref().map(|p| index < p.items.len()).unwrap_or(false)
+        plan.as_ref()
+            .map(|p| index < p.items.len())
+            .unwrap_or(false)
     }
 
     // ========================================================================
@@ -283,7 +289,11 @@ impl PlotterRuntime {
             progress: 0.0,
             speed_mib_s: 0.0,
         };
-        log::debug!("[PLOTTER] progress reset: {} warps, batch_size={}", total_warps, batch_size);
+        log::debug!(
+            "[PLOTTER] progress reset: {} warps, batch_size={}",
+            total_warps,
+            batch_size
+        );
     }
 
     /// Update hashing progress
@@ -330,7 +340,6 @@ impl PlotterRuntime {
             progress: self.get_progress(),
         }
     }
-
 }
 
 impl Default for PlotterRuntime {
@@ -377,14 +386,22 @@ pub async fn execute_plot_batch<R: Runtime>(
 
     for item in &items {
         match item {
-            PlotPlanItem::Plot { path, warps, batch_id: _ } => {
+            PlotPlanItem::Plot {
+                path,
+                warps,
+                batch_id: _,
+            } => {
                 outputs.push(BatchPlotOutput {
                     path: path.clone(),
                     warps: *warps,
                 });
                 paths.push(path.clone());
             }
-            PlotPlanItem::Resume { path, file_index: _, size_gib } => {
+            PlotPlanItem::Resume {
+                path,
+                file_index: _,
+                size_gib,
+            } => {
                 // For resume, we still need to handle .tmp files
                 // But for batching, we treat it as a regular output
                 outputs.push(BatchPlotOutput {
@@ -437,7 +454,11 @@ pub async fn execute_plot_batch<R: Runtime>(
     // Mark as running
     plotter_runtime.set_running(true);
 
-    log::info!("Starting plotter: {} outputs, {} GiB", outputs.len(), total_warps);
+    log::info!(
+        "Starting plotter: {} outputs, {} GiB",
+        outputs.len(),
+        total_warps
+    );
 
     // Clone values for the background task
     let mining_state_clone = mining_state.clone();
@@ -462,7 +483,10 @@ pub async fn execute_plot_batch<R: Runtime>(
                 state.plotting_status = PlottingStatus::Idle;
             }
             Err(e) => {
-                log::error!("Failed to lock mining state to update status: {} - UI may show stale state", e);
+                log::error!(
+                    "Failed to lock mining state to update status: {} - UI may show stale state",
+                    e
+                );
             }
         }
         plotter_runtime_clone.set_running(false);
@@ -500,7 +524,11 @@ pub async fn execute_plot_batch<R: Runtime>(
                     // Emit completion event for each item in the batch
                     for item in &items_clone {
                         match item {
-                            PlotPlanItem::Plot { path, warps, batch_id: _ } => {
+                            PlotPlanItem::Plot {
+                                path,
+                                warps,
+                                batch_id: _,
+                            } => {
                                 let _ = app_handle_clone.emit(
                                     "plotter:item-complete",
                                     serde_json::json!({
@@ -513,7 +541,11 @@ pub async fn execute_plot_batch<R: Runtime>(
                                     }),
                                 );
                             }
-                            PlotPlanItem::Resume { path, file_index: _, size_gib } => {
+                            PlotPlanItem::Resume {
+                                path,
+                                file_index: _,
+                                size_gib,
+                            } => {
                                 let _ = app_handle_clone.emit(
                                     "plotter:item-complete",
                                     serde_json::json!({
@@ -654,10 +686,13 @@ pub async fn execute_plot_item<R: Runtime>(
             log::info!("AddToMiner checkpoint - frontend will restart miner");
 
             // Emit completion event - frontend will restart miner to pick up ready drives
-            let _ = app_handle.emit("plotter:item-complete", serde_json::json!({
-                "type": "add_to_miner",
-                "success": true,
-            }));
+            let _ = app_handle.emit(
+                "plotter:item-complete",
+                serde_json::json!({
+                    "type": "add_to_miner",
+                    "success": true,
+                }),
+            );
 
             Ok(PlotExecutionResult {
                 success: true,
@@ -689,7 +724,10 @@ fn parse_seed_from_tmp_filename(filename: &str) -> Option<[u8; 32]> {
     // Parse hex string to bytes
     let seed_bytes = hex::decode(seed_hex).ok()?;
     if seed_bytes.len() != 32 {
-        log::warn!("Invalid seed length in filename: {} bytes (expected 32)", seed_bytes.len());
+        log::warn!(
+            "Invalid seed length in filename: {} bytes (expected 32)",
+            seed_bytes.len()
+        );
         return None;
     }
 
@@ -714,7 +752,10 @@ async fn execute_resume<R: Runtime>(
     log::info!("[RESUME] Found {} .tmp files", tmp_files.len());
 
     if tmp_files.is_empty() {
-        log::error!("[RESUME] No .tmp files found in {} - returning error", drive_path);
+        log::error!(
+            "[RESUME] No .tmp files found in {} - returning error",
+            drive_path
+        );
         return Err(format!("No .tmp files found in {}", drive_path));
     }
 
@@ -725,7 +766,10 @@ async fn execute_resume<R: Runtime>(
     // Parse seed from filename for resume
     let seed = parse_seed_from_tmp_filename(tmp_file);
     if seed.is_none() {
-        return Err(format!("Failed to parse seed from .tmp filename: {}", tmp_file));
+        return Err(format!(
+            "Failed to parse seed from .tmp filename: {}",
+            tmp_file
+        ));
     }
     log::info!("Extracted seed for resume: {:?}", seed);
 
@@ -813,7 +857,11 @@ async fn execute_plot_internal<R: Runtime>(
     // Mark as running
     plotter_runtime.set_running(true);
 
-    log::info!("[EXEC] Starting plotter execution for {} warps at {}", warps, drive_path);
+    log::info!(
+        "[EXEC] Starting plotter execution for {} warps at {}",
+        warps,
+        drive_path
+    );
     log::info!("[EXEC] is_running set to TRUE");
 
     // Clone values for the background task
@@ -832,7 +880,11 @@ async fn execute_plot_internal<R: Runtime>(
             let start = std::time::Instant::now();
             let plotter_result = pocx_plotter::run_plotter_safe(task);
             let duration = start.elapsed();
-            log::info!("Plotter thread finished for {} in {:?}", drive_path_clone, duration);
+            log::info!(
+                "Plotter thread finished for {} in {:?}",
+                drive_path_clone,
+                duration
+            );
 
             (plotter_result, duration, drive_path_clone)
         })
@@ -938,7 +990,15 @@ fn build_plotter_task(
     config: &MiningConfig,
     resume_seed: Option<[u8; 32]>,
 ) -> Result<pocx_plotter::PlotterTask, String> {
-    build_plotter_task_batch(address, &[BatchPlotOutput { path: output_path.to_string(), warps }], config, resume_seed)
+    build_plotter_task_batch(
+        address,
+        &[BatchPlotOutput {
+            path: output_path.to_string(),
+            warps,
+        }],
+        config,
+        resume_seed,
+    )
 }
 
 /// Build a PlotterTask from configuration with multiple outputs (batch mode)
@@ -1041,9 +1101,14 @@ fn build_plotter_task_batch(
         builder = builder.benchmark(true);
     }
 
-    let task = builder.build().map_err(|e| format!("Failed to build task: {}", e))?;
+    let task = builder
+        .build()
+        .map_err(|e| format!("Failed to build task: {}", e))?;
 
-    log::info!("Plotter task built successfully with {} outputs", outputs.len());
+    log::info!(
+        "Plotter task built successfully with {} outputs",
+        outputs.len()
+    );
     Ok(task)
 }
 
@@ -1051,7 +1116,10 @@ fn build_plotter_task_batch(
 fn find_tmp_files(dir_path: &str) -> Result<Vec<String>, String> {
     let path = Path::new(dir_path);
     if !path.exists() || !path.is_dir() {
-        return Err(format!("Path does not exist or is not a directory: {}", dir_path));
+        return Err(format!(
+            "Path does not exist or is not a directory: {}",
+            dir_path
+        ));
     }
 
     let mut tmp_files = Vec::new();

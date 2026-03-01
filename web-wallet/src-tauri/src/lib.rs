@@ -114,7 +114,12 @@ pub fn app_data_dir() -> PathBuf {
         PathBuf::from("/data/data/org.pocx.phoenix/files")
     }
 
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos", target_os = "android")))]
+    #[cfg(not(any(
+        target_os = "windows",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "android"
+    )))]
     {
         PathBuf::from(".").join("phoenix-pocx")
     }
@@ -133,7 +138,12 @@ pub fn expand_path(path: &str) -> String {
             if let Some(end) = result[start + 1..].find('%') {
                 let var_name = &result[start + 1..start + 1 + end];
                 if let Ok(value) = std::env::var(var_name) {
-                    result = format!("{}{}{}", &result[..start], value, &result[start + 2 + end..]);
+                    result = format!(
+                        "{}{}{}",
+                        &result[..start],
+                        value,
+                        &result[start + 2 + end..]
+                    );
                 } else {
                     break;
                 }
@@ -233,7 +243,12 @@ fn get_platform() -> String {
     #[cfg(target_os = "android")]
     return "android".to_string();
 
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "android")))]
+    #[cfg(not(any(
+        target_os = "windows",
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android"
+    )))]
     return "unknown".to_string();
 }
 
@@ -295,14 +310,19 @@ fn get_debug_paths() -> DebugPaths {
 
     DebugPaths {
         app_data_dir: data_dir.to_string_lossy().to_string(),
-        node_config: node::config::NodeConfig::config_path().to_string_lossy().to_string(),
+        node_config: node::config::NodeConfig::config_path()
+            .to_string_lossy()
+            .to_string(),
         mining_config: mining::state::get_config_file_path()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default(),
         aggregator_config: aggregator::state::get_config_file_path()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default(),
-        bitcoin_conf: node_config.bitcoin_conf_path().to_string_lossy().to_string(),
+        bitcoin_conf: node_config
+            .bitcoin_conf_path()
+            .to_string_lossy()
+            .to_string(),
         logs_dir: data_dir.join("logs").to_string_lossy().to_string(),
         bitcoin_debug_log: debug_log_path.to_string_lossy().to_string(),
     }
@@ -413,7 +433,11 @@ async fn restart_elevated(app: tauri::AppHandle) -> bool {
                 ptr::null_mut(),
                 verb_wide.as_ptr(),
                 exe_wide.as_ptr(),
-                if args_str.is_empty() { ptr::null() } else { args_wide.as_ptr() },
+                if args_str.is_empty() {
+                    ptr::null()
+                } else {
+                    args_wide.as_ptr()
+                },
                 ptr::null(),
                 windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
             )
@@ -536,24 +560,12 @@ fn create_menu(app: &tauri::App) -> Result<Menu<tauri::Wry>, tauri::Error> {
 
     // Help menu
     let help_menu = SubmenuBuilder::new(app, "Help")
-        .item(
-            &MenuItemBuilder::with_id("documentation", "Bitcoin PoCX Documentation")
-                .build(app)?,
-        )
+        .item(&MenuItemBuilder::with_id("documentation", "Bitcoin PoCX Documentation").build(app)?)
         .separator()
-        .item(
-            &MenuItemBuilder::with_id("report_suggestion", "Report A Suggestion")
-                .build(app)?,
-        )
-        .item(
-            &MenuItemBuilder::with_id("report_issue", "Report An Issue")
-                .build(app)?,
-        )
+        .item(&MenuItemBuilder::with_id("report_suggestion", "Report A Suggestion").build(app)?)
+        .item(&MenuItemBuilder::with_id("report_issue", "Report An Issue").build(app)?)
         .separator()
-        .item(
-            &MenuItemBuilder::with_id("check_update", "Check for Update")
-                .build(app)?,
-        )
+        .item(&MenuItemBuilder::with_id("check_update", "Check for Update").build(app)?)
         .item(&MenuItemBuilder::with_id("about", "About").build(app)?)
         .build()?;
 
@@ -629,12 +641,21 @@ pub fn run() {
             }
 
             // Register miner callback for mining events (with state for deadline persistence)
-            let state = app.state::<mining::state::SharedMiningState>().inner().clone();
+            let state = app
+                .state::<mining::state::SharedMiningState>()
+                .inner()
+                .clone();
             mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
 
             // Register aggregator callback (OnceLock - must be done once at startup)
-            let agg_state = app.state::<aggregator::state::SharedAggregatorState>().inner().clone();
-            aggregator::callback::TauriAggregatorCallback::register(app.handle().clone(), agg_state);
+            let agg_state = app
+                .state::<aggregator::state::SharedAggregatorState>()
+                .inner()
+                .clone();
+            aggregator::callback::TauriAggregatorCallback::register(
+                app.handle().clone(),
+                agg_state,
+            );
 
             // Set window title based on launch mode (desktop only)
             #[cfg(not(target_os = "android"))]
@@ -669,7 +690,7 @@ pub fn run() {
                         let route = if is_mining_only { "/miner/setup" } else { "/settings" };
 
                         // Use history.pushState for Angular's HTML5 routing
-                        let _ = window.eval(&format!(r#"
+                        let _ = window.eval(format!(r#"
                             history.pushState({{}}, '', '{}');
                             window.dispatchEvent(new PopStateEvent('popstate'));
                         "#, route));
@@ -742,7 +763,7 @@ pub fn run() {
                 "about" => {
                     if let Some(window) = app.get_webview_window("main") {
                         let version = env!("CARGO_PKG_VERSION");
-                        let _ = window.eval(&format!(
+                        let _ = window.eval(format!(
                             r#"
                             alert('Phoenix PoCX Wallet v{}\n\nA secure and easy-to-use wallet for Bitcoin-PoCX.\n\nhttps://www.bitcoin-pocx.org\n\n© 2025 The Proof of Capacity Consortium');
                             "#,

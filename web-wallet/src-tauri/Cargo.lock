@@ -3803,7 +3803,7 @@ dependencies = [
 
 [[package]]
 name = "phoenix-pocx"
-version = "2.0.0-rc10"
+version = "2.0.0-rc11"
 dependencies = [
  "anyhow",
  "dirs",

@@ -727,7 +727,14 @@ interface ChainModalData {
                       {{ formatSize(drive.info.totalGib) }}</span
                     >
                     @if (drive.info.isSystemDrive) {
-                      <span class="system-badge" [title]="'setup_system_drive_warning' | i18n"
+                      <span
+                        class="system-badge"
+                        [title]="
+                          ('setup_system_drive_warning' | i18n) +
+                          ' (' +
+                          systemDriveMaxPercent() +
+                          '%)'
+                        "
                         >&#9888;</span
                       >
                     }
@@ -903,6 +910,23 @@ interface ChainModalData {
                   />
                   {{ 'setup_mining_direct_io' | i18n }}
                 </label>
+              </div>
+              <div class="thread-slider-container">
+                <div class="slider-label">
+                  <span>{{ 'setup_system_drive_max_percent' | i18n }}</span>
+                </div>
+                <div class="slider-wrapper">
+                  <input
+                    type="range"
+                    class="slider"
+                    min="0"
+                    max="100"
+                    step="1"
+                    [ngModel]="systemDriveMaxPercent()"
+                    (ngModelChange)="onSystemDriveMaxPercentChange($event)"
+                  />
+                  <span class="slider-value">{{ systemDriveMaxPercent() }}%</span>
+                </div>
               </div>
             </div>
           }
@@ -2716,6 +2740,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly parallelDrives = signal(1); // Number of drives to plot simultaneously
   readonly hddWakeup = signal(30);
   readonly miningDirectIo = signal(true);
+  readonly systemDriveMaxPercent = signal(80);
 
   // Pending aggregator config - saved only on Save & Close, not when chain modal is saved
   readonly pendingAggregatorConfig = signal<AggregatorConfig | null>(null);
@@ -3170,6 +3195,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         }
         if (config.miningDirectIo !== undefined) {
           this.miningDirectIo.set(config.miningDirectIo);
+        }
+        if (config.systemDriveMaxPercent !== undefined) {
+          this.systemDriveMaxPercent.set(config.systemDriveMaxPercent);
         }
       }
     } catch (error) {
@@ -3660,7 +3688,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   getMaxAllocatable(drive: DriveInfo): number {
     const plotted = drive.completeSizeGib + drive.incompleteSizeGib;
     if (drive.isSystemDrive) {
-      const minFreeRequired = drive.totalGib * 0.2;
+      const minFreeRequired = drive.totalGib * (1 - this.systemDriveMaxPercent() / 100);
       const maxFree = Math.max(0, drive.freeGib - minFreeRequired);
       return Math.floor(plotted + maxFree);
     }
@@ -3673,19 +3701,20 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
    */
   getNewPlotMax(drive: DriveInfo): number {
     if (drive.isSystemDrive) {
-      const minFreeRequired = drive.totalGib * 0.2;
+      const minFreeRequired = drive.totalGib * (1 - this.systemDriveMaxPercent() / 100);
       return Math.floor(Math.max(0, drive.freeGib - minFreeRequired));
     }
     return Math.floor(drive.freeGib);
   }
 
   /**
-   * Current "new to plot" value = allocated - already plotted.
+   * Current "new to plot" value = allocated - already plotted, clamped to max.
    */
   getNewPlotValue(drive: DriveInfo): number {
     const allocated = this.getDriveAllocatedGib(drive.path);
     const plotted = Math.floor(drive.completeSizeGib + drive.incompleteSizeGib);
-    return Math.max(0, allocated - plotted);
+    const value = Math.max(0, allocated - plotted);
+    return Math.min(value, this.getNewPlotMax(drive));
   }
 
   /**
@@ -3951,17 +3980,37 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   /** Get max new plot space from DriveInfo (free space, minus system reserve if needed) */
   getNewPlotMaxFromInfo(info: DriveInfo): number {
     if (info.isSystemDrive) {
-      const minFreeRequired = info.totalGib * 0.2;
+      const minFreeRequired = info.totalGib * (1 - this.systemDriveMaxPercent() / 100);
       return Math.floor(Math.max(0, info.freeGib - minFreeRequired));
     }
     return Math.floor(info.freeGib);
   }
 
-  /** Get current new-to-plot value from DriveInfo (allocated minus already plotted) */
+  /** Get current new-to-plot value from DriveInfo (allocated minus already plotted, clamped to max) */
   getNewPlotValueFromInfo(info: DriveInfo): number {
     const allocated = this.getDriveAllocatedGib(info.path);
     const plotted = Math.floor(info.completeSizeGib + info.incompleteSizeGib);
-    return Math.max(0, allocated - plotted);
+    const value = Math.max(0, allocated - plotted);
+    return Math.min(value, this.getNewPlotMaxFromInfo(info));
+  }
+
+  /** Handle system drive max percent change - clamp existing allocations */
+  onSystemDriveMaxPercentChange(value: number): void {
+    this.systemDriveMaxPercent.set(value);
+    // Clamp allocations for system drives that now exceed the new limit
+    const cache = this.miningService.driveInfoCache();
+    this.driveConfigs.update(configs =>
+      configs.map(c => {
+        const info = cache.get(c.path);
+        if (info?.isSystemDrive) {
+          const maxAllocatable = this.getMaxAllocatable(info);
+          if (c.allocatedGib > maxAllocatable) {
+            return { ...c, allocatedGib: maxAllocatable };
+          }
+        }
+        return c;
+      })
+    );
   }
 
   /** Handle slider change for new-to-plot by path */
@@ -4008,6 +4057,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         enableOnTheFlyCompression: this.compressionEnabled(),
         threadPinning: this.threadPinning(),
         miningDirectIo: this.miningDirectIo(),
+        systemDriveMaxPercent: this.systemDriveMaxPercent(),
         // Wallet RPC settings for solo mining
         walletRpcHost: this.walletRpcHost(),
         walletRpcPort: this.walletRpcPort(),

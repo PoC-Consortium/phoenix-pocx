@@ -57,7 +57,10 @@ fn get_volume_guid(path: &str) -> Option<String> {
     };
 
     if result != 0 {
-        let len = volume_name.iter().position(|&c| c == 0).unwrap_or(volume_name.len());
+        let len = volume_name
+            .iter()
+            .position(|&c| c == 0)
+            .unwrap_or(volume_name.len());
         Some(String::from_utf16_lossy(&volume_name[..len]))
     } else {
         None
@@ -151,9 +154,7 @@ fn scan_plot_files(path: &str) -> PlotFileScan {
                 continue;
             }
 
-            let file_size = std::fs::metadata(&file_path)
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let file_size = std::fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
 
             if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
                 match ext {
@@ -396,12 +397,16 @@ fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
         return None;
     }
 
+    // Casts needed for cross-platform compat (these fields are u32/i64 on some targets)
+    #[allow(clippy::unnecessary_cast)]
     let block_size = if stat.f_frsize > 0 {
         stat.f_frsize as u64
     } else {
         stat.f_bsize as u64
     };
+    #[allow(clippy::unnecessary_cast)]
     let total_bytes = (stat.f_blocks as u64 * block_size) as f64;
+    #[allow(clippy::unnecessary_cast)]
     let free_bytes = (stat.f_bavail as u64 * block_size) as f64;
 
     let scan = scan_plot_files(path);

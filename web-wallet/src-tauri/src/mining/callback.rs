@@ -205,15 +205,15 @@ pub enum ScanStatusEvent {
 #[serde(rename_all = "camelCase")]
 pub struct DeadlineAcceptedEvent {
     pub chain: String,
-    pub account: String,          // bech32 format (pre-converted)
+    pub account: String, // bech32 format (pre-converted)
     pub height: u64,
     pub nonce: u64,
     pub quality_raw: u64,
     pub compression: u8,
     pub poc_time: u64,
-    pub gensig: String,           // For fork detection
-    pub is_best_for_block: bool,  // True if this is best deadline for this height
-    pub base_target: u64,         // Block's base target
+    pub gensig: String,          // For fork detection
+    pub is_best_for_block: bool, // True if this is best deadline for this height
+    pub base_target: u64,        // Block's base target
 }
 
 /// Event payload for deadline retry
@@ -265,7 +265,9 @@ impl<R: Runtime> TauriMinerCallback<R> {
         let callback = Arc::new(Self::new(app_handle, state));
         match pocx_miner::set_miner_callback(callback.clone()) {
             Ok(_) => log::info!("Miner callback registered successfully"),
-            Err(_) => log::warn!("Miner callback registration failed (callback may already be set)"),
+            Err(_) => {
+                log::warn!("Miner callback registration failed (callback may already be set)")
+            }
         }
         callback
     }
@@ -318,7 +320,11 @@ impl<R: Runtime> TauriMinerCallback<R> {
 
 impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
     fn on_started(&self, info: &pocx_miner::MinerStartedInfo) {
-        log::info!("Miner callback: started - version={}, chains={:?}", info.version, info.chains);
+        log::info!(
+            "Miner callback: started - version={}, chains={:?}",
+            info.version,
+            info.chains
+        );
 
         let _ = self.app_handle.emit(
             "miner:started",
@@ -365,7 +371,9 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
                 progress_percent: q.progress_percent,
             })
             .collect();
-        let _ = self.app_handle.emit("miner:queue-updated", QueueUpdateEvent { queue: items });
+        let _ = self
+            .app_handle
+            .emit("miner:queue-updated", QueueUpdateEvent { queue: items });
     }
 
     fn on_idle(&self) {
@@ -392,16 +400,12 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
 
     fn on_scan_status(&self, chain: &str, height: u64, status: &pocx_miner::ScanStatus) {
         let event = match status {
-            pocx_miner::ScanStatus::Finished { duration_secs } => {
-                ScanStatusEvent::Finished {
-                    duration_secs: *duration_secs,
-                }
-            }
-            pocx_miner::ScanStatus::Paused { progress_percent } => {
-                ScanStatusEvent::Paused {
-                    progress_percent: *progress_percent,
-                }
-            }
+            pocx_miner::ScanStatus::Finished { duration_secs } => ScanStatusEvent::Finished {
+                duration_secs: *duration_secs,
+            },
+            pocx_miner::ScanStatus::Paused { progress_percent } => ScanStatusEvent::Paused {
+                progress_percent: *progress_percent,
+            },
             pocx_miner::ScanStatus::Interrupted { progress_percent } => {
                 ScanStatusEvent::Interrupted {
                     progress_percent: *progress_percent,
@@ -439,7 +443,8 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
 
         // Look up base_target and gensig from current block for this chain
         let (base_target, gensig) = if let Ok(state) = self.state.lock() {
-            state.current_block
+            state
+                .current_block
                 .get(&deadline.chain)
                 .map(|b| (b.base_target, b.generation_signature.clone()))
                 .unwrap_or((0, String::new()))
@@ -499,7 +504,9 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
         } else {
             log::debug!(
                 "Miner callback: deadline skipped (not best) - chain={}, height={}, poc_time={}",
-                deadline.chain, deadline.height, poc_time
+                deadline.chain,
+                deadline.height,
+                poc_time
             );
         }
     }
@@ -507,7 +514,9 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
     fn on_deadline_retry(&self, deadline: &pocx_miner::AcceptedDeadline, reason: &str) {
         log::info!(
             "Miner callback: deadline retry - chain={}, height={}, reason={}",
-            deadline.chain, deadline.height, reason
+            deadline.chain,
+            deadline.height,
+            reason
         );
 
         let _ = self.app_handle.emit(
@@ -523,10 +532,18 @@ impl<R: Runtime> MinerCallback for TauriMinerCallback<R> {
         );
     }
 
-    fn on_deadline_rejected(&self, deadline: &pocx_miner::AcceptedDeadline, code: i32, message: &str) {
+    fn on_deadline_rejected(
+        &self,
+        deadline: &pocx_miner::AcceptedDeadline,
+        code: i32,
+        message: &str,
+    ) {
         log::warn!(
             "Miner callback: deadline rejected - chain={}, height={}, code={}, message={}",
-            deadline.chain, deadline.height, code, message
+            deadline.chain,
+            deadline.height,
+            code,
+            message
         );
 
         let _ = self.app_handle.emit(

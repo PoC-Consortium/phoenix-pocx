@@ -341,10 +341,10 @@ export class RpcClientService implements OnDestroy {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Request timeout');
+        throw new Error('Request timeout', { cause: error });
       }
       if (error instanceof TypeError) {
-        throw new Error('Cannot connect to Bitcoin Core. Is it running?');
+        throw new Error('Cannot connect to Bitcoin Core. Is it running?', { cause: error });
       }
       throw error;
     }
