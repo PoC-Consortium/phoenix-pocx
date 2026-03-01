@@ -223,6 +223,8 @@ pub struct MiningConfig {
     pub thread_pinning: bool, // Pin CPU threads for better performance
     #[serde(default = "default_mining_direct_io")]
     pub mining_direct_io: bool, // Use Direct I/O for mining (separate from plotter direct_io)
+    #[serde(default = "default_system_drive_max_percent")]
+    pub system_drive_max_percent: u8, // Max usage % for system drives (default 80)
 
     // Wallet RPC settings for solo mining
     // These mirror the wallet's connection settings for deadline submission
@@ -276,6 +278,10 @@ fn default_mining_direct_io() -> bool {
     true
 }
 
+fn default_system_drive_max_percent() -> u8 {
+    80
+}
+
 impl Default for MiningConfig {
     fn default() -> Self {
         Self {
@@ -303,6 +309,7 @@ impl Default for MiningConfig {
             enable_on_the_fly_compression: default_enable_on_the_fly_compression(),
             thread_pinning: default_thread_pinning(),
             mining_direct_io: default_mining_direct_io(),
+            system_drive_max_percent: default_system_drive_max_percent(),
             wallet_rpc_host: default_wallet_rpc_host(),
             wallet_rpc_port: default_wallet_rpc_port(),
             wallet_data_directory: String::new(),

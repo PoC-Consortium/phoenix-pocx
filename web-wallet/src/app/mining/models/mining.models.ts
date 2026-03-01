@@ -136,6 +136,7 @@ export interface MiningConfig {
   enableOnTheFlyCompression?: boolean; // On-the-fly decompression for compressed plots
   threadPinning?: boolean; // Pin CPU threads for better performance
   miningDirectIo?: boolean; // Use Direct I/O for mining (separate from plotter directIo)
+  systemDriveMaxPercent?: number; // Max usage % for system drives (default 80)
 
   // Wallet RPC settings for solo mining
   // These mirror the wallet's connection settings for deadline submission
