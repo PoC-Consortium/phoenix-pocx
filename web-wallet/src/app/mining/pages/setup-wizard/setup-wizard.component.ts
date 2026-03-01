@@ -727,7 +727,14 @@ interface ChainModalData {
                       {{ formatSize(drive.info.totalGib) }}</span
                     >
                     @if (drive.info.isSystemDrive) {
-                      <span class="system-badge" [title]="('setup_system_drive_warning' | i18n) + ' (' + systemDriveMaxPercent() + '%)'"
+                      <span
+                        class="system-badge"
+                        [title]="
+                          ('setup_system_drive_warning' | i18n) +
+                          ' (' +
+                          systemDriveMaxPercent() +
+                          '%)'
+                        "
                         >&#9888;</span
                       >
                     }
