@@ -1277,6 +1277,9 @@ export class SendComponent implements OnInit, OnDestroy {
       this.sentTxid.set(txid);
       this.showSuccess.set(true);
       this.notification.success(this.i18n.get('transaction_sent'));
+
+      // Refresh wallet state so dashboard shows updated balance immediately
+      this.walletService.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : this.i18n.get('transaction_failed');
       this.sendError.set(message);

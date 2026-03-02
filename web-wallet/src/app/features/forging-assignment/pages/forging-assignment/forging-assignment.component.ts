@@ -19,6 +19,7 @@ import { takeUntil, skip } from 'rxjs/operators';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
+import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
@@ -1147,6 +1148,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
   private readonly walletManager = inject(WalletManagerService);
+  private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly blockchainState = inject(BlockchainStateService);
@@ -1449,6 +1451,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
         this.notification.success(
           `${this.i18n.get('assignment_created_success')} (${result.txid.substring(0, 16)}...)`
         );
+        this.walletService.refresh();
         this.clear();
       } else if (this.currentMode === 'revoke') {
         const result = await this.miningRpc.revokeForgingAssignment(
@@ -1459,6 +1462,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
         this.notification.success(
           `${this.i18n.get('revocation_created_success')} (${result.txid.substring(0, 16)}...)`
         );
+        this.walletService.refresh();
         this.clear();
       }
     } catch (error) {
