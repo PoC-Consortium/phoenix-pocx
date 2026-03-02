@@ -1143,10 +1143,9 @@ export class SendComponent implements OnInit, OnDestroy {
   }
 
   setMaxAmount(): void {
-    const fee = this.selectedFeeOption?.estimatedFee ?? 0;
-    const maxAmount = this.availableBalance() - fee;
-    this.amount = Math.max(0, maxAmount);
+    this.amount = this.availableBalance();
     this.subtractFee = true;
+    this.updateEstimatedFee();
   }
 
   // Contacts methods
@@ -1196,7 +1195,12 @@ export class SendComponent implements OnInit, OnDestroy {
   }
 
   getDisplayAmount(): number {
-    return this.amount ?? 0;
+    const amount = this.amount ?? 0;
+    if (this.subtractFee) {
+      const fee = this.selectedFeeOption?.estimatedFee ?? 0;
+      return Math.max(0, amount - fee);
+    }
+    return amount;
   }
 
   getTotalAmount(): number {
