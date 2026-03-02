@@ -1049,7 +1049,7 @@ export class SendComponent implements OnInit, OnDestroy {
   amount: number | null = null;
   subtractFee = false;
   enableRbf = true;
-  customFeeRate: number | null = null;
+  customFeeRate: number | null = 1;
 
   feeOptions: FeeOption[] = [
     { label: 'fee_slow', blocks: 144, feeRate: null, estimatedFee: null, timeEstimate: '~60 min' },
@@ -1105,8 +1105,9 @@ export class SendComponent implements OnInit, OnDestroy {
           option.feeRate = Math.round((result.feerate * 100000000) / 1000);
         }
       }
-      // Default to normal fee
-      this.selectedFeeOption = this.feeOptions[1];
+      // Default to custom 1 sat/vB if no estimates available, normal otherwise
+      const hasEstimates = this.feeOptions.some(o => o.label !== 'fee_custom' && o.feeRate !== null);
+      this.selectedFeeOption = hasEstimates ? this.feeOptions[1] : this.feeOptions[3];
       this.updateEstimatedFee();
     } catch (error) {
       console.error('Failed to load fee estimates:', error);

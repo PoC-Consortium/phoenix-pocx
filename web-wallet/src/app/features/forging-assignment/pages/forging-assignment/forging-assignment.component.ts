@@ -1175,7 +1175,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
 
   // Fee estimation
   isLoadingFees = signal(false);
-  customFeeRate: number | null = null;
+  customFeeRate: number | null = 1;
   feeOptions: FeeOption[] = [
     { label: 'fee_slow', blocks: 144, feeRate: null, timeEstimate: '~60 min' },
     { label: 'fee_normal', blocks: 6, feeRate: null, timeEstimate: '~30 min' },
@@ -1347,8 +1347,9 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
           option.feeRate = Math.round((result.feerate * 100000000) / 1000);
         }
       }
-      // Default to normal fee
-      this.selectedFeeOption = this.feeOptions[1];
+      // Default to custom 1 sat/vB if no estimates available, normal otherwise
+      const hasEstimates = this.feeOptions.some(o => o.label !== 'fee_custom' && o.feeRate !== null);
+      this.selectedFeeOption = hasEstimates ? this.feeOptions[1] : this.feeOptions[3];
     } catch (error) {
       console.error('Failed to load fee estimates:', error);
     } finally {
