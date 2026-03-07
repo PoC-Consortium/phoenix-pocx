@@ -169,13 +169,16 @@ export class WalletService implements OnDestroy {
    * Called when a wallet becomes active.
    */
   startAutoRefresh(intervalMs = 30000): void {
+    // Skip if already polling at the same interval
+    if (this.isAutoRefreshing && this.refreshInterval === intervalMs && this.refreshSubscription) {
+      return;
+    }
+
     // Stop any existing subscription first
     if (this.refreshSubscription) {
       this.refreshSubscription.unsubscribe();
       this.refreshSubscription = null;
     }
-
-    if (this.isAutoRefreshing && this.refreshInterval === intervalMs) return;
 
     this.refreshInterval = intervalMs;
     this.isAutoRefreshing = true;

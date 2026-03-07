@@ -1049,7 +1049,7 @@ export class SendComponent implements OnInit, OnDestroy {
   amount: number | null = null;
   subtractFee = false;
   enableRbf = true;
-  customFeeRate: number | null = null;
+  customFeeRate: number | null = 1;
 
   feeOptions: FeeOption[] = [
     { label: 'fee_slow', blocks: 144, feeRate: null, estimatedFee: null, timeEstimate: '~60 min' },
@@ -1105,8 +1105,9 @@ export class SendComponent implements OnInit, OnDestroy {
           option.feeRate = Math.round((result.feerate * 100000000) / 1000);
         }
       }
-      // Default to normal fee
-      this.selectedFeeOption = this.feeOptions[1];
+      // Default to custom 1 sat/vB if no estimates available, normal otherwise
+      const hasEstimates = this.feeOptions.some(o => o.label !== 'fee_custom' && o.feeRate !== null);
+      this.selectedFeeOption = hasEstimates ? this.feeOptions[1] : this.feeOptions[3];
       this.updateEstimatedFee();
     } catch (error) {
       console.error('Failed to load fee estimates:', error);
@@ -1142,10 +1143,9 @@ export class SendComponent implements OnInit, OnDestroy {
   }
 
   setMaxAmount(): void {
-    const fee = this.selectedFeeOption?.estimatedFee ?? 0;
-    const maxAmount = this.availableBalance() - fee;
-    this.amount = Math.max(0, maxAmount);
+    this.amount = this.availableBalance();
     this.subtractFee = true;
+    this.updateEstimatedFee();
   }
 
   // Contacts methods
@@ -1195,7 +1195,12 @@ export class SendComponent implements OnInit, OnDestroy {
   }
 
   getDisplayAmount(): number {
-    return this.amount ?? 0;
+    const amount = this.amount ?? 0;
+    if (this.subtractFee) {
+      const fee = this.selectedFeeOption?.estimatedFee ?? 0;
+      return Math.max(0, amount - fee);
+    }
+    return amount;
   }
 
   getTotalAmount(): number {
@@ -1277,6 +1282,9 @@ export class SendComponent implements OnInit, OnDestroy {
       this.sentTxid.set(txid);
       this.showSuccess.set(true);
       this.notification.success(this.i18n.get('transaction_sent'));
+
+      // Refresh wallet state so dashboard shows updated balance immediately
+      this.walletService.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : this.i18n.get('transaction_failed');
       this.sendError.set(message);
