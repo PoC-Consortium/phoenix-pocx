@@ -1106,7 +1106,9 @@ export class SendComponent implements OnInit, OnDestroy {
         }
       }
       // Default to custom 1 sat/vB if no estimates available, normal otherwise
-      const hasEstimates = this.feeOptions.some(o => o.label !== 'fee_custom' && o.feeRate !== null);
+      const hasEstimates = this.feeOptions.some(
+        o => o.label !== 'fee_custom' && o.feeRate !== null
+      );
       this.selectedFeeOption = hasEstimates ? this.feeOptions[1] : this.feeOptions[3];
       this.updateEstimatedFee();
     } catch (error) {
