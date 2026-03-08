@@ -1030,10 +1030,8 @@ interface ChainModalData {
                   (ngModelChange)="updateChainModal('poolUrl', $event)"
                 >
                   <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
-                  <option value="https://pool.pocx.io:8080">PoCX Pool Alpha (pool.pocx.io)</option>
-                  <option value="https://pool2.pocx.io:8080">PoCX Pool Beta (pool2.pocx.io)</option>
-                  <option value="https://community.pocx.io:8080">
-                    Community Pool (community.pocx.io)
+                  <option value="https://pool.testnet.bitcoin-pocx.org:443">
+                    Nogrod PoCX Testnet (pool.testnet.bitcoin-pocx.org)
                   </option>
                 </select>
               </div>
@@ -3364,11 +3362,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         priority: editing?.priority ?? this.chainConfigs().length + 1,
       };
     } else if (data.mode === 'pool') {
-      const poolName = data.poolUrl.includes('pool.pocx.io')
-        ? 'PoCX Pool Alpha'
-        : data.poolUrl.includes('pool2.pocx.io')
-          ? 'PoCX Pool Beta'
-          : 'Community Pool';
+      const poolName = data.poolUrl.includes('pool.testnet.bitcoin-pocx.org')
+        ? 'Nogrod PoCX Testnet'
+        : data.chainName || 'Pool';
 
       // Parse pool URL to extract host and port
       const { transport, host, port } = this.parseUrl(data.poolUrl);
