@@ -399,8 +399,8 @@ pub async fn execute_plot_batch<R: Runtime>(
             }
             PlotPlanItem::Resume {
                 path,
-                file_index: _,
                 size_gib,
+                ..
             } => {
                 // For resume, we still need to handle .tmp files
                 // But for batching, we treat it as a regular output
@@ -567,8 +567,8 @@ pub async fn execute_plot_batch<R: Runtime>(
                             }
                             PlotPlanItem::Resume {
                                 path,
-                                file_index: _,
                                 size_gib,
+                                ..
                             } => {
                                 let _ = app_handle_clone.emit(
                                     "plotter:item-complete",
@@ -677,8 +677,8 @@ pub async fn execute_plot_item<R: Runtime>(
     match item {
         PlotPlanItem::Resume {
             path,
-            file_index: _,
             size_gib,
+            ..
         } => {
             execute_resume(
                 app_handle,

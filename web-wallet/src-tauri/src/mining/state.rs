@@ -148,6 +148,8 @@ pub enum PlotPlanItem {
         file_index: u32,
         #[serde(rename = "sizeGib")]
         size_gib: u64,
+        #[serde(rename = "batchId")]
+        batch_id: u32,
     },
     /// Create new plot file (1024 warps = 1 TiB, or remainder)
     Plot {

@@ -287,7 +287,7 @@ export type PlotterUIState = 'plotting' | 'stopping' | 'ready' | 'complete';
 // ============================================================================
 
 export type PlotPlanItem =
-  | { type: 'resume'; path: string; fileIndex: number; sizeGib: number }
+  | { type: 'resume'; path: string; fileIndex: number; sizeGib: number; batchId: number }
   | { type: 'plot'; path: string; warps: number; batchId: number }
   | { type: 'add_to_miner' };
 

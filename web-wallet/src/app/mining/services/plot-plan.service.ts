@@ -139,6 +139,7 @@ export class PlotPlanService {
           path: item.path,
           fileIndex: item.fileIndex,
           sizeGib: item.sizeGib,
+          batchId,
         });
         markTaskComplete(item.path);
       }
@@ -430,9 +431,14 @@ export class PlotPlanService {
         if (i < currentIndex) {
           completedWarps += item.sizeGib;
         }
-        // Resume items are individual tasks
-        totalTasks++;
-        if (i < currentIndex) {
+
+        // Count unique resume batches
+        if (!seenBatchIds.has(item.batchId)) {
+          seenBatchIds.add(item.batchId);
+          totalTasks++;
+        }
+        if (i < currentIndex && !completedBatchIds.has(item.batchId)) {
+          completedBatchIds.add(item.batchId);
           completedTasks++;
         }
       } else if (item.type === 'add_to_miner') {

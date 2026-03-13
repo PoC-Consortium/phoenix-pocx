@@ -2235,21 +2235,18 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       return false;
     }
 
-    // For resume items, check path directly
-    if (currentItem.type === 'resume') {
-      return currentItem.path === drive.path || drive.path.startsWith(currentItem.path);
-    }
-
-    // For plot items, check all items in the same batch
-    const batchId = currentItem.batchId;
-    for (let i = currentIndex; i < plan.items.length; i++) {
-      const item = plan.items[i];
-      if (item.type === 'plot' && item.batchId === batchId) {
-        if (item.path === drive.path || drive.path.startsWith(item.path)) {
-          return true;
+    // For plot and resume items, check all items in the same batch
+    if (currentItem.type === 'plot' || currentItem.type === 'resume') {
+      const batchId = currentItem.batchId;
+      for (let i = currentIndex; i < plan.items.length; i++) {
+        const item = plan.items[i];
+        if (item.type === currentItem.type && item.batchId === batchId) {
+          if (item.path === drive.path || drive.path.startsWith(item.path)) {
+            return true;
+          }
+        } else {
+          break; // Different batch or different type
         }
-      } else {
-        break; // Different batch or non-plot item
       }
     }
     return false;

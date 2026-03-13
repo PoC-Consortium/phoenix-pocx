@@ -1245,26 +1245,60 @@ export class MiningService {
 
     const currentItem = plan.items[currentIndex];
 
-    // For non-plot items, execute one at a time
-    if (currentItem.type !== 'plot') {
+    // Handle add_to_miner items individually
+    if (currentItem.type === 'add_to_miner') {
       this._plottingProgress.update(p => ({
         ...p,
         currentBatchSize: 1,
         completedInBatch: 0,
       }));
+      await this.executePlotItem(currentItem);
+      return;
+    }
 
-      if (currentItem.type === 'resume') {
-        // Check stop request before starting resume
-        if (this.stopType() !== 'none') {
-          this.cleanupPlotterEventListeners();
-          this.resetPlottingProgress();
-          return;
+    // Handle resume items - batch by batchId (parallel resume across drives)
+    if (currentItem.type === 'resume') {
+      if (this.stopType() !== 'none') {
+        this.cleanupPlotterEventListeners();
+        this.resetPlottingProgress();
+        return;
+      }
+
+      const resumeBatchId = currentItem.batchId;
+      const batchItems: PlotPlanItem[] = [];
+      let totalBatchWarps = 0;
+
+      for (let i = currentIndex; i < plan.items.length; i++) {
+        const item = plan.items[i];
+        if (item.type !== 'resume' || item.batchId !== resumeBatchId) {
+          break;
         }
-        // Execute resume item
-        await this.executePlotItem(currentItem);
-      } else if (currentItem.type === 'add_to_miner') {
-        // Execute add_to_miner item - this triggers miner restart via event handler
-        await this.executePlotItem(currentItem);
+        batchItems.push(item);
+        totalBatchWarps += item.sizeGib;
+      }
+
+      console.log(
+        `MiningService: Executing resume batch ${resumeBatchId} with ${batchItems.length} items, ${totalBatchWarps} total GiB`
+      );
+
+      await this.startForegroundService('plotting');
+
+      this._plottingProgress.update(p => ({
+        ...p,
+        totalWarps: totalBatchWarps,
+        currentBatchSize: batchItems.length,
+        completedInBatch: 0,
+        hashingWarps: 0,
+        writingWarps: 0,
+        resumeOffset: 0,
+        progress: 0,
+        plotStartTime: Date.now(),
+      }));
+
+      if (batchItems.length === 1) {
+        await this.executePlotItem(batchItems[0]);
+      } else {
+        await this.executePlotBatch(batchItems);
       }
       return;
     }
