@@ -1521,8 +1521,7 @@ export class MiningService {
     deviceId: string,
     threads: number,
     address: string,
-    escalation?: number,
-    zeroCopyBuffers?: boolean
+    escalation?: number
   ): Promise<BenchmarkResult> {
     try {
       const result = await invoke<CommandResult<BenchmarkResult>>('run_device_benchmark', {
@@ -1530,7 +1529,6 @@ export class MiningService {
         threads,
         address,
         escalation: escalation ?? 1,
-        zeroCopyBuffers: zeroCopyBuffers ?? false,
       });
       if (result.success && result.data) {
         return result.data;

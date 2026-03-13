@@ -195,13 +195,13 @@ pub struct MiningConfig {
     pub plotter_devices: Vec<PlotterDeviceConfig>,
     pub plotting_address: String,
     pub compression_level: u8,
-    #[serde(default)]
-    pub memory_limit_gib: u64, // 0 = auto
     #[serde(default = "default_escalation")]
     pub escalation: u64, // default 1
-    #[serde(default)]
-    pub zero_copy_buffers: bool, // for APU/integrated GPU
     pub direct_io: bool,
+    #[serde(default = "default_async_write")]
+    pub async_write: bool, // Async disk writes (v2 plotter)
+    #[serde(default)]
+    pub kws_override: usize, // Kernel workgroup size override (0 = auto)
     #[serde(default)]
     pub low_priority: bool,
     #[serde(default = "default_parallel_drives")]
@@ -254,6 +254,10 @@ fn default_escalation() -> u64 {
     1
 }
 
+fn default_async_write() -> bool {
+    true
+}
+
 fn default_parallel_drives() -> u32 {
     1
 }
@@ -295,10 +299,10 @@ impl Default for MiningConfig {
             plotter_devices: Vec::new(),
             plotting_address: String::new(),
             compression_level: 0,
-            memory_limit_gib: 0,
             escalation: 1,
-            zero_copy_buffers: false,
             direct_io: true,
+            async_write: default_async_write(),
+            kws_override: 0,
             low_priority: false,
             parallel_drives: 1,
             hdd_wakeup_seconds: 30,

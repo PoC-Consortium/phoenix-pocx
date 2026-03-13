@@ -659,10 +659,8 @@ pub async fn run_device_benchmark(
     threads: u32,
     address: String,
     escalation: Option<u64>,
-    zero_copy_buffers: Option<bool>,
 ) -> Result<CommandResult<BenchmarkResult>, ()> {
     let escalation = escalation.unwrap_or(1).max(1);
-    let zcb = zero_copy_buffers.unwrap_or(false);
     // Register callback for progress events
     TauriPlotterCallback::register(app_handle);
 
@@ -704,7 +702,7 @@ pub async fn run_device_benchmark(
     };
 
     let builder_result = if device_id == "cpu" {
-        pocx_plotter::PlotterTaskBuilder::new()
+        pocx_plotter_v2::PlotterTaskBuilder::new()
             .address(&address)
             .map(|b| {
                 b.add_output(temp_dir.to_string_lossy().to_string(), warps, 1)
@@ -713,7 +711,6 @@ pub async fn run_device_benchmark(
                     .escalate(escalation)
                     .benchmark(true)
                     .quiet(true)
-                    .line_progress(false) // Use callbacks instead
                     .direct_io(false)
             })
     } else {
@@ -726,18 +723,16 @@ pub async fn run_device_benchmark(
             device_id.clone()
         };
 
-        pocx_plotter::PlotterTaskBuilder::new()
+        pocx_plotter_v2::PlotterTaskBuilder::new()
             .address(&address)
             .map(|b| {
                 b.add_output(temp_dir.to_string_lossy().to_string(), warps, 1)
                     .cpu_threads(0) // Disable CPU
-                    .gpus(vec![gpu_id_with_threads])
+                    .gpu(gpu_id_with_threads)
                     .compression(1)
                     .escalate(escalation)
-                    .zcb(zcb) // Use setting (auto-set when APU selected)
                     .benchmark(true)
                     .quiet(true)
-                    .line_progress(false) // Use callbacks instead
                     .direct_io(false)
             })
     };
@@ -762,7 +757,7 @@ pub async fn run_device_benchmark(
 
     let result = tokio::task::spawn_blocking(move || {
         let start = std::time::Instant::now();
-        let res = pocx_plotter::run_plotter_safe(task);
+        let res = pocx_plotter_v2::run_plotter_safe(task);
         let duration = start.elapsed();
         (res, duration)
     })
@@ -1054,7 +1049,7 @@ pub async fn hard_stop_plot_plan(
     log::info!("[CMD] hard_stop_plot_plan called");
 
     // Signal plotter to stop immediately
-    pocx_plotter::request_stop();
+    pocx_plotter_v2::request_stop();
     plotter_runtime.request_hard_stop();
 
     Ok(CommandResult::ok(()))
