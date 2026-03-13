@@ -591,8 +591,6 @@
   "setup_invalid": "Geçersiz",
   "setup_low_priority": "Düşük İşlem Önceliği",
   "setup_async_write": "Asenkron Disk Yazımı",
-  "setup_kws_override": "KWS Geçersiz Kılma",
-  "setup_kws_override_hint": "Çekirdek çalışma grubu boyutu (0 = otomatik)",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Bellek Artış Faktörü",
   "setup_mining_direct_io": "Madencilik için Doğrudan G/Ç kullan",

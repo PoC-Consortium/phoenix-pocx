@@ -591,8 +591,6 @@
   "setup_invalid": "无效",
   "setup_low_priority": "低进程优先级",
   "setup_async_write": "异步磁盘写入",
-  "setup_kws_override": "KWS 覆盖",
-  "setup_kws_override_hint": "内核工作组大小（0 = 自动）",
   "setup_max": "最大：",
   "setup_memory_escalation": "内存递增系数",
   "setup_mining_direct_io": "挖矿使用直接 I/O",

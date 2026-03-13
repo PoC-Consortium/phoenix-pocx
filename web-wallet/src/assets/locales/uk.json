@@ -591,8 +591,6 @@
   "setup_invalid": "Недійсна",
   "setup_low_priority": "Низький пріоритет процесу",
   "setup_async_write": "Асинхронний запис на диск",
-  "setup_kws_override": "Перевизначення KWS",
-  "setup_kws_override_hint": "Розмір робочої групи ядра (0 = авто)",
   "setup_max": "Макс:",
   "setup_memory_escalation": "Коефіцієнт ескалації пам'яті",
   "setup_mining_direct_io": "Використовувати прямий I/O для майнінгу",

@@ -591,8 +591,6 @@
   "setup_invalid": "Nieprawidlowy",
   "setup_low_priority": "Niski priorytet procesu",
   "setup_async_write": "Asynchroniczny zapis na dysku",
-  "setup_kws_override": "Nadpisanie KWS",
-  "setup_kws_override_hint": "Rozmiar grupy roboczej jądra (0 = automatycznie)",
   "setup_max": "Max:",
   "setup_memory_escalation": "Wspolczynnik eskalacji pamieci",
   "setup_mining_direct_io": "Uzyj Direct I/O do gornictwa",

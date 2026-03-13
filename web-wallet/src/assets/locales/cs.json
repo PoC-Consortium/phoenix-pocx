@@ -591,8 +591,6 @@
   "setup_invalid": "Neplatne",
   "setup_low_priority": "Nizka priorita procesu",
   "setup_async_write": "Asynchronní zápis na disk",
-  "setup_kws_override": "Přepsání KWS",
-  "setup_kws_override_hint": "Velikost pracovní skupiny jádra (0 = automaticky)",
   "setup_max": "Max:",
   "setup_memory_escalation": "Faktor eskalace pameti",
   "setup_mining_direct_io": "Pouzit primo I/O pro tezbu",

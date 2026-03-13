@@ -649,23 +649,6 @@ interface ChainModalData {
                   {{ 'setup_low_priority' | i18n }}
                 </label>
               </div>
-              @if (isGpuSelected()) {
-                <div class="form-row" style="margin-top: 12px">
-                  <div class="form-group escalation-group">
-                    <label>{{ 'setup_kws_override' | i18n }}</label>
-                    <input
-                      type="number"
-                      class="escalation-input"
-                      [ngModel]="kwsOverride()"
-                      (ngModelChange)="kwsOverride.set($event || 0)"
-                      min="0"
-                      step="64"
-                      [placeholder]="'auto (' + detectedKws() + ')'"
-                    />
-                  </div>
-                  <span class="hint-text">{{ 'setup_kws_override_hint' | i18n }}</span>
-                </div>
-              }
             </div>
           }
         </div>
@@ -2671,17 +2654,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Step 2: Plotter config
   readonly plotterDevices = signal<PlotterDeviceConfig[]>([]);
   readonly asyncWrite = signal(true); // v2 plotter async disk writes
-  readonly kwsOverride = signal(0); // Kernel workgroup size override (0 = auto)
-  readonly isGpuSelected = computed(() => {
-    const enabled = this.plotterDevices().find(d => d.enabled);
-    return !!enabled && enabled.deviceId !== 'cpu';
-  });
-  readonly detectedKws = computed(() => {
-    const enabled = this.plotterDevices().find(d => d.enabled);
-    if (!enabled || enabled.deviceId === 'cpu') return 0;
-    const gpu = this.gpus().find(g => g.id === enabled.deviceId);
-    return gpu?.kernelWorkgroupSize ?? 0;
-  });
   readonly useCustomAddress = signal(false);
   readonly walletAddress = signal('');
   readonly customPlottingAddress = signal('');
@@ -3060,9 +3032,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         }
         if (config.asyncWrite !== undefined) {
           this.asyncWrite.set(config.asyncWrite);
-        }
-        if (config.kwsOverride !== undefined) {
-          this.kwsOverride.set(config.kwsOverride);
         }
         // Load miner settings
         if (config.hddWakeupSeconds) {
@@ -3917,7 +3886,6 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         escalation: this.escalation(),
         directIo: this.directIo(),
         asyncWrite: this.asyncWrite(),
-        kwsOverride: this.kwsOverride(),
         lowPriority: this.lowPriority(),
         parallelDrives: this.parallelDrives(),
         hddWakeupSeconds: this.hddWakeup(),

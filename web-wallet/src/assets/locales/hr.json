@@ -591,8 +591,6 @@
   "setup_invalid": "Neispravno",
   "setup_low_priority": "Nizak prioritet procesa",
   "setup_async_write": "Asinkrono pisanje na disk",
-  "setup_kws_override": "KWS zamjena",
-  "setup_kws_override_hint": "Veličina radne grupe jezgre (0 = automatski)",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Faktor eskalacije memorije",
   "setup_mining_direct_io": "Koristi izravni I/O za rudarenje",

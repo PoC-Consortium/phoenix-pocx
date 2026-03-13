@@ -591,8 +591,6 @@
   "setup_invalid": "Ongeldig",
   "setup_low_priority": "Lage Procesprioriteit",
   "setup_async_write": "Asynchrone schijfschrijfbewerkingen",
-  "setup_kws_override": "KWS-overschrijving",
-  "setup_kws_override_hint": "Kernel werkgroepgrootte (0 = automatisch)",
   "setup_max": "Max:",
   "setup_memory_escalation": "Geheugen Escalatie Factor",
   "setup_mining_direct_io": "Direct I/O gebruiken voor mijnbouw",

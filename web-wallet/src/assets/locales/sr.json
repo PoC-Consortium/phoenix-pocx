@@ -591,8 +591,6 @@
   "setup_invalid": "Неважеће",
   "setup_low_priority": "Низак приоритет процеса",
   "setup_async_write": "Асинхроно писање на диск",
-  "setup_kws_override": "KWS замена",
-  "setup_kws_override_hint": "Величина радне групе језгра (0 = аутоматски)",
   "setup_max": "Макс:",
   "setup_memory_escalation": "Фактор ескалације меморије",
   "setup_mining_direct_io": "Користи директан I/O за рударење",

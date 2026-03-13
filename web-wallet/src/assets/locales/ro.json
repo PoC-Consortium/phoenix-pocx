@@ -591,8 +591,6 @@
   "setup_invalid": "Invalid",
   "setup_low_priority": "Prioritate proces scăzută",
   "setup_async_write": "Scrieri asincrone pe disc",
-  "setup_kws_override": "Suprascriere KWS",
-  "setup_kws_override_hint": "Dimensiunea grupului de lucru kernel (0 = automat)",
   "setup_max": "Max:",
   "setup_memory_escalation": "Factor de escaladare memorie",
   "setup_mining_direct_io": "Folosește I/O direct pentru minerit",

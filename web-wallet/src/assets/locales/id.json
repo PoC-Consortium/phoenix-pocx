@@ -591,8 +591,6 @@
   "setup_invalid": "Tidak Valid",
   "setup_low_priority": "Prioritas Proses Rendah",
   "setup_async_write": "Penulisan Disk Asinkron",
-  "setup_kws_override": "Penggantian KWS",
-  "setup_kws_override_hint": "Ukuran workgroup kernel (0 = otomatis)",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Faktor Eskalasi Memori",
   "setup_mining_direct_io": "Gunakan I/O Langsung untuk penambangan",

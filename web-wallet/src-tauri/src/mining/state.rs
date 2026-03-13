@@ -203,8 +203,6 @@ pub struct MiningConfig {
     #[serde(default = "default_async_write")]
     pub async_write: bool, // Async disk writes (v2 plotter)
     #[serde(default)]
-    pub kws_override: usize, // Kernel workgroup size override (0 = auto)
-    #[serde(default)]
     pub low_priority: bool,
     #[serde(default = "default_parallel_drives")]
     pub parallel_drives: u32, // Number of drives to plot simultaneously (default 1)
@@ -304,7 +302,6 @@ impl Default for MiningConfig {
             escalation: 1,
             direct_io: true,
             async_write: default_async_write(),
-            kws_override: 0,
             low_priority: false,
             parallel_drives: 1,
             hdd_wakeup_seconds: 30,

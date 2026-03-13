@@ -591,8 +591,6 @@
   "setup_invalid": "無効",
   "setup_low_priority": "低プロセス優先度",
   "setup_async_write": "非同期ディスク書き込み",
-  "setup_kws_override": "KWS オーバーライド",
-  "setup_kws_override_hint": "カーネルワークグループサイズ（0 = 自動）",
   "setup_max": "最大:",
   "setup_memory_escalation": "メモリエスカレーション係数",
   "setup_mining_direct_io": "マイニングにダイレクトI/Oを使用",
