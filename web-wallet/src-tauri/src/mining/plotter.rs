@@ -167,7 +167,7 @@ impl PlotterRuntime {
         *stop = StopType::Hard;
         log::debug!("[PLOTTER] stop_type: {:?} → {:?}", old, StopType::Hard);
         // Signal pocx_plotter to stop its internal loops
-        pocx_plotter::request_stop();
+        pocx_plotter_v2::request_stop();
     }
 
     /// Clear stop request
@@ -179,7 +179,7 @@ impl PlotterRuntime {
             log::debug!("[PLOTTER] stop_type: {:?} → {:?}", old, StopType::None);
         }
         // Also clear pocx_plotter's internal stop flag
-        pocx_plotter::clear_stop_request();
+        pocx_plotter_v2::clear_stop_request();
     }
 
     /// Check if any stop is requested
@@ -397,11 +397,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                 });
                 paths.push(path.clone());
             }
-            PlotPlanItem::Resume {
-                path,
-                file_index: _,
-                size_gib,
-            } => {
+            PlotPlanItem::Resume { path, size_gib, .. } => {
                 // For resume, we still need to handle .tmp files
                 // But for batching, we treat it as a regular output
                 outputs.push(BatchPlotOutput {
@@ -421,13 +417,32 @@ pub async fn execute_plot_batch<R: Runtime>(
         return Err("No plot items in batch".to_string());
     }
 
-    // Build the plotter task with all outputs
-    let task = build_plotter_task_batch(
-        &config.plotting_address,
-        &outputs,
-        config,
-        None, // Batch mode doesn't support resume
-    )?;
+    // Build per-path seeds for resume support
+    let mut seeds: Vec<Option<[u8; 32]>> = Vec::new();
+    for item in &items {
+        match item {
+            PlotPlanItem::Resume { path, .. } => {
+                // Extract seed from .tmp file for this path
+                let tmp_files = find_tmp_files(path).unwrap_or_default();
+                let seed = tmp_files
+                    .first()
+                    .and_then(|f| parse_seed_from_tmp_filename(f));
+                if let Some(ref s) = seed {
+                    log::info!("Resume seed for {}: {}", path, hex::encode(s));
+                }
+                seeds.push(seed);
+            }
+            PlotPlanItem::Plot { .. } => {
+                seeds.push(None); // New plots get random seeds
+            }
+            PlotPlanItem::AddToMiner => {
+                // Skip - not included in outputs
+            }
+        }
+    }
+
+    // Build the plotter task with all outputs and per-path seeds
+    let task = build_plotter_task_batch(&config.plotting_address, &outputs, config, &seeds)?;
 
     // Calculate total warps
     let total_warps: u64 = outputs.iter().map(|o| o.warps).sum();
@@ -471,7 +486,7 @@ pub async fn execute_plot_batch<R: Runtime>(
     tokio::spawn(async move {
         let result = tokio::task::spawn_blocking(move || {
             let start = std::time::Instant::now();
-            let plotter_result = pocx_plotter::run_plotter_safe(task);
+            let plotter_result = pocx_plotter_v2::run_plotter_safe(task);
             let duration = start.elapsed();
             (plotter_result, duration, paths_clone)
         })
@@ -495,7 +510,7 @@ pub async fn execute_plot_batch<R: Runtime>(
         match result {
             Ok((Ok(()), duration, _paths)) => {
                 // Check if plotter was stopped vs completed normally
-                let was_stopped = pocx_plotter::is_stop_requested();
+                let was_stopped = pocx_plotter_v2::is_stop_requested();
 
                 if was_stopped {
                     log::info!("Batch plot stopped by user request");
@@ -541,11 +556,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                                     }),
                                 );
                             }
-                            PlotPlanItem::Resume {
-                                path,
-                                file_index: _,
-                                size_gib,
-                            } => {
+                            PlotPlanItem::Resume { path, size_gib, .. } => {
                                 let _ = app_handle_clone.emit(
                                     "plotter:item-complete",
                                     serde_json::json!({
@@ -651,11 +662,7 @@ pub async fn execute_plot_item<R: Runtime>(
     plotter_runtime.clear_stop();
 
     match item {
-        PlotPlanItem::Resume {
-            path,
-            file_index: _,
-            size_gib,
-        } => {
+        PlotPlanItem::Resume { path, size_gib, .. } => {
             execute_resume(
                 app_handle,
                 path,
@@ -878,7 +885,7 @@ async fn execute_plot_internal<R: Runtime>(
         let result = tokio::task::spawn_blocking(move || {
             log::info!("Plotter thread started for {}", drive_path_clone);
             let start = std::time::Instant::now();
-            let plotter_result = pocx_plotter::run_plotter_safe(task);
+            let plotter_result = pocx_plotter_v2::run_plotter_safe(task);
             let duration = start.elapsed();
             log::info!(
                 "Plotter thread finished for {} in {:?}",
@@ -908,7 +915,7 @@ async fn execute_plot_internal<R: Runtime>(
         match result {
             Ok((Ok(()), duration, path)) => {
                 // Check if plotter was stopped vs completed normally
-                let was_stopped = pocx_plotter::is_stop_requested();
+                let was_stopped = pocx_plotter_v2::is_stop_requested();
                 if was_stopped {
                     log::info!("[EVENT] Plot stopped by user request: {}", path);
                     log::info!("[EVENT] Emitting plotter:item-complete (stopped)");
@@ -989,7 +996,7 @@ fn build_plotter_task(
     warps: u64,
     config: &MiningConfig,
     resume_seed: Option<[u8; 32]>,
-) -> Result<pocx_plotter::PlotterTask, String> {
+) -> Result<pocx_plotter_v2::PlotterTask, String> {
     build_plotter_task_batch(
         address,
         &[BatchPlotOutput {
@@ -997,19 +1004,22 @@ fn build_plotter_task(
             warps,
         }],
         config,
-        resume_seed,
+        &[resume_seed],
     )
 }
 
 /// Build a PlotterTask from configuration with multiple outputs (batch mode)
+///
+/// `seeds` contains one Option<[u8; 32]> per output path. For new plots, the seed is None.
+/// For resume, each path gets its own seed extracted from the .tmp filename.
 fn build_plotter_task_batch(
     address: &str,
     outputs: &[BatchPlotOutput],
     config: &MiningConfig,
-    resume_seed: Option<[u8; 32]>,
-) -> Result<pocx_plotter::PlotterTask, String> {
-    // Collect enabled GPU devices
-    let gpu_ids: Vec<String> = config
+    seeds: &[Option<[u8; 32]>],
+) -> Result<pocx_plotter_v2::PlotterTask, String> {
+    // Get first enabled GPU device (v2 supports single GPU)
+    let gpu_id: String = config
         .plotter_devices
         .iter()
         .filter(|d| d.enabled && d.device_id != "cpu")
@@ -1023,76 +1033,82 @@ fn build_plotter_task_batch(
                 d.device_id.clone()
             }
         })
-        .collect();
+        .next()
+        .unwrap_or_default();
 
     // Get CPU threads (0 if not enabled)
     let cpu_threads = config
         .plotter_devices
         .iter()
         .find(|d| d.device_id == "cpu" && d.enabled)
-        .map(|d| d.threads as u8)
+        .map(|d| d.threads as usize)
         .unwrap_or(0);
 
     // Calculate total warps for logging
     let total_warps: u64 = outputs.iter().map(|o| o.warps).sum();
 
     // Log all plotter parameters
-    log::info!("=== Building Plotter Task (Batch) ===");
+    log::info!("=== Building Plotter Task v2 (Batch) ===");
     log::info!("  Address: {}", address);
     log::info!("  Outputs: {} paths", outputs.len());
     for (i, output) in outputs.iter().enumerate() {
-        log::info!("    [{}] {} - {} GiB", i, output.path, output.warps);
+        let seed_info = seeds
+            .get(i)
+            .and_then(|s| s.as_ref())
+            .map(hex::encode)
+            .unwrap_or_else(|| "none".to_string());
+        log::info!(
+            "    [{}] {} - {} GiB (seed: {})",
+            i,
+            output.path,
+            output.warps,
+            seed_info
+        );
     }
     log::info!("  Total warps (GiB): {}", total_warps);
     log::info!("  CPU threads: {}", cpu_threads);
-    log::info!("  GPU devices: {:?}", gpu_ids);
+    log::info!(
+        "  GPU device: {:?}",
+        if gpu_id.is_empty() { "none" } else { &gpu_id }
+    );
     log::info!("  Compression level: {}", config.compression_level);
     log::info!("  Escalation: {}", config.escalation);
     log::info!("  Direct I/O: {}", config.direct_io);
-    log::info!("  Zero-copy buffers: {}", config.zero_copy_buffers);
-    log::info!("  Low priority: {}", config.low_priority);
+    log::info!("  Async write: {}", config.async_write);
+    log::info!("  KWS override: {}", config.kws_override);
     log::info!("  Simulation mode: {}", config.simulation_mode);
-    log::info!("  Resume seed: {:?}", resume_seed.map(hex::encode));
-    log::info!("=====================================");
+    log::info!("========================================");
 
     // Build the task
-    let mut builder = pocx_plotter::PlotterTaskBuilder::new()
+    let mut builder = pocx_plotter_v2::PlotterTaskBuilder::new()
         .address(address)
         .map_err(|e| format!("Invalid address: {}", e))?
-        .cpu_threads(cpu_threads)
+        .cpu_threads(cpu_threads as u8)
         .compression(config.compression_level)
         .escalate(config.escalation)
         .direct_io(config.direct_io)
-        .quiet(false) // Allow plotter to log
-        .line_progress(false); // Use callbacks instead
-
-    // Add seed for resume (required to continue from .tmp file)
-    if let Some(seed) = resume_seed {
-        log::info!("Setting resume seed: {}", hex::encode(seed));
-        builder = builder.seed(seed);
-    }
+        .async_write(config.async_write)
+        .quiet(false); // Allow plotter to log
 
     // Add all outputs
     for output in outputs {
         builder = builder.add_output(output.path.clone(), output.warps, 1);
     }
 
-    // Add GPUs if any
-    if !gpu_ids.is_empty() {
-        builder = builder.gpus(gpu_ids.clone());
+    // Add per-path seeds for resume (v2 supports multi-path resume)
+    for (i, seed_opt) in seeds.iter().enumerate() {
+        if let Some(seed) = seed_opt {
+            log::info!("Setting resume seed for path {}: {}", i, hex::encode(seed));
+            builder = builder.seed(i, *seed);
+        }
     }
 
-    // Add zero-copy buffers if configured (for APU/integrated GPU)
-    if config.zero_copy_buffers {
-        builder = builder.zcb(true);
-    }
-
-    // Note: low_priority is not supported by pocx_plotter API
-
-    // Add memory limit if configured (0 = auto)
-    // Format: "XG" for X GiB
-    if config.memory_limit_gib > 0 {
-        builder = builder.memory(format!("{}G", config.memory_limit_gib));
+    // Add GPU if configured
+    if !gpu_id.is_empty() {
+        builder = builder.gpu(gpu_id);
+        if config.kws_override > 0 {
+            builder = builder.kws_override(config.kws_override);
+        }
     }
 
     // Enable benchmark mode if simulation mode is active (no disk writes)
@@ -1106,7 +1122,7 @@ fn build_plotter_task_batch(
         .map_err(|e| format!("Failed to build task: {}", e))?;
 
     log::info!(
-        "Plotter task built successfully with {} outputs",
+        "Plotter v2 task built successfully with {} outputs",
         outputs.len()
     );
     Ok(task)

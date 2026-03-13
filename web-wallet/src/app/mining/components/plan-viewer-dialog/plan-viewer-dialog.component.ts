@@ -62,7 +62,7 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
         @if (plan.items.length > 0) {
           <div class="section-header">
             <mat-icon>playlist_play</mat-icon>
-            {{ 'plan_tasks' | i18n }} ({{ plan.items.length }})
+            {{ 'plan_tasks' | i18n }} ({{ stats()?.totalTasks ?? 0 }})
           </div>
           <div class="plan-items">
             @for (item of plan.items; track $index; let i = $index) {
@@ -90,6 +90,9 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
                       <span class="badge resume">{{ 'plan_resume' | i18n }}</span>
                       <span class="item-path">{{ formatPath(item.path) }}</span>
                       <span class="item-detail">{{ item.sizeGib }} GiB</span>
+                      <span class="item-batch" [matTooltip]="getParallelBatchTooltip(item.batchId)">
+                        B{{ item.batchId + 1 }}
+                      </span>
                     }
                     @case ('plot') {
                       <span class="badge plot">{{ 'plan_plot' | i18n }}</span>
@@ -449,7 +452,7 @@ export class PlanViewerDialogComponent {
    * Check if an item at the given index is part of the currently running batch.
    * Returns true if:
    * - The plotter is running (plotting state)
-   * - The item is a 'plot' type with a batchId
+   * - The item is a 'plot' or 'resume' type with a batchId
    * - The batchId matches the batchId of the item at currentIndex
    */
   isInCurrentBatch(index: number, plan: PlotPlan): boolean {
@@ -459,11 +462,12 @@ export class PlanViewerDialogComponent {
     const currentItem = plan.items[idx];
     const checkItem = plan.items[index];
 
-    // Both must be plot items with batchIds
-    if (currentItem?.type !== 'plot' || checkItem?.type !== 'plot') return false;
-    if (currentItem.batchId === undefined || checkItem.batchId === undefined) return false;
+    // Both must be batchable items (plot or resume) of the same type
+    if (!currentItem || !checkItem) return false;
+    if (currentItem.type !== checkItem.type) return false;
+    if (currentItem.type !== 'plot' && currentItem.type !== 'resume') return false;
+    if (checkItem.type !== 'plot' && checkItem.type !== 'resume') return false;
 
-    // Same batch ID means they're in the same batch
     return currentItem.batchId === checkItem.batchId;
   }
 
@@ -491,10 +495,11 @@ export class PlanViewerDialogComponent {
     const currentItem = plan.items[idx];
     const checkItem = plan.items[index];
     if (
-      currentItem?.type === 'plot' &&
-      checkItem?.type === 'plot' &&
-      currentItem.batchId !== undefined &&
-      checkItem.batchId !== undefined
+      currentItem &&
+      checkItem &&
+      currentItem.type === checkItem.type &&
+      (currentItem.type === 'plot' || currentItem.type === 'resume') &&
+      (checkItem.type === 'plot' || checkItem.type === 'resume')
     ) {
       return currentItem.batchId === checkItem.batchId;
     }

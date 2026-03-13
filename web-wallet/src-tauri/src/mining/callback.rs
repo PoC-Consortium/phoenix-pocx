@@ -4,7 +4,7 @@
 //! to the frontend for real-time progress updates.
 
 use pocx_miner::MinerCallback;
-use pocx_plotter::PlotterCallback;
+use pocx_plotter_v2::PlotterCallback;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -63,7 +63,7 @@ impl<R: Runtime> TauriPlotterCallback<R> {
     /// Create and register the callback globally
     pub fn register(app_handle: AppHandle<R>) -> Arc<Self> {
         let callback = Arc::new(Self::new(app_handle));
-        pocx_plotter::set_plotter_callback(callback.clone());
+        pocx_plotter_v2::set_plotter_callback(callback.clone());
         callback
     }
 }

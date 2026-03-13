@@ -96,20 +96,64 @@ export class PlotPlanService {
       driveCompletedTasks.set(path, (driveCompletedTasks.get(path) || 0) + 1);
     };
 
-    // Step 3: Generate resume tasks (highest priority, always sequential)
+    // Step 3: Generate resume tasks (highest priority)
+    // v2 plotter supports parallel resume with per-path seeds,
+    // so we group resume items across different drives into batches.
+    const resumeItems: Array<{ path: string; fileIndex: number; sizeGib: number }> = [];
     for (const drive of driveStates) {
       if (drive.incompleteFiles > 0) {
         const sizePerFile = drive.incompleteSizeGib / drive.incompleteFiles;
         for (let i = 0; i < drive.incompleteFiles; i++) {
-          plan.push({
-            type: 'resume',
+          resumeItems.push({
             path: drive.path,
             fileIndex: i,
             sizeGib: Math.round(sizePerFile),
           });
-          markTaskComplete(drive.path);
-          checkAndAddMiner(drive.path);
         }
+      }
+    }
+
+    // Group resume items into parallel batches (up to parallelDrives, one per drive per batch)
+    // This leverages v2 plotter's per-path seed support for parallel resume
+    const remaining = [...resumeItems];
+    while (remaining.length > 0) {
+      const batch: typeof resumeItems = [];
+      const usedPaths = new Set<string>();
+      const consumed = new Set<number>();
+
+      // Fill batch with items from different drives
+      for (let i = 0; i < remaining.length && batch.length < config.parallelDrives; i++) {
+        if (!usedPaths.has(remaining[i].path)) {
+          batch.push(remaining[i]);
+          usedPaths.add(remaining[i].path);
+          consumed.add(i);
+        }
+      }
+
+      if (batch.length === 0) break; // Safety
+
+      // Add batch items to plan
+      for (const item of batch) {
+        plan.push({
+          type: 'resume',
+          path: item.path,
+          fileIndex: item.fileIndex,
+          sizeGib: item.sizeGib,
+          batchId,
+        });
+        markTaskComplete(item.path);
+      }
+      batchId++;
+
+      // Check for completed drives after batch
+      for (const item of batch) {
+        checkAndAddMiner(item.path);
+      }
+
+      // Remove consumed items (reverse order to preserve indices)
+      const indices = [...consumed].sort((a, b) => b - a);
+      for (const idx of indices) {
+        remaining.splice(idx, 1);
       }
     }
 
@@ -387,9 +431,14 @@ export class PlotPlanService {
         if (i < currentIndex) {
           completedWarps += item.sizeGib;
         }
-        // Resume items are individual tasks
-        totalTasks++;
-        if (i < currentIndex) {
+
+        // Count unique resume batches
+        if (!seenBatchIds.has(item.batchId)) {
+          seenBatchIds.add(item.batchId);
+          totalTasks++;
+        }
+        if (i < currentIndex && !completedBatchIds.has(item.batchId)) {
+          completedBatchIds.add(item.batchId);
           completedTasks++;
         }
       } else if (item.type === 'add_to_miner') {

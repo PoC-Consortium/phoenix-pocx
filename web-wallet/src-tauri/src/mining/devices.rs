@@ -103,7 +103,7 @@ pub fn detect_cpu() -> CpuInfo {
 /// Detect GPU devices using pocx_plotter (compiles kernel to get accurate workgroup size)
 pub fn detect_gpus() -> Vec<GpuInfo> {
     // Use pocx_plotter's GPU detection which compiles the kernel to get accurate workgroup size
-    let plotter_gpus = pocx_plotter::get_gpu_device_info();
+    let plotter_gpus = pocx_plotter_v2::get_gpu_device_info();
 
     plotter_gpus
         .into_iter()

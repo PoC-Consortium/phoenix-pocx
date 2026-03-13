@@ -569,12 +569,6 @@ interface ChainModalData {
                     >
                     <span class="memory-value">{{ hddCacheGib() | number: '1.1-1' }} GiB</span>
                   </div>
-                  @if (gpuMemoryGib() > 0) {
-                    <div class="memory-row">
-                      <span class="memory-label">{{ 'setup_gpu_cache' | i18n }}</span>
-                      <span class="memory-value">{{ gpuMemoryGib() | number: '1.1-1' }} GiB</span>
-                    </div>
-                  }
                   <div class="memory-row memory-total">
                     <span class="memory-label">{{ 'setup_total' | i18n }}</span>
                     <span class="memory-value"
@@ -641,43 +635,35 @@ interface ChainModalData {
                 <label class="checkbox-option">
                   <input
                     type="checkbox"
+                    [ngModel]="asyncWrite()"
+                    (ngModelChange)="asyncWrite.set($event)"
+                  />
+                  {{ 'setup_async_write' | i18n }}
+                </label>
+                <label class="checkbox-option">
+                  <input
+                    type="checkbox"
                     [ngModel]="lowPriority()"
                     (ngModelChange)="lowPriority.set($event)"
                   />
                   {{ 'setup_low_priority' | i18n }}
                 </label>
               </div>
-
-              <!-- Performance Hint Table (GPU only) -->
-              @if (selectedGpuInfo() && performanceHintEntries().length > 0) {
-                <div class="performance-hint">
-                  <div class="performance-hint-header">{{ 'setup_performance_hint' | i18n }}</div>
-                  <div class="performance-hint-desc">
-                    {{ 'setup_optimal_combinations' | i18n: { device: selectedGpuInfo()!.name } }}
+              @if (isGpuSelected()) {
+                <div class="form-row" style="margin-top: 12px">
+                  <div class="form-group escalation-group">
+                    <label>{{ 'setup_kws_override' | i18n }}</label>
+                    <input
+                      type="number"
+                      class="escalation-input"
+                      [ngModel]="kwsOverride()"
+                      (ngModelChange)="kwsOverride.set($event || 0)"
+                      min="0"
+                      step="64"
+                      [placeholder]="'auto (' + detectedKws() + ')'"
+                    />
                   </div>
-                  <table class="performance-table">
-                    <thead>
-                      <tr>
-                        <th>{{ 'setup_cus' | i18n }}</th>
-                        <th>{{ 'setup_memory_escalation' | i18n }}</th>
-                        <th>{{ 'setup_occupancy' | i18n }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (entry of performanceHintEntries(); track entry.cus) {
-                        <tr
-                          [class.current]="
-                            entry.cus === getDeviceThreads(selectedGpuInfo()!.id) &&
-                            entry.escalation === escalation()
-                          "
-                        >
-                          <td>{{ entry.cus }}</td>
-                          <td>{{ entry.escalation }}</td>
-                          <td>{{ entry.usagePercent | number: '1.0-0' }}%</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
+                  <span class="hint-text">{{ 'setup_kws_override_hint' | i18n }}</span>
                 </div>
               }
             </div>
@@ -718,7 +704,11 @@ interface ChainModalData {
 
             @for (drive of availableDrives(); track getDrivePath(drive)) {
               @if (drive.available) {
-                <div class="drive-card" [class.system-drive]="drive.info.isSystemDrive">
+                <div
+                  class="drive-card"
+                  [class.system-drive]="drive.info.isSystemDrive && systemDriveMaxPercent() < 100"
+                  [class.same-drive]="getSameDriveConflict(drive.info.path)"
+                >
                   <!-- Line 1: Path + Capacity + Actions -->
                   <div class="drive-header">
                     <span class="drive-path">{{ drive.info.path }}</span>
@@ -726,15 +716,22 @@ interface ChainModalData {
                       >{{ 'setup_total_capacity' | i18n }}
                       {{ formatSize(drive.info.totalGib) }}</span
                     >
-                    @if (drive.info.isSystemDrive) {
+                    @if (drive.info.isSystemDrive && systemDriveMaxPercent() < 100) {
                       <span
-                        class="system-badge"
+                        class="warning-badge"
                         [title]="
                           ('setup_system_drive_warning' | i18n) +
                           ' (' +
                           systemDriveMaxPercent() +
                           '%)'
                         "
+                        >&#9888;</span
+                      >
+                    }
+                    @if (getSameDriveConflict(drive.info.path); as conflictPath) {
+                      <span
+                        class="warning-badge"
+                        [title]="'setup_same_drive_warning' | i18n: { path: conflictPath }"
                         >&#9888;</span
                       >
                     }
@@ -2013,67 +2010,6 @@ interface ChainModalData {
         margin-top: 8px;
       }
 
-      /* Performance Hint Table */
-      .performance-hint {
-        margin-top: 16px;
-        padding-top: 16px;
-        border-top: 1px solid #e0e0e0;
-      }
-
-      .performance-hint-header {
-        font-size: 12px;
-        font-weight: 600;
-        color: #666666;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
-      }
-
-      .performance-hint-desc {
-        font-size: 12px;
-        color: #888888;
-        margin-bottom: 10px;
-      }
-
-      .performance-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-        font-family: 'Consolas', monospace;
-      }
-
-      .performance-table th,
-      .performance-table td {
-        padding: 6px 12px;
-        text-align: right;
-        border-bottom: 1px solid #e8e8e8;
-      }
-
-      .performance-table th {
-        font-weight: 600;
-        color: #666666;
-        background: #f0f0f0;
-        text-align: right;
-      }
-
-      .performance-table th:first-child,
-      .performance-table td:first-child {
-        text-align: left;
-      }
-
-      .performance-table tbody tr:hover {
-        background: #f5f5f5;
-      }
-
-      .performance-table tbody tr.current {
-        background: rgba(25, 118, 210, 0.1);
-        font-weight: 600;
-      }
-
-      .performance-table tbody tr.current td {
-        color: #1976d2;
-      }
-
       /* Form Elements */
       .form-row {
         display: flex;
@@ -2083,6 +2019,12 @@ interface ChainModalData {
 
       .form-row:last-child {
         margin-bottom: 0;
+      }
+
+      .hint-text {
+        font-size: 11px;
+        color: #888;
+        align-self: center;
       }
 
       .form-group {
@@ -2267,10 +2209,15 @@ interface ChainModalData {
         font-family: 'Consolas', monospace;
       }
 
-      .system-badge {
+      .warning-badge {
         color: #e65100;
         font-size: 14px;
         cursor: help;
+      }
+
+      .drive-card.same-drive {
+        border-color: #ffb74d;
+        background: #fff8e1;
       }
 
       .drive-actions {
@@ -2723,7 +2670,18 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   // Step 2: Plotter config
   readonly plotterDevices = signal<PlotterDeviceConfig[]>([]);
-  readonly zeroCopyBuffers = signal(false); // auto-set when APU selected
+  readonly asyncWrite = signal(true); // v2 plotter async disk writes
+  readonly kwsOverride = signal(0); // Kernel workgroup size override (0 = auto)
+  readonly isGpuSelected = computed(() => {
+    const enabled = this.plotterDevices().find(d => d.enabled);
+    return !!enabled && enabled.deviceId !== 'cpu';
+  });
+  readonly detectedKws = computed(() => {
+    const enabled = this.plotterDevices().find(d => d.enabled);
+    if (!enabled || enabled.deviceId === 'cpu') return 0;
+    const gpu = this.gpus().find(g => g.id === enabled.deviceId);
+    return gpu?.kernelWorkgroupSize ?? 0;
+  });
   readonly useCustomAddress = signal(false);
   readonly walletAddress = signal('');
   readonly customPlottingAddress = signal('');
@@ -2804,96 +2762,25 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     return this.plottedGib() + this.unfinishedGib() + this.toPlotGib();
   });
 
-  // Memory estimation computed signals
+  // Host memory estimation computed signals (v2 plotter)
+  // CPU mode: 2 GiB scatter buffer; GPU mode: 0 (all GPU buffers live in VRAM)
+  // Write buffers: 1 GiB * escalation per output path (+1 if async_write)
   readonly plotterCacheGib = computed(() => {
-    const powScaling = parseInt(this.compressionLevel(), 10);
-    const escalation = this.escalation();
-    return Math.pow(2, powScaling) * escalation;
+    const enabledDevice = this.plotterDevices().find(d => d.enabled);
+    const isGpu = enabledDevice && enabledDevice.deviceId !== 'cpu';
+    return isGpu ? 0 : 2;
   });
 
   readonly hddCacheGib = computed(() => {
-    return this.escalation() * this.parallelDrives();
-  });
-
-  readonly gpuMemoryGib = computed(() => {
-    // Find the enabled device
-    const enabledDevice = this.plotterDevices().find(d => d.enabled);
-    if (!enabledDevice || enabledDevice.deviceId === 'cpu') return 0;
-
-    // Find the GPU info
-    const gpu = this.gpus().find(g => g.id === enabledDevice.deviceId);
-    if (!gpu) return 0;
-
-    // Use user-selected CU count (threads) not max
-    const computeUnits = enabledDevice.threads;
-    const kws = gpu.kernelWorkgroupSize;
-
-    // Formula: 2 * compute_units * kernel_workgroup_size * 256 * 1024 bytes
-    const memBytes = 2 * computeUnits * kws * 256 * 1024;
-    let memGib = memBytes / (1024 * 1024 * 1024);
-
-    // APU uses zero-copy buffers, halves GPU memory
-    if (gpu.isApu) {
-      memGib = memGib / 2;
-    }
-
-    return memGib;
+    const numOutputs = this.parallelDrives();
+    const escalation = this.escalation();
+    const asyncExtra = this.asyncWrite() ? 1 : 0;
+    // Write buffers: 1 GiB * escalation * (numOutputs + asyncExtra)
+    return escalation * (numOutputs + asyncExtra);
   });
 
   readonly totalEstimatedMemoryGib = computed(() => {
-    return this.plotterCacheGib() + this.hddCacheGib() + this.gpuMemoryGib();
-  });
-
-  // Performance hint: optimal CU/escalation combinations for selected GPU
-  readonly selectedGpuInfo = computed(() => {
-    const enabledDevice = this.plotterDevices().find(d => d.enabled);
-    if (!enabledDevice || enabledDevice.deviceId === 'cpu') return null;
-    return this.gpus().find(g => g.id === enabledDevice.deviceId) || null;
-  });
-
-  readonly performanceHintEntries = computed(() => {
-    const gpu = this.selectedGpuInfo();
-    if (!gpu) return [];
-
-    const wgs = gpu.kernelWorkgroupSize;
-    const maxCUs = this.getGpuComputeUnits(gpu);
-    const WORK_PACKAGE = 8192;
-
-    const gcd = (a: number, b: number): number => {
-      while (b !== 0) {
-        [a, b] = [b, a % b];
-      }
-      return a;
-    };
-
-    // Calculate entries for CU counts from 16 to max
-    const entries: Array<{ cus: number; escalation: number; usagePercent: number }> = [];
-    const startCUs = Math.min(16, maxCUs);
-
-    for (let cus = startCUs; cus <= maxCUs; cus++) {
-      const totalBlock = cus * wgs;
-      const escalation = Math.floor(
-        (WORK_PACKAGE * totalBlock) / gcd(WORK_PACKAGE, totalBlock) / WORK_PACKAGE
-      );
-      const usagePercent = (cus / maxCUs) * 100;
-      entries.push({ cus, escalation, usagePercent });
-    }
-
-    // Reverse Pareto filter: keep only entries with minimal escalation for given usage
-    entries.sort((a, b) => b.usagePercent - a.usagePercent);
-    const filtered: typeof entries = [];
-    let minEscalationSeen = Infinity;
-
-    for (const e of entries) {
-      if (e.escalation < minEscalationSeen) {
-        filtered.push(e);
-        minEscalationSeen = e.escalation;
-      }
-    }
-
-    // Sort by CUs for display
-    filtered.sort((a, b) => a.cus - b.cus);
-    return filtered;
+    return this.plotterCacheGib() + this.hddCacheGib();
   });
 
   async ngOnInit(): Promise<void> {
@@ -3011,7 +2898,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     });
 
     console.log(
-      `[Benchmark] Starting ${deviceId} with ${device.threads} threads, escalation=${this.escalation()}, zcb=${this.zeroCopyBuffers()}`
+      `[Benchmark] Starting ${deviceId} with ${device.threads} threads, escalation=${this.escalation()}`
     );
     const startTime = performance.now();
 
@@ -3020,8 +2907,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         deviceId,
         device.threads,
         benchmarkAddress,
-        this.escalation(),
-        this.zeroCopyBuffers()
+        this.escalation()
       );
       const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
 
@@ -3172,8 +3058,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         if (config.directIo !== undefined) {
           this.directIo.set(config.directIo);
         }
-        if (config.zeroCopyBuffers !== undefined) {
-          this.zeroCopyBuffers.set(config.zeroCopyBuffers);
+        if (config.asyncWrite !== undefined) {
+          this.asyncWrite.set(config.asyncWrite);
+        }
+        if (config.kwsOverride !== undefined) {
+          this.kwsOverride.set(config.kwsOverride);
         }
         // Load miner settings
         if (config.hddWakeupSeconds) {
@@ -3554,9 +3443,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       ]);
     }
 
-    // Auto-set zeroCopyBuffers based on whether selected device is an APU
-    const gpu = this.gpus().find(g => g.id === deviceId);
-    this.zeroCopyBuffers.set(gpu?.isApu ?? false);
+    // APU detection still available for UI display, but no longer drives config
   }
 
   setDeviceThreads(deviceId: string, event: Event): void {
@@ -3849,22 +3736,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
           continue;
         }
 
-        // Check for same-drive conflict using volumeId (handles mount points correctly)
-        // Skip this check in dev mode to allow testing with multiple folders
-        if (!this.miningService.isDevMode()) {
-          const conflictingDrive = this.findConflictingDrive(driveInfo);
-
-          if (conflictingDrive) {
-            this.snackBar.open(
-              this.i18n.get('mining_drive_conflict', { path: conflictingDrive.path }),
-              this.i18n.get('dismiss'),
-              { duration: 6000 }
-            );
-            continue;
-          }
-        }
-
         // Create DriveConfig - always add, let user see the actual state
+        // Same-drive conflicts are shown as warnings on the drive card instead of blocking
         const defaultAllocation = Math.max(0, this.getMaxAllocatable(driveInfo));
         const config: DriveConfig = {
           path: driveInfo.path,
@@ -3879,26 +3752,27 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Find an existing drive config that conflicts with the new drive (same physical volume).
+   * Find another configured drive that shares the same physical volume.
    * Uses volumeId for accurate detection (handles Windows mount points correctly).
    * Falls back to drive letter comparison if volumeId not available.
    */
-  private findConflictingDrive(newDrive: DriveInfo): DriveInfo | null {
+  getSameDriveConflict(path: string): string | null {
     const driveInfoCache = this.miningService.driveInfoCache();
+    const thisDrive = driveInfoCache.get(path);
+    if (!thisDrive) return null;
 
     for (const config of this.driveConfigs()) {
-      const existingDrive = driveInfoCache.get(config.path);
-      if (!existingDrive) continue;
+      if (config.path === path) continue;
+      const otherDrive = driveInfoCache.get(config.path);
+      if (!otherDrive) continue;
 
-      // Compare volumeIds if both available (most accurate, handles mount points)
-      if (newDrive.volumeId && existingDrive.volumeId) {
-        if (newDrive.volumeId === existingDrive.volumeId) {
-          return existingDrive;
+      if (thisDrive.volumeId && otherDrive.volumeId) {
+        if (thisDrive.volumeId === otherDrive.volumeId) {
+          return otherDrive.path;
         }
       } else {
-        // Fallback: compare drive letters (Windows) or root (Unix)
-        if (this.getDriveLetter(newDrive.path) === this.getDriveLetter(existingDrive.path)) {
-          return existingDrive;
+        if (this.getDriveLetter(thisDrive.path) === this.getDriveLetter(otherDrive.path)) {
+          return otherDrive.path;
         }
       }
     }
@@ -4040,10 +3914,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         plotterDevices: this.plotterDevices(),
         plottingAddress,
         compressionLevel: parseInt(this.compressionLevel(), 10),
-        memoryLimitGib: undefined, // No limit - plotter manages memory based on settings
         escalation: this.escalation(),
-        zeroCopyBuffers: this.zeroCopyBuffers(),
         directIo: this.directIo(),
+        asyncWrite: this.asyncWrite(),
+        kwsOverride: this.kwsOverride(),
         lowPriority: this.lowPriority(),
         parallelDrives: this.parallelDrives(),
         hddWakeupSeconds: this.hddWakeup(),
