@@ -597,8 +597,14 @@ pub async fn start_mining(
             state_guard.mining_status = MiningStatus::Idle;
         }
 
-        let miner = pocx_miner::Miner::new(miner_cfg);
-        miner.run().await;
+        let miner =
+            pocx_miner::Miner::new(miner_cfg).map_err(|e| format!("Failed to create miner: {}", e));
+        match miner {
+            Ok(m) => m.run().await,
+            Err(e) => {
+                log::error!("{}", e);
+            }
+        }
 
         // When miner stops, update state
         if let Ok(mut state_guard) = state_clone.lock() {

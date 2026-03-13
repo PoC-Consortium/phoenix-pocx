@@ -397,8 +397,6 @@
   "setup_mining_direct_io": "Direct I/O (Miner)",
   "setup_low_priority": "Low Process Priority",
   "setup_async_write": "Async Disk Writes",
-  "setup_kws_override": "KWS Override",
-  "setup_kws_override_hint": "Kernel workgroup size (0 = auto)",
   "setup_optimal_combinations": "Optimal CU/Escalation combinations for {device}",
   "setup_cus": "CUs",
   "setup_occupancy": "Occupancy",

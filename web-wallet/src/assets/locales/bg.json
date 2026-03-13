@@ -591,8 +591,6 @@
   "setup_invalid": "Невалиден",
   "setup_low_priority": "Нисък приоритет на процеса",
   "setup_async_write": "Асинхронен запис на диска",
-  "setup_kws_override": "Замяна на KWS",
-  "setup_kws_override_hint": "Размер на работната група на ядрото (0 = автоматично)",
   "setup_max": "Макс:",
   "setup_memory_escalation": "Фактор на ескалация на паметта",
   "setup_mining_direct_io": "Използвай директен I/O за добив",

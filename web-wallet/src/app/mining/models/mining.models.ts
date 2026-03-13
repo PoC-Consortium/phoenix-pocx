@@ -122,7 +122,6 @@ export interface MiningConfig {
   escalation?: number; // default 1, used for plotting/benchmark
   directIo: boolean;
   asyncWrite?: boolean; // Async disk writes (v2 plotter, default true)
-  kwsOverride?: number; // Kernel workgroup size override (0 = auto)
   lowPriority?: boolean;
   parallelDrives?: number; // Number of drives to plot simultaneously (default 1)
   hddWakeupSeconds: number;

@@ -591,8 +591,6 @@
   "setup_invalid": "Negaliojantis",
   "setup_low_priority": "Zemas proceso prioritetas",
   "setup_async_write": "Asinchroninis disko rašymas",
-  "setup_kws_override": "KWS perrašymas",
-  "setup_kws_override_hint": "Branduolio darbo grupės dydis (0 = automatinis)",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Atminties eskalavimo koeficientas",
   "setup_mining_direct_io": "Naudoti tiesiogini I/O kasybai",

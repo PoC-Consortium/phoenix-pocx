@@ -591,8 +591,6 @@
   "setup_invalid": "Virheellinen",
   "setup_low_priority": "Matala prosessiprioriteetti",
   "setup_async_write": "Asynkroninen levykirjoitus",
-  "setup_kws_override": "KWS-ohitus",
-  "setup_kws_override_hint": "Ytimen työryhmän koko (0 = automaattinen)",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Muistin eskaloitumiskerroin",
   "setup_mining_direct_io": "Kayta suoraa I/O:ta louhintaan",

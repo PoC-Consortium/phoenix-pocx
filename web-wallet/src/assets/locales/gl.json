@@ -591,8 +591,6 @@
   "setup_invalid": "Inválido",
   "setup_low_priority": "Prioridade baixa do proceso",
   "setup_async_write": "Escrituras de disco asíncronas",
-  "setup_kws_override": "Substitución de KWS",
-  "setup_kws_override_hint": "Tamaño do grupo de traballo do kernel (0 = automático)",
   "setup_max": "Máx:",
   "setup_memory_escalation": "Factor de escalado de memoria",
   "setup_mining_direct_io": "Usar E/S directa para minaría",

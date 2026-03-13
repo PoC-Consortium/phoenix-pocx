@@ -591,8 +591,6 @@
   "setup_invalid": "अमान्य",
   "setup_low_priority": "कम प्रक्रिया प्राथमिकता",
   "setup_async_write": "एसिंक्रोनस डिस्क राइट",
-  "setup_kws_override": "KWS ओवरराइड",
-  "setup_kws_override_hint": "कर्नेल वर्कग्रुप साइज़ (0 = ऑटो)",
   "setup_max": "अधिकतम:",
   "setup_memory_escalation": "मेमोरी एस्केलेशन फैक्टर",
   "setup_mining_direct_io": "माइनिंग के लिए डायरेक्ट I/O उपयोग करें",

@@ -1075,7 +1075,6 @@ fn build_plotter_task_batch(
     log::info!("  Escalation: {}", config.escalation);
     log::info!("  Direct I/O: {}", config.direct_io);
     log::info!("  Async write: {}", config.async_write);
-    log::info!("  KWS override: {}", config.kws_override);
     log::info!("  Simulation mode: {}", config.simulation_mode);
     log::info!("========================================");
 
@@ -1106,9 +1105,6 @@ fn build_plotter_task_batch(
     // Add GPU if configured
     if !gpu_id.is_empty() {
         builder = builder.gpu(gpu_id);
-        if config.kws_override > 0 {
-            builder = builder.kws_override(config.kws_override);
-        }
     }
 
     // Enable benchmark mode if simulation mode is active (no disk writes)

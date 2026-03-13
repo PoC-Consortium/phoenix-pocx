@@ -591,8 +591,6 @@
   "setup_invalid": "Μη έγκυρο",
   "setup_low_priority": "Χαμηλή προτεραιότητα διεργασίας",
   "setup_async_write": "Ασύγχρονη εγγραφή δίσκου",
-  "setup_kws_override": "Παράκαμψη KWS",
-  "setup_kws_override_hint": "Μέγεθος ομάδας εργασίας πυρήνα (0 = αυτόματο)",
   "setup_max": "Μέγ.:",
   "setup_memory_escalation": "Συντελεστής κλιμάκωσης μνήμης",
   "setup_mining_direct_io": "Χρήση Direct I/O για εξόρυξη",

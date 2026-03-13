@@ -591,8 +591,6 @@
   "setup_invalid": "Invàlid",
   "setup_low_priority": "Prioritat baixa de procés",
   "setup_async_write": "Escriptures de disc asíncrones",
-  "setup_kws_override": "Substitució de KWS",
-  "setup_kws_override_hint": "Mida del grup de treball del nucli (0 = automàtic)",
   "setup_max": "Màx:",
   "setup_memory_escalation": "Factor d'escalada de memòria",
   "setup_mining_direct_io": "Utilitzar E/S directa per a la mineria",
