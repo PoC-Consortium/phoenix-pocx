@@ -90,10 +90,7 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
                       <span class="badge resume">{{ 'plan_resume' | i18n }}</span>
                       <span class="item-path">{{ formatPath(item.path) }}</span>
                       <span class="item-detail">{{ item.sizeGib }} GiB</span>
-                      <span
-                        class="item-batch"
-                        [matTooltip]="getParallelBatchTooltip(item.batchId)"
-                      >
+                      <span class="item-batch" [matTooltip]="getParallelBatchTooltip(item.batchId)">
                         B{{ item.batchId + 1 }}
                       </span>
                     }
@@ -498,7 +495,8 @@ export class PlanViewerDialogComponent {
     const currentItem = plan.items[idx];
     const checkItem = plan.items[index];
     if (
-      currentItem && checkItem &&
+      currentItem &&
+      checkItem &&
       currentItem.type === checkItem.type &&
       (currentItem.type === 'plot' || currentItem.type === 'resume') &&
       (checkItem.type === 'plot' || checkItem.type === 'resume')

@@ -731,10 +731,7 @@ interface ChainModalData {
                     @if (getSameDriveConflict(drive.info.path); as conflictPath) {
                       <span
                         class="warning-badge"
-                        [title]="
-                          'setup_same_drive_warning'
-                            | i18n: { path: conflictPath }
-                        "
+                        [title]="'setup_same_drive_warning' | i18n: { path: conflictPath }"
                         >&#9888;</span
                       >
                     }

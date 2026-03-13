@@ -397,11 +397,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                 });
                 paths.push(path.clone());
             }
-            PlotPlanItem::Resume {
-                path,
-                size_gib,
-                ..
-            } => {
+            PlotPlanItem::Resume { path, size_gib, .. } => {
                 // For resume, we still need to handle .tmp files
                 // But for batching, we treat it as a regular output
                 outputs.push(BatchPlotOutput {
@@ -431,8 +427,8 @@ pub async fn execute_plot_batch<R: Runtime>(
                 let seed = tmp_files
                     .first()
                     .and_then(|f| parse_seed_from_tmp_filename(f));
-                if seed.is_some() {
-                    log::info!("Resume seed for {}: {}", path, hex::encode(seed.unwrap()));
+                if let Some(ref s) = seed {
+                    log::info!("Resume seed for {}: {}", path, hex::encode(s));
                 }
                 seeds.push(seed);
             }
@@ -446,12 +442,7 @@ pub async fn execute_plot_batch<R: Runtime>(
     }
 
     // Build the plotter task with all outputs and per-path seeds
-    let task = build_plotter_task_batch(
-        &config.plotting_address,
-        &outputs,
-        config,
-        &seeds,
-    )?;
+    let task = build_plotter_task_batch(&config.plotting_address, &outputs, config, &seeds)?;
 
     // Calculate total warps
     let total_warps: u64 = outputs.iter().map(|o| o.warps).sum();
@@ -565,11 +556,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                                     }),
                                 );
                             }
-                            PlotPlanItem::Resume {
-                                path,
-                                size_gib,
-                                ..
-                            } => {
+                            PlotPlanItem::Resume { path, size_gib, .. } => {
                                 let _ = app_handle_clone.emit(
                                     "plotter:item-complete",
                                     serde_json::json!({
@@ -675,11 +662,7 @@ pub async fn execute_plot_item<R: Runtime>(
     plotter_runtime.clear_stop();
 
     match item {
-        PlotPlanItem::Resume {
-            path,
-            size_gib,
-            ..
-        } => {
+        PlotPlanItem::Resume { path, size_gib, .. } => {
             execute_resume(
                 app_handle,
                 path,
@@ -1072,13 +1055,22 @@ fn build_plotter_task_batch(
         let seed_info = seeds
             .get(i)
             .and_then(|s| s.as_ref())
-            .map(|s| hex::encode(s))
+            .map(hex::encode)
             .unwrap_or_else(|| "none".to_string());
-        log::info!("    [{}] {} - {} GiB (seed: {})", i, output.path, output.warps, seed_info);
+        log::info!(
+            "    [{}] {} - {} GiB (seed: {})",
+            i,
+            output.path,
+            output.warps,
+            seed_info
+        );
     }
     log::info!("  Total warps (GiB): {}", total_warps);
     log::info!("  CPU threads: {}", cpu_threads);
-    log::info!("  GPU device: {:?}", if gpu_id.is_empty() { "none" } else { &gpu_id });
+    log::info!(
+        "  GPU device: {:?}",
+        if gpu_id.is_empty() { "none" } else { &gpu_id }
+    );
     log::info!("  Compression level: {}", config.compression_level);
     log::info!("  Escalation: {}", config.escalation);
     log::info!("  Direct I/O: {}", config.direct_io);
