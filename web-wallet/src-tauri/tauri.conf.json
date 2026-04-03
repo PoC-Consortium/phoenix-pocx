@@ -62,7 +62,9 @@
       }
     },
     "macOS": {
-      "minimumSystemVersion": "10.13"
+      "minimumSystemVersion": "10.13",
+      "signingIdentity": null,
+      "entitlements": "entitlements.plist"
     },
     "windows": {
       "nsis": {

@@ -77,8 +77,38 @@ jobs:
         working-directory: web-wallet
         run: npm run tauri build -- --target ${{ matrix.target }} --bundles nsis
 
-      - name: Build Tauri app (macOS/Linux)
-        if: matrix.os_name != 'Windows'
+      - name: Setup Apple certificate
+        if: matrix.os_name == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          # Decode certificate
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate
+          security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Build Tauri app (macOS)
+        if: matrix.os_name == 'macOS'
+        working-directory: web-wallet
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: npm run tauri build -- --target ${{ matrix.target }}
+
+      - name: Build Tauri app (Linux)
+        if: matrix.os_name == 'Linux'
         working-directory: web-wallet
         run: npm run tauri build -- --target ${{ matrix.target }}
 
@@ -195,10 +225,12 @@ jobs:
           cp "$MINER_BIN" "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
           chmod +x "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
 
-          # Ad-hoc sign the miner app
-          codesign --force --deep -s - "$MINER_APP"
+          # Sign the miner app with Developer ID
+          codesign --force --deep --options runtime --sign "$APPLE_SIGNING_IDENTITY" --entitlements web-wallet/src-tauri/entitlements.plist "$MINER_APP"
 
-          echo "Miner wrapper prepared successfully with native binary"
+          echo "Miner wrapper prepared and signed successfully"
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
       - name: Recreate macOS DMG with both apps
         if: matrix.os_name == 'macOS'
@@ -218,6 +250,31 @@ jobs:
           # Remove old DMG and create new one with both apps
           rm -f "$BUNDLE_DIR/dmg/"*.dmg
           hdiutil create -volname "Phoenix PoCX Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+
+          # Sign the DMG
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+
+      - name: Notarize macOS DMG
+        if: matrix.os_name == 'macOS'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          DMG="$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+
+          # Submit for notarization
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple the notarization ticket
+          xcrun stapler staple "$DMG"
 
       - name: Collect artifacts (macOS)
         if: matrix.os_name == 'macOS'
@@ -259,6 +316,10 @@ jobs:
               cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
             fi
           done
+
+      - name: Cleanup Apple keychain
+        if: matrix.os_name == 'macOS' && always()
+        run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
