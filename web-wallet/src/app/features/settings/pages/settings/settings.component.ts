@@ -227,6 +227,12 @@ interface ConnectionTestResult {
                           }
                         </div>
                       </div>
+                      @if (nodeService.hasUpdate()) {
+                        <p class="hint-text">
+                          <mat-icon class="hint-icon">info</mat-icon>
+                          {{ 'node_update_restart_hint' | i18n }}
+                        </p>
+                      }
                     </div>
                   }
 
@@ -1231,6 +1237,21 @@ interface ConnectionTestResult {
         gap: 8px;
       }
 
+      .hint-text {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 8px 0 0;
+        font-size: 12px;
+        opacity: 0.7;
+      }
+
+      .hint-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+
       /* Debug & Logs Styles */
       .debug-container {
         max-width: 600px;
@@ -1908,11 +1929,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /**
    * Navigate to node setup to install update.
-   * Requires node to be stopped first.
+   * Requires miner, aggregator, and node to be stopped first.
    */
   updateNode(): void {
-    if (this.nodeService.isRunning()) {
-      this.notification.warning('Please stop the node before updating');
+    const running: string[] = [];
+    if (this.miningService.minerRunning()) running.push(this.i18n.get('miner'));
+    if (this.aggregatorService.isRunning()) running.push(this.i18n.get('aggregator'));
+    if (this.nodeService.isRunning()) running.push(this.i18n.get('node'));
+
+    if (running.length > 0) {
+      this.notification.warning(
+        this.i18n.get('node_update_stop_services') + running.join(', ')
+      );
       return;
     }
 
