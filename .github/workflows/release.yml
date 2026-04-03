@@ -292,6 +292,7 @@ jobs:
 
       - name: Notarize macOS DMG
         if: matrix.os_name == 'macOS'
+        timeout-minutes: 35
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -300,12 +301,12 @@ jobs:
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
           DMG="$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
 
-          # Submit for notarization
+          # Submit for notarization (timeout after 30 minutes)
           xcrun notarytool submit "$DMG" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait
+            --wait --timeout 30m
 
           # Staple the notarization ticket
           xcrun stapler staple "$DMG"
