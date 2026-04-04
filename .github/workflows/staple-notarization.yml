@@ -58,17 +58,19 @@ jobs:
 
           echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
 
-      - name: Check notarization status
+      - name: Submit fresh notarization and wait
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        timeout-minutes: 120
         run: |
-          echo "Checking recent notarization submissions..."
-          xcrun notarytool history \
+          echo "Submitting $DMG_NAME for notarization..."
+          xcrun notarytool submit "$DMG_NAME" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID"
+            --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 2h
 
       - name: Staple notarization ticket
         run: |
