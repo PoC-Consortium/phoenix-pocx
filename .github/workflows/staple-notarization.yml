@@ -1,0 +1,75 @@
+name: Staple Notarization
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v2.0.0-rc13). Leave empty for latest release.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  staple:
+    name: Staple (${{ matrix.label }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch_name: AppleSilicon
+            label: macOS-AppleSilicon
+          - arch_name: Intel
+            label: macOS-Intel
+
+    steps:
+      - name: Determine release tag
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get version from tag
+        id: version
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+
+      - name: Download DMG from release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          TAG=${{ steps.release.outputs.tag }}
+          DMG_NAME="Phoenix-PoCX-Wallet-${VERSION}-macOS-${{ matrix.arch_name }}.dmg"
+
+          gh release download "$TAG" \
+            --repo ${{ github.repository }} \
+            --pattern "$DMG_NAME" \
+            --dir .
+
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+
+      - name: Staple notarization ticket
+        run: |
+          echo "Stapling notarization ticket to $DMG_NAME..."
+          xcrun stapler staple "$DMG_NAME"
+          echo "Verifying staple..."
+          xcrun stapler validate "$DMG_NAME"
+
+      - name: Re-upload stapled DMG
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.release.outputs.tag }}
+          gh release upload "$TAG" "$DMG_NAME" \
+            --repo ${{ github.repository }} \
+            --clobber
