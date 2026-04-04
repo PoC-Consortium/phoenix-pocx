@@ -98,6 +98,13 @@ jobs:
           # Import certificate
           security import $CERTIFICATE_PATH -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import Apple Developer ID intermediate certificates (required when .p12 was created outside macOS)
+          curl -sL "https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer" -o $RUNNER_TEMP/DevIDG2CA.cer
+          curl -sL "https://www.apple.com/certificateauthority/AppleWWDRCAG2.cer" -o $RUNNER_TEMP/AppleWWDRCAG2.cer
+          security import $RUNNER_TEMP/DevIDG2CA.cer -k $KEYCHAIN_PATH -T /usr/bin/codesign
+          security import $RUNNER_TEMP/AppleWWDRCAG2.cer -k $KEYCHAIN_PATH -T /usr/bin/codesign
+
           security list-keychain -d user -s $KEYCHAIN_PATH
 
       - name: Build Tauri app (macOS)
