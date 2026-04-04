@@ -3,13 +3,26 @@ name: Staple Notarization
 on:
   workflow_dispatch:
     inputs:
+      source:
+        description: 'Source: "release" to download from a GitHub release, "artifact" to download from a workflow run'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - artifact
       tag:
-        description: 'Release tag (e.g. v2.0.0-rc13). Leave empty for latest release.'
+        description: 'Release tag (e.g. v2.0.0-rc13). Only for source=release. Leave empty for latest.'
+        required: false
+        type: string
+      run_id:
+        description: 'Workflow run ID. Only for source=artifact. Leave empty for latest desktop-build-test run.'
         required: false
         type: string
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   staple:
@@ -25,30 +38,17 @@ jobs:
             label: macOS-Intel
 
     steps:
-      - name: Determine release tag
-        id: release
+      - name: Download DMG from release
+        if: inputs.source == 'release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "${{ inputs.tag }}" ]; then
-            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+            TAG="${{ inputs.tag }}"
           else
             TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
           fi
-
-      - name: Get version from tag
-        id: version
-        run: |
-          TAG="${{ steps.release.outputs.tag }}"
-          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
-
-      - name: Download DMG from release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          TAG=${{ steps.release.outputs.tag }}
+          VERSION="${TAG#v}"
           DMG_NAME="Phoenix-PoCX-Wallet-${VERSION}-macOS-${{ matrix.arch_name }}.dmg"
 
           gh release download "$TAG" \
@@ -57,8 +57,31 @@ jobs:
             --dir .
 
           echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+          echo "UPLOAD_TAG=$TAG" >> $GITHUB_ENV
 
-      - name: Submit fresh notarization and wait
+      - name: Download DMG from artifact
+        if: inputs.source == 'artifact'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.run_id }}" ]; then
+            RUN_ID="${{ inputs.run_id }}"
+          else
+            RUN_ID=$(gh run list --repo ${{ github.repository }} --workflow "desktop-build-test.yml" --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+
+          ARTIFACT_NAME="Phoenix-PoCX-Wallet-${{ matrix.label }}-test"
+          echo "Downloading artifact $ARTIFACT_NAME from run $RUN_ID..."
+
+          gh run download "$RUN_ID" \
+            --repo ${{ github.repository }} \
+            --name "$ARTIFACT_NAME" \
+            --dir .
+
+          DMG_NAME=$(ls *.dmg)
+          echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
+
+      - name: Submit for notarization and wait
         id: notarize
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -101,11 +124,19 @@ jobs:
           echo "Verifying staple..."
           xcrun stapler validate "$DMG_NAME"
 
-      - name: Re-upload stapled DMG
+      - name: Re-upload stapled DMG to release
+        if: inputs.source == 'release'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG=${{ steps.release.outputs.tag }}
-          gh release upload "$TAG" "$DMG_NAME" \
+          gh release upload "$UPLOAD_TAG" "$DMG_NAME" \
             --repo ${{ github.repository }} \
             --clobber
+
+      - name: Upload stapled DMG as artifact
+        if: inputs.source == 'artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Phoenix-PoCX-Wallet-${{ matrix.label }}-notarized
+          path: ${{ env.DMG_NAME }}
+          retention-days: 14
