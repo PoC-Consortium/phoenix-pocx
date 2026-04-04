@@ -225,6 +225,29 @@ jobs:
             fi
           done
 
+      - name: Re-sign macOS app with hardened runtime and timestamp
+        if: matrix.os_name == 'macOS'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
+          MAIN_APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d | head -1)
+
+          echo "Re-signing all binaries in $MAIN_APP..."
+
+          # Sign all binaries inside the app bundle (inner-to-outer)
+          find "$MAIN_APP" -type f -perm +111 | while read bin; do
+            echo "Signing: $bin"
+            codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" --entitlements web-wallet/src-tauri/entitlements.plist "$bin" || true
+          done
+
+          # Sign the app bundle itself
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" --entitlements web-wallet/src-tauri/entitlements.plist "$MAIN_APP"
+
+          # Verify
+          codesign --verify --verbose "$MAIN_APP"
+          echo "Main app signed and verified successfully"
+
       - name: Build macOS Miner launcher binary
         if: matrix.os_name == 'macOS'
         working-directory: web-wallet/src-tauri
@@ -266,8 +289,9 @@ jobs:
           cp "$MINER_BIN" "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
           chmod +x "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
 
-          # Sign the miner app with Developer ID
-          codesign --force --deep --options runtime --sign "$APPLE_SIGNING_IDENTITY" --entitlements web-wallet/src-tauri/entitlements.plist "$MINER_APP"
+          # Sign the miner binary first, then the app bundle
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" --entitlements web-wallet/src-tauri/entitlements.plist "$MINER_APP/Contents/MacOS/phoenix-pocx-miner"
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" --entitlements web-wallet/src-tauri/entitlements.plist "$MINER_APP"
 
           echo "Miner wrapper prepared and signed successfully"
         env:
@@ -293,7 +317,7 @@ jobs:
           hdiutil create -volname "Phoenix PoCX Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
 
           # Sign the DMG
-          codesign --force --sign "$APPLE_SIGNING_IDENTITY" "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
