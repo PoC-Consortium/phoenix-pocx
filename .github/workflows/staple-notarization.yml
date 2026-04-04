@@ -59,6 +59,7 @@ jobs:
           echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
 
       - name: Submit fresh notarization and wait
+        id: notarize
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -66,11 +67,32 @@ jobs:
         timeout-minutes: 120
         run: |
           echo "Submitting $DMG_NAME for notarization..."
-          xcrun notarytool submit "$DMG_NAME" \
+          OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait --timeout 2h
+            --wait --timeout 2h 2>&1) || true
+          echo "$OUTPUT"
+
+          # Extract submission ID
+          SUB_ID=$(echo "$OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
+          echo "submission_id=$SUB_ID" >> $GITHUB_OUTPUT
+
+          # Fetch detailed log
+          echo ""
+          echo "=== Notarization Log ==="
+          xcrun notarytool log "$SUB_ID" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" || true
+
+          # Check if it was accepted
+          if echo "$OUTPUT" | grep -q "status: Accepted"; then
+            echo "Notarization accepted!"
+          else
+            echo "Notarization failed — see log above"
+            exit 1
+          fi
 
       - name: Staple notarization ticket
         run: |
