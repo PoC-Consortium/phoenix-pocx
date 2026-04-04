@@ -515,7 +515,7 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   // State
   currentWalletName = signal<string | null>(null);
   wallets = signal<WalletSummary[]>([]);
-  network = signal<Network>('testnet');
+  network = signal<Network>('mainnet');
 
   // Loading tracking
   loadingWallets = new Set<string>();

@@ -1512,7 +1512,7 @@ export class MiningService {
    */
   async hexToBech32(payloadHex: string): Promise<string> {
     const config = this.config();
-    const network = config?.walletNetwork ?? 'testnet';
+    const network = config?.walletNetwork ?? 'mainnet';
     try {
       const result = await invoke<CommandResult<string>>('hex_to_bech32', {
         payloadHex,

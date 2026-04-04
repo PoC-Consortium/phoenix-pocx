@@ -1010,9 +1010,16 @@ interface ChainModalData {
                   (ngModelChange)="updateChainModal('poolUrl', $event)"
                 >
                   <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
-                  <option value="https://pool.testnet.bitcoin-pocx.org:443">
-                    Nogrod PoCX Testnet (pool.testnet.bitcoin-pocx.org)
-                  </option>
+                  @if (walletNetwork() === 'mainnet') {
+                    <option value="https://pool.bitcoin-pocx.org:443">
+                      Nogrod PoCX (pool.bitcoin-pocx.org)
+                    </option>
+                  }
+                  @if (walletNetwork() === 'testnet') {
+                    <option value="https://pool.testnet.bitcoin-pocx.org:443">
+                      Nogrod PoCX Testnet (pool.testnet.bitcoin-pocx.org)
+                    </option>
+                  }
                 </select>
               </div>
               <!-- Auth Type for Pool -->
@@ -2591,8 +2598,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly walletDataDirectory = toSignal(this.store.select(selectDataDirectory), {
     initialValue: '',
   });
-  private readonly walletNetwork = toSignal(this.store.select(selectNetwork), {
-    initialValue: 'testnet',
+  protected readonly walletNetwork = toSignal(this.store.select(selectNetwork), {
+    initialValue: 'mainnet',
   });
 
   // Event listener cleanup
@@ -3220,8 +3227,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         priority: editing?.priority ?? this.chainConfigs().length + 1,
       };
     } else if (data.mode === 'pool') {
-      const poolName = data.poolUrl.includes('pool.testnet.bitcoin-pocx.org')
-        ? 'Nogrod PoCX Testnet'
+      const poolName = data.poolUrl.includes('pool.bitcoin-pocx.org')
+        ? data.poolUrl.includes('testnet') ? 'Nogrod PoCX Testnet' : 'Nogrod PoCX'
         : data.chainName || 'Pool';
 
       // Parse pool URL to extract host and port

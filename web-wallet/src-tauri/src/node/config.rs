@@ -27,9 +27,9 @@ pub enum NodeMode {
 #[serde(rename_all = "lowercase")]
 pub enum Network {
     /// Main network
+    #[default]
     Mainnet,
     /// Test network
-    #[default]
     Testnet,
     /// Local regression test network
     Regtest,
@@ -63,7 +63,7 @@ impl FromStr for Network {
             "mainnet" => Ok(Network::Mainnet),
             "testnet" => Ok(Network::Testnet),
             "regtest" => Ok(Network::Regtest),
-            _ => Ok(Network::Testnet), // Default to testnet
+            _ => Ok(Network::Mainnet), // Default to mainnet
         }
     }
 }

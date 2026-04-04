@@ -43,7 +43,7 @@ export class AggregatorService {
 
   // Bech32 cache
   private readonly bech32Cache = new Map<string, string>();
-  private currentNetwork: string = 'testnet';
+  private currentNetwork: string = 'mainnet';
 
   // Public readonly signals
   readonly config = this._config.asReadonly();

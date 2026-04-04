@@ -200,6 +200,18 @@ interface ConnectionTestResult {
 
                   @if (nodeService.isInstalled()) {
                     <div class="config-section">
+                      <h3 class="section-title">{{ 'network' | i18n }}</h3>
+                      <mat-radio-group
+                        [(ngModel)]="activeConfig.network"
+                        (change)="onManagedNetworkChange()"
+                        class="horizontal-radio-group"
+                      >
+                        <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
+                        <mat-radio-button value="testnet">{{ 'testnet' | i18n }}</mat-radio-button>
+                      </mat-radio-group>
+                    </div>
+
+                    <div class="config-section">
                       <h3 class="section-title">{{ 'node_updates' | i18n }}</h3>
                       <div class="update-row">
                         <div class="update-info">
@@ -1529,6 +1541,44 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     // Clear test result
     this.testResult.set(null);
+  }
+
+  async onManagedNetworkChange(): Promise<void> {
+    const network = this.activeConfig.network;
+    const wasRunning = this.nodeService.isRunning();
+
+    // Stop mining services and node before switching
+    if (this.miningService.minerRunning()) {
+      await this.miningService.stopMiner();
+    }
+    if (this.aggregatorService.isRunning()) {
+      await this.aggregatorService.stop();
+    }
+    if (wasRunning) {
+      await this.nodeService.stopNode();
+    }
+
+    // Update port and persist config
+    this.activeConfig.rpcPort = getDefaultRpcPort(network);
+    const rustConfig = this.nodeService.config();
+    await this.nodeService.saveConfig({
+      ...rustConfig,
+      network,
+      rpcPort: this.activeConfig.rpcPort,
+    });
+    this.store.dispatch(
+      SettingsActions.setNodeConfig({ config: { ...this.activeConfig } })
+    );
+
+    // Restart node on new network
+    if (wasRunning) {
+      await this.startManagedNode();
+      await this.cookieAuth.refreshCredentials();
+    }
+
+    this.notification.success(
+      this.i18n.get('node_network_switched') + network
+    );
   }
 
   async browseDataDirectory(): Promise<void> {

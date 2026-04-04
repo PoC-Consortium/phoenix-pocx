@@ -63,7 +63,7 @@ export class RpcClientService implements OnDestroy {
   private readonly destroy$ = new Subject<void>();
 
   private requestId = 0;
-  private rpcUrl = 'http://127.0.0.1:18332';
+  private rpcUrl = 'http://127.0.0.1:8332';
 
   constructor() {
     // Subscribe to settings store for RPC host and port

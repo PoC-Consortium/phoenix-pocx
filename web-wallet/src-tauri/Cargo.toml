@@ -47,10 +47,10 @@ num_cpus = "1.16"
 tokio = { version = "1", features = ["full"] }
 
 # PoCX mining libraries
-pocx_miner = "1.0.0-rc.13"
-pocx_plotter_v2 = { version = "1.0.0-rc.13", features = ["opencl"] }
-pocx_address = "1.0.0-rc.13"
-pocx_aggregator = "1.0.0-rc.13"
+pocx_miner = "1.0.0"
+pocx_plotter_v2 = { version = "1.0.0", features = ["opencl"] }
+pocx_address = "1.0.0"
+pocx_aggregator = "1.0.0"
 
 # OpenCL for GPU detection (dynamic loading - no build-time SDK required)
 opencl3 = { version = "0.10", features = ["dynamic"] }

@@ -32,10 +32,10 @@ impl Default for AggregatorConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            listen_address: "0.0.0.0:18333".to_string(),
+            listen_address: "0.0.0.0:8333".to_string(),
             upstream_name: "local".to_string(),
             upstream_rpc_host: "127.0.0.1".to_string(),
-            upstream_rpc_port: 18332,
+            upstream_rpc_port: 8332,
             submission_mode: AggregatorSubmissionMode::Wallet,
             block_time_secs: 120,
         }

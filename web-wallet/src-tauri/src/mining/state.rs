@@ -243,11 +243,11 @@ fn default_wallet_rpc_host() -> String {
 }
 
 fn default_wallet_rpc_port() -> u16 {
-    18332 // Bitcoin testnet RPC port
+    8332 // Bitcoin mainnet RPC port
 }
 
 fn default_wallet_network() -> String {
-    "testnet".to_string()
+    "mainnet".to_string()
 }
 
 fn default_escalation() -> u64 {
