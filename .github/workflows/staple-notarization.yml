@@ -81,41 +81,61 @@ jobs:
           DMG_NAME=$(ls *.dmg)
           echo "DMG_NAME=$DMG_NAME" >> $GITHUB_ENV
 
-      - name: Submit for notarization and wait
-        id: notarize
+      - name: Submit for notarization
+        id: submit
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          echo "Submitting $DMG_NAME for notarization..."
+          OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" 2>&1)
+          echo "$OUTPUT"
+
+          SUB_ID=$(echo "$OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
+          echo "submission_id=$SUB_ID" >> $GITHUB_OUTPUT
+          echo "Submission ID: $SUB_ID"
+
+      - name: Poll notarization status
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         timeout-minutes: 120
         run: |
-          echo "Submitting $DMG_NAME for notarization..."
-          OUTPUT=$(xcrun notarytool submit "$DMG_NAME" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_ID_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait --timeout 2h 2>&1) || true
-          echo "$OUTPUT"
+          SUB_ID="${{ steps.submit.outputs.submission_id }}"
+          echo "Polling status for submission $SUB_ID..."
 
-          # Extract submission ID
-          SUB_ID=$(echo "$OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
-          echo "submission_id=$SUB_ID" >> $GITHUB_OUTPUT
+          while true; do
+            OUTPUT=$(xcrun notarytool info "$SUB_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_ID_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" 2>&1) || true
 
-          # Fetch detailed log
-          echo ""
-          echo "=== Notarization Log ==="
-          xcrun notarytool log "$SUB_ID" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_ID_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" || true
+            STATUS=$(echo "$OUTPUT" | grep "status:" | head -1 | awk '{print $2}')
+            echo "$(date): Status = $STATUS"
 
-          # Check if it was accepted
-          if echo "$OUTPUT" | grep -q "status: Accepted"; then
-            echo "Notarization accepted!"
-          else
-            echo "Notarization failed — see log above"
-            exit 1
-          fi
+            if [ "$STATUS" = "Accepted" ]; then
+              echo "Notarization accepted!"
+              exit 0
+            elif [ "$STATUS" = "Invalid" ] || [ "$STATUS" = "Rejected" ]; then
+              echo "$OUTPUT"
+              echo ""
+              echo "=== Notarization Log ==="
+              xcrun notarytool log "$SUB_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_ID_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" || true
+              echo "Notarization failed!"
+              exit 1
+            fi
+
+            # Short-lived connections: sleep 30s between polls
+            sleep 30
+          done
 
       - name: Staple notarization ticket
         run: |
