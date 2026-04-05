@@ -580,7 +580,7 @@ export class ToolbarComponent implements OnInit, OnDestroy {
     try {
       // Load wallet if not loaded
       if (!wallet.isLoaded) {
-        await this.walletManager.loadWallet(wallet.name);
+        await this.walletManager.loadWallet(wallet.name, true);
       }
 
       // Set as active wallet
