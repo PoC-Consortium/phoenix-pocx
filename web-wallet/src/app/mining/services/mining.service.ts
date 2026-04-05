@@ -46,6 +46,7 @@ import {
   formatCapacity,
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
+import { NodeService } from '../../node/services/node.service';
 
 /**
  * Mining Service
@@ -57,6 +58,7 @@ import { PlotPlanService } from './plot-plan.service';
 })
 export class MiningService {
   private readonly plotPlanService = inject(PlotPlanService);
+  private readonly nodeService = inject(NodeService);
 
   // Signals for reactive state
   private readonly _state = signal<MiningState | null>(null);
@@ -224,6 +226,9 @@ export class MiningService {
     this.refreshDevices();
     this.checkDevMode();
     this.checkPlatform();
+
+    // Reset miner state when node starts to clear stale network-specific data
+    this.nodeService.nodeStarting$.subscribe(() => this.resetMinerState());
   }
 
   /**

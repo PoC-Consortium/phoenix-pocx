@@ -4,6 +4,7 @@ import { WalletRpcService, WalletTransaction, UTXO, AddressInfo } from '../rpc/w
 import { WalletManagerService } from './wallet-manager.service';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 import { TransactionStateService } from '../transaction-state.service';
+import { NodeService } from '../../../node/services/node.service';
 
 /**
  * Wallet state for the active wallet
@@ -48,6 +49,7 @@ export class WalletService implements OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly transactionState = inject(TransactionStateService);
+  private readonly nodeService = inject(NodeService);
   private readonly destroy$ = new Subject<void>();
 
   // State using Angular signals
@@ -100,6 +102,9 @@ export class WalletService implements OnDestroy {
         this.resetState();
       }
     });
+
+    // Reset state when node starts to clear stale network-specific data
+    this.nodeService.nodeStarting$.subscribe(() => this.resetState());
   }
 
   // ============================================================

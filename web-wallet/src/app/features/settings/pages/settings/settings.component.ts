@@ -148,7 +148,7 @@ interface ConnectionTestResult {
                       </div>
 
                       <div class="node-controls">
-                        @if (nodeService.isRunning()) {
+                        @if (nodeService.isRunning() || isStoppingNode()) {
                           <button
                             mat-stroked-button
                             color="warn"
@@ -157,19 +157,21 @@ interface ConnectionTestResult {
                           >
                             @if (isStoppingNode()) {
                               <mat-spinner diameter="18"></mat-spinner>
+                              {{ 'node_stopping' | i18n }}
                             } @else {
                               <mat-icon>stop</mat-icon>
+                              {{ 'node_stop' | i18n }}
                             }
-                            {{ 'node_stop' | i18n }}
                           </button>
-                          <button
-                            mat-stroked-button
-                            (click)="restartManagedNode()"
-                            [disabled]="isStoppingNode()"
-                          >
-                            <mat-icon>refresh</mat-icon>
-                            {{ 'node_restart' | i18n }}
-                          </button>
+                          @if (!isStoppingNode()) {
+                            <button
+                              mat-stroked-button
+                              (click)="restartManagedNode()"
+                            >
+                              <mat-icon>refresh</mat-icon>
+                              {{ 'node_restart' | i18n }}
+                            </button>
+                          }
                         } @else {
                           <button
                             mat-raised-button
@@ -204,11 +206,18 @@ interface ConnectionTestResult {
                       <mat-radio-group
                         [(ngModel)]="activeConfig.network"
                         (change)="onManagedNetworkChange()"
+                        [disabled]="nodeService.isRunning() || isStoppingNode() || miningService.minerRunning() || aggregatorService.isRunning()"
                         class="horizontal-radio-group"
                       >
                         <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
                         <mat-radio-button value="testnet">{{ 'testnet' | i18n }}</mat-radio-button>
                       </mat-radio-group>
+                      @if (nodeService.isRunning() || isStoppingNode() || miningService.minerRunning() || aggregatorService.isRunning()) {
+                        <p class="hint-text">
+                          <mat-icon class="hint-icon">info</mat-icon>
+                          {{ 'node_network_change_stop_hint' | i18n }}
+                        </p>
+                      }
                     </div>
 
                     <div class="config-section">
@@ -1415,11 +1424,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly platform = inject(PlatformService);
   private readonly electron = inject(ElectronService);
   private readonly cookieAuth = inject(CookieAuthService);
-  private readonly miningService = inject(MiningService);
+  protected readonly miningService = inject(MiningService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly walletManager = inject(WalletManagerService);
   readonly nodeService = inject(NodeService);
-  private readonly aggregatorService = inject(AggregatorService);
+  protected readonly aggregatorService = inject(AggregatorService);
   private readonly destroy$ = new Subject<void>();
 
   // Managed node state
@@ -1545,20 +1554,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   async onManagedNetworkChange(): Promise<void> {
     const network = this.activeConfig.network;
-    const wasRunning = this.nodeService.isRunning();
 
-    // Stop mining services and node before switching
-    if (this.miningService.minerRunning()) {
-      await this.miningService.stopMiner();
-    }
-    if (this.aggregatorService.isRunning()) {
-      await this.aggregatorService.stop();
-    }
-    if (wasRunning) {
-      await this.nodeService.stopNode();
-    }
-
-    // Update port and persist config
+    // Update port and persist config (node must already be stopped via guard)
     this.activeConfig.rpcPort = getDefaultRpcPort(network);
     const rustConfig = this.nodeService.config();
     await this.nodeService.saveConfig({
@@ -1569,12 +1566,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.store.dispatch(
       SettingsActions.setNodeConfig({ config: { ...this.activeConfig } })
     );
-
-    // Restart node on new network
-    if (wasRunning) {
-      await this.startManagedNode();
-      await this.cookieAuth.refreshCredentials();
-    }
 
     this.notification.success(
       this.i18n.get('node_network_switched') + network
@@ -1928,7 +1919,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   async stopManagedNode(): Promise<void> {
     this.isStoppingNode.set(true);
     try {
-      await this.nodeService.stopNode();
+      // Stop miner/aggregator first — they depend on the node
+      if (this.miningService.minerRunning()) {
+        await this.miningService.stopMiner();
+      }
+      if (this.aggregatorService.isRunning()) {
+        await this.aggregatorService.stop();
+      }
+
+      await this.nodeService.stopNodeAndWait();
       this.notification.success('Node stopped');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to stop node';

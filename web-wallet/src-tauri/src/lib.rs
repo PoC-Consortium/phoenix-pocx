@@ -792,6 +792,7 @@ pub fn run() {
             node::commands::get_installed_node_version,
             node::commands::start_managed_node,
             node::commands::stop_managed_node,
+            node::commands::wait_for_node_exit,
             node::commands::restart_managed_node,
             node::commands::detect_existing_node,
             node::commands::refresh_node_status,
