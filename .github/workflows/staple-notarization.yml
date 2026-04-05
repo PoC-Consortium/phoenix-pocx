@@ -115,8 +115,11 @@ jobs:
               --password "$APPLE_ID_PASSWORD" \
               --team-id "$APPLE_TEAM_ID" 2>&1) || true
 
+            echo "---"
+            echo "$(date) — Full response:"
+            echo "$OUTPUT"
+            echo "---"
             STATUS=$(echo "$OUTPUT" | grep "status:" | head -1 | awk '{print $2}')
-            echo "$(date): Status = $STATUS"
 
             if [ "$STATUS" = "Accepted" ]; then
               echo "Notarization accepted!"
