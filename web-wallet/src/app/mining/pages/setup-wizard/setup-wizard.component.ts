@@ -3215,7 +3215,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
       chain = {
         id,
-        name: useAggregator ? 'PoCX Testnet (Aggregator)' : 'PoCX Testnet (Local)',
+        name: useAggregator ? 'Bitcoin PoCX (Aggregator)' : 'Bitcoin PoCX (Local)',
         chainType: 'solo',
         rpcTransport: 'http',
         rpcHost: useAggregator ? '127.0.0.1' : walletRpcHost,
