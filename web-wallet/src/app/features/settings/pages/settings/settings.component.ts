@@ -159,8 +159,10 @@ interface ConnectionTestResult {
                               <mat-spinner diameter="18"></mat-spinner>
                               {{ 'node_stopping' | i18n }}
                             } @else {
-                              <mat-icon>stop</mat-icon>
-                              {{ 'node_stop' | i18n }}
+                              <ng-container>
+                                <mat-icon>stop</mat-icon>
+                                {{ 'node_stop' | i18n }}
+                              </ng-container>
                             }
                           </button>
                           @if (!isStoppingNode()) {
