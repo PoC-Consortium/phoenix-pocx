@@ -37,7 +37,6 @@ log = "0.4"
 log4rs = "1"
 anyhow = "1"
 hex = "0.4"
-url = "2"
 
 # System information for drive/device detection
 sysinfo = "0.32"
@@ -52,8 +51,6 @@ pocx_plotter_v2 = { version = "1.0.0", features = ["opencl"] }
 pocx_address = "1.0.0"
 pocx_aggregator = "1.0.0"
 
-# OpenCL for GPU detection (dynamic loading - no build-time SDK required)
-opencl3 = { version = "0.10", features = ["dynamic"] }
 
 # SHA256 hashing for node binary verification
 sha2 = "0.10"
