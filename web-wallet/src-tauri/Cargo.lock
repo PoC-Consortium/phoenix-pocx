@@ -3832,7 +3832,6 @@ dependencies = [
  "log",
  "log4rs",
  "num_cpus",
- "opencl3",
  "pocx_address",
  "pocx_aggregator",
  "pocx_miner",
@@ -3855,7 +3854,6 @@ dependencies = [
  "tauri-plugin-storage-permission",
  "tempfile",
  "tokio",
- "url",
  "windows-sys 0.59.0",
  "zip",
 ]
@@ -3944,9 +3942,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_address"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70923856b989ca0f5f95f5399690a5142ac5bab1acb0d5bceda08edbbc285349"
+checksum = "af1e1eb448bab71254d8b87694a93483725c2de31403f70bb9c071dd09a11cb9"
 dependencies = [
  "bech32",
  "bs58",
@@ -3954,17 +3952,15 @@ dependencies = [
 
 [[package]]
 name = "pocx_aggregator"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a2f3f7a347536bab6565b89f33e6d96c1752ea6d4d39b7639af15d0e65007b3"
+checksum = "2553d6631d6411b49e29f4ab9b8e968e493bb76c041589440a4326d99e0c3805"
 dependencies = [
- "async-trait",
  "axum",
  "base64 0.22.1",
  "bytesize",
  "chrono",
  "clap",
- "crossbeam-channel",
  "diesel",
  "diesel_migrations",
  "env_logger",
@@ -3974,25 +3970,19 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "pocx_protocol",
- "r2d2",
- "reqwest 0.12.28",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror 2.0.18",
  "tokio",
- "tower",
- "tower-http",
- "tracing",
  "url",
- "uuid",
 ]
 
 [[package]]
 name = "pocx_hashlib"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f5870545fb4dcc6304c7225d141c626ada7f0682ec130513a1f0f163eef155a"
+checksum = "2fb576294af9b64f61eb1918cb663ef053ef8df352a1e302e9e18f84c20e3041"
 dependencies = [
  "hex",
  "page_size",
@@ -4000,11 +3990,10 @@ dependencies = [
 
 [[package]]
 name = "pocx_miner"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46630021bffbe73acf1dd72ef30b6463dde63644bfc28ab1c0dfe8cbccdd7a3d"
+checksum = "d1e464e66150af6c28fa41b39f3f81ecef56d2cc7e983017b04e73d06720cf4c"
 dependencies = [
- "anyhow",
  "bytesize",
  "cfg-if",
  "clap",
@@ -4027,7 +4016,6 @@ dependencies = [
  "rayon",
  "reqwest 0.12.28",
  "serde",
- "serde_json",
  "serde_yaml",
  "tokio",
  "tokio-stream",
@@ -4038,9 +4026,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotfile"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21ed016ffa99c2f862ba18816b1fbe2d11af74fd5a5b1c82381e79e3624605b4"
+checksum = "6cee6bfd9d3d528842ce1b57838decf007f86667a800e6325bc5400590ae0495"
 dependencies = [
  "cfg-if",
  "filetime",
@@ -4056,9 +4044,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotter_v2"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "022dee74117bdb5c0d349ecf6dc03d3e3963c636de606b42f5385e012f894263"
+checksum = "994c7e5351a6f5f94bfda5d520f0793e4ee2d8de5f59649951797df7df6427df"
 dependencies = [
  "cfg-if",
  "clap",
@@ -4066,7 +4054,6 @@ dependencies = [
  "fs2",
  "hex",
  "indicatif",
- "libc",
  "num_cpus",
  "opencl3",
  "page_size",
@@ -4081,13 +4068,12 @@ dependencies = [
 
 [[package]]
 name = "pocx_protocol"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5091186fdc6997cb442390850c62aaf9aad372e24dd2124eb2516c7f84aa2cf4"
+checksum = "3cfd66dced664425d74aed6f2695f9e9d97f125ccf2a7830a9695bb67b13647b"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
- "futures",
  "log",
  "reqwest 0.12.28",
  "serde",
@@ -5978,7 +5964,6 @@ dependencies = [
 name = "tauri-plugin-foreground-service"
 version = "0.1.0"
 dependencies = [
- "log",
  "serde",
  "tauri",
  "tauri-plugin",
@@ -6096,7 +6081,6 @@ name = "tauri-plugin-storage-permission"
 version = "0.1.0"
 dependencies = [
  "jni",
- "log",
  "serde",
  "tauri",
  "tauri-plugin",
