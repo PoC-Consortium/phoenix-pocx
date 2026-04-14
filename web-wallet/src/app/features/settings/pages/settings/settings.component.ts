@@ -205,10 +205,11 @@ interface ConnectionTestResult {
                   @if (nodeService.isInstalled()) {
                     <div class="config-section">
                       <h3 class="section-title">{{ 'network' | i18n }}</h3>
+                      <!-- #POCXTODO: mainnet blocker — network selector disabled until mainnet launch -->
                       <mat-radio-group
                         [(ngModel)]="activeConfig.network"
                         (change)="onManagedNetworkChange()"
-                        [disabled]="nodeService.isRunning() || isStoppingNode() || miningService.minerRunning() || aggregatorService.isRunning()"
+                        [disabled]="true"
                         class="horizontal-radio-group"
                       >
                         <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
@@ -282,9 +283,11 @@ interface ConnectionTestResult {
                   <!-- Network Section -->
                   <div class="config-section">
                     <h3 class="section-title">{{ 'network' | i18n }}</h3>
+                    <!-- #POCXTODO: mainnet blocker — network selector disabled until mainnet launch -->
                     <mat-radio-group
                       [(ngModel)]="activeConfig.network"
                       (change)="onNetworkChange()"
+                      [disabled]="true"
                       class="horizontal-radio-group"
                     >
                       <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
