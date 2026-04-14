@@ -1508,7 +1508,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3942,9 +3942,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_address"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af1e1eb448bab71254d8b87694a93483725c2de31403f70bb9c071dd09a11cb9"
+checksum = "404339b8d5421577e8f597381e5a5df93716d31cc38c420224f4d433e8ab12e9"
 dependencies = [
  "bech32",
  "bs58",
@@ -3952,9 +3952,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_aggregator"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2553d6631d6411b49e29f4ab9b8e968e493bb76c041589440a4326d99e0c3805"
+checksum = "fdceb1c140c68c464729c19972e584c986e6338bb18c6394a77365a7d87fb1e4"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3980,9 +3980,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_hashlib"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fb576294af9b64f61eb1918cb663ef053ef8df352a1e302e9e18f84c20e3041"
+checksum = "fa7121d441afb089154bca5d00c7fbf20612f37b72ef2a6d2a3baa581b491894"
 dependencies = [
  "hex",
  "page_size",
@@ -3990,9 +3990,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_miner"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1e464e66150af6c28fa41b39f3f81ecef56d2cc7e983017b04e73d06720cf4c"
+checksum = "6781650df63ceec77713827a41068d21816fe1fd337063feff15e481e76c7b22"
 dependencies = [
  "bytesize",
  "cfg-if",
@@ -4026,9 +4026,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotfile"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cee6bfd9d3d528842ce1b57838decf007f86667a800e6325bc5400590ae0495"
+checksum = "eb853529dd3a420e3cba1ed94bf9e1b6f8b131d92ec5007667c7f9ab2c557312"
 dependencies = [
  "cfg-if",
  "filetime",
@@ -4044,9 +4044,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotter_v2"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "994c7e5351a6f5f94bfda5d520f0793e4ee2d8de5f59649951797df7df6427df"
+checksum = "d7e4b86cc0980de94f0518d3894392834bc2d2342f409b8e8d415a93b61bb2fb"
 dependencies = [
  "cfg-if",
  "clap",
@@ -4068,9 +4068,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_protocol"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cfd66dced664425d74aed6f2695f9e9d97f125ccf2a7830a9695bb67b13647b"
+checksum = "aafc2c16a0cb896fa5a9d75ccfd0f9b553bd72e717aa62ee4e4c4ceb9a5ebf25"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4319,7 +4319,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4753,7 +4753,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6210,7 +6210,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7179,7 +7179,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
