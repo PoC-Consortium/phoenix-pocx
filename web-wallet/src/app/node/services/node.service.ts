@@ -437,7 +437,17 @@ export class NodeService {
   async startNode(): Promise<number | null> {
     try {
       this._error.set(null);
-      this._status.set(createDefaultNodeStatus());
+      this._status.update(s => ({
+        ...s,
+        running: false,
+        blocks: 0,
+        headers: 0,
+        peers: 0,
+        synced: false,
+        syncProgress: 0,
+        pid: null,
+        error: null,
+      }));
       this._nodeStarting.next();
       const pid = await invoke<number>('start_managed_node');
       console.log('NodeService: Started node with PID:', pid);
@@ -490,7 +500,17 @@ export class NodeService {
   async restartNode(): Promise<number | null> {
     try {
       this._error.set(null);
-      this._status.set(createDefaultNodeStatus());
+      this._status.update(s => ({
+        ...s,
+        running: false,
+        blocks: 0,
+        headers: 0,
+        peers: 0,
+        synced: false,
+        syncProgress: 0,
+        pid: null,
+        error: null,
+      }));
       this._nodeStarting.next();
       const pid = await invoke<number>('restart_managed_node');
       console.log('NodeService: Restarted node with PID:', pid);
