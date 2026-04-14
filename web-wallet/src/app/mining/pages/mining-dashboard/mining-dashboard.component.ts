@@ -1907,6 +1907,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     this.miningService.invalidateDriveCache();
     await this.loadDriveStats();
     await this.miningService.refreshPlotterState();
+
+    // If plotting is not complete, regenerate plan so it reflects
+    // current disk state (e.g. .tmp files that need resuming)
+    if (!this.miningService.plotterRunning()) {
+      await this.miningService.generatePlotPlan();
+    }
   }
 
   private formatSize(gib: number): string {

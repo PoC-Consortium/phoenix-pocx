@@ -754,7 +754,7 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
         }
       } else {
         // Load wallet
-        await this.walletManager.loadWallet(wallet.name);
+        await this.walletManager.loadWallet(wallet.name, true);
         this.selectedWallet.set(wallet.name);
       }
       await this.loadWallets();
@@ -779,7 +779,7 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
     try {
       // Load wallet if not loaded
       if (!wallet.isLoaded) {
-        await this.walletManager.loadWallet(walletName);
+        await this.walletManager.loadWallet(walletName, true);
       }
 
       // Set as active wallet

@@ -106,9 +106,9 @@ export interface SettingsState {
  */
 export const defaultNodeConfig: NodeConfig = {
   coinType: 'bitcoin-pocx',
-  network: 'testnet',
+  network: 'mainnet',
   rpcHost: '127.0.0.1',
-  rpcPort: 18332,
+  rpcPort: 8332,
   dataDirectory: '',
   testnetSubdir: 'testnet',
   authMethod: 'cookie',

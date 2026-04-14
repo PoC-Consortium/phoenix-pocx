@@ -125,7 +125,7 @@ export const defaultAggregatorConfig: AggregatorConfig = {
   listenAddress: '0.0.0.0:8080',
   upstreamName: 'local',
   upstreamRpcHost: '127.0.0.1',
-  upstreamRpcPort: 18332,
+  upstreamRpcPort: 8332,
   submissionMode: 'wallet',
   blockTimeSecs: 120,
 };

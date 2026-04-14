@@ -113,6 +113,21 @@ pub fn stop_managed_node(
     manager.stop(&state, &app)
 }
 
+/// Wait for the node process to fully exit (polls every 500ms, max 30 seconds)
+#[tauri::command]
+pub async fn wait_for_node_exit() -> bool {
+    let max_attempts = 60;
+    for i in 0..max_attempts {
+        if !NodeManager::is_node_running() {
+            log::info!("Node process exited after {}ms", i * 500);
+            return true;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    log::warn!("Node process did not exit within 30s");
+    !NodeManager::is_node_running()
+}
+
 /// Restart the managed node
 #[tauri::command]
 pub fn restart_managed_node(

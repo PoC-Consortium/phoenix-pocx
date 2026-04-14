@@ -14,6 +14,8 @@ import { MiningService } from './mining/services';
 import { NodeService } from './node';
 import { AggregatorService } from './aggregator/services/aggregator.service';
 import { I18nService } from './core/i18n';
+import { Store } from '@ngrx/store';
+import { WalletActions } from './store/wallet/wallet.actions';
 import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confirm-dialog.component';
 
 /**
@@ -86,6 +88,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly nodeService = inject(NodeService);
   private readonly aggregatorService = inject(AggregatorService);
   private readonly i18n = inject(I18nService);
+  private readonly store = inject(Store);
 
   private readonly ngZone = inject(NgZone);
   private closeUnlisten: (() => void) | null = null;
@@ -96,6 +99,11 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly isStartingNode = signal(false);
 
   ngOnInit(): void {
+    // Reset wallet store when node starts to clear stale network-specific data
+    this.nodeService.nodeStarting$.subscribe(() => {
+      this.store.dispatch(WalletActions.resetState());
+    });
+
     // Start blockchain state polling - runs continuously for all components
     this.blockchainState.startPolling();
 

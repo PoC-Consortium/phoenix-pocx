@@ -148,7 +148,7 @@ interface ConnectionTestResult {
                       </div>
 
                       <div class="node-controls">
-                        @if (nodeService.isRunning()) {
+                        @if (nodeService.isRunning() || isStoppingNode()) {
                           <button
                             mat-stroked-button
                             color="warn"
@@ -157,19 +157,20 @@ interface ConnectionTestResult {
                           >
                             @if (isStoppingNode()) {
                               <mat-spinner diameter="18"></mat-spinner>
+                              {{ 'node_stopping' | i18n }}
                             } @else {
-                              <mat-icon>stop</mat-icon>
+                              <ng-container>
+                                <mat-icon>stop</mat-icon>
+                                {{ 'node_stop' | i18n }}
+                              </ng-container>
                             }
-                            {{ 'node_stop' | i18n }}
                           </button>
-                          <button
-                            mat-stroked-button
-                            (click)="restartManagedNode()"
-                            [disabled]="isStoppingNode()"
-                          >
-                            <mat-icon>refresh</mat-icon>
-                            {{ 'node_restart' | i18n }}
-                          </button>
+                          @if (!isStoppingNode()) {
+                            <button mat-stroked-button (click)="restartManagedNode()">
+                              <mat-icon>refresh</mat-icon>
+                              {{ 'node_restart' | i18n }}
+                            </button>
+                          }
                         } @else {
                           <button
                             mat-raised-button
@@ -200,6 +201,31 @@ interface ConnectionTestResult {
 
                   @if (nodeService.isInstalled()) {
                     <div class="config-section">
+                      <h3 class="section-title">{{ 'network' | i18n }}</h3>
+                      <!-- #POCXTODO: mainnet blocker — network selector disabled until mainnet launch -->
+                      <mat-radio-group
+                        [(ngModel)]="activeConfig.network"
+                        (change)="onManagedNetworkChange()"
+                        [disabled]="true"
+                        class="horizontal-radio-group"
+                      >
+                        <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
+                        <mat-radio-button value="testnet">{{ 'testnet' | i18n }}</mat-radio-button>
+                      </mat-radio-group>
+                      @if (
+                        nodeService.isRunning() ||
+                        isStoppingNode() ||
+                        miningService.minerRunning() ||
+                        aggregatorService.isRunning()
+                      ) {
+                        <p class="hint-text">
+                          <mat-icon class="hint-icon">info</mat-icon>
+                          {{ 'node_network_change_stop_hint' | i18n }}
+                        </p>
+                      }
+                    </div>
+
+                    <div class="config-section">
                       <h3 class="section-title">{{ 'node_updates' | i18n }}</h3>
                       <div class="update-row">
                         <div class="update-info">
@@ -227,6 +253,12 @@ interface ConnectionTestResult {
                           }
                         </div>
                       </div>
+                      @if (nodeService.hasUpdate()) {
+                        <p class="hint-text">
+                          <mat-icon class="hint-icon">info</mat-icon>
+                          {{ 'node_update_restart_hint' | i18n }}
+                        </p>
+                      }
                     </div>
                   }
 
@@ -253,9 +285,11 @@ interface ConnectionTestResult {
                   <!-- Network Section -->
                   <div class="config-section">
                     <h3 class="section-title">{{ 'network' | i18n }}</h3>
+                    <!-- #POCXTODO: mainnet blocker — network selector disabled until mainnet launch -->
                     <mat-radio-group
                       [(ngModel)]="activeConfig.network"
                       (change)="onNetworkChange()"
+                      [disabled]="true"
                       class="horizontal-radio-group"
                     >
                       <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
@@ -1231,6 +1265,21 @@ interface ConnectionTestResult {
         gap: 8px;
       }
 
+      .hint-text {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 8px 0 0;
+        font-size: 12px;
+        opacity: 0.7;
+      }
+
+      .hint-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+      }
+
       /* Debug & Logs Styles */
       .debug-container {
         max-width: 600px;
@@ -1382,11 +1431,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly platform = inject(PlatformService);
   private readonly electron = inject(ElectronService);
   private readonly cookieAuth = inject(CookieAuthService);
-  private readonly miningService = inject(MiningService);
+  protected readonly miningService = inject(MiningService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly walletManager = inject(WalletManagerService);
   readonly nodeService = inject(NodeService);
-  private readonly aggregatorService = inject(AggregatorService);
+  protected readonly aggregatorService = inject(AggregatorService);
   private readonly destroy$ = new Subject<void>();
 
   // Managed node state
@@ -1508,6 +1557,22 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     // Clear test result
     this.testResult.set(null);
+  }
+
+  async onManagedNetworkChange(): Promise<void> {
+    const network = this.activeConfig.network;
+
+    // Update port and persist config (node must already be stopped via guard)
+    this.activeConfig.rpcPort = getDefaultRpcPort(network);
+    const rustConfig = this.nodeService.config();
+    await this.nodeService.saveConfig({
+      ...rustConfig,
+      network,
+      rpcPort: this.activeConfig.rpcPort,
+    });
+    this.store.dispatch(SettingsActions.setNodeConfig({ config: { ...this.activeConfig } }));
+
+    this.notification.success(this.i18n.get('node_network_switched') + network);
   }
 
   async browseDataDirectory(): Promise<void> {
@@ -1857,7 +1922,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   async stopManagedNode(): Promise<void> {
     this.isStoppingNode.set(true);
     try {
-      await this.nodeService.stopNode();
+      // Stop miner/aggregator first — they depend on the node
+      if (this.miningService.minerRunning()) {
+        await this.miningService.stopMiner();
+      }
+      if (this.aggregatorService.isRunning()) {
+        await this.aggregatorService.stop();
+      }
+
+      await this.nodeService.stopNodeAndWait();
       this.notification.success('Node stopped');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to stop node';
@@ -1908,11 +1981,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /**
    * Navigate to node setup to install update.
-   * Requires node to be stopped first.
+   * Requires miner, aggregator, and node to be stopped first.
    */
   updateNode(): void {
-    if (this.nodeService.isRunning()) {
-      this.notification.warning('Please stop the node before updating');
+    const running: string[] = [];
+    if (this.miningService.minerRunning()) running.push(this.i18n.get('miner'));
+    if (this.aggregatorService.isRunning()) running.push(this.i18n.get('aggregator'));
+    if (this.nodeService.isRunning()) running.push(this.i18n.get('node'));
+
+    if (running.length > 0) {
+      this.notification.warning(this.i18n.get('node_update_stop_services') + running.join(', '));
       return;
     }
 

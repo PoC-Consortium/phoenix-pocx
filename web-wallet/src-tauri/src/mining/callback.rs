@@ -294,7 +294,7 @@ impl<R: Runtime> TauriMinerCallback<R> {
             "mainnet" => "pocx",
             "testnet" => "tpocx",
             "regtest" => "rpocx",
-            _ => "tpocx", // Default to testnet
+            _ => "pocx", // Default to mainnet
         };
 
         // Parse hex and encode to bech32

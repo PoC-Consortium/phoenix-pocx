@@ -14,7 +14,7 @@ import { selectNetwork } from '../../store/settings/settings.selectors';
 export class BlockExplorerService {
   private readonly store = inject(Store);
   private readonly network = toSignal(this.store.select(selectNetwork), {
-    initialValue: 'testnet',
+    initialValue: 'mainnet',
   });
 
   /**

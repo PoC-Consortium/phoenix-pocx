@@ -1,4 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
+import { Subject } from 'rxjs';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import {
@@ -29,6 +30,10 @@ import {
   providedIn: 'root',
 })
 export class NodeService {
+  // Event emitted before node starts — services subscribe to reset network-specific state
+  private readonly _nodeStarting = new Subject<void>();
+  readonly nodeStarting$ = this._nodeStarting.asObservable();
+
   // Signals for reactive state
   private readonly _config = signal<NodeConfig>(createDefaultNodeConfig());
   private readonly _status = signal<NodeStatus>(createDefaultNodeStatus());
@@ -432,6 +437,8 @@ export class NodeService {
   async startNode(): Promise<number | null> {
     try {
       this._error.set(null);
+      this._status.set(createDefaultNodeStatus());
+      this._nodeStarting.next();
       const pid = await invoke<number>('start_managed_node');
       console.log('NodeService: Started node with PID:', pid);
       await this.refreshStatus();
@@ -461,11 +468,30 @@ export class NodeService {
   }
 
   /**
+   * Wait for the node process to fully exit.
+   * Returns true if process exited, false if timed out.
+   */
+  async waitForNodeExit(): Promise<boolean> {
+    return invoke<boolean>('wait_for_node_exit');
+  }
+
+  /**
+   * Stop the managed node and wait for process to fully exit.
+   */
+  async stopNodeAndWait(): Promise<boolean> {
+    const stopped = await this.stopNode();
+    if (!stopped) return false;
+    return this.waitForNodeExit();
+  }
+
+  /**
    * Restart the managed node.
    */
   async restartNode(): Promise<number | null> {
     try {
       this._error.set(null);
+      this._status.set(createDefaultNodeStatus());
+      this._nodeStarting.next();
       const pid = await invoke<number>('restart_managed_node');
       console.log('NodeService: Restarted node with PID:', pid);
       await this.refreshStatus();

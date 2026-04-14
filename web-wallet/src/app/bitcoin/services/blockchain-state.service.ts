@@ -8,6 +8,7 @@ import {
 } from './rpc/blockchain-rpc.service';
 import { CookieAuthService } from '../../core/auth/cookie-auth.service';
 import { PocxNotificationService } from './pocx-notification.service';
+import { NodeService } from '../../node/services/node.service';
 
 /**
  * PoCX block extension with base_target for capacity calculation
@@ -54,7 +55,12 @@ export class BlockchainStateService implements OnDestroy {
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly notificationService = inject(PocxNotificationService);
+  private readonly nodeService = inject(NodeService);
   private readonly destroy$ = new Subject<void>();
+
+  constructor() {
+    this.nodeService.nodeStarting$.subscribe(() => this.resetState());
+  }
 
   // Polling configuration
   private readonly pollInterval = 15000; // 15 seconds
@@ -113,6 +119,29 @@ export class BlockchainStateService implements OnDestroy {
   stopPolling(): void {
     this.isPolling = false;
     this.destroy$.next();
+  }
+
+  /**
+   * Reset all network-specific state to initial values.
+   * Called when node starts to prevent stale data from previous network.
+   */
+  resetState(): void {
+    this.blockHeight.set(0);
+    this.bestBlockHash.set('');
+    this.chain.set('');
+    this.headers.set(0);
+    this.verificationProgress.set(0);
+    this.initialBlockDownload.set(false);
+    this.difficulty.set(0);
+    this.peerTargetHeight.set(0);
+    this.peerCount.set(0);
+    this.lastBlockTime.set(0);
+    this.baseTarget.set(null);
+    this.lastUpdated.set(null);
+    this.lastError.set(null);
+    this.wasConnected = false;
+    this.wasSynced = false;
+    this.isInitialized = false;
   }
 
   /**

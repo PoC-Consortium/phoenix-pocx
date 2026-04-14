@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { EMPTY } from 'rxjs';
 import { AppComponent } from './app.component';
 import { provideRouter } from '@angular/router';
 import { provideMockStore } from '@ngrx/store/testing';
@@ -44,6 +45,7 @@ describe('AppComponent', () => {
     isRunning: jasmine.createSpy('isRunning').and.returnValue(false),
     detectExistingNode: jasmine.createSpy('detectExistingNode'),
     refreshNodeStatus: jasmine.createSpy('refreshNodeStatus'),
+    nodeStarting$: EMPTY,
   };
 
   const mockI18n = {

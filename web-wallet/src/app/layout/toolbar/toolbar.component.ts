@@ -515,7 +515,7 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   // State
   currentWalletName = signal<string | null>(null);
   wallets = signal<WalletSummary[]>([]);
-  network = signal<Network>('testnet');
+  network = signal<Network>('mainnet');
 
   // Loading tracking
   loadingWallets = new Set<string>();
@@ -580,7 +580,7 @@ export class ToolbarComponent implements OnInit, OnDestroy {
     try {
       // Load wallet if not loaded
       if (!wallet.isLoaded) {
-        await this.walletManager.loadWallet(wallet.name);
+        await this.walletManager.loadWallet(wallet.name, true);
       }
 
       // Set as active wallet

@@ -16,9 +16,12 @@ import {
   getEtaValues,
   getStageKey,
 } from '../../models';
+import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../core/i18n';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 import { AppUpdateService } from '../../../core/services/app-update.service';
+import { SettingsActions } from '../../../store/settings/settings.actions';
+import { getDefaultRpcPort } from '../../../store/settings/settings.state';
 
 @Component({
   selector: 'app-node-setup',
@@ -81,6 +84,17 @@ import { AppUpdateService } from '../../../core/services/app-update.service';
                 </div>
               </div>
             </div>
+
+            <!-- #POCXTODO: mainnet blocker — testnet forced on and disabled until mainnet launch -->
+            <label class="testnet-toggle">
+              <input
+                type="checkbox"
+                [checked]="testnetMode()"
+                (change)="toggleTestnetMode()"
+                disabled
+              />
+              <span>{{ 'node_setup_testnet_mode' | i18n }}</span>
+            </label>
           </div>
 
           <div class="box-actions">
@@ -368,6 +382,16 @@ import { AppUpdateService } from '../../../core/services/app-update.service';
         color: white;
       }
 
+      .testnet-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.6);
+        cursor: pointer;
+      }
+
       .mode-desc {
         font-size: 13px;
         color: rgba(0, 0, 0, 0.6);
@@ -629,6 +653,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly appUpdateService = inject(AppUpdateService);
+  private readonly store = inject(Store);
 
   /** App version from backend */
   readonly appVersion = this.appUpdateService.currentVersion;
@@ -636,6 +661,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   // State
   readonly currentStep = signal(0);
   readonly selectedMode = signal<NodeMode>('managed');
+  readonly testnetMode = signal(true); // #POCXTODO: mainnet blocker — default to testnet until mainnet launch
   readonly releaseInfo = signal<ReleaseInfo | null>(null);
   readonly isFetchingRelease = signal(false);
   readonly platformArch = signal<string>('unknown');
@@ -748,18 +774,32 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
     this.selectedMode.set(mode);
   }
 
+  toggleTestnetMode(): void {
+    this.testnetMode.update(v => !v);
+  }
+
   async continueFromModeSelection(): Promise<void> {
+    const network = this.testnetMode() ? 'testnet' : 'mainnet';
+    const rpcPort = getDefaultRpcPort(network);
+
+    // Sync network to NgRx store so RpcClientService uses the correct port
+    this.store.dispatch(SettingsActions.setNetwork({ network }));
+
     if (this.selectedMode() === 'external') {
       // External: save and go to wallet selector
       const config = this.nodeService.config();
       const updatedConfig: NodeConfig = {
         ...config,
         mode: 'external',
+        network,
+        rpcPort,
       };
       await this.nodeService.saveConfig(updatedConfig);
       this.router.navigate(['/auth']);
     } else {
-      // Managed: go to step 2 (installation) and fetch release info
+      // Managed: save network choice, then go to step 2 (installation)
+      const config = this.nodeService.config();
+      await this.nodeService.saveConfig({ ...config, network, rpcPort });
       this.currentStep.set(1);
       this.fetchReleaseInfo();
     }

@@ -55,20 +55,7 @@ impl NodeRpcClient {
         // Cookie file location depends on network
         let cookie_path = match config.network {
             super::config::Network::Mainnet => data_dir.join(".cookie"),
-            super::config::Network::Testnet => {
-                // Try testnet3 first (Bitcoin Core default), then testnet
-                let testnet3 = data_dir.join("testnet3").join(".cookie");
-                if testnet3.exists() {
-                    testnet3
-                } else {
-                    let testnet = data_dir.join("testnet").join(".cookie");
-                    if testnet.exists() {
-                        testnet
-                    } else {
-                        testnet3 // Default to testnet3
-                    }
-                }
-            }
+            super::config::Network::Testnet => data_dir.join("testnet").join(".cookie"),
             super::config::Network::Regtest => data_dir.join("regtest").join(".cookie"),
         };
 

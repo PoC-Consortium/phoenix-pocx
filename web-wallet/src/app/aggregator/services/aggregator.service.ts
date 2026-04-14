@@ -20,6 +20,7 @@ import {
 } from '../models/aggregator.models';
 import { selectNetwork } from '../../store/settings';
 import { MiningService } from '../../mining/services/mining.service';
+import { NodeService } from '../../node/services/node.service';
 
 @Injectable({
   providedIn: 'root',
@@ -27,6 +28,7 @@ import { MiningService } from '../../mining/services/mining.service';
 export class AggregatorService {
   private readonly store = inject(Store);
   private readonly injector = inject(Injector);
+  private readonly nodeServiceRef = inject(NodeService);
 
   // Signals
   private readonly _config = signal<AggregatorConfig>(defaultAggregatorConfig);
@@ -43,7 +45,7 @@ export class AggregatorService {
 
   // Bech32 cache
   private readonly bech32Cache = new Map<string, string>();
-  private currentNetwork: string = 'testnet';
+  private currentNetwork: string = 'mainnet';
 
   // Public readonly signals
   readonly config = this._config.asReadonly();
@@ -62,9 +64,22 @@ export class AggregatorService {
     this.store.select(selectNetwork).subscribe(network => {
       if (network !== this.currentNetwork) {
         this.currentNetwork = network;
-        this.bech32Cache.clear(); // Clear cache on network change
+        this.bech32Cache.clear();
       }
     });
+
+    // Reset stats when node starts to clear stale network-specific data
+    this.nodeServiceRef.nodeStarting$.subscribe(() => this.resetStats());
+  }
+
+  /**
+   * Reset network-specific state.
+   */
+  resetStats(): void {
+    this._stats.set(null);
+    this._bestAccountBech32.set(null);
+    this._activityLogs.set([]);
+    this._error.set(null);
   }
 
   // Event listeners

@@ -179,23 +179,7 @@ pub(crate) fn build_cookie_path(data_directory: &str, network: &str) -> PathBuf 
         return base_path.join(".cookie");
     }
 
-    // For testnet, Bitcoin-PoCX uses "testnet" folder
-    // Try testnet first, then fall back to testnet3 (standard Bitcoin Core)
-    if network == "testnet" {
-        let testnet_cookie = base_path.join("testnet").join(".cookie");
-        if testnet_cookie.exists() {
-            return testnet_cookie;
-        }
-        // Fall back to testnet3 folder (standard Bitcoin Core)
-        let testnet3_cookie = base_path.join("testnet3").join(".cookie");
-        if testnet3_cookie.exists() {
-            return testnet3_cookie;
-        }
-        // Default to testnet (Bitcoin-PoCX default)
-        return testnet_cookie;
-    }
-
-    // regtest uses regtest folder
+    // testnet and regtest use their respective subdirectories
     base_path.join(network).join(".cookie")
 }
 
@@ -808,6 +792,7 @@ pub fn run() {
             node::commands::get_installed_node_version,
             node::commands::start_managed_node,
             node::commands::stop_managed_node,
+            node::commands::wait_for_node_exit,
             node::commands::restart_managed_node,
             node::commands::detect_existing_node,
             node::commands::refresh_node_status,

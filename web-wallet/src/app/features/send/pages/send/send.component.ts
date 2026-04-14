@@ -137,7 +137,10 @@ interface FeeOption {
                     autocomplete="off"
                   />
                   @if (addressError()) {
-                    <mat-error>{{ addressError() }}</mat-error>
+                    <mat-hint class="error-hint">
+                      <mat-icon class="small-icon">error</mat-icon>
+                      {{ addressError() }}
+                    </mat-hint>
                   }
                   @if (addressValid()) {
                     <mat-hint class="valid-hint">
@@ -540,6 +543,19 @@ interface FeeOption {
 
       .valid-hint {
         color: #4caf50;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        .small-icon {
+          font-size: 16px;
+          width: 16px;
+          height: 16px;
+        }
+      }
+
+      .error-hint {
+        color: #f44336;
         display: flex;
         align-items: center;
         gap: 4px;
