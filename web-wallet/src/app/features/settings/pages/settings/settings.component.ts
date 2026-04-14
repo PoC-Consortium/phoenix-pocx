@@ -166,10 +166,7 @@ interface ConnectionTestResult {
                             }
                           </button>
                           @if (!isStoppingNode()) {
-                            <button
-                              mat-stroked-button
-                              (click)="restartManagedNode()"
-                            >
+                            <button mat-stroked-button (click)="restartManagedNode()">
                               <mat-icon>refresh</mat-icon>
                               {{ 'node_restart' | i18n }}
                             </button>
@@ -215,7 +212,12 @@ interface ConnectionTestResult {
                         <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
                         <mat-radio-button value="testnet">{{ 'testnet' | i18n }}</mat-radio-button>
                       </mat-radio-group>
-                      @if (nodeService.isRunning() || isStoppingNode() || miningService.minerRunning() || aggregatorService.isRunning()) {
+                      @if (
+                        nodeService.isRunning() ||
+                        isStoppingNode() ||
+                        miningService.minerRunning() ||
+                        aggregatorService.isRunning()
+                      ) {
                         <p class="hint-text">
                           <mat-icon class="hint-icon">info</mat-icon>
                           {{ 'node_network_change_stop_hint' | i18n }}
@@ -1568,13 +1570,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
       network,
       rpcPort: this.activeConfig.rpcPort,
     });
-    this.store.dispatch(
-      SettingsActions.setNodeConfig({ config: { ...this.activeConfig } })
-    );
+    this.store.dispatch(SettingsActions.setNodeConfig({ config: { ...this.activeConfig } }));
 
-    this.notification.success(
-      this.i18n.get('node_network_switched') + network
-    );
+    this.notification.success(this.i18n.get('node_network_switched') + network);
   }
 
   async browseDataDirectory(): Promise<void> {
@@ -1992,9 +1990,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (this.nodeService.isRunning()) running.push(this.i18n.get('node'));
 
     if (running.length > 0) {
-      this.notification.warning(
-        this.i18n.get('node_update_stop_services') + running.join(', ')
-      );
+      this.notification.warning(this.i18n.get('node_update_stop_services') + running.join(', '));
       return;
     }
 

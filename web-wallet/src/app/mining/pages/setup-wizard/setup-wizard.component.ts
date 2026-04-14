@@ -3228,7 +3228,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       };
     } else if (data.mode === 'pool') {
       const poolName = data.poolUrl.includes('pool.bitcoin-pocx.org')
-        ? data.poolUrl.includes('testnet') ? 'Nogrod PoCX Testnet' : 'Nogrod PoCX'
+        ? data.poolUrl.includes('testnet')
+          ? 'Nogrod PoCX Testnet'
+          : 'Nogrod PoCX'
         : data.chainName || 'Pool';
 
       // Parse pool URL to extract host and port
