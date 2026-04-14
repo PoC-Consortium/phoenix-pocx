@@ -435,7 +435,7 @@ export class DescriptorService {
 
   private descriptorChecksum(desc: string): string {
     const INPUT_CHARSET =
-      '0123456789()[]\',/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#"\\ ';
+      '0123456789()[],\'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#"\\ ';
 
     let c = BigInt(1);
     let cls = 0;
