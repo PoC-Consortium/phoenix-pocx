@@ -712,7 +712,7 @@ pub async fn run_device_benchmark(
             .address(&address)
             .map(|b| {
                 b.add_output(temp_dir.to_string_lossy().to_string(), warps, 1)
-                    .cpu_threads(threads as u8)
+                    .cpu_threads(threads as usize)
                     .compression(1)
                     .escalate(escalation)
                     .benchmark(true)

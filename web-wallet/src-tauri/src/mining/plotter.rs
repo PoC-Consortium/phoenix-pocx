@@ -1082,7 +1082,7 @@ fn build_plotter_task_batch(
     let mut builder = pocx_plotter_v2::PlotterTaskBuilder::new()
         .address(address)
         .map_err(|e| format!("Invalid address: {}", e))?
-        .cpu_threads(cpu_threads as u8)
+        .cpu_threads(cpu_threads)
         .compression(config.compression_level)
         .escalate(config.escalation)
         .direct_io(config.direct_io)
