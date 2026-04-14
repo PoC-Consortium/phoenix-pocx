@@ -729,11 +729,12 @@ pub async fn run_device_benchmark(
             device_id.clone()
         };
 
+        // GPU-only: don't call .cpu_threads() — pocx_plotter_v2 1.0.2 rejects
+        // explicit .cpu_threads(0); leaving it at default disables CPU.
         pocx_plotter_v2::PlotterTaskBuilder::new()
             .address(&address)
             .map(|b| {
                 b.add_output(temp_dir.to_string_lossy().to_string(), warps, 1)
-                    .cpu_threads(0) // Disable CPU
                     .gpu(gpu_id_with_threads)
                     .compression(1)
                     .escalate(escalation)
