@@ -1078,16 +1078,21 @@ fn build_plotter_task_batch(
     log::info!("  Simulation mode: {}", config.simulation_mode);
     log::info!("========================================");
 
-    // Build the task
+    // Build the task. Only call .cpu_threads() when CPU is actually enabled;
+    // pocx_plotter_v2 1.0.2 rejects explicit .cpu_threads(0), so GPU-only
+    // configs must leave it at its default.
     let mut builder = pocx_plotter_v2::PlotterTaskBuilder::new()
         .address(address)
         .map_err(|e| format!("Invalid address: {}", e))?
-        .cpu_threads(cpu_threads)
         .compression(config.compression_level)
         .escalate(config.escalation)
         .direct_io(config.direct_io)
         .async_write(config.async_write)
         .quiet(false); // Allow plotter to log
+
+    if cpu_threads > 0 {
+        builder = builder.cpu_threads(cpu_threads);
+    }
 
     // Add all outputs
     for output in outputs {
