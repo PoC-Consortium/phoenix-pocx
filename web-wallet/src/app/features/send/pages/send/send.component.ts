@@ -25,7 +25,8 @@ interface Contact {
   notes?: string;
   createdAt: number;
 }
-import { AddressDisplayComponent } from '../../../../shared';
+import { AddressDisplayComponent, PassphraseDialogComponent } from '../../../../shared';
+import type { PassphraseDialogResult } from '../../../../shared';
 import { NotificationService } from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
@@ -1271,6 +1272,21 @@ export class SendComponent implements OnInit, OnDestroy {
     }
   }
 
+  private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
+    const info = await this.walletRpc.getWalletInfo(walletName);
+    if (info.unlocked_until === undefined || info.unlocked_until > 0) {
+      return true; // not encrypted, or already unlocked
+    }
+    const dialogRef = this.dialog.open(PassphraseDialogComponent, {
+      width: '400px',
+      data: { walletName, timeout: 60 },
+    });
+    const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
+    if (!result) return false; // user cancelled
+    await this.walletRpc.walletPassphrase(walletName, result.passphrase, result.timeout);
+    return true;
+  }
+
   async sendTransaction(): Promise<void> {
     const walletName = this.walletManager.activeWallet;
     if (!walletName || !this.amount) return;
@@ -1279,6 +1295,10 @@ export class SendComponent implements OnInit, OnDestroy {
     this.sendError.set(null);
 
     try {
+      if (!(await this.ensureWalletUnlocked(walletName))) {
+        this.sending.set(false);
+        return;
+      }
       // Use explicit fee_rate when available (custom or estimated), conf_target as fallback
       const feeRate =
         this.selectedFeeOption?.label === 'fee_custom'
