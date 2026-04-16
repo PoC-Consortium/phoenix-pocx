@@ -301,7 +301,7 @@ interface FeeOption {
                   >
                 </div>
                 <div class="summary-row">
-                  <span class="summary-label">{{ 'fee' | i18n }}:</span>
+                  <span class="summary-label">{{ 'estimated_fee' | i18n }}:</span>
                   <span class="summary-value"
                     >{{ selectedFeeOption?.estimatedFee ?? 0 | number: '1.8-8' }}
                     {{ currencySymbol() }}</span
