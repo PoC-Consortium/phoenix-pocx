@@ -121,6 +121,7 @@
   "contacts": "Contacts",
   "cookie_based": "Authentification par cookie",
   "copied_to_clipboard": "Copie dans le presse-papiers",
+  "copy_failed": "Échec de la copie dans le presse-papiers",
   "copy": "Copier",
   "copy_address": "Copier l'adresse",
   "copy_transaction_id": "Copier l'ID de transaction",

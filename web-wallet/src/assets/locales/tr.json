@@ -121,6 +121,7 @@
   "contacts": "Kişiler",
   "cookie_based": "Çerez tabanlı kimlik doğrulama",
   "copied_to_clipboard": "Panoya kopyalandı",
+  "copy_failed": "Panoya kopyalama başarısız",
   "copy": "Kopyala",
   "copy_address": "Adresi Kopyala",
   "copy_transaction_id": "İşlem Kimliğini Kopyala",

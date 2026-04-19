@@ -80,17 +80,4 @@ export class PlatformService {
     this._platform = platform as Platform;
     this._initialized = true;
   }
-
-  /**
-   * Copy text to clipboard
-   */
-  async copyToClipboard(text: string): Promise<boolean> {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      return false;
-    }
-  }
 }

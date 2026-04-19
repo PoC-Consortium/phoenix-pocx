@@ -121,6 +121,7 @@
   "contacts": "Kontakti",
   "cookie_based": "Autentifikacija temeljena na kolacicima",
   "copied_to_clipboard": "Kopirano u meduspremnik",
+  "copy_failed": "Kopiranje u meduspremnik nije uspjelo",
   "copy": "Kopiraj",
   "copy_address": "Kopiraj adresu",
   "copy_transaction_id": "Kopiraj ID transakcije",

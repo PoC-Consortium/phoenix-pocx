@@ -121,6 +121,7 @@
   "contacts": "Kontak",
   "cookie_based": "Autentikasi berbasis cookie",
   "copied_to_clipboard": "Disalin ke clipboard",
+  "copy_failed": "Gagal menyalin ke clipboard",
   "copy": "Salin",
   "copy_address": "Salin Alamat",
   "copy_transaction_id": "Salin ID Transaksi",

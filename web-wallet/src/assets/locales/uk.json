@@ -121,6 +121,7 @@
   "contacts": "Контакти",
   "cookie_based": "Автентифікація на основі cookie",
   "copied_to_clipboard": "Скопійовано в буфер обміну",
+  "copy_failed": "Не вдалося скопіювати в буфер обміну",
   "copy": "Копіювати",
   "copy_address": "Копіювати адресу",
   "copy_transaction_id": "Копіювати ID транзакції",

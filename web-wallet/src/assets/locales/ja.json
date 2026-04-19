@@ -121,6 +121,7 @@
   "contacts": "連絡先",
   "cookie_based": "Cookieベースの認証",
   "copied_to_clipboard": "クリップボードにコピーしました",
+  "copy_failed": "クリップボードへのコピーに失敗しました",
   "copy": "コピー",
   "copy_address": "アドレスをコピー",
   "copy_transaction_id": "トランザクションIDをコピー",

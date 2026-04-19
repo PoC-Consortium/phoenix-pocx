@@ -1,46 +1,32 @@
 import { Injectable, inject } from '@angular/core';
+import { I18nService } from '../../core/i18n';
 import { NotificationService } from './notification.service';
 
-/**
- * ClipboardService provides clipboard operations with notifications.
- */
 @Injectable({ providedIn: 'root' })
 export class ClipboardService {
   private readonly notification = inject(NotificationService);
+  private readonly i18n = inject(I18nService);
 
-  /**
-   * Copy text to clipboard
-   */
-  async copy(text: string, label?: string): Promise<boolean> {
+  async copy(text: string, successKey = 'copied_to_clipboard'): Promise<boolean> {
     try {
       await navigator.clipboard.writeText(text);
-      const message = label ? `${label} copied to clipboard` : 'Copied to clipboard';
-      this.notification.success(message);
+      this.notification.success(this.i18n.get(successKey));
       return true;
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
-      this.notification.error('Failed to copy to clipboard');
+      this.notification.error(this.i18n.get('copy_failed'));
       return false;
     }
   }
 
-  /**
-   * Copy an address to clipboard
-   */
   async copyAddress(address: string): Promise<boolean> {
-    return this.copy(address, 'Address');
+    return this.copy(address, 'address_copied');
   }
 
-  /**
-   * Copy a transaction ID to clipboard
-   */
   async copyTxid(txid: string): Promise<boolean> {
-    return this.copy(txid, 'Transaction ID');
+    return this.copy(txid);
   }
 
-  /**
-   * Read text from clipboard
-   */
   async read(): Promise<string | null> {
     try {
       return await navigator.clipboard.readText();

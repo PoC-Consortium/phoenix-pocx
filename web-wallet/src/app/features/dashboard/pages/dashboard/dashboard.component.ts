@@ -26,7 +26,11 @@ import {
 import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
-import { NotificationService, BlockExplorerService } from '../../../../shared/services';
+import {
+  ClipboardService,
+  NotificationService,
+  BlockExplorerService,
+} from '../../../../shared/services';
 import {
   FeeBumpDialogComponent,
   FeeBumpDialogData,
@@ -931,6 +935,7 @@ export class DashboardComponent implements OnInit {
   private readonly i18n = inject(I18nService);
   private readonly notification = inject(NotificationService);
   private readonly blockExplorer = inject(BlockExplorerService);
+  private readonly clipboard = inject(ClipboardService);
   private readonly dialog = inject(MatDialog);
 
   // Loading states derived from services
@@ -1295,10 +1300,7 @@ export class DashboardComponent implements OnInit {
   }
 
   copyToClipboard(text: string): void {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      this.notification.show(this.i18n.get('copied_to_clipboard'), 'success');
-    }
+    this.clipboard.copy(text);
   }
 
   addToContacts(tx: WalletTransaction): void {

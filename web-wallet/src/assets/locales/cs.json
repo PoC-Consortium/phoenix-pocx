@@ -121,6 +121,7 @@
   "contacts": "Kontakty",
   "cookie_based": "Overeni zalozene na cookie",
   "copied_to_clipboard": "Zkopirovano do schranky",
+  "copy_failed": "Kopirovani do schranky selhalo",
   "copy": "Kopirovat",
   "copy_address": "Kopirovat adresu",
   "copy_transaction_id": "Kopirovat ID transakce",

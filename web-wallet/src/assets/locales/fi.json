@@ -121,6 +121,7 @@
   "contacts": "Yhteystiedot",
   "cookie_based": "Evastepohjainen tunnistautuminen",
   "copied_to_clipboard": "Kopioitu leikepoydale",
+  "copy_failed": "Leikepoydalle kopiointi epaonnistui",
   "copy": "Kopioi",
   "copy_address": "Kopioi osoite",
   "copy_transaction_id": "Kopioi tapahtuman tunnus",

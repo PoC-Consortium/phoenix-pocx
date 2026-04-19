@@ -121,6 +121,7 @@
   "contacts": "Kontakty",
   "cookie_based": "Uwierzytelnianie oparte na cookie",
   "copied_to_clipboard": "Skopiowano do schowka",
+  "copy_failed": "Nie udało się skopiować do schowka",
   "copy": "Kopiuj",
   "copy_address": "Kopiuj adres",
   "copy_transaction_id": "Kopiuj ID transakcji",

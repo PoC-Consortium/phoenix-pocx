@@ -121,6 +121,7 @@
   "contacts": "Contactes",
   "cookie_based": "Autenticació basada en cookie",
   "copied_to_clipboard": "Copiat al porta-retalls",
+  "copy_failed": "No s'ha pogut copiar al porta-retalls",
   "copy": "Copiar",
   "copy_address": "Copiar adreça",
   "copy_transaction_id": "Copiar ID de transacció",

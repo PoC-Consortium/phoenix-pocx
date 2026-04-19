@@ -121,6 +121,7 @@
   "contacts": "Επαφές",
   "cookie_based": "Πιστοποίηση βασισμένη σε cookie",
   "copied_to_clipboard": "Αντιγράφηκε στο πρόχειρο",
+  "copy_failed": "Αποτυχία αντιγραφής στο πρόχειρο",
   "copy": "Αντιγραφή",
   "copy_address": "Αντιγραφή διεύθυνσης",
   "copy_transaction_id": "Αντιγραφή ID συναλλαγής",

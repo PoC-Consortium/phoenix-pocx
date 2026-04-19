@@ -121,6 +121,7 @@
   "contacts": "Kontaktai",
   "cookie_based": "Slapuku autentifikacija",
   "copied_to_clipboard": "Nukopijuota i isvykimo sriti",
+  "copy_failed": "Nepavyko nukopijuoti i iskarpine",
   "copy": "Kopijuoti",
   "copy_address": "Kopijuoti adresa",
   "copy_transaction_id": "Kopijuoti operacijos ID",

@@ -983,7 +983,6 @@ export class TransactionDetailComponent implements OnInit {
 
   copyToClipboard(text: string): void {
     this.clipboard.copy(text);
-    this.notification.success(this.i18n.get('copied_to_clipboard'));
   }
 
   formatDate(timestamp: number): string {

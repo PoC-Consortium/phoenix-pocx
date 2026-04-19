@@ -121,6 +121,7 @@
   "contacts": "联系人",
   "cookie_based": "基于 Cookie 的身份验证",
   "copied_to_clipboard": "已复制到剪贴板",
+  "copy_failed": "复制到剪贴板失败",
   "copy": "复制",
   "copy_address": "复制地址",
   "copy_transaction_id": "复制交易ID",

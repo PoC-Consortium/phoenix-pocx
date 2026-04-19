@@ -121,6 +121,7 @@
   "contacts": "Contatos",
   "cookie_based": "Autenticação baseada em cookie",
   "copied_to_clipboard": "Copiado para a área de transferência",
+  "copy_failed": "Falha ao copiar para a área de transferência",
   "copy": "Copiar",
   "copy_address": "Copiar endereço",
   "copy_transaction_id": "Copiar ID da transação",

@@ -121,6 +121,7 @@
   "contacts": "Контакти",
   "cookie_based": "Cookie базирано удостоверяване",
   "copied_to_clipboard": "Копирано в клипборда",
+  "copy_failed": "Неуспешно копиране в клипборда",
   "copy": "Копирай",
   "copy_address": "Копирай адрес",
   "copy_transaction_id": "Копирай ID на транзакция",

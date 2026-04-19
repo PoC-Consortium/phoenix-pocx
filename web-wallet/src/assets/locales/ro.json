@@ -121,6 +121,7 @@
   "contacts": "Contacte",
   "cookie_based": "Autentificare bazată pe cookie",
   "copied_to_clipboard": "Copiat în clipboard",
+  "copy_failed": "Copierea în clipboard a eșuat",
   "copy": "Copiază",
   "copy_address": "Copiază adresa",
   "copy_transaction_id": "Copiază ID-ul tranzacției",

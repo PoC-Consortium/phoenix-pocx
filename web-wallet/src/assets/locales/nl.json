@@ -121,6 +121,7 @@
   "contacts": "Contacten",
   "cookie_based": "Cookie-gebaseerde authenticatie",
   "copied_to_clipboard": "Gekopieerd naar klembord",
+  "copy_failed": "Kopiëren naar klembord mislukt",
   "copy": "Kopiëren",
   "copy_address": "Kopieer Adres",
   "copy_transaction_id": "Kopieer Transactie-ID",

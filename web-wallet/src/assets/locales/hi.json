@@ -121,6 +121,7 @@
   "contacts": "संपर्क",
   "cookie_based": "कुकी-आधारित प्रमाणीकरण",
   "copied_to_clipboard": "क्लिपबोर्ड पर कॉपी किया गया",
+  "copy_failed": "क्लिपबोर्ड पर कॉपी करने में विफल",
   "copy": "कॉपी करें",
   "copy_address": "पता कॉपी करें",
   "copy_transaction_id": "लेनदेन आईडी कॉपी करें",

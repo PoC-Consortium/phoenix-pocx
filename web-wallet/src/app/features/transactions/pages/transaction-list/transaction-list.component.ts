@@ -19,7 +19,11 @@ import { MatDialog } from '@angular/material/dialog';
 import { Subject } from 'rxjs';
 import { takeUntil, skip } from 'rxjs/operators';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { NotificationService, BlockExplorerService } from '../../../../shared/services';
+import {
+  ClipboardService,
+  NotificationService,
+  BlockExplorerService,
+} from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import {
@@ -855,6 +859,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly notification = inject(NotificationService);
   private readonly blockExplorer = inject(BlockExplorerService);
+  private readonly clipboard = inject(ClipboardService);
   private readonly dialog = inject(MatDialog);
   private readonly destroy$ = new Subject<void>();
 
@@ -1077,10 +1082,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   }
 
   copyToClipboard(text: string): void {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      this.notification.show(this.i18n.get('copied_to_clipboard'), 'success');
-    }
+    this.clipboard.copy(text);
   }
 
   addToContacts(tx: WalletTransaction): void {
