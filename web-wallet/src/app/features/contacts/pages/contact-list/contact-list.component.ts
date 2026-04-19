@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
@@ -11,9 +12,12 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { ClipboardService, NotificationService } from '../../../../shared/services';
-import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
+import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import { selectNetwork } from '../../../../store/settings/settings.selectors';
+import type { Network } from '../../../../store/settings/settings.state';
 import {
   ConfirmDialogComponent,
   ConfirmDialogData,
@@ -103,11 +107,27 @@ interface Contact {
                 matInput
                 [(ngModel)]="formAddress"
                 [placeholder]="'address_placeholder' | i18n"
-                (blur)="validateAddress()"
+                (ngModelChange)="validateAddress()"
                 autocomplete="off"
               />
-              @if (addressError()) {
-                <mat-error>{{ addressError() }}</mat-error>
+              @if (addressValid()) {
+                <mat-icon
+                  matSuffix
+                  class="address-badge address-badge-valid"
+                  [matTooltip]="'address_valid' | i18n"
+                  >check_circle</mat-icon
+                >
+              } @else if (addressError()) {
+                <mat-icon
+                  matSuffix
+                  class="address-badge address-badge-invalid"
+                  [matTooltip]="addressError()!.key | i18n: addressError()!.params"
+                  >error</mat-icon
+                >
+              }
+              @let err = addressError();
+              @if (err) {
+                <mat-error>{{ err.key | i18n: err.params }}</mat-error>
               }
             </mat-form-field>
 
@@ -301,6 +321,14 @@ interface Contact {
         .full-width {
           width: 100%;
           margin-bottom: 4px;
+        }
+
+        .address-badge-valid {
+          color: #2e7d32;
+        }
+
+        .address-badge-invalid {
+          color: #c62828;
         }
 
         .form-actions {
@@ -607,16 +635,18 @@ export class ContactListComponent implements OnInit {
   private readonly location = inject(Location);
   private readonly clipboard = inject(ClipboardService);
   private readonly notification = inject(NotificationService);
-  private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
+  private readonly store = inject(Store);
+  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
   private saveQueued = false;
 
   contacts = signal<Contact[]>([]);
   searchQuery = signal('');
   showAddForm = signal(false);
   editingContact = signal<Contact | null>(null);
-  addressError = signal<string | null>(null);
+  addressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
+  addressValid = signal(false);
 
   // Form fields
   formName = '';
@@ -674,22 +704,46 @@ export class ContactListComponent implements OnInit {
     });
   }
 
-  async validateAddress(): Promise<void> {
-    if (!this.formAddress) {
+  validateAddress(): boolean {
+    const raw = this.formAddress;
+    if (!raw.trim()) {
       this.addressError.set(null);
-      return;
+      this.addressValid.set(false);
+      return false;
     }
 
-    try {
-      const result = await this.blockchainRpc.validateAddress(this.formAddress);
-      if (!result.isvalid) {
-        this.addressError.set('invalid_address');
-      } else {
-        this.addressError.set(null);
-      }
-    } catch {
-      this.addressError.set('error_validating_address');
+    const result = validatePocxAddress(raw);
+    if (result.kind === 'empty') {
+      this.addressError.set(null);
+      this.addressValid.set(false);
+      return false;
     }
+    if (result.kind !== 'valid') {
+      this.addressError.set({ key: 'invalid_address' });
+      this.addressValid.set(false);
+      return false;
+    }
+
+    const appNet = this.network();
+    if (result.network !== appNet) {
+      this.addressError.set({
+        key: 'address_wrong_network',
+        params: {
+          addressNetwork: this.translateNetwork(result.network),
+          appNetwork: this.translateNetwork(appNet),
+        },
+      });
+      this.addressValid.set(false);
+      return false;
+    }
+
+    this.addressError.set(null);
+    this.addressValid.set(true);
+    return true;
+  }
+
+  private translateNetwork(network: Network): string {
+    return this.i18n.get(network);
   }
 
   canSaveContact(): boolean {
@@ -697,6 +751,9 @@ export class ContactListComponent implements OnInit {
   }
 
   saveContact(): void {
+    // Final validation gate — catches the case where the user never blurred the
+    // address field, or pasted + clicked save in the same tick.
+    if (!this.validateAddress()) return;
     if (!this.canSaveContact()) return;
 
     const editing = this.editingContact();
