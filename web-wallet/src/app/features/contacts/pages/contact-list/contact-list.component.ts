@@ -8,12 +8,16 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatDialogModule } from '@angular/material/dialog';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { I18nPipe } from '../../../../core/i18n';
+import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { ClipboardService, NotificationService } from '../../../../shared/services';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
+import {
+  ConfirmDialogComponent,
+  ConfirmDialogData,
+} from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 
 interface Contact {
   id: string;
@@ -599,6 +603,9 @@ export class ContactListComponent implements OnInit {
   private readonly clipboard = inject(ClipboardService);
   private readonly notification = inject(NotificationService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
+  private readonly dialog = inject(MatDialog);
+  private readonly i18n = inject(I18nService);
+  private saveQueued = false;
 
   contacts = signal<Contact[]>([]);
   searchQuery = signal('');
@@ -654,7 +661,12 @@ export class ContactListComponent implements OnInit {
   }
 
   saveContacts(): void {
-    localStorage.setItem('wallet_contacts', JSON.stringify(this.contacts()));
+    if (this.saveQueued) return;
+    this.saveQueued = true;
+    queueMicrotask(() => {
+      localStorage.setItem('wallet_contacts', JSON.stringify(this.contacts()));
+      this.saveQueued = false;
+    });
   }
 
   async validateAddress(): Promise<void> {
@@ -683,34 +695,37 @@ export class ContactListComponent implements OnInit {
     if (!this.canSaveContact()) return;
 
     const editing = this.editingContact();
+    const address = this.formAddress.trim();
+    const name = this.formName.trim();
+    const notes = this.formNotes.trim() || undefined;
+
+    const addressKey = address.toLowerCase();
+    const conflict = this.contacts().some(
+      c => c.address.toLowerCase() === addressKey && c.id !== editing?.id
+    );
+    if (conflict) {
+      this.notification.error(this.i18n.get('contact_address_exists'));
+      return;
+    }
 
     if (editing) {
-      // Update existing contact
       const updated = this.contacts().map(c =>
-        c.id === editing.id
-          ? {
-              ...c,
-              name: this.formName.trim(),
-              address: this.formAddress.trim(),
-              notes: this.formNotes.trim() || undefined,
-            }
-          : c
+        c.id === editing.id ? { ...c, name, address, notes } : c
       );
       this.contacts.set(updated);
-      this.notification.success('Contact updated');
+      this.notification.success(this.i18n.get('contact_updated'));
     } else {
-      // Add new contact
       const newContact: Contact = {
         id: Date.now().toString(),
-        name: this.formName.trim(),
-        address: this.formAddress.trim(),
-        notes: this.formNotes.trim() || undefined,
+        name,
+        address,
+        notes,
         createdAt: Date.now(),
       };
       this.contacts.set(
         [...this.contacts(), newContact].sort((a, b) => a.name.localeCompare(b.name))
       );
-      this.notification.success('Contact added');
+      this.notification.success(this.i18n.get('contact_added'));
     }
 
     this.saveContacts();
@@ -726,12 +741,22 @@ export class ContactListComponent implements OnInit {
   }
 
   deleteContact(contact: Contact): void {
-    if (confirm(`Delete contact "${contact.name}"?`)) {
-      const updated = this.contacts().filter(c => c.id !== contact.id);
-      this.contacts.set(updated);
-      this.saveContacts();
-      this.notification.success('Contact deleted');
-    }
+    const data: ConfirmDialogData = {
+      title: this.i18n.get('delete_contact_title'),
+      message: this.i18n.get('delete_contact_confirm', { name: contact.name }),
+      confirmText: this.i18n.get('delete'),
+      cancelText: this.i18n.get('cancel'),
+      type: 'danger',
+    };
+    this.dialog
+      .open(ConfirmDialogComponent, { data })
+      .afterClosed()
+      .subscribe(confirmed => {
+        if (!confirmed) return;
+        this.contacts.set(this.contacts().filter(c => c.id !== contact.id));
+        this.saveContacts();
+        this.notification.success(this.i18n.get('contact_deleted'));
+      });
   }
 
   cancelForm(): void {
