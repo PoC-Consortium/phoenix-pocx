@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -516,7 +516,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     `,
   ],
 })
-export class ImportWalletComponent implements OnInit {
+export class ImportWalletComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly store = inject(Store);
   private readonly walletManager = inject(WalletManagerService);
@@ -661,6 +661,8 @@ export class ImportWalletComponent implements OnInit {
         await this.walletManager.encryptWallet(this.walletName, this.walletPassword);
       }
 
+      this.clearSecrets();
+
       this.snackBar.open(
         this.i18n.get('wallet_imported_success', { name: this.walletName }),
         undefined,
@@ -673,5 +675,21 @@ export class ImportWalletComponent implements OnInit {
       this.snackBar.open(errorMessage, this.i18n.get('dismiss'), { duration: 5000 });
       this.importing.set(false);
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearSecrets();
+  }
+
+  private clearSecrets(): void {
+    this.mnemonicWords = new Array(this.wordCount).fill('');
+    this.wordSuggestions = new Array(this.wordCount).fill(null).map(() => []);
+    this.wordErrors = new Array(this.wordCount).fill(false);
+    this.passphrase = '';
+    this.passphraseConfirm = '';
+    this.useBip39Passphrase = false;
+    this.walletPassword = '';
+    this.walletPasswordConfirm = '';
+    this.useWalletEncryption = false;
   }
 }

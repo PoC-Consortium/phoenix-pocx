@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -467,7 +467,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     `,
   ],
 })
-export class CreateWalletComponent implements OnInit {
+export class CreateWalletComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly store = inject(Store);
   private readonly walletManager = inject(WalletManagerService);
@@ -518,6 +518,10 @@ export class CreateWalletComponent implements OnInit {
 
   nextStep(): void {
     if (this.currentStep() < 4) {
+      // Re-generate mnemonic on re-entry to step 2 after it was cleared by a prior back-nav
+      if (this.currentStep() === 1 && !this.mnemonic) {
+        this.generateMnemonic();
+      }
       // Generate verification indices when moving to step 3
       if (this.currentStep() === 2) {
         this.selectVerificationIndices();
@@ -528,7 +532,13 @@ export class CreateWalletComponent implements OnInit {
 
   prevStep(): void {
     if (this.currentStep() > 1) {
+      const leaving = this.currentStep();
       this.currentStep.update(s => s - 1);
+      // User abandons the current mnemonic draft on 2 → 1; a fresh one is generated on re-entry.
+      // 3 → 2 intentionally preserves mnemonic so the user can view it again.
+      if (leaving === 2) {
+        this.clearMnemonicDraft();
+      }
     }
   }
 
@@ -614,6 +624,8 @@ export class CreateWalletComponent implements OnInit {
         await this.walletManager.encryptWallet(this.walletName, this.walletPassword);
       }
 
+      this.clearSecrets();
+
       this.snackBar.open(
         this.i18n.get('wallet_created_success', { name: this.walletName }),
         undefined,
@@ -626,5 +638,27 @@ export class CreateWalletComponent implements OnInit {
       this.snackBar.open(errorMessage, this.i18n.get('dismiss'), { duration: 5000 });
       this.creating.set(false);
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearSecrets();
+  }
+
+  private clearMnemonicDraft(): void {
+    this.mnemonic = '';
+    this.mnemonicWords.set([]);
+    this.mnemonicWrittenDown = false;
+    this.passphrase = '';
+    this.passphraseConfirm = '';
+    this.useBip39Passphrase = false;
+  }
+
+  private clearSecrets(): void {
+    this.clearMnemonicDraft();
+    this.walletPassword = '';
+    this.walletPasswordConfirm = '';
+    this.useWalletEncryption = false;
+    this.verifyWords = ['', '', ''];
+    this.wordSuggestions = [[], [], []];
   }
 }
