@@ -24,6 +24,8 @@ import {
   PeerInfo,
 } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 
+type PeerRow = PeerInfo & { versionClass: string };
+
 /**
  * PeersComponent displays connected network peers.
  *
@@ -90,7 +92,13 @@ import {
         @if (!isLoading() || peers().length > 0) {
           <div class="peers-card">
             <div class="peers-table-container">
-              <table mat-table [dataSource]="dataSource" matSort class="peers-table">
+              <table
+                mat-table
+                [dataSource]="dataSource"
+                [trackBy]="trackByAddr"
+                matSort
+                class="peers-table"
+              >
                 <!-- Address Column -->
                 <ng-container matColumnDef="addr">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'address' | i18n }}</th>
@@ -106,7 +114,7 @@ import {
                 <ng-container matColumnDef="subver">
                   <th mat-header-cell *matHeaderCellDef mat-sort-header>{{ 'version' | i18n }}</th>
                   <td mat-cell *matCellDef="let peer">
-                    <div [class]="getVersionClass(peer)">
+                    <div [class]="peer.versionClass">
                       <span>{{ peer.subver || '???' }}</span>
                     </div>
                   </td>
@@ -543,11 +551,12 @@ export class PeersComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild(MatSort) sort!: MatSort;
 
-  peers = signal<PeerInfo[]>([]);
+  peers = signal<PeerRow[]>([]);
   isLoading = signal(false);
   error = signal<string | null>(null);
 
-  dataSource = new MatTableDataSource<PeerInfo>();
+  dataSource = new MatTableDataSource<PeerRow>();
+  trackByAddr = (_i: number, peer: PeerRow): string => peer.addr;
   displayedColumns: string[] = [
     'addr',
     'subver',
@@ -557,8 +566,6 @@ export class PeersComponent implements OnInit, OnDestroy, AfterViewInit {
     'bytessent',
     'conntime',
   ];
-
-  private maxVersion = '0.0.1';
 
   ngOnInit(): void {
     this.loadPeers();
@@ -584,9 +591,9 @@ export class PeersComponent implements OnInit, OnDestroy, AfterViewInit {
 
     try {
       const peerList = await this.blockchainRpc.getPeerInfo();
-      this.peers.set(peerList);
-      this.dataSource.data = peerList;
-      this.calcMaxVersion();
+      const rows = this.decorateWithVersionClass(peerList);
+      this.peers.set(rows);
+      this.dataSource.data = rows;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load peers';
       this.error.set(errorMsg);
@@ -600,23 +607,10 @@ export class PeersComponent implements OnInit, OnDestroy, AfterViewInit {
     await this.loadPeers();
   }
 
-  private calcMaxVersion(): void {
-    const minVersion = '0.0.1';
-    this.maxVersion = this.peers().reduce((maxVer, peer) => {
-      try {
-        // Extract version from subver like "/Satoshi:28.0.0/" or "/Bitcoin-PoCX:28.0.0/"
-        const match = peer.subver.match(/:(\d+\.\d+\.\d+)/);
-        if (match) {
-          const peerVersion = match[1];
-          if (this.compareVersions(peerVersion, maxVer) > 0) {
-            return peerVersion;
-          }
-        }
-      } catch {
-        // Ignore parse errors
-      }
-      return maxVer;
-    }, minVersion);
+  /** Extract version from subver like "/Satoshi:28.0.0/" or "/Bitcoin-PoCX:28.0.0/". */
+  private parsePeerVersion(peer: PeerInfo): string | null {
+    const match = peer.subver?.match(/:(\d+\.\d+\.\d+)/);
+    return match ? match[1] : null;
   }
 
   private compareVersions(v1: string, v2: string): number {
@@ -632,20 +626,22 @@ export class PeersComponent implements OnInit, OnDestroy, AfterViewInit {
     return 0;
   }
 
-  getVersionClass(peer: PeerInfo): string {
-    try {
-      const match = peer.subver.match(/:(\d+\.\d+\.\d+)/);
-      if (match) {
-        const peerVersion = match[1];
-        if (this.compareVersions(peerVersion, this.maxVersion) < 0) {
-          return 'chip versionLow';
-        }
-        return 'chip versionOk';
-      }
-    } catch {
-      // Ignore parse errors
+  /** Single pass: compute the highest peer version, then tag each row with its class. */
+  private decorateWithVersionClass(peers: PeerInfo[]): PeerRow[] {
+    let max = '0.0.1';
+    for (const peer of peers) {
+      const v = this.parsePeerVersion(peer);
+      if (v && this.compareVersions(v, max) > 0) max = v;
     }
-    return 'chip';
+    return peers.map(peer => {
+      const v = this.parsePeerVersion(peer);
+      const versionClass = !v
+        ? 'chip'
+        : this.compareVersions(v, max) < 0
+          ? 'chip versionLow'
+          : 'chip versionOk';
+      return { ...peer, versionClass };
+    });
   }
 
   formatBytes(bytes: number): string {
