@@ -11,6 +11,12 @@ import { Subject } from 'rxjs';
 import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService, BlockExplorerService } from '../../../../shared/services';
 import {
+  UnixDatePipe,
+  BtcxPipe,
+  HashTruncatePipe,
+  truncateHash,
+} from '../../../../shared/pipes';
+import {
   BlockchainRpcService,
   Transaction,
 } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
@@ -26,6 +32,9 @@ import {
     MatTooltipModule,
     MatExpansionModule,
     I18nPipe,
+    UnixDatePipe,
+    BtcxPipe,
+    HashTruncatePipe,
   ],
   template: `
     <div class="page-layout">
@@ -94,7 +103,7 @@ import {
               @if (tx()!.time) {
                 <div class="detail-row">
                   <span class="label">{{ 'timestamp' | i18n }}</span>
-                  <span class="value">{{ formatDate(tx()!.time!) }}</span>
+                  <span class="value">{{ tx()!.time! | unixDate }}</span>
                 </div>
               }
               <div class="detail-row">
@@ -112,7 +121,7 @@ import {
               @if (calculatedFee() !== null) {
                 <div class="detail-row">
                   <span class="label">{{ 'fee' | i18n }}</span>
-                  <span class="value mono">{{ formatBtcx(calculatedFee()!) }} BTCX</span>
+                  <span class="value mono">{{ calculatedFee()! | btcx }} BTCX</span>
                 </div>
                 <div class="detail-row">
                   <span class="label">{{ 'fee_rate' | i18n }}</span>
@@ -160,7 +169,7 @@ import {
                         }
                       </div>
                       @if (input.prevout?.value !== undefined) {
-                        <div class="io-amount">{{ formatBtcx(input.prevout!.value) }} BTCX</div>
+                        <div class="io-amount">{{ input.prevout!.value | btcx }} BTCX</div>
                       }
                     }
                   </div>
@@ -169,7 +178,7 @@ import {
               @if (totalInput() !== null) {
                 <div class="io-total">
                   <span class="label">{{ 'total_input' | i18n }}</span>
-                  <span class="value mono">{{ formatBtcx(totalInput()!) }} BTCX</span>
+                  <span class="value mono">{{ totalInput()! | btcx }} BTCX</span>
                 </div>
               }
             </mat-card-content>
@@ -206,13 +215,13 @@ import {
                         >
                       }
                     </div>
-                    <div class="io-amount">{{ formatBtcx(output.value) }} BTCX</div>
+                    <div class="io-amount">{{ output.value | btcx }} BTCX</div>
                   </div>
                 </div>
               }
               <div class="io-total">
                 <span class="label">{{ 'total_output' | i18n }}</span>
-                <span class="value mono">{{ formatBtcx(totalOutput()) }} BTCX</span>
+                <span class="value mono">{{ totalOutput() | btcx }} BTCX</span>
               </div>
             </mat-card-content>
           </mat-card>
@@ -228,7 +237,7 @@ import {
                   <span class="label">{{ 'block_hash' | i18n }}</span>
                   <div class="value link-value">
                     <span (click)="viewBlock(tx()!.blockhash!)">{{
-                      truncateHash(tx()!.blockhash!, 16, 12)
+                      tx()!.blockhash! | hashTruncate
                     }}</span>
                     <mat-icon
                       class="link-icon"
@@ -247,7 +256,7 @@ import {
                 @if (tx()!.blocktime) {
                   <div class="detail-row">
                     <span class="label">{{ 'block_time' | i18n }}</span>
-                    <span class="value">{{ formatDate(tx()!.blocktime!) }}</span>
+                    <span class="value">{{ tx()!.blocktime! | unixDate }}</span>
                   </div>
                 }
               </mat-card-content>
@@ -276,7 +285,7 @@ import {
                     (click)="copyToClipboard(tx()!.hash)"
                     [matTooltip]="'copy' | i18n"
                   >
-                    <span>{{ truncateHash(tx()!.hash, 16, 12) }}</span>
+                    <span>{{ tx()!.hash | hashTruncate }}</span>
                     <mat-icon class="copy-icon">content_copy</mat-icon>
                   </div>
                 </div>
@@ -753,25 +762,12 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
     this.clipboard.copy(text);
   }
 
-  formatDate(timestamp: number): string {
-    return new Date(timestamp * 1000).toLocaleString();
-  }
-
-  formatBtcx(amount: number): string {
-    return amount.toFixed(8);
-  }
-
-  truncateHash(hash: string, startChars = 16, endChars = 12): string {
-    if (!hash || hash.length <= startChars + endChars + 3) return hash;
-    return `${hash.slice(0, startChars)}...${hash.slice(-endChars)}`;
-  }
-
   getInputAddress(input: Transaction['vin'][0]): string {
     if (input.prevout?.scriptPubKey?.address) {
       return input.prevout.scriptPubKey.address;
     }
     if (input.txid) {
-      return `${this.truncateHash(input.txid, 12, 8)}:${input.vout}`;
+      return `${truncateHash(input.txid, 12, 8)}:${input.vout}`;
     }
     return 'Unknown';
   }

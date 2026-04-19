@@ -11,6 +11,7 @@ import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Subject, takeUntil } from 'rxjs';
 import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService, BlockExplorerService } from '../../../../shared/services';
+import { UnixDatePipe, ByteSizePipe } from '../../../../shared/pipes';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { PocxBlock } from '../../models/block.model';
 
@@ -26,6 +27,8 @@ import { PocxBlock } from '../../models/block.model';
     MatDividerModule,
     ScrollingModule,
     I18nPipe,
+    UnixDatePipe,
+    ByteSizePipe,
   ],
   template: `
     <div class="page-layout">
@@ -94,7 +97,7 @@ import { PocxBlock } from '../../models/block.model';
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'timestamp' | i18n }}</span>
-                <span class="value">{{ formatDate(block()!.time) }}</span>
+                <span class="value">{{ block()!.time | unixDate }}</span>
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'time_since_last_block' | i18n }}</span>
@@ -248,7 +251,7 @@ import { PocxBlock } from '../../models/block.model';
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'size' | i18n }}</span>
-                <span class="value">{{ formatSize(block()!.size) }}</span>
+                <span class="value">{{ block()!.size | byteSize }}</span>
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'weight' | i18n }}</span>
@@ -650,22 +653,8 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
     this.clipboard.copy(text);
   }
 
-  formatDate(timestamp: number): string {
-    return new Date(timestamp * 1000).toLocaleString();
-  }
-
-  formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} bytes`;
-    return `${(bytes / 1024).toFixed(2)} KB`;
-  }
-
   formatQuality(quality: number): string {
     return quality.toLocaleString();
-  }
-
-  truncateHash(hash: string, startChars = 16, endChars = 12): string {
-    if (!hash || hash.length <= startChars + endChars + 3) return hash;
-    return `${hash.slice(0, startChars)}...${hash.slice(-endChars)}`;
   }
 
   getTransactionCount(): number {

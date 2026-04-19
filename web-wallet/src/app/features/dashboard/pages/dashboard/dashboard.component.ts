@@ -34,6 +34,7 @@ import {
   NotificationService,
   BlockExplorerService,
 } from '../../../../shared/services';
+import { BtcxPipe } from '../../../../shared/pipes';
 import {
   FeeBumpDialogComponent,
   FeeBumpDialogData,
@@ -55,6 +56,7 @@ import {
     MatTooltipModule,
     I18nPipe,
     DecimalPipe,
+    BtcxPipe,
   ],
   template: `
     <div class="bitcoin-dashboard">
@@ -115,25 +117,25 @@ import {
         </mat-card-header>
         <mat-card-content>
           <div class="total-balance">
-            <span class="amount">{{ formatBtcx(getTotalAll()) }}</span>
+            <span class="amount">{{ getTotalAll() | btcx }}</span>
             <span class="unit">BTCX</span>
           </div>
 
           <div class="balance-breakdown">
             <div class="breakdown-item">
               <span class="label">{{ 'confirmed' | i18n }}:</span>
-              <span class="value confirmed">{{ formatBtcx(totalBalance()) }} BTCX</span>
+              <span class="value confirmed">{{ totalBalance() | btcx }} BTCX</span>
             </div>
             @if (pendingBalance() > 0) {
               <div class="breakdown-item">
                 <span class="label">{{ 'pending' | i18n }}:</span>
-                <span class="value pending">{{ formatBtcx(pendingBalance()) }} BTCX</span>
+                <span class="value pending">{{ pendingBalance() | btcx }} BTCX</span>
               </div>
             }
             @if (immatureBalance() > 0) {
               <div class="breakdown-item">
                 <span class="label">{{ 'immature' | i18n }}:</span>
-                <span class="value immature">{{ formatBtcx(immatureBalance()) }} BTCX</span>
+                <span class="value immature">{{ immatureBalance() | btcx }} BTCX</span>
               </div>
             }
           </div>
@@ -1150,10 +1152,6 @@ export class DashboardComponent implements AfterViewInit {
   // Balance methods
   getTotalAll(): number {
     return this.totalBalance() + this.pendingBalance() + this.immatureBalance();
-  }
-
-  formatBtcx(amount: number): string {
-    return amount.toFixed(8);
   }
 
   // Blockchain info methods

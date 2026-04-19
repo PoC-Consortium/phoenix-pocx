@@ -12,6 +12,7 @@ import { Subject } from 'rxjs';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { BlockExplorerService, NotificationService } from '../../../../shared/services';
+import { UnixDatePipe, TimeAgoPipe, ByteSizePipe } from '../../../../shared/pipes';
 import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
 
 @Component({
@@ -26,6 +27,9 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
     MatTooltipModule,
     MatMenuModule,
     I18nPipe,
+    UnixDatePipe,
+    TimeAgoPipe,
+    ByteSizePipe,
   ],
   template: `
     <div class="page-layout">
@@ -99,13 +103,13 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
                         <a class="link" (click)="viewBlock(block)">{{ block.hash }}</a>
                       </td>
                       <td class="col-time">
-                        <span [matTooltip]="formatDate(block.time)">{{
-                          getTimeAgo(block.time)
+                        <span [matTooltip]="block.time | unixDate">{{
+                          block.time | timeAgo
                         }}</span>
                       </td>
                       <td class="col-forger">{{ block.signer_address || '-' }}</td>
                       <td class="col-txs">{{ block.nTx }}</td>
-                      <td class="col-size">{{ formatSize(block.size) }}</td>
+                      <td class="col-size">{{ block.size | byteSize }}</td>
                       <td class="col-actions">
                         <button mat-icon-button [matMenuTriggerFor]="blockMenu">
                           <mat-icon>more_vert</mat-icon>
@@ -547,25 +551,6 @@ export class BlockListComponent implements OnInit, OnDestroy {
 
   viewBlock(block: PocxBlock): void {
     this.router.navigate(['/blocks', block.hash]);
-  }
-
-  formatDate(timestamp: number): string {
-    return new Date(timestamp * 1000).toLocaleString();
-  }
-
-  getTimeAgo(timestamp: number): string {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  }
-
-  formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
   openBlockInExplorer(hash: string): void {

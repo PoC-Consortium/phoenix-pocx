@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { ClipboardService, NotificationService } from '../../../../shared/services';
+import { ByteSizePipe } from '../../../../shared/pipes';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import {
@@ -43,6 +44,7 @@ interface FullTransaction {
     MatProgressSpinnerModule,
     MatTooltipModule,
     I18nPipe,
+    ByteSizePipe,
   ],
   template: `
     <div class="page-layout">
@@ -124,7 +126,7 @@ interface FullTransaction {
                 @if (tx()!.raw?.size) {
                   <div class="metric">
                     <span class="metric-label">{{ 'size' | i18n }}</span>
-                    <span class="metric-value">{{ formatSize(tx()!.raw!.size) }}</span>
+                    <span class="metric-value">{{ tx()!.raw!.size | byteSize }}</span>
                   </div>
                 }
                 @if (tx()!.raw?.vsize) {
@@ -1007,13 +1009,6 @@ export class TransactionDetailComponent implements OnInit {
 
   formatBtc(amount: number): string {
     return `${amount.toFixed(8)} BTCX`;
-  }
-
-  formatSize(bytes: number): string {
-    if (bytes < 1024) {
-      return `${bytes} B`;
-    }
-    return `${(bytes / 1024).toFixed(2)} KB`;
   }
 
   getAmountClass(): string {
