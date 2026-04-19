@@ -190,6 +190,7 @@
   "fee_normal": "Normal",
   "fee_rate": "Fee Rate",
   "fee_slow": "Slow",
+  "failed_to_load_blocks": "Failed to load recent blocks. Check your node connection and try again.",
   "first_page": "First page",
   "folder_browser_desktop_only": "Folder browser is only available in desktop app",
   "forger": "Forger",

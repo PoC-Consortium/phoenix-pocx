@@ -738,8 +738,7 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
     try {
       const transaction = (await this.blockchainRpc.getRawTransaction(txid, true)) as Transaction;
       this.tx.set(transaction);
-    } catch (err) {
-      console.error('Failed to load transaction:', err);
+    } catch {
       this.error.set('Failed to load transaction. It may not exist or the node is unavailable.');
     } finally {
       this.loading.set(false);

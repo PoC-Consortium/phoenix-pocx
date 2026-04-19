@@ -9,9 +9,9 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { Subject } from 'rxjs';
-import { I18nPipe } from '../../../../core/i18n';
+import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
-import { BlockExplorerService } from '../../../../shared/services';
+import { BlockExplorerService, NotificationService } from '../../../../shared/services';
 import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
 
 @Component({
@@ -488,6 +488,8 @@ export class BlockListComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly blockExplorer = inject(BlockExplorerService);
+  private readonly notification = inject(NotificationService);
+  private readonly i18n = inject(I18nService);
   private readonly destroy$ = new Subject<void>();
 
   loading = signal(false);
@@ -531,8 +533,8 @@ export class BlockListComponent implements OnInit, OnDestroy {
     try {
       const blocks = await this.blockchainRpc.getRecentBlocks<PocxBlock>(this.selectedCount, 1);
       this.blocks.set(blocks);
-    } catch (error) {
-      console.error('Failed to load blocks:', error);
+    } catch {
+      this.notification.error(this.i18n.get('failed_to_load_blocks'));
     } finally {
       this.loading.set(false);
     }

@@ -7,7 +7,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
-import { Subject } from 'rxjs';
+import { ScrollingModule } from '@angular/cdk/scrolling';
+import { Subject, takeUntil } from 'rxjs';
 import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService, BlockExplorerService } from '../../../../shared/services';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
@@ -23,6 +24,7 @@ import { PocxBlock } from '../../models/block.model';
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatDividerModule,
+    ScrollingModule,
     I18nPipe,
   ],
   template: `
@@ -274,25 +276,26 @@ import { PocxBlock } from '../../models/block.model';
               >
             </mat-card-header>
             <mat-card-content>
-              <div class="transactions-list">
-                @for (txid of getTransactionIds(); track txid; let i = $index) {
-                  <div class="tx-row">
-                    <span class="tx-index">{{ i }}</span>
-                    <span
-                      class="tx-id"
-                      (click)="copyToClipboard(txid)"
-                      [matTooltip]="'click_to_copy' | i18n"
-                      >{{ txid }}</span
-                    >
-                    <mat-icon
-                      class="explorer-icon"
-                      (click)="openTransactionInExplorer(txid)"
-                      [matTooltip]="'view_tx_in_explorer' | i18n"
-                      >open_in_new</mat-icon
-                    >
-                  </div>
-                }
-              </div>
+              <cdk-virtual-scroll-viewport itemSize="44" class="transactions-list">
+                <div
+                  *cdkVirtualFor="let txid of getTransactionIds(); let i = index; trackBy: trackTxid"
+                  class="tx-row"
+                >
+                  <span class="tx-index">{{ i }}</span>
+                  <span
+                    class="tx-id"
+                    (click)="copyToClipboard(txid)"
+                    [matTooltip]="'click_to_copy' | i18n"
+                    >{{ txid }}</span
+                  >
+                  <mat-icon
+                    class="explorer-icon"
+                    (click)="openTransactionInExplorer(txid)"
+                    [matTooltip]="'view_tx_in_explorer' | i18n"
+                    >open_in_new</mat-icon
+                  >
+                </div>
+              </cdk-virtual-scroll-viewport>
             </mat-card-content>
           </mat-card>
         }
@@ -483,8 +486,7 @@ import { PocxBlock } from '../../models/block.model';
       }
 
       .transactions-list {
-        max-height: 400px;
-        overflow-y: auto;
+        height: 400px;
 
         .tx-row {
           display: flex;
@@ -585,13 +587,18 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
   block = signal<PocxBlock | null>(null);
 
   ngOnInit(): void {
-    const hashOrHeight = this.route.snapshot.paramMap.get('hashOrHeight');
-    if (hashOrHeight) {
-      this.loadBlock(hashOrHeight);
-    } else {
-      this.error.set('No block identifier provided');
-      this.loading.set(false);
-    }
+    // Subscribe to paramMap so the same component instance refetches when the
+    // user navigates between blocks (prev/next buttons) — Angular reuses the
+    // component on param-only changes and would otherwise not re-run ngOnInit.
+    this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(params => {
+      const hashOrHeight = params.get('hashOrHeight');
+      if (hashOrHeight) {
+        this.loadBlock(hashOrHeight);
+      } else {
+        this.error.set('No block identifier provided');
+        this.loading.set(false);
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -619,8 +626,7 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
       }
 
       this.block.set(block);
-    } catch (err) {
-      console.error('Failed to load block:', err);
+    } catch {
       this.error.set('Failed to load block. It may not exist or the node is unavailable.');
     } finally {
       this.loading.set(false);
@@ -628,8 +634,12 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
   }
 
   navigateToBlock(hash: string): void {
+    // paramMap subscription triggers loadBlock automatically
     this.router.navigate(['/blocks', hash]);
-    this.loadBlock(hash);
+  }
+
+  trackTxid(_index: number, txid: string): string {
+    return txid;
   }
 
   viewTransaction(txid: string): void {
