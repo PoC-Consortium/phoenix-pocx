@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -99,10 +99,15 @@ interface PendingEntry {
                 <input
                   matInput
                   [(ngModel)]="walletName"
+                  (ngModelChange)="onWalletNameChange()"
                   placeholder="My Watch Wallet"
                   [disabled]="creating()"
                 />
-                <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                @if (walletNameConflict()) {
+                  <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
+                } @else {
+                  <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                }
               </mat-form-field>
               <div class="step-actions">
                 <button mat-button routerLink="/auth">
@@ -111,7 +116,7 @@ interface PendingEntry {
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || creating()"
+                  [disabled]="!walletName || walletNameConflict() || creating()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -478,7 +483,7 @@ interface PendingEntry {
     `,
   ],
 })
-export class WatchOnlyComponent {
+export class WatchOnlyComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly walletManager = inject(WalletManagerService);
   private readonly descriptorService = inject(DescriptorService);
@@ -495,6 +500,10 @@ export class WatchOnlyComponent {
 
   walletName = '';
   creating = signal(false);
+
+  // Existing wallet names (for conflict check on step 1)
+  private readonly existingWalletNames = signal<string[]>([]);
+  readonly walletNameConflict = signal(false);
 
   // Current entry being typed
   entryInput = '';
@@ -519,6 +528,22 @@ export class WatchOnlyComponent {
   readonly descriptorCount = computed(
     () => this.pendingEntries().filter(e => e.kind === 'descriptor').length
   );
+
+  async ngOnInit(): Promise<void> {
+    try {
+      const names = await this.walletManager.listAllWallets();
+      this.existingWalletNames.set(names);
+    } catch {
+      // RPC unreachable — skip the check; commit-time RPC will surface the real error.
+    }
+  }
+
+  onWalletNameChange(): void {
+    const target = this.walletName.trim().toLowerCase();
+    this.walletNameConflict.set(
+      target.length > 0 && this.existingWalletNames().some(n => n.toLowerCase() === target)
+    );
+  }
 
   getCurrentStepTitle(): string {
     return this.i18n.get(this.stepTitles[this.currentStep() - 1]);

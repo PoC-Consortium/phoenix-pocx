@@ -438,11 +438,14 @@ export class WalletManagerService {
   }
 
   /**
-   * Check if a wallet name is available
+   * Check if a wallet name is available. Comparison is case-insensitive
+   * because the underlying storage (Windows/macOS filesystems) treats
+   * names that differ only in case as the same file.
    */
   async isWalletNameAvailable(walletName: string): Promise<boolean> {
     const allWallets = await this.listAllWallets();
-    return !allWallets.includes(walletName);
+    const target = walletName.trim().toLowerCase();
+    return !allWallets.some(name => name.toLowerCase() === target);
   }
 
   // ============================================================

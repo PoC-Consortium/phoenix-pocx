@@ -76,10 +76,15 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <input
                   matInput
                   [(ngModel)]="walletName"
+                  (ngModelChange)="onWalletNameChange()"
                   placeholder="My Wallet"
                   [disabled]="importing()"
                 />
-                <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                @if (walletNameConflict()) {
+                  <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
+                } @else {
+                  <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                }
               </mat-form-field>
               <div class="step-actions">
                 <button mat-button routerLink="/auth">
@@ -88,7 +93,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || importing()"
+                  [disabled]="!walletName || walletNameConflict() || importing()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -541,6 +546,10 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   walletName = '';
   importing = signal(false);
 
+  // Existing wallet names (for conflict check on step 1)
+  private readonly existingWalletNames = signal<string[]>([]);
+  readonly walletNameConflict = signal(false);
+
   // Mnemonic input
   wordCount = 24;
   mnemonicWords: string[] = [];
@@ -559,6 +568,18 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.initializeWordArrays();
+    this.walletManager
+      .listAllWallets()
+      .then(names => this.existingWalletNames.set(names))
+      // RPC unreachable — skip the check; commit-time RPC will surface the real error.
+      .catch(() => undefined);
+  }
+
+  onWalletNameChange(): void {
+    const target = this.walletName.trim().toLowerCase();
+    this.walletNameConflict.set(
+      target.length > 0 && this.existingWalletNames().some(n => n.toLowerCase() === target)
+    );
   }
 
   private initializeWordArrays(): void {

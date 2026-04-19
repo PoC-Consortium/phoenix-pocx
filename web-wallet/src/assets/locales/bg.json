@@ -797,5 +797,6 @@
   "watch_only_rescan_date_label": "Date",
   "watch_only_rescan_genesis": "From genesis (slowest — full history)",
   "watch_only_rescan_warning_now": "Historical transactions will not be shown.",
-  "watch_only_commit_failed": "Import failed: {error}"
+  "watch_only_commit_failed": "Import failed: {error}",
+  "wallet_name_conflict": "A wallet with this name already exists. Choose a different name."
 }
