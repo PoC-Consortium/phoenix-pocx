@@ -773,5 +773,8 @@
   "words": "mots",
   "wtxid": "TXID temoin",
   "yes": "Oui",
-  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup.",
+  "address_invalid_checksum": "Invalid address — the checksum does not match. Check for typos.",
+  "address_invalid_format": "This does not look like a valid Bitcoin-PoCX address.",
+  "address_wrong_network": "This is a {addressNetwork} address, but the wallet is connected to {appNetwork}. Change network in Settings first."
 }

@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -9,8 +9,76 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
+import { base58check, bech32, bech32m } from '@scure/base';
+import { sha256 } from '@noble/hashes/sha2.js';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
+import { selectNetwork } from '../../../../store/settings/settings.selectors';
+import type { Network } from '../../../../store/settings/settings.state';
+
+// PoCX chain parameters (see chainparams.cpp in PoC-Consortium/bitcoin).
+const POCX_NETWORKS: Record<Network, { hrp: string; p2pkh: number; p2sh: number }> = {
+  mainnet: { hrp: 'pocx', p2pkh: 0x55, p2sh: 0x5a },
+  testnet: { hrp: 'tpocx', p2pkh: 0x7f, p2sh: 0x84 },
+  regtest: { hrp: 'rpocx', p2pkh: 0x6f, p2sh: 0xc4 },
+};
+
+type AddressValidation =
+  | { kind: 'empty' }
+  | { kind: 'valid'; network: Network; type: string }
+  | { kind: 'invalid_format' }
+  | { kind: 'invalid_checksum' }
+  | { kind: 'wrong_network'; addressNetwork: Network };
+
+function validatePocxAddress(raw: string): AddressValidation {
+  const addr = raw.trim();
+  if (!addr) return { kind: 'empty' };
+  const lower = addr.toLowerCase();
+
+  // Bech32 / Bech32m path — HRP prefix uniquely identifies the network
+  for (const [net, consts] of Object.entries(POCX_NETWORKS) as [
+    Network,
+    (typeof POCX_NETWORKS)[Network],
+  ][]) {
+    if (!lower.startsWith(consts.hrp + '1')) continue;
+    // Witness version encoded as second char after the separator: 'q' = v0 (segwit), 'p' = v1 (taproot).
+    const versionChar = lower[consts.hrp.length + 1];
+    const isTaproot = versionChar === 'p';
+    const isSegwit = versionChar === 'q';
+    if (!isTaproot && !isSegwit) return { kind: 'invalid_format' };
+    try {
+      const decoder = isTaproot ? bech32m : bech32;
+      const decoded = decoder.decode(lower as `${string}1${string}`);
+      const witnessVersion = decoded.words[0];
+      if (isTaproot && witnessVersion !== 1) return { kind: 'invalid_format' };
+      if (isSegwit && witnessVersion !== 0) return { kind: 'invalid_format' };
+      const type = isTaproot ? 'Bech32m (Taproot)' : 'Bech32 (SegWit)';
+      return { kind: 'valid', network: net, type };
+    } catch {
+      return { kind: 'invalid_checksum' };
+    }
+  }
+
+  // Base58Check path — version byte identifies network + script type
+  let bytes: Uint8Array;
+  try {
+    bytes = base58check(sha256).decode(addr);
+  } catch {
+    return { kind: 'invalid_checksum' };
+  }
+  if (bytes.length !== 21) return { kind: 'invalid_format' };
+  const version = bytes[0];
+  for (const [net, consts] of Object.entries(POCX_NETWORKS) as [
+    Network,
+    (typeof POCX_NETWORKS)[Network],
+  ][]) {
+    if (version === consts.p2pkh) return { kind: 'valid', network: net, type: 'P2PKH' };
+    if (version === consts.p2sh) return { kind: 'valid', network: net, type: 'P2SH' };
+  }
+  return { kind: 'invalid_format' };
+}
 
 /**
  * WatchOnlyComponent guides users through creating a watch-only wallet.
@@ -93,26 +161,39 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
             <div class="step-content">
               <p class="info-text">{{ 'watch_only_address_description' | i18n }}</p>
 
+              @let v = validation();
+
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>{{ 'address' | i18n }}</mat-label>
                 <input
                   matInput
                   [(ngModel)]="address"
-                  [placeholder]="addressPlaceholder"
+                  [placeholder]="addressPlaceholder()"
                   [disabled]="creating()"
                   (ngModelChange)="validateAddress()"
                 />
-                @if (addressError()) {
-                  <mat-error>{{ 'invalid_address' | i18n }}</mat-error>
+                @if (v.kind === 'invalid_checksum') {
+                  <mat-error>{{ 'address_invalid_checksum' | i18n }}</mat-error>
+                } @else if (v.kind === 'invalid_format') {
+                  <mat-error>{{ 'address_invalid_format' | i18n }}</mat-error>
+                } @else if (v.kind === 'wrong_network') {
+                  <mat-error>{{
+                    'address_wrong_network'
+                      | i18n
+                        : {
+                            addressNetwork: translateNetwork(v.addressNetwork),
+                            appNetwork: translateNetwork(network()),
+                          }
+                  }}</mat-error>
                 }
                 <mat-hint>{{ 'watch_only_address_hint' | i18n }}</mat-hint>
               </mat-form-field>
 
               <div class="address-info">
-                @if (addressType()) {
+                @if (v.kind === 'valid') {
                   <div class="address-type-badge">
                     <mat-icon>check_circle</mat-icon>
-                    <span>{{ addressType() }}</span>
+                    <span>{{ v.type }}</span>
                   </div>
                 }
               </div>
@@ -282,6 +363,7 @@ export class WatchOnlyComponent {
   private readonly walletManager = inject(WalletManagerService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  private readonly store = inject(Store);
 
   // Step management
   currentStep = signal(1);
@@ -290,11 +372,18 @@ export class WatchOnlyComponent {
   walletName = '';
   address = '';
   creating = signal(false);
-  addressError = signal<string | null>(null);
-  addressType = signal<string | null>(null);
 
-  // Address placeholder based on network (testnet for now)
-  addressPlaceholder = 'tpocx1q... or rpocx1q...';
+  // Current app network (drives placeholder and network-mismatch checks)
+  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
+
+  // Result of validating the typed address
+  readonly validation = signal<AddressValidation>({ kind: 'empty' });
+
+  // Placeholder changes with network so users see example addresses for their chain
+  readonly addressPlaceholder = computed(() => {
+    const hrp = POCX_NETWORKS[this.network()].hrp;
+    return `${hrp}1q... / ${hrp}1p...`;
+  });
 
   getCurrentStepTitle(): string {
     return this.i18n.get(this.stepTitles[this.currentStep() - 1]);
@@ -313,50 +402,20 @@ export class WatchOnlyComponent {
   }
 
   validateAddress(): void {
-    const addr = this.address.trim();
-
-    if (!addr) {
-      this.addressError.set(null);
-      this.addressType.set(null);
+    const result = validatePocxAddress(this.address);
+    if (result.kind === 'valid' && result.network !== this.network()) {
+      this.validation.set({ kind: 'wrong_network', addressNetwork: result.network });
       return;
     }
+    this.validation.set(result);
+  }
 
-    // Bitcoin-PoCX address validation patterns
-    // Based on chainparams.cpp from PoC-Consortium/bitcoin
-    const patterns = {
-      // PoCX Mainnet (HRP: pocx, P2PKH version: 0x55, P2SH version: 0x5A)
-      'Mainnet P2PKH': /^[VW][a-km-zA-HJ-NP-Z1-9]{25,34}$/,
-      'Mainnet P2SH': /^[XY][a-km-zA-HJ-NP-Z1-9]{25,34}$/,
-      'Mainnet Bech32 (SegWit)': /^pocx1q[a-z0-9]{38,58}$/,
-      'Mainnet Bech32m (Taproot)': /^pocx1p[a-z0-9]{38,58}$/,
-
-      // PoCX Testnet (HRP: tpocx, P2PKH version: 0x7F, P2SH version: 0x84)
-      'Testnet P2PKH': /^[st][a-km-zA-HJ-NP-Z1-9]{25,34}$/,
-      'Testnet P2SH': /^[uv][a-km-zA-HJ-NP-Z1-9]{25,34}$/,
-      'Testnet Bech32 (SegWit)': /^tpocx1q[a-z0-9]{38,58}$/,
-      'Testnet Bech32m (Taproot)': /^tpocx1p[a-z0-9]{38,58}$/,
-
-      // PoCX Regtest (HRP: rpocx, P2PKH version: 0x6F, P2SH version: 0xC4)
-      'Regtest P2PKH': /^[mn][a-km-zA-HJ-NP-Z1-9]{25,34}$/,
-      'Regtest P2SH': /^2[a-km-zA-HJ-NP-Z1-9]{25,34}$/,
-      'Regtest Bech32 (SegWit)': /^rpocx1q[a-z0-9]{38,58}$/,
-      'Regtest Bech32m (Taproot)': /^rpocx1p[a-z0-9]{38,58}$/,
-    };
-
-    for (const [type, pattern] of Object.entries(patterns)) {
-      if (pattern.test(addr)) {
-        this.addressError.set(null);
-        this.addressType.set(type);
-        return;
-      }
-    }
-
-    this.addressError.set('invalid_bitcoin_address');
-    this.addressType.set(null);
+  translateNetwork(network: Network): string {
+    return this.i18n.get(network);
   }
 
   isAddressValid(): boolean {
-    return !!this.address.trim() && !this.addressError() && !!this.addressType();
+    return this.validation().kind === 'valid';
   }
 
   async createWatchOnlyWallet(): Promise<void> {
