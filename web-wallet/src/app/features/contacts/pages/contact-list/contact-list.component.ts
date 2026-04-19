@@ -357,6 +357,11 @@ interface Contact {
               border-radius: 8px;
             }
 
+            .mat-mdc-form-field-flex {
+              height: 40px;
+              align-items: center;
+            }
+
             .mat-mdc-form-field-infix {
               min-height: 40px;
               padding-top: 8px;
