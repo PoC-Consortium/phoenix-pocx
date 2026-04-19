@@ -1421,6 +1421,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   }
 
   async onSubmit(): Promise<void> {
+    if (this.isSubmitting()) return;
     if (!this.canSubmit()) return;
 
     const walletName = this.walletManager.activeWallet;
@@ -1429,39 +1430,38 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Pre-flight check: verify current state allows the operation
-    try {
-      const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
-
-      if (this.currentMode === 'create') {
-        if (status.state !== 'UNASSIGNED' && status.state !== 'REVOKED') {
-          this.notification.error(
-            this.i18n.get('cannot_create_assignment_state').replace('{state}', status.state)
-          );
-          return;
-        }
-      } else if (this.currentMode === 'revoke') {
-        if (status.state !== 'ASSIGNED') {
-          this.notification.error(
-            this.i18n.get('cannot_revoke_assignment_state').replace('{state}', status.state)
-          );
-          return;
-        }
-      }
-    } catch {
-      // If get_assignment fails, the plot might be unassigned (no record)
-      // For create, this is OK. For revoke, this is an error.
-      if (this.currentMode === 'revoke') {
-        this.notification.error(this.i18n.get('no_assignment_to_revoke'));
-        return;
-      }
-    }
-
     this.isSubmitting.set(true);
 
     try {
+      // Pre-flight check: verify current state allows the operation
+      try {
+        const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
+
+        if (this.currentMode === 'create') {
+          if (status.state !== 'UNASSIGNED' && status.state !== 'REVOKED') {
+            this.notification.error(
+              this.i18n.get('cannot_create_assignment_state').replace('{state}', status.state)
+            );
+            return;
+          }
+        } else if (this.currentMode === 'revoke') {
+          if (status.state !== 'ASSIGNED') {
+            this.notification.error(
+              this.i18n.get('cannot_revoke_assignment_state').replace('{state}', status.state)
+            );
+            return;
+          }
+        }
+      } catch {
+        // If get_assignment fails, the plot might be unassigned (no record)
+        // For create, this is OK. For revoke, this is an error.
+        if (this.currentMode === 'revoke') {
+          this.notification.error(this.i18n.get('no_assignment_to_revoke'));
+          return;
+        }
+      }
+
       if (!(await this.ensureWalletUnlocked(walletName))) {
-        this.isSubmitting.set(false);
         return;
       }
 

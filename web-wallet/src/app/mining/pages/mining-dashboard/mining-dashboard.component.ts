@@ -1674,6 +1674,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   readonly currentBlock = this.miningService.minerCurrentBlock;
   readonly configured = signal(false);
   readonly stateLoaded = signal(false);
+  readonly isToggling = signal(false);
   readonly enabledChains = signal<ChainConfig[]>([]);
   readonly drives = signal<DriveConfig[]>([]);
   /** Android storage permission state */
@@ -2328,13 +2329,19 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   async toggleMining(): Promise<void> {
-    if (this.isRunning()) {
-      await this.miningService.stopMiner();
-    } else {
-      await this.miningService.startMiner();
+    if (this.isToggling()) return;
+    this.isToggling.set(true);
+    try {
+      if (this.isRunning()) {
+        await this.miningService.stopMiner();
+      } else {
+        await this.miningService.startMiner();
+      }
+      // Service logs timing internally; just sync local UI state
+      await this.loadState();
+    } finally {
+      this.isToggling.set(false);
     }
-    // Service logs timing internally; just sync local UI state
-    await this.loadState();
   }
 
   /**

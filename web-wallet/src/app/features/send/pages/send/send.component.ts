@@ -1288,6 +1288,7 @@ export class SendComponent implements OnInit, OnDestroy {
   }
 
   async sendTransaction(): Promise<void> {
+    if (this.sending()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName || !this.amount) return;
 
