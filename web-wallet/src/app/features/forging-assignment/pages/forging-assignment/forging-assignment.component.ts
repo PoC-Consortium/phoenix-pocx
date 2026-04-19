@@ -1397,7 +1397,6 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
       this.assignmentStatus.set(status);
     } catch (error) {
-      console.error('Failed to check assignment status:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.notification.error(`${this.i18n.get('error_checking_status')}: ${errorMsg}`);
     } finally {
@@ -1492,7 +1491,6 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
         this.clear();
       }
     } catch (error) {
-      console.error('Transaction failed:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.notification.error(`${this.i18n.get('transaction_failed')}: ${errorMsg}`);
     } finally {
