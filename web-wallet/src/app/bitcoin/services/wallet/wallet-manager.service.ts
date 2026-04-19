@@ -28,12 +28,35 @@ export interface ImportWalletOptions {
 }
 
 /**
- * Watch-only wallet creation options
+ * How far back to rescan when importing watch-only descriptors. Maps to the
+ * `timestamp` field of `importdescriptors`: 'now' = no rescan, 0 = genesis,
+ * a unix-seconds integer = from that date.
+ */
+export type WatchOnlyRescan =
+  | { kind: 'now' }
+  | { kind: 'genesis' }
+  | { kind: 'date'; timestamp: number };
+
+/**
+ * Watch-only wallet creation options. `descriptors` are canonical
+ * `<body>#<checksum>` strings — raw addresses should be wrapped as
+ * `addr(<addr>)` with a checksum by the caller before landing here.
  */
 export interface WatchOnlyWalletOptions {
   walletName: string;
-  address: string;
-  rescan?: boolean;
+  descriptors: string[];
+  rescan: WatchOnlyRescan;
+}
+
+function rescanToTimestamp(rescan: WatchOnlyRescan): number | 'now' {
+  switch (rescan.kind) {
+    case 'now':
+      return 'now';
+    case 'genesis':
+      return 0;
+    case 'date':
+      return rescan.timestamp;
+  }
 }
 
 /**
@@ -271,36 +294,39 @@ export class WalletManagerService {
   }
 
   /**
-   * Create a watch-only wallet from a single Bitcoin address
+   * Create a watch-only wallet and batch-import the supplied descriptors.
    *
-   * This creates a descriptor wallet with private keys disabled
-   * and imports the address as an addr() descriptor.
+   * Creates a blank descriptor wallet with private keys disabled, then
+   * imports every descriptor in a single `importdescriptors` RPC call
+   * sharing the provided rescan timestamp. Any per-entry failure aborts
+   * the batch and unloads the wallet so the caller can retry after
+   * correction.
    */
   async createWatchOnlyWallet(options: WatchOnlyWalletOptions): Promise<void> {
+    if (options.descriptors.length === 0) {
+      throw new Error('At least one descriptor or address is required');
+    }
     this.isLoadingSubject.next(true);
 
     try {
-      // Create a blank descriptor wallet with private keys disabled
       await this.walletRpc.createWallet(options.walletName, {
         blank: true,
         descriptors: true,
         disablePrivateKeys: true,
       });
 
-      // Create an addr() descriptor for the address
-      // Get descriptor info to compute checksum
-      const descriptorInfo = await this.walletRpc.getDescriptorInfo(`addr(${options.address})`);
+      const timestamp = rescanToTimestamp(options.rescan);
+      const importSet = options.descriptors.map(desc => ({
+        desc,
+        timestamp,
+        label: 'watch',
+      }));
 
-      // Import the descriptor
-      const importResults = await this.walletRpc.importDescriptors(options.walletName, [
-        {
-          desc: descriptorInfo.descriptor, // includes checksum
-          timestamp: options.rescan ? 0 : 'now',
-          label: 'watched-address',
-        },
-      ]);
+      const importResults = await this.walletRpc.importDescriptors(
+        options.walletName,
+        importSet
+      );
 
-      // Check for import errors
       const errors = importResults
         .filter(r => !r.success)
         .map(r => r.error?.message || 'Unknown import error');
@@ -312,10 +338,8 @@ export class WalletManagerService {
       await this.refreshLoadedWallets();
       this.setActiveWallet(options.walletName);
 
-      // Notify subscribers
       this.walletsChangedSubject.next();
     } catch (error) {
-      // If wallet was created but something failed, try to unload it
       try {
         await this.walletRpc.unloadWallet(options.walletName);
       } catch {
