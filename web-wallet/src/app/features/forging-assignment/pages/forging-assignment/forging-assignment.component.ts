@@ -164,60 +164,7 @@ interface WalletAddress {
                 </div>
 
                 <!-- Fee Section -->
-                <div class="fee-section">
-                  <div class="section-header">
-                    <label class="field-label">{{ 'fee' | i18n }}</label>
-                    <button
-                      type="button"
-                      class="refresh-button"
-                      (click)="refreshFeeEstimates()"
-                      [disabled]="isLoadingFees()"
-                      [title]="'refresh_fees' | i18n"
-                    >
-                      <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
-                    </button>
-                  </div>
-
-                  <div class="fee-options">
-                    @for (option of feeOptions; track option.label) {
-                      <button
-                        mat-stroked-button
-                        [class.selected]="selectedFeeOption === option"
-                        (click)="selectFeeOption(option)"
-                        [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
-                      >
-                        <div class="fee-option">
-                          <span class="fee-label">{{ option.label | i18n }}</span>
-                          @if (option.label === 'fee_custom') {
-                            <mat-icon class="custom-icon">tune</mat-icon>
-                          } @else if (option.feeRate !== null) {
-                            <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
-                            <span class="fee-time">{{ option.timeEstimate }}</span>
-                          } @else {
-                            <span class="fee-rate">--</span>
-                          }
-                        </div>
-                      </button>
-                    }
-                  </div>
-
-                  @if (selectedFeeOption?.label === 'fee_custom') {
-                    <div class="custom-fee-input">
-                      <mat-form-field appearance="outline">
-                        <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
-                        <input
-                          matInput
-                          type="number"
-                          [(ngModel)]="customFeeRate"
-                          (ngModelChange)="onCustomFeeChange()"
-                          min="1"
-                          step="1"
-                          autocomplete="off"
-                        />
-                      </mat-form-field>
-                    </div>
-                  }
-                </div>
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
 
                 <!-- Action Buttons -->
                 <div class="action-buttons">
@@ -284,60 +231,7 @@ interface WalletAddress {
                 </div>
 
                 <!-- Fee Section -->
-                <div class="fee-section">
-                  <div class="section-header">
-                    <label class="field-label">{{ 'fee' | i18n }}</label>
-                    <button
-                      type="button"
-                      class="refresh-button"
-                      (click)="refreshFeeEstimates()"
-                      [disabled]="isLoadingFees()"
-                      [title]="'refresh_fees' | i18n"
-                    >
-                      <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
-                    </button>
-                  </div>
-
-                  <div class="fee-options">
-                    @for (option of feeOptions; track option.label) {
-                      <button
-                        mat-stroked-button
-                        [class.selected]="selectedFeeOption === option"
-                        (click)="selectFeeOption(option)"
-                        [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
-                      >
-                        <div class="fee-option">
-                          <span class="fee-label">{{ option.label | i18n }}</span>
-                          @if (option.label === 'fee_custom') {
-                            <mat-icon class="custom-icon">tune</mat-icon>
-                          } @else if (option.feeRate !== null) {
-                            <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
-                            <span class="fee-time">{{ option.timeEstimate }}</span>
-                          } @else {
-                            <span class="fee-rate">--</span>
-                          }
-                        </div>
-                      </button>
-                    }
-                  </div>
-
-                  @if (selectedFeeOption?.label === 'fee_custom') {
-                    <div class="custom-fee-input">
-                      <mat-form-field appearance="outline">
-                        <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
-                        <input
-                          matInput
-                          type="number"
-                          [(ngModel)]="customFeeRate"
-                          (ngModelChange)="onCustomFeeChange()"
-                          min="1"
-                          step="1"
-                          autocomplete="off"
-                        />
-                      </mat-form-field>
-                    </div>
-                  }
-                </div>
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
 
                 <!-- Action Buttons -->
                 <div class="action-buttons">
@@ -591,6 +485,64 @@ interface WalletAddress {
         </div>
       </div>
     </div>
+
+    <!-- Shared fee section (Create + Revoke tabs) -->
+    <ng-template #feeSection>
+      <div class="fee-section">
+        <div class="section-header">
+          <label class="field-label">{{ 'fee' | i18n }}</label>
+          <button
+            type="button"
+            class="refresh-button"
+            (click)="refreshFeeEstimates()"
+            [disabled]="isLoadingFees()"
+            [title]="'refresh_fees' | i18n"
+          >
+            <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
+          </button>
+        </div>
+
+        <div class="fee-options">
+          @for (option of feeOptions; track option.label) {
+            <button
+              mat-stroked-button
+              [class.selected]="selectedFeeOption === option"
+              (click)="selectFeeOption(option)"
+              [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
+            >
+              <div class="fee-option">
+                <span class="fee-label">{{ option.label | i18n }}</span>
+                @if (option.label === 'fee_custom') {
+                  <mat-icon class="custom-icon">tune</mat-icon>
+                } @else if (option.feeRate !== null) {
+                  <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
+                  <span class="fee-time">{{ option.timeEstimate }}</span>
+                } @else {
+                  <span class="fee-rate">--</span>
+                }
+              </div>
+            </button>
+          }
+        </div>
+
+        @if (selectedFeeOption?.label === 'fee_custom') {
+          <div class="custom-fee-input">
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
+              <input
+                matInput
+                type="number"
+                [(ngModel)]="customFeeRate"
+                (ngModelChange)="onCustomFeeChange()"
+                min="1"
+                step="1"
+                autocomplete="off"
+              />
+            </mat-form-field>
+          </div>
+        }
+      </div>
+    </ng-template>
   `,
   styles: [
     `
