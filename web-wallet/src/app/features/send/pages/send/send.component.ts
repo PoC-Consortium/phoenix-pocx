@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule, DecimalPipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -22,7 +22,6 @@ interface Contact {
   id: string;
   name: string;
   address: string;
-  notes?: string;
   createdAt: number;
 }
 import { AddressDisplayComponent, PassphraseDialogComponent } from '../../../../shared';
@@ -58,7 +57,6 @@ interface FeeOption {
   selector: 'app-send',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     RouterModule,
     MatCardModule,

@@ -20,7 +20,6 @@ import { Subject, takeUntil } from 'rxjs';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
 import { RpcClientService } from '../../../../bitcoin/services/rpc/rpc-client.service';
-import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { PlatformService } from '../../../../core/services/platform.service';
 import { ElectronService, DebugPaths } from '../../../../core/services/electron.service';
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
@@ -1428,7 +1427,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly notification = inject(NotificationService);
   private readonly rpcClient = inject(RpcClientService);
-  private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly platform = inject(PlatformService);
   private readonly electron = inject(ElectronService);
   private readonly cookieAuth = inject(CookieAuthService);

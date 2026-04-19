@@ -4,11 +4,10 @@ import {
   signal,
   computed,
   OnInit,
-  OnDestroy,
   ViewChild,
   effect,
 } from '@angular/core';
-import { CommonModule, DecimalPipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,7 +18,6 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
-import { Subject } from 'rxjs';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import {
   WalletTransaction,
@@ -39,7 +37,6 @@ import {
   selector: 'app-dashboard',
   standalone: true,
   imports: [
-    CommonModule,
     MatCardModule,
     MatIconModule,
     MatProgressSpinnerModule,
@@ -922,7 +919,7 @@ import {
     `,
   ],
 })
-export class DashboardComponent implements OnInit, OnDestroy {
+export class DashboardComponent implements OnInit {
   @ViewChild(MatPaginator, { static: false }) paginator!: MatPaginator;
 
   // Inject centralized state services
@@ -935,7 +932,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly notification = inject(NotificationService);
   private readonly blockExplorer = inject(BlockExplorerService);
   private readonly dialog = inject(MatDialog);
-  private readonly destroy$ = new Subject<void>();
 
   // Loading states derived from services
   isLoadingBlockchain = computed(() => this.blockchainState.isLoading());
@@ -985,11 +981,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     // Initial page update
     this.updateTransactionPage();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
   }
 
   // Chart methods
@@ -1191,11 +1182,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return info.chain;
   }
 
-  getSyncProgress(): string {
-    const state = this.syncState();
-    return state.percent.toFixed(2);
-  }
-
   getSyncStateWithProgress(): string {
     const state = this.syncState();
 
@@ -1249,19 +1235,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
-  getAmountClass(tx: WalletTransaction): string {
-    switch (tx.category) {
-      case 'receive':
-      case 'generate':
-        return 'incoming';
-      case 'send':
-        return 'outgoing';
-      case 'immature':
-        return 'immature';
-      default:
-        return '';
-    }
-  }
 
   formatTransactionAmount(tx: WalletTransaction): string {
     const prefix =
