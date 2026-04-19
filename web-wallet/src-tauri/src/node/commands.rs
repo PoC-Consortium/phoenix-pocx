@@ -81,6 +81,14 @@ pub fn is_node_running() -> bool {
     NodeManager::is_node_running()
 }
 
+/// Check if the user has completed first-time setup.
+/// Returns true iff node_config.json exists on disk. Used by the frontend
+/// node-setup guard to distinguish "never set up" from "set up but broken".
+#[tauri::command]
+pub fn is_first_launch_complete() -> bool {
+    NodeConfig::config_path().exists()
+}
+
 /// Check if bitcoind binary is installed
 #[tauri::command]
 pub fn is_node_installed(state: State<'_, SharedNodeState>) -> bool {

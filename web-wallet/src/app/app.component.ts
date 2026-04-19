@@ -9,7 +9,6 @@ import { AppModeService } from './core/services/app-mode.service';
 import { PlatformService } from './core/services/platform.service';
 import { AppUpdateService } from './core/services/app-update.service';
 import { CookieAuthService } from './core/auth/cookie-auth.service';
-import { NotificationService } from './shared/services';
 import { MiningService } from './mining/services';
 import { NodeService } from './node';
 import { AggregatorService } from './aggregator/services/aggregator.service';
@@ -83,7 +82,6 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly appUpdateService = inject(AppUpdateService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly dialog = inject(MatDialog);
-  private readonly notification = inject(NotificationService);
   private readonly miningService = inject(MiningService);
   private readonly nodeService = inject(NodeService);
   private readonly aggregatorService = inject(AggregatorService);
@@ -119,18 +117,14 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Check if we need to wait for node startup (set synchronously before async code)
-    // Skip in mining-only mode - it doesn't manage the node lifecycle
-    if (
-      this.electronService.isDesktop &&
-      this.nodeService.isManaged() &&
-      this.nodeService.isInstalled() &&
-      !this.appModeService.isMiningOnly()
-    ) {
+    // Show the startup overlay by default on desktop so we don't briefly
+    // render the wallet selector (which would try to connect and show a
+    // spurious error) while NodeService is still initializing. initNodeService
+    // clears it once it knows whether it needs to auto-start the node.
+    if (this.electronService.isDesktop && !this.appModeService.isMiningOnly()) {
       this.isStartingNode.set(true);
     }
 
-    // Initialize managed node service
     this.initNodeService();
 
     // Initialize update checking service
@@ -177,34 +171,40 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Initialize managed node service:
-   * - Start node if managed mode and installed
-   * - Wait for RPC to be ready
-   * - Start periodic status refresh
+   * Auto-start the managed node when configured, then kick off aggregator/
+   * mining auto-start and periodic status polling.
    *
-   * Shows a loading overlay while waiting for the node to start.
-   *
-   * Redirect to /node/setup is handled by nodeSetupGuard in routes,
-   * which runs before authGuard and properly intercepts first-launch flow.
+   * Short-circuits on first launch (no config) so the overlay clears and the
+   * guard's redirect to /node/setup can render without waiting for an RPC
+   * timeout. NodeService is already initialized via APP_INITIALIZER by the
+   * time we get here.
    */
   private async initNodeService(): Promise<void> {
     if (!this.electronService.isDesktop) {
       return;
     }
 
-    // If we're showing the startup overlay, do the node startup
-    if (this.isStartingNode()) {
-      try {
-        // Unified flow: detect, start if needed, wait for RPC, refresh credentials
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const configExists = await invoke<boolean>('is_first_launch_complete');
+      if (!configExists) {
+        return;
+      }
+
+      const shouldStartManagedNode =
+        this.nodeService.isManaged() &&
+        this.nodeService.isInstalled() &&
+        !this.appModeService.isMiningOnly();
+
+      if (shouldStartManagedNode) {
         await this.nodeService.ensureNodeReadyAndAuthenticated(() =>
           this.cookieAuth.refreshCredentials()
         );
-      } catch (err) {
-        console.error('Error during node startup:', err);
-      } finally {
-        // Hide loading overlay
-        this.isStartingNode.set(false);
       }
+    } catch (err) {
+      console.error('Error during node startup:', err);
+    } finally {
+      this.isStartingNode.set(false);
     }
 
     // Auto-start aggregator if enabled in config (after node is ready)

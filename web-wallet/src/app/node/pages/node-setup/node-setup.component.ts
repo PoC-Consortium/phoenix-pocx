@@ -692,6 +692,17 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
       // Skip mode selection and go directly to install step
       this.currentStep.set(1);
       this.fetchReleaseInfo();
+      return;
+    }
+
+    // Repair mode (?repair=true): config exists + managed + binary missing.
+    // Jump to the download step but leave isUpdateMode false so back() still
+    // lets the user return to the mode picker if they want to switch modes.
+    const repairParam = this.route.snapshot.queryParamMap.get('repair');
+    if (repairParam === 'true' && config.mode === 'managed') {
+      this.currentStep.set(1);
+      this.fetchReleaseInfo();
+      return;
     }
   }
 

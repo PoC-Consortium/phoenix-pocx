@@ -646,6 +646,7 @@
   "reset_wallet": "Reset Wallet",
   "reset_wallet_description": "Delete all wallet data and start fresh. Your funds on the blockchain are safe.",
   "reset_wallet_confirm": "This will delete all locally stored data including accounts, contacts, and settings. Your funds on the blockchain are safe, but you will need your recovery phrases to restore access. Are you sure you want to continue?",
+  "re_run_node_setup": "Re-run node setup",
   "retry": "Retry",
   "revocation_created_success": "Revocation created successfully",
   "revocation_effective": "Revocation effective",
