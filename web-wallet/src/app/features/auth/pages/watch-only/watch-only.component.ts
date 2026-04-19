@@ -13,6 +13,7 @@ import { MatRadioModule } from '@angular/material/radio';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
+import { StepHeaderComponent } from '../../../../shared/components';
 import {
   WalletManagerService,
   type WatchOnlyRescan,
@@ -65,24 +66,16 @@ interface PendingEntry {
     MatProgressBarModule,
     MatRadioModule,
     I18nPipe,
+    StepHeaderComponent,
   ],
   template: `
     <div class="watch-only-container">
       <mat-card class="watch-only-card">
-        <div class="step-header">
-          <span class="step-title">{{ getCurrentStepTitle() }}</span>
-          <div class="step-indicators">
-            @for (step of [1, 2, 3]; track step) {
-              <span
-                class="step-dot"
-                [class.active]="currentStep() === step"
-                [class.completed]="currentStep() > step"
-              >
-                {{ step }}
-              </span>
-            }
-          </div>
-        </div>
+        <app-step-header
+          [title]="getCurrentStepTitle()"
+          [currentStep]="currentStep()"
+          [totalSteps]="3"
+        ></app-step-header>
 
         @if (creating()) {
           <mat-progress-bar mode="indeterminate"></mat-progress-bar>
@@ -304,49 +297,6 @@ interface PendingEntry {
         max-width: 640px;
       }
 
-      .step-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 24px;
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-        color: white;
-        border-radius: 4px 4px 0 0;
-      }
-
-      .step-title {
-        font-size: 18px;
-        font-weight: 500;
-      }
-
-      .step-indicators {
-        display: flex;
-        gap: 8px;
-      }
-
-      .step-dot {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        font-weight: 500;
-        background: rgba(255, 255, 255, 0.2);
-        color: rgba(255, 255, 255, 0.7);
-
-        &.active {
-          background: white;
-          color: #1e3a5f;
-        }
-
-        &.completed {
-          background: rgba(255, 255, 255, 0.4);
-          color: white;
-        }
-      }
-
       .step-content {
         padding: 24px;
       }
@@ -473,13 +423,6 @@ interface PendingEntry {
         border-top: 1px solid rgba(0, 0, 0, 0.08);
       }
 
-      @media (max-width: 599px) {
-        .step-header {
-          flex-direction: column;
-          gap: 12px;
-          text-align: center;
-        }
-      }
     `,
   ],
 })

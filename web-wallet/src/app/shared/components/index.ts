@@ -21,3 +21,4 @@ export { AddressDisplayComponent } from './address-display/address-display.compo
 export { BalanceDisplayComponent } from './balance-display/balance-display.component';
 export { EmptyStateComponent } from './empty-state/empty-state.component';
 export { LoadingSpinnerComponent } from './loading-spinner/loading-spinner.component';
+export { StepHeaderComponent } from './step-header/step-header.component';
