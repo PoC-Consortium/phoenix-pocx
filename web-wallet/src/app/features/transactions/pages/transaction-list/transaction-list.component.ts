@@ -868,6 +868,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   selectedType: TransactionFilter = 'all';
   dateFrom: Date | null = null;
   dateTo: Date | null = null;
+  private filterVersion = signal(0);
 
   // Load limit options (0 = ALL)
   loadLimitOptions: Array<{ value: number; label: string }> = [
@@ -887,6 +888,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   ];
 
   filteredTransactions = computed(() => {
+    this.filterVersion();
     let txs = this.transactions();
     const filter = this.activeFilter();
     const query = this.searchQuery.toLowerCase().trim();
@@ -910,6 +912,18 @@ export class TransactionListComponent implements OnInit, OnDestroy {
           tx.address?.toLowerCase().includes(query) ||
           tx.label?.toLowerCase().includes(query)
       );
+    }
+
+    // Apply date range (tx.time is Unix seconds; end-of-day inclusive)
+    if (this.dateFrom) {
+      const fromSec = Math.floor(this.dateFrom.getTime() / 1000);
+      txs = txs.filter(tx => tx.time >= fromSec);
+    }
+    if (this.dateTo) {
+      const toEnd = new Date(this.dateTo);
+      toEnd.setHours(23, 59, 59, 999);
+      const toSec = Math.floor(toEnd.getTime() / 1000);
+      txs = txs.filter(tx => tx.time <= toSec);
     }
 
     return txs;
@@ -982,8 +996,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   applyFilters(): void {
     this.pageIndex.set(0);
-    // Trigger recomputation by touching activeFilter
-    this.activeFilter.set(this.activeFilter());
+    this.filterVersion.update(v => v + 1);
   }
 
   clearSearch(): void {
@@ -998,6 +1011,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     this.dateFrom = null;
     this.dateTo = null;
     this.pageIndex.set(0);
+    this.filterVersion.update(v => v + 1);
   }
 
   goBack(): void {
