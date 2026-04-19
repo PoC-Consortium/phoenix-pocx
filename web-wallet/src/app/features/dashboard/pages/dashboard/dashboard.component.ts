@@ -272,7 +272,7 @@ import {
                         <button
                           mat-icon-button
                           [matMenuTriggerFor]="txMenu"
-                          aria-label="More Actions"
+                          [attr.aria-label]="'actions' | i18n"
                         >
                           <mat-icon>more_vert</mat-icon>
                         </button>
@@ -1260,12 +1260,19 @@ export class DashboardComponent implements OnInit {
 
   formatTxDate(tx: WalletTransaction): string {
     const date = new Date(tx.time * 1000);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(this.i18n.currentLanguageCode(), {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   }
 
   formatTxTime(tx: WalletTransaction): string {
     const date = new Date(tx.time * 1000);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString(this.i18n.currentLanguageCode(), {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   // Pagination
