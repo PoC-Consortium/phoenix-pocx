@@ -153,6 +153,13 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 }
               </div>
 
+              @if (isMnemonicChecksumInvalid()) {
+                <p class="warning-text small">
+                  <mat-icon>error</mat-icon>
+                  {{ 'mnemonic_checksum_invalid' | i18n }}
+                </p>
+              }
+
               <!-- BIP39 Passphrase Option (25th word) -->
               <div class="passphrase-section">
                 <mat-checkbox [(ngModel)]="useBip39Passphrase" class="passphrase-checkbox">
@@ -608,7 +615,7 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     }
   }
 
-  isMnemonicValid(): boolean {
+  isMnemonicComplete(): boolean {
     const wordlist = this.descriptorService.getWordlist();
     const filledWords = this.mnemonicWords.filter(w => w.trim().length > 0);
 
@@ -620,6 +627,19 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
       const trimmed = word.trim().toLowerCase();
       return wordlist.includes(trimmed);
     });
+  }
+
+  isMnemonicValid(): boolean {
+    if (!this.isMnemonicComplete()) return false;
+
+    // BIP39 checksum: the last word encodes a checksum of the first N-1,
+    // so a typo swapping one valid word for another is detectable here.
+    const phrase = this.mnemonicWords.map(w => w.trim().toLowerCase()).join(' ');
+    return this.descriptorService.validateMnemonic(phrase);
+  }
+
+  isMnemonicChecksumInvalid(): boolean {
+    return this.isMnemonicComplete() && !this.isMnemonicValid();
   }
 
   bip39PassphraseValid(): boolean {

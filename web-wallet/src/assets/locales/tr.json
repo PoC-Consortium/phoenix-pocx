@@ -772,5 +772,6 @@
   "word_number": "Kelime #{number}",
   "words": "kelime",
   "wtxid": "Tanık TXID",
-  "yes": "Evet"
+  "yes": "Evet",
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
 }

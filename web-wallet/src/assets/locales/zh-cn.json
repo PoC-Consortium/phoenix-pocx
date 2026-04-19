@@ -772,5 +772,6 @@
   "word_number": "单词 #{number}",
   "words": "个单词",
   "wtxid": "见证交易ID",
-  "yes": "是"
+  "yes": "是",
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
 }

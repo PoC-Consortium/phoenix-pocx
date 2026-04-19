@@ -772,5 +772,6 @@
   "word_number": "शब्द #{number}",
   "words": "शब्द",
   "wtxid": "विटनेस TXID",
-  "yes": "हाँ"
+  "yes": "हाँ",
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
 }

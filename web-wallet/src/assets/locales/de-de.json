@@ -772,5 +772,6 @@
   "word_number": "Wort #{number}",
   "words": "Woerter",
   "wtxid": "Witness-TXID",
-  "yes": "Ja"
+  "yes": "Ja",
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
 }

@@ -772,5 +772,6 @@
   "word_number": "Sana #{number}",
   "words": "sanaa",
   "wtxid": "Todistajan TXID",
-  "yes": "Kylla"
+  "yes": "Kylla",
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
 }

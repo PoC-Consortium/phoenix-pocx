@@ -772,5 +772,6 @@
   "word_number": "Mot #{number}",
   "words": "mots",
   "wtxid": "TXID temoin",
-  "yes": "Oui"
+  "yes": "Oui",
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
 }

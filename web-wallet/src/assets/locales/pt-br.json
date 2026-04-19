@@ -772,5 +772,6 @@
   "word_number": "Palavra #{number}",
   "words": "palavras",
   "wtxid": "TXID testemunha",
-  "yes": "Sim"
+  "yes": "Sim",
+  "mnemonic_checksum_invalid": "Invalid recovery phrase. The checksum does not match — double-check each word against your backup."
 }
