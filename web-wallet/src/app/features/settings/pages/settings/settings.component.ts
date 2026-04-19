@@ -25,6 +25,7 @@ import { PlatformService } from '../../../../core/services/platform.service';
 import { ElectronService, DebugPaths } from '../../../../core/services/electron.service';
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { SettingsActions } from '../../../../store/settings/settings.actions';
+import { WalletActions } from '../../../../store/wallet/wallet.actions';
 import {
   selectNodeConfig,
   selectNotifications,
@@ -1693,6 +1694,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
       // 7. Notify and redirect to wallet selection
       this.notification.success(this.i18n.get('settings_saved'));
+      this.store.dispatch(WalletActions.resetState());
       this.walletManager.setActiveWallet(null);
       this.router.navigate(['/auth']);
     } catch (err) {
