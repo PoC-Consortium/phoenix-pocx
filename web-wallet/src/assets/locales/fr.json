@@ -556,6 +556,7 @@
   "send_another": "Envoyer un autre",
   "send_bitcoin": "Envoyer",
   "send_to_address": "Envoyer a l'adresse",
+  "select_contact": "Sélectionner un contact",
   "send_to_contact": "Envoyer au contact",
   "settings": "Parametres",
   "settings_saved": "Parametres enregistres avec succes",

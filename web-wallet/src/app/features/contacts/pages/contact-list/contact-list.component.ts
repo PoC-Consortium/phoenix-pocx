@@ -29,6 +29,7 @@ interface Contact {
   address: string;
   notes?: string;
   createdAt: number;
+  network: Network;
 }
 
 /**
@@ -654,10 +655,12 @@ export class ContactListComponent implements OnInit {
   formNotes = '';
 
   filteredContacts = computed(() => {
+    const net = this.network();
+    const byNet = this.contacts().filter(c => c.network === net);
     const query = this.searchQuery().toLowerCase().trim();
-    if (!query) return this.contacts();
+    if (!query) return byNet;
 
-    return this.contacts().filter(
+    return byNet.filter(
       c =>
         c.name.toLowerCase().includes(query) ||
         c.address.toLowerCase().includes(query) ||
@@ -683,15 +686,24 @@ export class ContactListComponent implements OnInit {
 
   loadContacts(): void {
     const stored = localStorage.getItem('wallet_contacts');
-    if (stored) {
-      try {
-        const contacts = JSON.parse(stored) as Contact[];
-        // Sort by name
-        contacts.sort((a, b) => a.name.localeCompare(b.name));
-        this.contacts.set(contacts);
-      } catch {
-        // Invalid data
-      }
+    if (!stored) return;
+    try {
+      const raw = JSON.parse(stored) as (Omit<Contact, 'network'> & { network?: Network })[];
+      let mutated = false;
+      const migrated: Contact[] = raw.map(c => {
+        if (c.network) return c as Contact;
+        // Legacy entry — infer the network from the address itself so mainnet
+        // and testnet contacts survive the split accurately.
+        mutated = true;
+        const result = validatePocxAddress(c.address);
+        const network: Network = result.kind === 'valid' ? result.network : this.network();
+        return { ...c, network };
+      });
+      migrated.sort((a, b) => a.name.localeCompare(b.name));
+      this.contacts.set(migrated);
+      if (mutated) this.saveContacts();
+    } catch {
+      // Invalid data
     }
   }
 
@@ -760,6 +772,8 @@ export class ContactListComponent implements OnInit {
     const address = this.formAddress.trim();
     const name = this.formName.trim();
     const notes = this.formNotes.trim() || undefined;
+    // Validation already ensured the address matches the current network.
+    const network = this.network();
 
     const addressKey = address.toLowerCase();
     const conflict = this.contacts().some(
@@ -772,7 +786,7 @@ export class ContactListComponent implements OnInit {
 
     if (editing) {
       const updated = this.contacts().map(c =>
-        c.id === editing.id ? { ...c, name, address, notes } : c
+        c.id === editing.id ? { ...c, name, address, notes, network } : c
       );
       this.contacts.set(updated);
       this.notification.success(this.i18n.get('contact_updated'));
@@ -783,6 +797,7 @@ export class ContactListComponent implements OnInit {
         address,
         notes,
         createdAt: Date.now(),
+        network,
       };
       this.contacts.set(
         [...this.contacts(), newContact].sort((a, b) => a.name.localeCompare(b.name))

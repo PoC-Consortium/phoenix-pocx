@@ -24,6 +24,11 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
+import { Store } from '@ngrx/store';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import { selectNetwork } from '../../../../store/settings/settings.selectors';
+import type { Network } from '../../../../store/settings/settings.state';
 import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
 import {
   MiningRpcService,
@@ -140,8 +145,26 @@ interface WalletAddress {
                         </mat-option>
                       }
                     </mat-autocomplete>
-                    @if (plotAddressError()) {
-                      <mat-hint class="error-hint">{{ plotAddressError() }}</mat-hint>
+                    @if (isPlotAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (plotAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                        >error</mat-icon
+                      >
+                    }
+                    @let createPlotErr = plotAddressError();
+                    @if (createPlotErr) {
+                      <mat-hint class="error-hint">
+                        {{ createPlotErr.key | i18n: createPlotErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
@@ -157,8 +180,28 @@ interface WalletAddress {
                       (ngModelChange)="onForgingAddressChange()"
                       placeholder="tb1q... / bc1q..."
                     />
-                    @if (forgingAddressError()) {
-                      <mat-hint class="error-hint">{{ forgingAddressError() }}</mat-hint>
+                    @if (isForgingAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (forgingAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="
+                          forgingAddressError()!.key | i18n: forgingAddressError()!.params
+                        "
+                        >error</mat-icon
+                      >
+                    }
+                    @let forgErr = forgingAddressError();
+                    @if (forgErr) {
+                      <mat-hint class="error-hint">
+                        {{ forgErr.key | i18n: forgErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
@@ -224,8 +267,26 @@ interface WalletAddress {
                         </mat-option>
                       }
                     </mat-autocomplete>
-                    @if (plotAddressError()) {
-                      <mat-hint class="error-hint">{{ plotAddressError() }}</mat-hint>
+                    @if (isPlotAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (plotAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                        >error</mat-icon
+                      >
+                    }
+                    @let revokePlotErr = plotAddressError();
+                    @if (revokePlotErr) {
+                      <mat-hint class="error-hint">
+                        {{ revokePlotErr.key | i18n: revokePlotErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
@@ -291,8 +352,26 @@ interface WalletAddress {
                         </mat-option>
                       }
                     </mat-autocomplete>
-                    @if (plotAddressError()) {
-                      <mat-hint class="error-hint">{{ plotAddressError() }}</mat-hint>
+                    @if (isPlotAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (plotAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                        >error</mat-icon
+                      >
+                    }
+                    @let checkPlotErr = plotAddressError();
+                    @if (checkPlotErr) {
+                      <mat-hint class="error-hint">
+                        {{ checkPlotErr.key | i18n: checkPlotErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
@@ -1026,6 +1105,14 @@ interface WalletAddress {
         color: #f44336;
       }
 
+      .address-badge-valid {
+        color: #2e7d32;
+      }
+
+      .address-badge-invalid {
+        color: #c62828;
+      }
+
       // Animations
       @keyframes spin {
         from {
@@ -1108,6 +1195,8 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private readonly blockchainState = inject(BlockchainStateService);
   private readonly miningRpc = inject(MiningRpcService);
   private readonly dialog = inject(MatDialog);
+  private readonly store = inject(Store);
+  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
   private readonly destroy$ = new Subject<void>();
 
   // Tab selection
@@ -1142,8 +1231,8 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   // Validation
   isPlotAddressValid = signal(false);
   isForgingAddressValid = signal(false);
-  plotAddressError = signal<string | null>(null);
-  forgingAddressError = signal<string | null>(null);
+  plotAddressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
+  forgingAddressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
 
   ngOnInit(): void {
     this.loadWalletAddresses();
@@ -1221,51 +1310,89 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
 
   private validatePlotAddress(): void {
     const address = this.selectedPlotAddress.trim();
-
     if (!address) {
       this.isPlotAddressValid.set(false);
       this.plotAddressError.set(null);
       return;
     }
-
-    // Check if it's a SegWit v0 address
-    const isSegwitV0 = /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(address);
-    if (!isSegwitV0) {
+    const result = validatePocxAddress(address);
+    if (result.kind === 'empty') {
       this.isPlotAddressValid.set(false);
-      this.plotAddressError.set(this.i18n.get('address_must_be_segwit_v0'));
+      this.plotAddressError.set(null);
       return;
     }
-
+    if (result.kind !== 'valid') {
+      this.isPlotAddressValid.set(false);
+      this.plotAddressError.set({ key: 'invalid_address' });
+      return;
+    }
+    const appNet = this.network();
+    if (result.network !== appNet) {
+      this.isPlotAddressValid.set(false);
+      this.plotAddressError.set({
+        key: 'address_wrong_network',
+        params: {
+          addressNetwork: this.translateNetwork(result.network),
+          appNetwork: this.translateNetwork(appNet),
+        },
+      });
+      return;
+    }
+    if (result.type !== 'Bech32 (SegWit)') {
+      this.isPlotAddressValid.set(false);
+      this.plotAddressError.set({ key: 'address_must_be_segwit_v0' });
+      return;
+    }
     this.isPlotAddressValid.set(true);
     this.plotAddressError.set(null);
   }
 
   private validateForgingAddress(): void {
     const address = this.forgingAddress.trim();
-
     if (!address) {
       this.isForgingAddressValid.set(false);
       this.forgingAddressError.set(null);
       return;
     }
-
-    // Check if it's a SegWit v0 address
-    const isSegwitV0 = /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(address);
-    if (!isSegwitV0) {
+    const result = validatePocxAddress(address);
+    if (result.kind === 'empty') {
       this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set(this.i18n.get('address_must_be_segwit_v0'));
+      this.forgingAddressError.set(null);
       return;
     }
-
-    // Check it's different from plot address
+    if (result.kind !== 'valid') {
+      this.isForgingAddressValid.set(false);
+      this.forgingAddressError.set({ key: 'invalid_address' });
+      return;
+    }
+    const appNet = this.network();
+    if (result.network !== appNet) {
+      this.isForgingAddressValid.set(false);
+      this.forgingAddressError.set({
+        key: 'address_wrong_network',
+        params: {
+          addressNetwork: this.translateNetwork(result.network),
+          appNetwork: this.translateNetwork(appNet),
+        },
+      });
+      return;
+    }
+    if (result.type !== 'Bech32 (SegWit)') {
+      this.isForgingAddressValid.set(false);
+      this.forgingAddressError.set({ key: 'address_must_be_segwit_v0' });
+      return;
+    }
     if (address.toLowerCase() === this.selectedPlotAddress.toLowerCase()) {
       this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set(this.i18n.get('forging_address_must_differ'));
+      this.forgingAddressError.set({ key: 'forging_address_must_differ' });
       return;
     }
-
     this.isForgingAddressValid.set(true);
     this.forgingAddressError.set(null);
+  }
+
+  private translateNetwork(network: Network): string {
+    return this.i18n.get(network);
   }
 
   private validateInputs(): void {

@@ -556,6 +556,7 @@
   "send_another": "もう一つ送信",
   "send_bitcoin": "送信",
   "send_to_address": "アドレスに送信",
+  "select_contact": "連絡先を選択",
   "send_to_contact": "連絡先に送信",
   "settings": "設定",
   "settings_saved": "設定が正常に保存されました",
