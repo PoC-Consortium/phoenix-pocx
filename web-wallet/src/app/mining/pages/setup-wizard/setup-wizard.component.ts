@@ -2916,7 +2916,20 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         // Derive address at index 0 (first receive address)
         const addresses = await this.walletRpc.deriveAddresses(bip84Descriptor.desc, [0, 0]);
         if (addresses.length > 0) {
-          this.walletAddress.set(addresses[0]);
+          const addr = addresses[0];
+          this.walletAddress.set(addr);
+
+          // `deriveaddresses` is pure descriptor math and bypasses Core's label
+          // registry. Without a label the address won't appear in
+          // getaddressesbylabel(""), which the forging-assignment dropdown
+          // uses to list wallet addresses. Set an empty label (matching what
+          // getnewaddress would produce) so the plotting address is a
+          // first-class wallet address everywhere. The address is ismine via
+          // the active descriptor, so setlabel is guaranteed to succeed.
+          const info = await this.walletRpc.getAddressInfo(walletName, addr);
+          if (info.labels.length === 0) {
+            await this.walletRpc.setLabel(walletName, addr, '');
+          }
           return;
         }
       }
