@@ -12,9 +12,6 @@ import { AppModeService } from '../../../core/services/app-mode.service';
 import { invoke } from '@tauri-apps/api/core';
 import { MiningService } from '../../services';
 import {
-  MiningStatus,
-  PlottingStatus,
-  ChainConfig,
   DriveConfig,
   calculateNetworkCapacityTib,
   formatCapacity,
@@ -1669,16 +1666,18 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     this.appMode.isMiningOnly() ? '/miner/setup' : '/mining/setup'
   );
 
-  readonly miningStatus = signal<MiningStatus | null>(null);
-  readonly plottingStatus = signal<PlottingStatus | null>(null);
-  // Use service signals directly for real-time miner event updates
+  // Use service signals directly so component state stays in lock-step with
+  // MiningService. Event-driven updates on the service (mining/plotting status,
+  // drive scans, deadlines) propagate here without a manual loadState() mirror.
   readonly recentDeadlines = this.miningService.minerDeadlines;
   readonly currentBlock = this.miningService.minerCurrentBlock;
-  readonly configured = signal(false);
+  readonly configured = this.miningService.isConfigured;
   readonly stateLoaded = signal(false);
   readonly isToggling = signal(false);
-  readonly enabledChains = signal<ChainConfig[]>([]);
-  readonly drives = signal<DriveConfig[]>([]);
+  readonly enabledChains = computed(() =>
+    (this.miningService.config()?.chains ?? []).filter(c => c.enabled)
+  );
+  readonly drives = computed(() => this.miningService.config()?.drives ?? []);
   /** Android storage permission state */
   readonly hasStoragePermission = signal(true);
   // Activity logs from service (survives navigation, auto-cleanup > 1 day)
@@ -1712,7 +1711,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     });
   });
 
-  readonly totalPlotSize = signal('0 GiB');
+  readonly totalPlotSize = computed(() => {
+    const drives = this.miningService.config()?.drives ?? [];
+    const totalGib = drives.reduce((sum, d) => sum + d.allocatedGib, 0);
+    return this.formatSize(totalGib);
+  });
   readonly readySize = signal('0 GiB');
   readonly pendingFiles = signal(0);
   // Use service's cache directly so updates propagate automatically
@@ -1841,31 +1844,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   private async loadState(): Promise<void> {
     try {
-      const state = await this.miningService.getState();
-      this.miningStatus.set(state.miningStatus);
-
-      // plottingStatus type comes from backend, progress/speed come from service's
-      // global plottingProgress signal (updated by event listeners).
-      // Use backend for type and filePath, but getPlottingProgress/getPlottingSpeed
-      // read from the service's global state.
-      this.plottingStatus.set(state.plottingStatus);
-
-      // Note: recentDeadlines and currentBlock now read from service's miner event signals
-      // (minerDeadlines, minerCurrentBlock) for real-time updates instead of polling
-      this.configured.set(state.isConfigured);
-
-      if (state.config) {
-        this.enabledChains.set((state.config.chains || []).filter(c => c.enabled));
-        this.drives.set(state.config.drives || []);
-
-        // Calculate totals from cached driveInfos (no scanning during poll)
-        let totalAllocated = 0;
-        for (const drive of state.config.drives || []) {
-          totalAllocated += drive.allocatedGib;
-        }
-        this.totalPlotSize.set(this.formatSize(totalAllocated));
-      }
-
+      // Ensure the service has loaded state at least once. Its signals
+      // (config, isConfigured, miningStatus, plottingStatus) are what the
+      // template reads; this component no longer mirrors them locally.
+      await this.miningService.getState();
       this.stateLoaded.set(true);
     } catch (error) {
       console.error('Failed to load mining state:', error);
