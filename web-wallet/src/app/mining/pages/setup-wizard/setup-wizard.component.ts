@@ -1023,37 +1023,7 @@ interface ChainModalData {
                   }
                 </select>
               </div>
-              <!-- Auth Type for Pool -->
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label>{{ 'setup_authentication' | i18n }}</label>
-                <select
-                  [ngModel]="chainModalData().authType"
-                  (ngModelChange)="updateChainModal('authType', $event)"
-                >
-                  <option value="none">{{ 'setup_auth_none' | i18n }}</option>
-                  <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
-                </select>
-              </div>
-              @if (chainModalData().authType === 'userpass') {
-                <div class="form-row" style="margin-bottom: 16px;">
-                  <div class="form-group">
-                    <label>{{ 'setup_username' | i18n }}</label>
-                    <input
-                      type="text"
-                      [ngModel]="chainModalData().authUsername"
-                      (ngModelChange)="updateChainModal('authUsername', $event)"
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label>{{ 'setup_password' | i18n }}</label>
-                    <input
-                      type="password"
-                      [ngModel]="chainModalData().authPassword"
-                      (ngModelChange)="updateChainModal('authPassword', $event)"
-                    />
-                  </div>
-                </div>
-              }
+              <ng-container *ngTemplateOutlet="authInputs"></ng-container>
             }
 
             <!-- Custom Mode -->
@@ -1096,37 +1066,7 @@ interface ChainModalData {
                   />
                 </div>
               </div>
-              <!-- Auth Type for Custom (same as Pool: None or UserPass) -->
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label>{{ 'setup_authentication' | i18n }}</label>
-                <select
-                  [ngModel]="chainModalData().authType"
-                  (ngModelChange)="updateChainModal('authType', $event)"
-                >
-                  <option value="none">{{ 'setup_auth_none' | i18n }}</option>
-                  <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
-                </select>
-              </div>
-              @if (chainModalData().authType === 'userpass') {
-                <div class="form-row" style="margin-bottom: 16px;">
-                  <div class="form-group">
-                    <label>{{ 'setup_username' | i18n }}</label>
-                    <input
-                      type="text"
-                      [ngModel]="chainModalData().authUsername"
-                      (ngModelChange)="updateChainModal('authUsername', $event)"
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label>{{ 'setup_password' | i18n }}</label>
-                    <input
-                      type="password"
-                      [ngModel]="chainModalData().authPassword"
-                      (ngModelChange)="updateChainModal('authPassword', $event)"
-                    />
-                  </div>
-                </div>
-              }
+              <ng-container *ngTemplateOutlet="authInputs"></ng-container>
             }
           </div>
           <div class="modal-footer">
@@ -1138,6 +1078,40 @@ interface ChainModalData {
         </div>
       </div>
     }
+
+    <!-- Shared auth block used by both Pool and Custom modes. -->
+    <ng-template #authInputs>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label>{{ 'setup_authentication' | i18n }}</label>
+        <select
+          [ngModel]="chainModalData().authType"
+          (ngModelChange)="updateChainModal('authType', $event)"
+        >
+          <option value="none">{{ 'setup_auth_none' | i18n }}</option>
+          <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
+        </select>
+      </div>
+      @if (chainModalData().authType === 'userpass') {
+        <div class="form-row" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>{{ 'setup_username' | i18n }}</label>
+            <input
+              type="text"
+              [ngModel]="chainModalData().authUsername"
+              (ngModelChange)="updateChainModal('authUsername', $event)"
+            />
+          </div>
+          <div class="form-group">
+            <label>{{ 'setup_password' | i18n }}</label>
+            <input
+              type="password"
+              [ngModel]="chainModalData().authPassword"
+              (ngModelChange)="updateChainModal('authPassword', $event)"
+            />
+          </div>
+        </div>
+      }
+    </ng-template>
   `,
   styles: [
     `
