@@ -322,10 +322,7 @@ export class WalletManagerService {
         label: 'watch',
       }));
 
-      const importResults = await this.walletRpc.importDescriptors(
-        options.walletName,
-        importSet
-      );
+      const importResults = await this.walletRpc.importDescriptors(options.walletName, importSet);
 
       const errors = importResults
         .filter(r => !r.success)

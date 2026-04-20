@@ -45,7 +45,9 @@ describe('detectEntryKind', () => {
   it('flags bare xpub-family strings', () => {
     // Prefix-shaped strings trigger bare_xpub even if not fully valid base58 keys
     expect(
-      detectEntryKind('xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz')
+      detectEntryKind(
+        'xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz'
+      )
     ).toBe('bare_xpub');
     expect(detectEntryKind('tpub1zzzzzzzz')).toBe('bare_xpub');
     expect(detectEntryKind('ypub1aaaaaaaa')).toBe('bare_xpub');

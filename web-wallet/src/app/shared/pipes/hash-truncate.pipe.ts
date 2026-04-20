@@ -24,7 +24,11 @@ export function truncateHash(
  */
 @Pipe({ name: 'hashTruncate', standalone: true })
 export class HashTruncatePipe implements PipeTransform {
-  transform(hash: string | null | undefined, startChars: number = 16, endChars: number = 12): string {
+  transform(
+    hash: string | null | undefined,
+    startChars: number = 16,
+    endChars: number = 12
+  ): string {
     return truncateHash(hash, startChars, endChars);
   }
 }

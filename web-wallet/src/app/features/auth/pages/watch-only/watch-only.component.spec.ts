@@ -33,7 +33,10 @@ describe('WatchOnlyComponent', () => {
           selectors: [{ selector: selectNetwork, value: 'mainnet' }],
         }),
         { provide: WalletManagerService, useValue: walletManager },
-        { provide: MatSnackBar, useValue: { open: () => ({ onAction: () => ({ subscribe: () => undefined }) }) } },
+        {
+          provide: MatSnackBar,
+          useValue: { open: () => ({ onAction: () => ({ subscribe: () => undefined }) }) },
+        },
       ],
     });
 

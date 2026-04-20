@@ -11,11 +11,7 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
 import { AppModeService } from '../../../core/services/app-mode.service';
 import { invoke } from '@tauri-apps/api/core';
 import { MiningService } from '../../services';
-import {
-  DriveConfig,
-  calculateNetworkCapacityTib,
-  formatCapacity,
-} from '../../models';
+import { DriveConfig, calculateNetworkCapacityTib, formatCapacity } from '../../models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/plan-viewer-dialog.component';
 

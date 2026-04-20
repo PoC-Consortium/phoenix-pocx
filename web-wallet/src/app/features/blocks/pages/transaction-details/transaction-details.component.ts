@@ -65,12 +65,7 @@ import {
             <mat-card-content>
               <div class="detail-row">
                 <span class="label">{{ 'txid' | i18n }}</span>
-                <app-hash-ref
-                  [value]="tx()!.txid"
-                  kind="txid"
-                  [link]="false"
-                  [truncate]="false"
-                />
+                <app-hash-ref [value]="tx()!.txid" kind="txid" [link]="false" [truncate]="false" />
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'status' | i18n }}</span>
@@ -236,12 +231,7 @@ import {
               <mat-expansion-panel-header>
                 <mat-panel-title>{{ 'raw_transaction' | i18n }}</mat-panel-title>
               </mat-expansion-panel-header>
-              <app-hash-ref
-                [value]="tx()!.hex!"
-                kind="plain"
-                [startChars]="32"
-                [endChars]="24"
-              />
+              <app-hash-ref [value]="tx()!.hex!" kind="plain" [startChars]="32" [endChars]="24" />
             </mat-expansion-panel>
           }
         }
@@ -741,5 +731,4 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
     const rate = feeInSats / transaction.vsize;
     return rate.toFixed(2);
   }
-
 }

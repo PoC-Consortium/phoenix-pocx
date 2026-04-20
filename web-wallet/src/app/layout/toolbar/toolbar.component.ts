@@ -116,7 +116,6 @@ import { MiningService } from '../../mining/services';
               </div>
             }
           </div>
-
         </div>
 
         <!-- Right Side: Wallet selector + Language -->

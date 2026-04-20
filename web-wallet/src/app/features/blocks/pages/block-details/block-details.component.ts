@@ -229,7 +229,11 @@ import { BlocksCacheService } from '../../services/blocks-cache.service';
             <mat-card-content>
               <cdk-virtual-scroll-viewport itemSize="44" class="transactions-list">
                 <div
-                  *cdkVirtualFor="let txid of getTransactionIds(); let i = index; trackBy: trackTxid"
+                  *cdkVirtualFor="
+                    let txid of getTransactionIds();
+                    let i = index;
+                    trackBy: trackTxid
+                  "
                   class="tx-row"
                 >
                   <span class="tx-index">{{ i }}</span>
@@ -593,5 +597,4 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
       return tx.txid;
     });
   }
-
 }

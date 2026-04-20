@@ -21,14 +21,13 @@ const DESCRIPTOR_FUNCTION_PREFIXES = [
   'raw',
   'rawtr',
 ];
-const DESCRIPTOR_PREFIX_REGEX = new RegExp(
-  `^(?:${DESCRIPTOR_FUNCTION_PREFIXES.join('|')})\\(`
-);
+const DESCRIPTOR_PREFIX_REGEX = new RegExp(`^(?:${DESCRIPTOR_FUNCTION_PREFIXES.join('|')})\\(`);
 
 // BIP32 extended public key prefixes. Mainnet group uses x/y/z, testnet-family
 // (testnet/signet/regtest share these) uses t/u/v. Case-sensitive: uppercase
 // Y/Z/U/V are multisig variants.
-const BARE_XPUB_REGEX = /^(?:xpub|ypub|zpub|Ypub|Zpub|tpub|upub|vpub|Upub|Vpub)[1-9A-HJ-NP-Za-km-z]+$/;
+const BARE_XPUB_REGEX =
+  /^(?:xpub|ypub|zpub|Ypub|Zpub|tpub|upub|vpub|Upub|Vpub)[1-9A-HJ-NP-Za-km-z]+$/;
 
 const MAINNET_XPUB_SCAN = /(?:xpub|ypub|zpub|Ypub|Zpub)[1-9A-HJ-NP-Za-km-z]+/;
 const TESTNET_XPUB_SCAN = /(?:tpub|upub|vpub|Upub|Vpub)[1-9A-HJ-NP-Za-km-z]+/;

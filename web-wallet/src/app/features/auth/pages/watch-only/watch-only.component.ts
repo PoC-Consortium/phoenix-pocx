@@ -21,10 +21,7 @@ import {
 import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
-import {
-  validatePocxAddress,
-  POCX_NETWORKS,
-} from '../../../../bitcoin/utils/address-validation';
+import { validatePocxAddress, POCX_NETWORKS } from '../../../../bitcoin/utils/address-validation';
 import {
   detectEntryKind,
   validateDescriptorChecksum,
@@ -422,7 +419,6 @@ interface PendingEntry {
         padding-top: 16px;
         border-top: 1px solid rgba(0, 0, 0, 0.08);
       }
-
     `,
   ],
 })

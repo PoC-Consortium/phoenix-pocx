@@ -1219,7 +1219,6 @@ export class DashboardComponent implements AfterViewInit {
     }
   }
 
-
   formatTransactionAmount(tx: WalletTransaction): string {
     const prefix =
       tx.category === 'receive' || tx.category === 'generate' || tx.category === 'immature'

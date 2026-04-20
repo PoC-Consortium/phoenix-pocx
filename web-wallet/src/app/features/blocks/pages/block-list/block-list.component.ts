@@ -110,9 +110,7 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
                         <a class="link" (click)="viewBlock(block)">{{ block.hash }}</a>
                       </td>
                       <td class="col-time">
-                        <span [matTooltip]="block.time | unixDate">{{
-                          block.time | timeAgo
-                        }}</span>
+                        <span [matTooltip]="block.time | unixDate">{{ block.time | timeAgo }}</span>
                       </td>
                       <td class="col-forger">{{ block.signer_address || '-' }}</td>
                       <td class="col-txs">{{ block.nTx }}</td>
@@ -127,10 +125,7 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
                             <span>{{ 'copy_block_hash' | i18n }}</span>
                           </button>
                           @if (block.signer_address) {
-                            <button
-                              mat-menu-item
-                              (click)="copyToClipboard(block.signer_address)"
-                            >
+                            <button mat-menu-item (click)="copyToClipboard(block.signer_address)">
                               <mat-icon>file_copy</mat-icon>
                               <span>{{ 'copy_forger_address' | i18n }}</span>
                             </button>
