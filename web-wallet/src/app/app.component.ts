@@ -181,31 +181,30 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private async initNodeService(): Promise<void> {
     if (!this.electronService.isDesktop) {
-      // Mobile / mining-only: no managed node to start, but still honour the
-      // mining auto-start preference. The desktop branch runs autoStartMining
-      // later in this method after the managed node is ready.
-      this.miningService
-        .autoStartMining()
-        .catch(err => console.error('Mining auto-start failed:', err));
+      // Pure web / non-Tauri environments: no mining or aggregator backend.
       return;
     }
 
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const configExists = await invoke<boolean>('is_first_launch_complete');
-      if (!configExists) {
-        return;
-      }
 
-      const shouldStartManagedNode =
-        this.nodeService.isManaged() &&
-        this.nodeService.isInstalled() &&
-        !this.appModeService.isMiningOnly();
+      // Node setup only applies to full-wallet launches where the user
+      // configured a managed node. Mining-only (including Android) has no
+      // node_config.json by design, so `configExists` is false there — we
+      // skip the managed-node start but still reach the auto-start calls
+      // below.
+      if (configExists) {
+        const shouldStartManagedNode =
+          this.nodeService.isManaged() &&
+          this.nodeService.isInstalled() &&
+          !this.appModeService.isMiningOnly();
 
-      if (shouldStartManagedNode) {
-        await this.nodeService.ensureNodeReadyAndAuthenticated(() =>
-          this.cookieAuth.refreshCredentials()
-        );
+        if (shouldStartManagedNode) {
+          await this.nodeService.ensureNodeReadyAndAuthenticated(() =>
+            this.cookieAuth.refreshCredentials()
+          );
+        }
       }
     } catch (err) {
       console.error('Error during node startup:', err);
@@ -213,12 +212,14 @@ export class AppComponent implements OnInit, OnDestroy {
       this.isStartingNode.set(false);
     }
 
-    // Auto-start aggregator if enabled in config (after node is ready)
+    // Auto-start runs on every Tauri launch (desktop wallet, desktop
+    // mining-only, Android mining-only). Each service has its own guards
+    // — missing config, missing chains/drives, node-not-ready — so these
+    // calls no-op safely when preconditions aren't met.
     this.aggregatorService
       .autoStart()
       .catch(err => console.error('Aggregator auto-start failed:', err));
 
-    // Auto-start mining if enabled in config (after node is ready)
     this.miningService
       .autoStartMining()
       .catch(err => console.error('Mining auto-start failed:', err));
