@@ -245,7 +245,7 @@ import {
                   </tr>
                 </thead>
                 <tbody>
-                  @for (tx of transactions(); track tx.txid) {
+                  @for (tx of transactions(); track tx.txid + '-' + tx.vout + '-' + tx.category) {
                     <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
                       <td class="col-datetime">
                         <div class="datetime-stack">

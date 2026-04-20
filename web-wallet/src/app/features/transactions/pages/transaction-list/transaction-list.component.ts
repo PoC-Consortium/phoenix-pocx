@@ -208,7 +208,10 @@ type TransactionFilter = 'all' | 'send' | 'receive' | 'immature' | 'generate';
                   </tr>
                 </thead>
                 <tbody>
-                  @for (tx of paginatedTransactions(); track tx.txid) {
+                  @for (
+                    tx of paginatedTransactions();
+                    track tx.txid + '-' + tx.vout + '-' + tx.category
+                  ) {
                     <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
                       <td class="col-datetime">
                         <div class="datetime-stack">
