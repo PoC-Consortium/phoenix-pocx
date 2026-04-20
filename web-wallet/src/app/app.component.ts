@@ -181,6 +181,12 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private async initNodeService(): Promise<void> {
     if (!this.electronService.isDesktop) {
+      // Mobile / mining-only: no managed node to start, but still honour the
+      // mining auto-start preference. The desktop branch runs autoStartMining
+      // later in this method after the managed node is ready.
+      this.miningService
+        .autoStartMining()
+        .catch(err => console.error('Mining auto-start failed:', err));
       return;
     }
 
