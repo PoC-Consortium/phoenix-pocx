@@ -1011,16 +1011,12 @@ interface ChainModalData {
                   (ngModelChange)="updateChainModal('poolUrl', $event)"
                 >
                   <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
-                  @if (walletNetwork() === 'mainnet') {
-                    <option value="https://pool.bitcoin-pocx.org:443">
-                      Nogrod PoCX (pool.bitcoin-pocx.org)
-                    </option>
-                  }
-                  @if (walletNetwork() === 'testnet') {
-                    <option value="https://pool.testnet.bitcoin-pocx.org:443">
-                      Nogrod PoCX Testnet (pool.testnet.bitcoin-pocx.org)
-                    </option>
-                  }
+                  <option value="https://pool.bitcoin-pocx.org:443">
+                    Nogrod Mainnet (pool.bitcoin-pocx.org)
+                  </option>
+                  <option value="https://pool.testnet.bitcoin-pocx.org:443">
+                    Nogrod Testnet (pool.testnet.bitcoin-pocx.org)
+                  </option>
                 </select>
               </div>
               <ng-container *ngTemplateOutlet="authInputs"></ng-container>
@@ -3202,11 +3198,17 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         priority: editing?.priority ?? this.chainConfigs().length + 1,
       };
     } else if (data.mode === 'pool') {
-      const poolName = data.poolUrl.includes('pool.bitcoin-pocx.org')
-        ? data.poolUrl.includes('testnet')
-          ? 'Nogrod PoCX Testnet'
-          : 'Nogrod PoCX'
-        : data.chainName || 'Pool';
+      // Match the known Nogrod endpoints so the chain shows up with a
+      // friendly name. The testnet URL contains `pool.testnet.bitcoin-pocx.org`
+      // (not `pool.bitcoin-pocx.org`), so test for the testnet variant first.
+      let poolName: string;
+      if (data.poolUrl.includes('pool.testnet.bitcoin-pocx.org')) {
+        poolName = 'Nogrod Testnet';
+      } else if (data.poolUrl.includes('pool.bitcoin-pocx.org')) {
+        poolName = 'Nogrod Mainnet';
+      } else {
+        poolName = data.chainName || 'Pool';
+      }
 
       // Parse pool URL to extract host and port
       const { transport, host, port } = this.parseUrl(data.poolUrl);
