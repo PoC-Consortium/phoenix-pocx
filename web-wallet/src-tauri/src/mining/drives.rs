@@ -212,9 +212,6 @@ pub fn list_drives() -> Vec<DriveInfo> {
 
 /// Get drive info for a specific path
 pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
-    let target_path = Path::new(path);
-    let gib = 1024.0 * 1024.0 * 1024.0;
-
     // On Android, sysinfo::Disks doesn't work properly for app storage paths
     // Use statvfs to get space info directly from the path
     #[cfg(target_os = "android")]
@@ -224,6 +221,8 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
 
     #[cfg(not(target_os = "android"))]
     {
+        let target_path = Path::new(path);
+        let gib = 1024.0 * 1024.0 * 1024.0;
         let disks = Disks::new_with_refreshed_list();
 
         // Find the disk with the LONGEST matching mount point
@@ -377,7 +376,7 @@ fn get_drive_info_android(path: &str) -> Option<DriveInfo> {
 
 /// Fallback drive info using OS-native filesystem stat calls.
 /// Used when sysinfo doesn't find the drive (e.g., network mounts like SMB/NFS).
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "android")))]
 fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
     use std::ffi::CString;
 

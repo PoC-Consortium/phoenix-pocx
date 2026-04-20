@@ -3,7 +3,9 @@ use std::fs;
 use std::path::PathBuf;
 #[cfg(desktop)]
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
-use tauri::{Emitter, Manager};
+#[cfg(not(target_os = "android"))]
+use tauri::Emitter;
+use tauri::Manager;
 
 // Logging module
 mod logging;
@@ -314,6 +316,7 @@ fn get_debug_paths() -> DebugPaths {
 
 /// Open a folder in the system file manager
 #[tauri::command]
+#[cfg_attr(target_os = "android", allow(unused_variables))]
 fn open_folder(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
