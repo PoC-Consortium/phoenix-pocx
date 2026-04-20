@@ -10,7 +10,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { Subject } from 'rxjs';
 import { I18nPipe } from '../../../../core/i18n';
 import { HashRefComponent } from '../../../../shared/components';
-import { UnixDatePipe, BtcxPipe, HashTruncatePipe, truncateHash } from '../../../../shared/pipes';
+import { UnixDatePipe, BtcxPipe, truncateHash } from '../../../../shared/pipes';
 import {
   BlockchainRpcService,
   Transaction,
@@ -29,7 +29,6 @@ import {
     I18nPipe,
     UnixDatePipe,
     BtcxPipe,
-    HashTruncatePipe,
     HashRefComponent,
   ],
   template: `
