@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { Location } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -8,8 +9,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { ClipboardService, NotificationService } from '../../../../shared/services';
-import { ByteSizePipe } from '../../../../shared/pipes';
+import { NotificationService } from '../../../../shared/services';
+import { BtcxPipe, ByteSizePipe } from '../../../../shared/pipes';
+import { HashRefComponent } from '../../../../shared/components';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import {
@@ -33,6 +35,21 @@ interface FullTransaction {
   raw: Transaction | null;
 }
 
+type InputReference =
+  | { kind: 'coinbase' }
+  | {
+      kind: 'spend';
+      txid: string;
+      vout: number;
+      address: string | null;
+      amount: number | null;
+    };
+
+type OutputReference =
+  | { kind: 'address'; address: string }
+  | { kind: 'op_return' }
+  | { kind: 'unknown' };
+
 @Component({
   selector: 'app-transaction-detail',
   standalone: true,
@@ -45,6 +62,8 @@ interface FullTransaction {
     MatTooltipModule,
     I18nPipe,
     ByteSizePipe,
+    BtcxPipe,
+    HashRefComponent,
   ],
   template: `
     <div class="page-layout">
@@ -80,12 +99,12 @@ interface FullTransaction {
               <div class="summary-header">
                 <div class="txid-row">
                   <span class="label">{{ 'transaction_id' | i18n }}</span>
-                  <span class="txid" (click)="copyTxid()" [matTooltip]="'click_to_copy' | i18n">
-                    {{ tx()!.wallet.txid }}
-                  </span>
-                  <button mat-icon-button class="copy-btn" (click)="copyTxid()">
-                    <mat-icon>content_copy</mat-icon>
-                  </button>
+                  <app-hash-ref
+                    [value]="tx()!.wallet.txid"
+                    kind="txid"
+                    [link]="false"
+                    [truncate]="false"
+                  />
                 </div>
                 <div class="status-row">
                   <span class="status-badge" [class]="getConfirmationClass()">
@@ -112,15 +131,15 @@ interface FullTransaction {
                 <div class="metric">
                   <span class="metric-label">{{ 'amount' | i18n }}</span>
                   <span class="metric-value amount-badge" [class]="getAmountClass()">
-                    {{ formatAmount(tx()!.wallet.amount, true) }}
+                    {{ tx()!.wallet.amount >= 0 ? '+' : '' }}{{ tx()!.wallet.amount | btcx }} BTCX
                   </span>
                 </div>
                 @if (tx()!.wallet.fee !== undefined && tx()!.wallet.fee !== null) {
                   <div class="metric">
                     <span class="metric-label">{{ 'fee' | i18n }}</span>
-                    <span class="metric-value fee">{{
-                      formatBtc(Math.abs(tx()!.wallet.fee!))
-                    }}</span>
+                    <span class="metric-value fee"
+                      >{{ Math.abs(tx()!.wallet.fee!) | btcx }} BTCX</span
+                    >
                   </div>
                 }
                 @if (tx()!.raw?.size) {
@@ -162,18 +181,29 @@ interface FullTransaction {
                     </h3>
                     <div class="io-list">
                       @for (vin of tx()!.raw!.vin; track $index; let i = $index) {
+                        @let ref = getInputReference(vin);
                         <div class="io-item">
                           <div class="io-index">#{{ i }}</div>
                           <div class="io-details">
-                            <div
-                              class="io-address"
-                              (click)="copyToClipboard(getInputAddress(vin))"
-                              [matTooltip]="'click_to_copy' | i18n"
-                            >
-                              {{ getInputAddress(vin) }}
-                            </div>
-                            @if (getInputAmount(vin) > 0) {
-                              <div class="io-amount">{{ formatBtc(getInputAmount(vin)) }}</div>
+                            @if (ref.kind === 'coinbase') {
+                              <span class="io-coinbase">Coinbase</span>
+                            } @else {
+                              <app-hash-ref
+                                [value]="ref.txid"
+                                kind="txid"
+                                [suffix]="':' + ref.vout"
+                                [link]="false"
+                              />
+                              @if (ref.address) {
+                                <app-hash-ref
+                                  [value]="ref.address"
+                                  kind="address"
+                                  [truncate]="false"
+                                />
+                              }
+                              @if (ref.amount !== null && ref.amount > 0) {
+                                <div class="io-amount">{{ ref.amount | btcx }} BTCX</div>
+                              }
                             }
                           </div>
                         </div>
@@ -181,7 +211,7 @@ interface FullTransaction {
                       @if (totalInput() > 0) {
                         <div class="io-total">
                           <span class="total-label">{{ 'total' | i18n }}</span>
-                          <span class="total-value">{{ formatBtc(totalInput()) }}</span>
+                          <span class="total-value">{{ totalInput() | btcx }} BTCX</span>
                         </div>
                       }
                     </div>
@@ -200,23 +230,32 @@ interface FullTransaction {
                     </h3>
                     <div class="io-list">
                       @for (vout of tx()!.raw!.vout; track vout.n) {
+                        @let out = getOutputReference(vout);
                         <div class="io-item">
                           <div class="io-index">#{{ vout.n }}</div>
                           <div class="io-details">
-                            <div
-                              class="io-address"
-                              (click)="copyToClipboard(getOutputAddress(vout))"
-                              [matTooltip]="'click_to_copy' | i18n"
-                            >
-                              {{ getOutputAddress(vout) }}
-                            </div>
-                            <div class="io-amount">{{ formatBtc(vout.value) }}</div>
+                            @switch (out.kind) {
+                              @case ('address') {
+                                <app-hash-ref
+                                  [value]="out.address"
+                                  kind="address"
+                                  [truncate]="false"
+                                />
+                              }
+                              @case ('op_return') {
+                                <span class="io-coinbase">OP_RETURN</span>
+                              }
+                              @case ('unknown') {
+                                <span class="io-coinbase">Unknown</span>
+                              }
+                            }
+                            <div class="io-amount">{{ vout.value | btcx }} BTCX</div>
                           </div>
                         </div>
                       }
                       <div class="io-total">
                         <span class="total-label">{{ 'total' | i18n }}</span>
-                        <span class="total-value">{{ formatBtc(totalOutput()) }}</span>
+                        <span class="total-value">{{ totalOutput() | btcx }} BTCX</span>
                       </div>
                     </div>
                   </div>
@@ -231,13 +270,11 @@ interface FullTransaction {
                 <div class="detail-grid">
                   <div class="detail-item full-width">
                     <span class="label">{{ 'block_hash' | i18n }}</span>
-                    <span
-                      class="value hash"
-                      (click)="copyToClipboard(tx()!.wallet.blockhash!)"
-                      [matTooltip]="'click_to_copy' | i18n"
-                    >
-                      {{ tx()!.wallet.blockhash }}
-                    </span>
+                    <app-hash-ref
+                      [value]="tx()!.wallet.blockhash!"
+                      kind="blockhash"
+                      [truncate]="false"
+                    />
                   </div>
                   @if (tx()!.wallet.blockheight) {
                     <div class="detail-item">
@@ -284,9 +321,7 @@ interface FullTransaction {
                 @if (tx()!.wallet.wtxid && tx()!.wallet.wtxid !== tx()!.wallet.txid) {
                   <div class="detail-item full-width">
                     <span class="label">{{ 'wtxid' | i18n }}</span>
-                    <a class="value hash" [routerLink]="['/transactions', tx()!.wallet.wtxid]">
-                      {{ tx()!.wallet.wtxid }}
-                    </a>
+                    <app-hash-ref [value]="tx()!.wallet.wtxid!" kind="plain" [truncate]="false" />
                   </div>
                 }
               </div>
@@ -296,16 +331,15 @@ interface FullTransaction {
             @if (tx()!.wallet.hex) {
               <div class="details-card">
                 <h3 class="section-title">{{ 'raw_transaction' | i18n }}</h3>
-                <div class="raw-hex-container">
-                  <code>{{ tx()!.wallet.hex }}</code>
-                  <button
-                    mat-icon-button
-                    class="copy-btn"
-                    (click)="copyToClipboard(tx()!.wallet.hex!)"
-                    [matTooltip]="'copy' | i18n"
-                  >
-                    <mat-icon>content_copy</mat-icon>
-                  </button>
+                <div class="detail-grid">
+                  <div class="detail-item full-width">
+                    <app-hash-ref
+                      [value]="tx()!.wallet.hex!"
+                      kind="plain"
+                      [startChars]="32"
+                      [endChars]="24"
+                    />
+                  </div>
                 </div>
               </div>
             }
@@ -635,6 +669,48 @@ interface FullTransaction {
               }
             }
 
+            .io-address.io-prevref {
+              display: inline-flex;
+              align-items: center;
+              gap: 4px;
+              color: rgba(0, 0, 0, 0.6);
+              cursor: default;
+
+              &:hover {
+                text-decoration: none;
+              }
+
+              .prevref-text {
+                cursor: pointer;
+
+                &:hover {
+                  text-decoration: underline;
+                }
+              }
+
+              .prevref-open {
+                width: 24px;
+                height: 24px;
+                line-height: 24px;
+                padding: 0;
+
+                mat-icon {
+                  font-size: 16px;
+                  width: 16px;
+                  height: 16px;
+                }
+              }
+            }
+
+            .io-address.io-coinbase {
+              color: rgba(0, 0, 0, 0.6);
+              cursor: default;
+
+              &:hover {
+                text-decoration: none;
+              }
+            }
+
             .io-amount {
               font-family: monospace;
               font-size: 13px;
@@ -832,7 +908,6 @@ export class TransactionDetailComponent implements OnInit {
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
-  private readonly clipboard = inject(ClipboardService);
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
@@ -884,12 +959,11 @@ export class TransactionDetailComponent implements OnInit {
         }
       }
 
-      // If we have raw tx but no prevout data, try to fetch it for each input
+      // Try to fill in prevout for any input that is missing it. Core can return
+      // a mix (some vins carry prevout, others don't) so each input is decided
+      // on its own merits inside populatePrevoutData.
       if (rawTx && rawTx.vin && rawTx.vin.length > 0) {
-        const hasPrevout = rawTx.vin.some(vin => vin.prevout?.scriptPubKey);
-        if (!hasPrevout) {
-          await this.populatePrevoutData(walletName, rawTx);
-        }
+        await this.populatePrevoutData(walletName, rawTx);
       }
 
       this.tx.set({ wallet: walletTx, raw: rawTx });
@@ -907,6 +981,10 @@ export class TransactionDetailComponent implements OnInit {
    */
   private async populatePrevoutData(walletName: string, rawTx: Transaction): Promise<void> {
     for (const vin of rawTx.vin) {
+      // Already carries prevout (came through verbose getrawtransaction) — nothing to do.
+      if (vin.prevout?.scriptPubKey) {
+        continue;
+      }
       // Skip coinbase inputs
       if (!vin.txid || vin.txid === '0'.repeat(64) || vin.coinbase) {
         continue;
@@ -976,20 +1054,8 @@ export class TransactionDetailComponent implements OnInit {
     this.location.back();
   }
 
-  copyTxid(): void {
-    const transaction = this.tx();
-    if (transaction) {
-      this.clipboard.copyTxid(transaction.wallet.txid);
-    }
-  }
-
-  copyToClipboard(text: string): void {
-    this.clipboard.copy(text);
-  }
-
   formatDate(timestamp: number): string {
-    const date = new Date(timestamp * 1000);
-    return date.toLocaleDateString('en-US', {
+    return new Date(timestamp * 1000).toLocaleDateString(this.i18n.currentLanguageCode(), {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -997,18 +1063,6 @@ export class TransactionDetailComponent implements OnInit {
       minute: '2-digit',
       second: '2-digit',
     });
-  }
-
-  formatAmount(amount: number, showSign: boolean = false): string {
-    if (showSign) {
-      const prefix = amount >= 0 ? '+' : '';
-      return `${prefix}${amount.toFixed(8)} BTCX`;
-    }
-    return `${amount.toFixed(8)} BTCX`;
-  }
-
-  formatBtc(amount: number): string {
-    return `${amount.toFixed(8)} BTCX`;
   }
 
   getAmountClass(): string {
@@ -1043,29 +1097,32 @@ export class TransactionDetailComponent implements OnInit {
     }
   }
 
-  getInputAddress(vin: TransactionInput): string {
-    if (vin.prevout?.scriptPubKey?.address) {
-      return vin.prevout.scriptPubKey.address;
-    }
-    // Coinbase transaction
+  /**
+   * Describe an input for rendering. Every non-coinbase input is represented as
+   * a `spend` referencing a prev-tx output; the prevout's address and value are
+   * included when they were resolvable, and left null otherwise.
+   */
+  getInputReference(vin: TransactionInput): InputReference {
     if (vin.coinbase || !vin.txid || vin.txid === '0'.repeat(64)) {
-      return 'Coinbase';
+      return { kind: 'coinbase' };
     }
-    return 'Unknown';
+    return {
+      kind: 'spend',
+      txid: vin.txid,
+      vout: vin.vout ?? 0,
+      address: vin.prevout?.scriptPubKey?.address ?? null,
+      amount: vin.prevout?.value ?? null,
+    };
   }
 
-  getInputAmount(vin: TransactionInput): number {
-    return vin.prevout?.value ?? 0;
-  }
-
-  getOutputAddress(vout: TransactionOutput): string {
+  getOutputReference(vout: TransactionOutput): OutputReference {
     if (vout.scriptPubKey?.address) {
-      return vout.scriptPubKey.address;
+      return { kind: 'address', address: vout.scriptPubKey.address };
     }
     if (vout.scriptPubKey?.type === 'nulldata') {
-      return 'OP_RETURN';
+      return { kind: 'op_return' };
     }
-    return 'Unknown';
+    return { kind: 'unknown' };
   }
 
   isRbfEligible(): boolean {
@@ -1098,7 +1155,9 @@ export class TransactionDetailComponent implements OnInit {
       } as FeeBumpDialogData,
     });
 
-    const result = (await dialogRef.afterClosed().toPromise()) as FeeBumpDialogResult | undefined;
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as
+      | FeeBumpDialogResult
+      | undefined;
     if (result?.confirmed) {
       await this.executeBumpFee(transaction.wallet.txid, result);
     }

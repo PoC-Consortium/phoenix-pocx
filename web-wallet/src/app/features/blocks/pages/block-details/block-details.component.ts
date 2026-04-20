@@ -10,10 +10,10 @@ import { MatDividerModule } from '@angular/material/divider';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { Subject, takeUntil } from 'rxjs';
 import { I18nPipe } from '../../../../core/i18n';
-import { ClipboardService, BlockExplorerService } from '../../../../shared/services';
+import { HashRefComponent } from '../../../../shared/components';
 import { UnixDatePipe, ByteSizePipe } from '../../../../shared/pipes';
-import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { PocxBlock } from '../../models/block.model';
+import { BlocksCacheService } from '../../services/blocks-cache.service';
 
 @Component({
   selector: 'app-block-details',
@@ -29,6 +29,7 @@ import { PocxBlock } from '../../models/block.model';
     I18nPipe,
     UnixDatePipe,
     ByteSizePipe,
+    HashRefComponent,
   ],
   template: `
     <div class="page-layout">
@@ -69,23 +70,12 @@ import { PocxBlock } from '../../models/block.model';
             <mat-card-content>
               <div class="detail-row">
                 <span class="label">{{ 'hash' | i18n }}</span>
-                <div class="value hash-value">
-                  <span (click)="copyToClipboard(block()!.hash)" [matTooltip]="'copy' | i18n">{{
-                    block()!.hash
-                  }}</span>
-                  <mat-icon
-                    class="copy-icon"
-                    (click)="copyToClipboard(block()!.hash)"
-                    [matTooltip]="'copy' | i18n"
-                    >content_copy</mat-icon
-                  >
-                  <mat-icon
-                    class="explorer-icon"
-                    (click)="openBlockInExplorer(block()!.hash)"
-                    [matTooltip]="'view_block_in_explorer' | i18n"
-                    >open_in_new</mat-icon
-                  >
-                </div>
+                <app-hash-ref
+                  [value]="block()!.hash"
+                  kind="blockhash"
+                  [link]="false"
+                  [truncate]="false"
+                />
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'height' | i18n }}</span>
@@ -114,25 +104,7 @@ import { PocxBlock } from '../../models/block.model';
             <mat-card-content>
               <div class="detail-row">
                 <span class="label">{{ 'forger_address' | i18n }}</span>
-                <div class="value hash-value">
-                  <span
-                    (click)="copyToClipboard(block()!.signer_address)"
-                    [matTooltip]="'copy' | i18n"
-                    >{{ block()!.signer_address }}</span
-                  >
-                  <mat-icon
-                    class="copy-icon"
-                    (click)="copyToClipboard(block()!.signer_address)"
-                    [matTooltip]="'copy' | i18n"
-                    >content_copy</mat-icon
-                  >
-                  <mat-icon
-                    class="explorer-icon"
-                    (click)="openAddressInExplorer(block()!.signer_address)"
-                    [matTooltip]="'view_address_in_explorer' | i18n"
-                    >open_in_new</mat-icon
-                  >
-                </div>
+                <app-hash-ref [value]="block()!.signer_address" kind="address" [truncate]="false" />
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'base_target' | i18n }}</span>
@@ -144,14 +116,7 @@ import { PocxBlock } from '../../models/block.model';
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'generation_signature' | i18n }}</span>
-                <div
-                  class="value hash-value small"
-                  (click)="copyToClipboard(block()!.generation_signature)"
-                  [matTooltip]="'copy' | i18n"
-                >
-                  <span>{{ block()!.generation_signature }}</span>
-                  <mat-icon class="copy-icon">content_copy</mat-icon>
-                </div>
+                <app-hash-ref [value]="block()!.generation_signature" kind="plain" />
               </div>
             </mat-card-content>
           </mat-card>
@@ -165,7 +130,11 @@ import { PocxBlock } from '../../models/block.model';
               <mat-card-content>
                 <div class="detail-row">
                   <span class="label">{{ 'account_id' | i18n }}</span>
-                  <span class="value mono">{{ block()!.pocx_proof.account_id }}</span>
+                  <app-hash-ref
+                    [value]="block()!.pocx_proof.account_id"
+                    kind="address"
+                    [truncate]="false"
+                  />
                 </div>
                 <div class="detail-row">
                   <span class="label">{{ 'nonce' | i18n }}</span>
@@ -181,14 +150,7 @@ import { PocxBlock } from '../../models/block.model';
                 </div>
                 <div class="detail-row">
                   <span class="label">{{ 'seed' | i18n }}</span>
-                  <div
-                    class="value hash-value small"
-                    (click)="copyToClipboard(block()!.pocx_proof.seed)"
-                    [matTooltip]="'copy' | i18n"
-                  >
-                    <span>{{ block()!.pocx_proof.seed }}</span>
-                    <mat-icon class="copy-icon">content_copy</mat-icon>
-                  </div>
+                  <app-hash-ref [value]="block()!.pocx_proof.seed" kind="plain" />
                 </div>
               </mat-card-content>
             </mat-card>
@@ -236,14 +198,7 @@ import { PocxBlock } from '../../models/block.model';
             <mat-card-content>
               <div class="detail-row">
                 <span class="label">{{ 'merkle_root' | i18n }}</span>
-                <div
-                  class="value hash-value small"
-                  (click)="copyToClipboard(block()!.merkleroot)"
-                  [matTooltip]="'copy' | i18n"
-                >
-                  <span>{{ block()!.merkleroot }}</span>
-                  <mat-icon class="copy-icon">content_copy</mat-icon>
-                </div>
+                <app-hash-ref [value]="block()!.merkleroot" kind="plain" />
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'version' | i18n }}</span>
@@ -259,14 +214,7 @@ import { PocxBlock } from '../../models/block.model';
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'chainwork' | i18n }}</span>
-                <div
-                  class="value hash-value small"
-                  (click)="copyToClipboard(block()!.chainwork)"
-                  [matTooltip]="'copy' | i18n"
-                >
-                  <span>{{ block()!.chainwork }}</span>
-                  <mat-icon class="copy-icon">content_copy</mat-icon>
-                </div>
+                <app-hash-ref [value]="block()!.chainwork" kind="plain" />
               </div>
             </mat-card-content>
           </mat-card>
@@ -285,18 +233,7 @@ import { PocxBlock } from '../../models/block.model';
                   class="tx-row"
                 >
                   <span class="tx-index">{{ i }}</span>
-                  <span
-                    class="tx-id"
-                    (click)="copyToClipboard(txid)"
-                    [matTooltip]="'click_to_copy' | i18n"
-                    >{{ txid }}</span
-                  >
-                  <mat-icon
-                    class="explorer-icon"
-                    (click)="openTransactionInExplorer(txid)"
-                    [matTooltip]="'view_tx_in_explorer' | i18n"
-                    >open_in_new</mat-icon
-                  >
+                  <app-hash-ref [value]="txid" kind="txid" [link]="false" [truncate]="false" />
                 </div>
               </cdk-virtual-scroll-viewport>
             </mat-card-content>
@@ -580,9 +517,7 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
-  private readonly blockchainRpc = inject(BlockchainRpcService);
-  private readonly clipboard = inject(ClipboardService);
-  private readonly blockExplorer = inject(BlockExplorerService);
+  private readonly cache = inject(BlocksCacheService);
   private readonly destroy$ = new Subject<void>();
 
   loading = signal(true);
@@ -616,19 +551,9 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
   async loadBlock(hashOrHeight: string): Promise<void> {
     this.loading.set(true);
     this.error.set(null);
-
     try {
-      let block: PocxBlock;
-
-      // Check if it's a height (numeric) or hash
-      if (/^\d+$/.test(hashOrHeight)) {
-        const height = parseInt(hashOrHeight, 10);
-        block = await this.blockchainRpc.getBlockByHeight<PocxBlock>(height, 1);
-      } else {
-        block = (await this.blockchainRpc.getBlock(hashOrHeight, 1)) as unknown as PocxBlock;
-      }
-
-      this.block.set(block);
+      // Cache hit → instant; miss → fetches and stores for next time.
+      this.block.set(await this.cache.getBlock(hashOrHeight));
     } catch {
       this.error.set('Failed to load block. It may not exist or the node is unavailable.');
     } finally {
@@ -647,10 +572,6 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
 
   viewTransaction(txid: string): void {
     this.router.navigate(['/blocks/tx', txid]);
-  }
-
-  copyToClipboard(text: string): void {
-    this.clipboard.copy(text);
   }
 
   formatQuality(quality: number): string {
@@ -673,15 +594,4 @@ export class BlockDetailsComponent implements OnInit, OnDestroy {
     });
   }
 
-  openBlockInExplorer(hash: string): void {
-    this.blockExplorer.openBlock(hash);
-  }
-
-  openAddressInExplorer(address: string): void {
-    this.blockExplorer.openAddress(address);
-  }
-
-  openTransactionInExplorer(txid: string): void {
-    this.blockExplorer.openTransaction(txid);
-  }
 }

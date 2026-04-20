@@ -16,7 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatDialog } from '@angular/material/dialog';
-import { Subject } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 import { takeUntil, skip } from 'rxjs/operators';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import {
@@ -978,8 +978,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       const count = this.loadLimit === 0 ? 999999 : this.loadLimit;
       const txs = await this.walletRpc.listTransactions(walletName, '*', count, 0);
 
-      // Sort by time descending
-      const sorted = txs.sort((a, b) => b.time - a.time);
+      // Sort by time descending — copy first to avoid mutating the RPC response.
+      const sorted = [...txs].sort((a, b) => b.time - a.time);
       this.transactions.set(sorted);
     } catch (error) {
       console.error('Failed to load transactions:', error);
@@ -1067,13 +1067,18 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   }
 
   formatTxDate(tx: WalletTransaction): string {
-    const date = new Date(tx.time * 1000);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(tx.time * 1000).toLocaleDateString(this.i18n.currentLanguageCode(), {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   }
 
   formatTxTime(tx: WalletTransaction): string {
-    const date = new Date(tx.time * 1000);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return new Date(tx.time * 1000).toLocaleTimeString(this.i18n.currentLanguageCode(), {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   // Actions
@@ -1113,7 +1118,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       } as FeeBumpDialogData,
     });
 
-    const result = (await dialogRef.afterClosed().toPromise()) as FeeBumpDialogResult | undefined;
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as
+      | FeeBumpDialogResult
+      | undefined;
     if (result?.confirmed) {
       await this.executeBumpFee(tx.txid, result);
     }

@@ -9,13 +9,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { Subject } from 'rxjs';
 import { I18nPipe } from '../../../../core/i18n';
-import { ClipboardService, BlockExplorerService } from '../../../../shared/services';
-import {
-  UnixDatePipe,
-  BtcxPipe,
-  HashTruncatePipe,
-  truncateHash,
-} from '../../../../shared/pipes';
+import { HashRefComponent } from '../../../../shared/components';
+import { UnixDatePipe, BtcxPipe, HashTruncatePipe, truncateHash } from '../../../../shared/pipes';
 import {
   BlockchainRpcService,
   Transaction,
@@ -35,6 +30,7 @@ import {
     UnixDatePipe,
     BtcxPipe,
     HashTruncatePipe,
+    HashRefComponent,
   ],
   template: `
     <div class="page-layout">
@@ -70,23 +66,12 @@ import {
             <mat-card-content>
               <div class="detail-row">
                 <span class="label">{{ 'txid' | i18n }}</span>
-                <div class="value hash-value">
-                  <span (click)="copyToClipboard(tx()!.txid)" [matTooltip]="'copy' | i18n">{{
-                    tx()!.txid
-                  }}</span>
-                  <mat-icon
-                    class="copy-icon"
-                    (click)="copyToClipboard(tx()!.txid)"
-                    [matTooltip]="'copy' | i18n"
-                    >content_copy</mat-icon
-                  >
-                  <mat-icon
-                    class="explorer-icon"
-                    (click)="openTransactionInExplorer(tx()!.txid)"
-                    [matTooltip]="'view_tx_in_explorer' | i18n"
-                    >open_in_new</mat-icon
-                  >
-                </div>
+                <app-hash-ref
+                  [value]="tx()!.txid"
+                  kind="txid"
+                  [link]="false"
+                  [truncate]="false"
+                />
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'status' | i18n }}</span>
@@ -147,27 +132,15 @@ import {
                         <span>{{ 'coinbase' | i18n }} ({{ 'block_reward' | i18n }})</span>
                       </div>
                     } @else {
-                      <div class="io-address">
-                        <span
-                          (click)="copyToClipboard(getInputAddress(input))"
-                          [matTooltip]="'copy' | i18n"
-                          >{{ getInputAddress(input) }}</span
-                        >
-                        <mat-icon
-                          class="copy-icon"
-                          (click)="copyToClipboard(getInputAddress(input))"
-                          [matTooltip]="'copy' | i18n"
-                          >content_copy</mat-icon
-                        >
-                        @if (input.prevout?.scriptPubKey?.address) {
-                          <mat-icon
-                            class="explorer-icon"
-                            (click)="openAddressInExplorer(input.prevout!.scriptPubKey!.address!)"
-                            [matTooltip]="'view_address_in_explorer' | i18n"
-                            >open_in_new</mat-icon
-                          >
-                        }
-                      </div>
+                      @if (input.prevout?.scriptPubKey?.address) {
+                        <app-hash-ref
+                          [value]="input.prevout!.scriptPubKey!.address!"
+                          kind="address"
+                          [truncate]="false"
+                        />
+                      } @else {
+                        <span class="io-unknown">{{ getInputAddress(input) }}</span>
+                      }
                       @if (input.prevout?.value !== undefined) {
                         <div class="io-amount">{{ input.prevout!.value | btcx }} BTCX</div>
                       }
@@ -194,27 +167,15 @@ import {
                 <div class="io-row">
                   <div class="io-index">{{ output.n }}</div>
                   <div class="io-content">
-                    <div class="io-address">
-                      <span
-                        (click)="copyToClipboard(output.scriptPubKey.address || 'N/A')"
-                        [matTooltip]="'copy' | i18n"
-                        >{{ output.scriptPubKey.address || 'OP_RETURN / Non-standard' }}</span
-                      >
-                      @if (output.scriptPubKey.address) {
-                        <mat-icon
-                          class="copy-icon"
-                          (click)="copyToClipboard(output.scriptPubKey.address)"
-                          [matTooltip]="'copy' | i18n"
-                          >content_copy</mat-icon
-                        >
-                        <mat-icon
-                          class="explorer-icon"
-                          (click)="openAddressInExplorer(output.scriptPubKey.address)"
-                          [matTooltip]="'view_address_in_explorer' | i18n"
-                          >open_in_new</mat-icon
-                        >
-                      }
-                    </div>
+                    @if (output.scriptPubKey.address) {
+                      <app-hash-ref
+                        [value]="output.scriptPubKey.address"
+                        kind="address"
+                        [truncate]="false"
+                      />
+                    } @else {
+                      <span class="io-unknown">OP_RETURN / Non-standard</span>
+                    }
                     <div class="io-amount">{{ output.value | btcx }} BTCX</div>
                   </div>
                 </div>
@@ -235,23 +196,7 @@ import {
               <mat-card-content>
                 <div class="detail-row">
                   <span class="label">{{ 'block_hash' | i18n }}</span>
-                  <div class="value link-value">
-                    <span (click)="viewBlock(tx()!.blockhash!)">{{
-                      tx()!.blockhash! | hashTruncate
-                    }}</span>
-                    <mat-icon
-                      class="link-icon"
-                      (click)="viewBlock(tx()!.blockhash!)"
-                      [matTooltip]="'view_details' | i18n"
-                      >chevron_right</mat-icon
-                    >
-                    <mat-icon
-                      class="explorer-icon"
-                      (click)="openBlockInExplorer(tx()!.blockhash!)"
-                      [matTooltip]="'view_block_in_explorer' | i18n"
-                      >open_in_new</mat-icon
-                    >
-                  </div>
+                  <app-hash-ref [value]="tx()!.blockhash!" kind="blockhash" />
                 </div>
                 @if (tx()!.blocktime) {
                   <div class="detail-row">
@@ -280,14 +225,7 @@ import {
               @if (tx()!.hash !== tx()!.txid) {
                 <div class="detail-row">
                   <span class="label">{{ 'wtxid' | i18n }}</span>
-                  <div
-                    class="value hash-value small"
-                    (click)="copyToClipboard(tx()!.hash)"
-                    [matTooltip]="'copy' | i18n"
-                  >
-                    <span>{{ tx()!.hash | hashTruncate }}</span>
-                    <mat-icon class="copy-icon">content_copy</mat-icon>
-                  </div>
+                  <app-hash-ref [value]="tx()!.hash" kind="plain" />
                 </div>
               }
             </mat-card-content>
@@ -299,13 +237,12 @@ import {
               <mat-expansion-panel-header>
                 <mat-panel-title>{{ 'raw_transaction' | i18n }}</mat-panel-title>
               </mat-expansion-panel-header>
-              <div
-                class="raw-hex"
-                (click)="copyToClipboard(tx()!.hex!)"
-                [matTooltip]="'copy' | i18n"
-              >
-                {{ tx()!.hex }}
-              </div>
+              <app-hash-ref
+                [value]="tx()!.hex!"
+                kind="plain"
+                [startChars]="32"
+                [endChars]="24"
+              />
             </mat-expansion-panel>
           }
         }
@@ -713,8 +650,6 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly blockchainRpc = inject(BlockchainRpcService);
-  private readonly clipboard = inject(ClipboardService);
-  private readonly blockExplorer = inject(BlockExplorerService);
   private readonly destroy$ = new Subject<void>();
 
   loading = signal(true);
@@ -756,10 +691,6 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
 
   viewBlock(blockhash: string): void {
     this.router.navigate(['/blocks', blockhash]);
-  }
-
-  copyToClipboard(text: string): void {
-    this.clipboard.copy(text);
   }
 
   getInputAddress(input: Transaction['vin'][0]): string {
@@ -812,15 +743,4 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
     return rate.toFixed(2);
   }
 
-  openTransactionInExplorer(txid: string): void {
-    this.blockExplorer.openTransaction(txid);
-  }
-
-  openAddressInExplorer(address: string): void {
-    this.blockExplorer.openAddress(address);
-  }
-
-  openBlockInExplorer(hash: string): void {
-    this.blockExplorer.openBlock(hash);
-  }
 }
