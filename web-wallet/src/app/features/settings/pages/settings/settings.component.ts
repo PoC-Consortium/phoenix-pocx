@@ -364,11 +364,20 @@ interface ConnectionTestResult {
                         <div class="auth-sub-fields">
                           <mat-form-field appearance="outline" class="full-width">
                             <mat-label>{{ 'username' | i18n }}</mat-label>
-                            <input matInput [(ngModel)]="activeConfig.username" />
+                            <input
+                              matInput
+                              [(ngModel)]="activeConfig.username"
+                              autocomplete="off"
+                            />
                           </mat-form-field>
                           <mat-form-field appearance="outline" class="full-width">
                             <mat-label>{{ 'password' | i18n }}</mat-label>
-                            <input matInput type="password" [(ngModel)]="activeConfig.password" />
+                            <input
+                              matInput
+                              type="password"
+                              [(ngModel)]="activeConfig.password"
+                              autocomplete="off"
+                            />
                           </mat-form-field>
                         </div>
                       }
@@ -1730,18 +1739,21 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
     });
 
-    dialogRef.afterClosed().subscribe(async confirmed => {
-      if (confirmed) {
-        try {
-          await this.miningService.resetConfig();
-          this.notification.success(this.i18n.get('mining_config_reset'));
-          this.router.navigate(['/mining/setup']);
-        } catch (error) {
-          console.error('Failed to reset mining config:', error);
-          this.notification.error(this.i18n.get('reset_mining_config_failed'));
+    dialogRef
+      .afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(async confirmed => {
+        if (confirmed) {
+          try {
+            await this.miningService.resetConfig();
+            this.notification.success(this.i18n.get('mining_config_reset'));
+            this.router.navigate(['/mining/setup']);
+          } catch (error) {
+            console.error('Failed to reset mining config:', error);
+            this.notification.error(this.i18n.get('reset_mining_config_failed'));
+          }
         }
-      }
-    });
+      });
   }
 
   confirmResetWallet(): void {
@@ -1756,11 +1768,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
     });
 
-    dialogRef.afterClosed().subscribe(confirmed => {
-      if (confirmed) {
-        this.resetWallet();
-      }
-    });
+    dialogRef
+      .afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(confirmed => {
+        if (confirmed) {
+          this.resetWallet();
+        }
+      });
   }
 
   private resetWallet(): void {
