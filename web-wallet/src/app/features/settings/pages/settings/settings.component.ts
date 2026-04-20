@@ -20,11 +20,11 @@ import { Subject, takeUntil } from 'rxjs';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
 import { RpcClientService } from '../../../../bitcoin/services/rpc/rpc-client.service';
-import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { PlatformService } from '../../../../core/services/platform.service';
 import { ElectronService, DebugPaths } from '../../../../core/services/electron.service';
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { SettingsActions } from '../../../../store/settings/settings.actions';
+import { WalletActions } from '../../../../store/wallet/wallet.actions';
 import {
   selectNodeConfig,
   selectNotifications,
@@ -364,11 +364,20 @@ interface ConnectionTestResult {
                         <div class="auth-sub-fields">
                           <mat-form-field appearance="outline" class="full-width">
                             <mat-label>{{ 'username' | i18n }}</mat-label>
-                            <input matInput [(ngModel)]="activeConfig.username" />
+                            <input
+                              matInput
+                              [(ngModel)]="activeConfig.username"
+                              autocomplete="off"
+                            />
                           </mat-form-field>
                           <mat-form-field appearance="outline" class="full-width">
                             <mat-label>{{ 'password' | i18n }}</mat-label>
-                            <input matInput type="password" [(ngModel)]="activeConfig.password" />
+                            <input
+                              matInput
+                              type="password"
+                              [(ngModel)]="activeConfig.password"
+                              autocomplete="off"
+                            />
                           </mat-form-field>
                         </div>
                       }
@@ -1427,7 +1436,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly notification = inject(NotificationService);
   private readonly rpcClient = inject(RpcClientService);
-  private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly platform = inject(PlatformService);
   private readonly electron = inject(ElectronService);
   private readonly cookieAuth = inject(CookieAuthService);
@@ -1693,6 +1701,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
       // 7. Notify and redirect to wallet selection
       this.notification.success(this.i18n.get('settings_saved'));
+      this.store.dispatch(WalletActions.resetState());
       this.walletManager.setActiveWallet(null);
       this.router.navigate(['/auth']);
     } catch (err) {
@@ -1730,18 +1739,21 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
     });
 
-    dialogRef.afterClosed().subscribe(async confirmed => {
-      if (confirmed) {
-        try {
-          await this.miningService.resetConfig();
-          this.notification.success(this.i18n.get('mining_config_reset'));
-          this.router.navigate(['/mining/setup']);
-        } catch (error) {
-          console.error('Failed to reset mining config:', error);
-          this.notification.error(this.i18n.get('reset_mining_config_failed'));
+    dialogRef
+      .afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(async confirmed => {
+        if (confirmed) {
+          try {
+            await this.miningService.resetConfig();
+            this.notification.success(this.i18n.get('mining_config_reset'));
+            this.router.navigate(['/mining/setup']);
+          } catch (error) {
+            console.error('Failed to reset mining config:', error);
+            this.notification.error(this.i18n.get('reset_mining_config_failed'));
+          }
         }
-      }
-    });
+      });
   }
 
   confirmResetWallet(): void {
@@ -1756,11 +1768,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
     });
 
-    dialogRef.afterClosed().subscribe(confirmed => {
-      if (confirmed) {
-        this.resetWallet();
-      }
-    });
+    dialogRef
+      .afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(confirmed => {
+        if (confirmed) {
+          this.resetWallet();
+        }
+      });
   }
 
   private resetWallet(): void {

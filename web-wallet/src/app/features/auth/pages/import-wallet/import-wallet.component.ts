@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -15,6 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
+import { StepHeaderComponent } from '../../../../shared/components';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
 import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
@@ -43,25 +44,16 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     MatAutocompleteModule,
     MatTooltipModule,
     I18nPipe,
+    StepHeaderComponent,
   ],
   template: `
     <div class="import-wallet-container">
       <mat-card class="import-card">
-        <!-- Custom Step Header -->
-        <div class="step-header">
-          <span class="step-title">{{ getCurrentStepTitle() }}</span>
-          <div class="step-indicators">
-            @for (step of [1, 2, 3]; track step) {
-              <span
-                class="step-dot"
-                [class.active]="currentStep() === step"
-                [class.completed]="currentStep() > step"
-              >
-                {{ step }}
-              </span>
-            }
-          </div>
-        </div>
+        <app-step-header
+          [title]="getCurrentStepTitle()"
+          [currentStep]="currentStep()"
+          [totalSteps]="3"
+        ></app-step-header>
 
         @if (importing()) {
           <mat-progress-bar mode="indeterminate"></mat-progress-bar>
@@ -76,10 +68,15 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <input
                   matInput
                   [(ngModel)]="walletName"
+                  (ngModelChange)="onWalletNameChange()"
                   placeholder="My Wallet"
                   [disabled]="importing()"
                 />
-                <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                @if (walletNameConflict()) {
+                  <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
+                } @else {
+                  <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                }
               </mat-form-field>
               <div class="step-actions">
                 <button mat-button routerLink="/auth">
@@ -88,7 +85,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || importing()"
+                  [disabled]="!walletName || walletNameConflict() || importing()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -152,6 +149,13 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                   </div>
                 }
               </div>
+
+              @if (isMnemonicChecksumInvalid()) {
+                <p class="warning-text small">
+                  <mat-icon>error</mat-icon>
+                  {{ 'mnemonic_checksum_invalid' | i18n }}
+                </p>
+              }
 
               <!-- BIP39 Passphrase Option (25th word) -->
               <div class="passphrase-section">
@@ -289,50 +293,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
       .import-card {
         width: 100%;
         max-width: 700px;
-      }
-
-      /* Custom step header */
-      .step-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 24px;
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-        color: white;
-        border-radius: 4px 4px 0 0;
-      }
-
-      .step-title {
-        font-size: 18px;
-        font-weight: 500;
-      }
-
-      .step-indicators {
-        display: flex;
-        gap: 8px;
-      }
-
-      .step-dot {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        font-weight: 500;
-        background: rgba(255, 255, 255, 0.2);
-        color: rgba(255, 255, 255, 0.7);
-
-        &.active {
-          background: white;
-          color: #1e3a5f;
-        }
-
-        &.completed {
-          background: rgba(255, 255, 255, 0.4);
-          color: white;
-        }
       }
 
       .step-content {
@@ -496,12 +456,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
             grid-template-columns: repeat(2, 1fr);
           }
         }
-
-        .step-header {
-          flex-direction: column;
-          gap: 12px;
-          text-align: center;
-        }
       }
 
       @media (max-width: 400px) {
@@ -516,7 +470,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     `,
   ],
 })
-export class ImportWalletComponent implements OnInit {
+export class ImportWalletComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly store = inject(Store);
   private readonly walletManager = inject(WalletManagerService);
@@ -533,6 +487,10 @@ export class ImportWalletComponent implements OnInit {
 
   walletName = '';
   importing = signal(false);
+
+  // Existing wallet names (for conflict check on step 1)
+  private readonly existingWalletNames = signal<string[]>([]);
+  readonly walletNameConflict = signal(false);
 
   // Mnemonic input
   wordCount = 24;
@@ -552,6 +510,18 @@ export class ImportWalletComponent implements OnInit {
 
   ngOnInit(): void {
     this.initializeWordArrays();
+    this.walletManager
+      .listAllWallets()
+      .then(names => this.existingWalletNames.set(names))
+      // RPC unreachable — skip the check; commit-time RPC will surface the real error.
+      .catch(() => undefined);
+  }
+
+  onWalletNameChange(): void {
+    const target = this.walletName.trim().toLowerCase();
+    this.walletNameConflict.set(
+      target.length > 0 && this.existingWalletNames().some(n => n.toLowerCase() === target)
+    );
   }
 
   private initializeWordArrays(): void {
@@ -608,7 +578,7 @@ export class ImportWalletComponent implements OnInit {
     }
   }
 
-  isMnemonicValid(): boolean {
+  isMnemonicComplete(): boolean {
     const wordlist = this.descriptorService.getWordlist();
     const filledWords = this.mnemonicWords.filter(w => w.trim().length > 0);
 
@@ -620,6 +590,19 @@ export class ImportWalletComponent implements OnInit {
       const trimmed = word.trim().toLowerCase();
       return wordlist.includes(trimmed);
     });
+  }
+
+  isMnemonicValid(): boolean {
+    if (!this.isMnemonicComplete()) return false;
+
+    // BIP39 checksum: the last word encodes a checksum of the first N-1,
+    // so a typo swapping one valid word for another is detectable here.
+    const phrase = this.mnemonicWords.map(w => w.trim().toLowerCase()).join(' ');
+    return this.descriptorService.validateMnemonic(phrase);
+  }
+
+  isMnemonicChecksumInvalid(): boolean {
+    return this.isMnemonicComplete() && !this.isMnemonicValid();
   }
 
   bip39PassphraseValid(): boolean {
@@ -661,6 +644,8 @@ export class ImportWalletComponent implements OnInit {
         await this.walletManager.encryptWallet(this.walletName, this.walletPassword);
       }
 
+      this.clearSecrets();
+
       this.snackBar.open(
         this.i18n.get('wallet_imported_success', { name: this.walletName }),
         undefined,
@@ -673,5 +658,21 @@ export class ImportWalletComponent implements OnInit {
       this.snackBar.open(errorMessage, this.i18n.get('dismiss'), { duration: 5000 });
       this.importing.set(false);
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearSecrets();
+  }
+
+  private clearSecrets(): void {
+    this.mnemonicWords = new Array(this.wordCount).fill('');
+    this.wordSuggestions = new Array(this.wordCount).fill(null).map(() => []);
+    this.wordErrors = new Array(this.wordCount).fill(false);
+    this.passphrase = '';
+    this.passphraseConfirm = '';
+    this.useBip39Passphrase = false;
+    this.walletPassword = '';
+    this.walletPasswordConfirm = '';
+    this.useWalletEncryption = false;
   }
 }

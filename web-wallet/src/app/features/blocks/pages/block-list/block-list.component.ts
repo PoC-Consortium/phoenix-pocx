@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy, computed, effect } from '@angular/core';
 import { Location } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -8,10 +8,17 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatDividerModule } from '@angular/material/divider';
 import { Subject } from 'rxjs';
-import { I18nPipe } from '../../../../core/i18n';
-import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
-import { BlockExplorerService } from '../../../../shared/services';
+import { I18nPipe, I18nService } from '../../../../core/i18n';
+import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
+import { BlocksCacheService } from '../../services/blocks-cache.service';
+import {
+  BlockExplorerService,
+  ClipboardService,
+  NotificationService,
+} from '../../../../shared/services';
+import { UnixDatePipe, TimeAgoPipe, ByteSizePipe } from '../../../../shared/pipes';
 import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
 
 @Component({
@@ -25,7 +32,11 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
     MatPaginatorModule,
     MatTooltipModule,
     MatMenuModule,
+    MatDividerModule,
     I18nPipe,
+    UnixDatePipe,
+    TimeAgoPipe,
+    ByteSizePipe,
   ],
   template: `
     <div class="page-layout">
@@ -99,18 +110,27 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
                         <a class="link" (click)="viewBlock(block)">{{ block.hash }}</a>
                       </td>
                       <td class="col-time">
-                        <span [matTooltip]="formatDate(block.time)">{{
-                          getTimeAgo(block.time)
-                        }}</span>
+                        <span [matTooltip]="block.time | unixDate">{{ block.time | timeAgo }}</span>
                       </td>
                       <td class="col-forger">{{ block.signer_address || '-' }}</td>
                       <td class="col-txs">{{ block.nTx }}</td>
-                      <td class="col-size">{{ formatSize(block.size) }}</td>
+                      <td class="col-size">{{ block.size | byteSize }}</td>
                       <td class="col-actions">
                         <button mat-icon-button [matMenuTriggerFor]="blockMenu">
                           <mat-icon>more_vert</mat-icon>
                         </button>
                         <mat-menu #blockMenu="matMenu">
+                          <button mat-menu-item (click)="copyToClipboard(block.hash)">
+                            <mat-icon>file_copy</mat-icon>
+                            <span>{{ 'copy_block_hash' | i18n }}</span>
+                          </button>
+                          @if (block.signer_address) {
+                            <button mat-menu-item (click)="copyToClipboard(block.signer_address)">
+                              <mat-icon>file_copy</mat-icon>
+                              <span>{{ 'copy_forger_address' | i18n }}</span>
+                            </button>
+                          }
+                          <mat-divider></mat-divider>
                           <button mat-menu-item (click)="openBlockInExplorer(block.hash)">
                             <mat-icon>open_in_new</mat-icon>
                             <span>{{ 'view_block_in_explorer' | i18n }}</span>
@@ -484,14 +504,18 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
   ],
 })
 export class BlockListComponent implements OnInit, OnDestroy {
-  private readonly blockchainRpc = inject(BlockchainRpcService);
+  private readonly cache = inject(BlocksCacheService);
+  private readonly blockchainState = inject(BlockchainStateService);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly blockExplorer = inject(BlockExplorerService);
+  private readonly clipboard = inject(ClipboardService);
+  private readonly notification = inject(NotificationService);
+  private readonly i18n = inject(I18nService);
   private readonly destroy$ = new Subject<void>();
 
-  loading = signal(false);
-  blocks = signal<PocxBlock[]>([]);
+  readonly loading = this.cache.loading;
+  readonly blocks = this.cache.recentBlocks;
   pageIndex = signal(0);
   pageSize = signal(10);
   pageSizeOptions = [10, 25, 50];
@@ -505,8 +529,33 @@ export class BlockListComponent implements OnInit, OnDestroy {
     return allBlocks.slice(start, start + this.pageSize());
   });
 
+  private lastAutoLoadHeight = 0;
+
+  constructor() {
+    // Auto-refresh when the chain tip actually moves. `lastAutoLoadHeight` gates
+    // against same-value signal writes (would otherwise fan out into duplicate
+    // loads on every mount because effect + ngOnInit both fired).
+    effect(() => {
+      const height = this.blockchainState.blockHeight();
+      if (height === 0 || height === this.lastAutoLoadHeight) return;
+      this.lastAutoLoadHeight = height;
+      this.triggerLoad(this.selectedCount);
+    });
+  }
+
   ngOnInit(): void {
-    this.loadBlocks();
+    // effect already handles initial load once blockHeight is known. For a cold
+    // boot where blockHeight has not been fetched yet, kick it off ourselves.
+    if (this.blockchainState.blockHeight() === 0) {
+      this.triggerLoad(this.selectedCount);
+    }
+  }
+
+  private triggerLoad(count: number): void {
+    this.cache.loadRecent(count).catch(err => {
+      console.error('Failed to load blocks:', err);
+      this.notification.error(this.i18n.get('failed_to_load_blocks'));
+    });
   }
 
   ngOnDestroy(): void {
@@ -522,19 +571,15 @@ export class BlockListComponent implements OnInit, OnDestroy {
     if (this.selectedCount !== count) {
       this.selectedCount = count;
       this.pageIndex.set(0);
-      this.loadBlocks();
+      this.triggerLoad(count);
     }
   }
 
   async loadBlocks(): Promise<void> {
-    this.loading.set(true);
     try {
-      const blocks = await this.blockchainRpc.getRecentBlocks<PocxBlock>(this.selectedCount, 1);
-      this.blocks.set(blocks);
-    } catch (error) {
-      console.error('Failed to load blocks:', error);
-    } finally {
-      this.loading.set(false);
+      await this.cache.forceReload(this.selectedCount);
+    } catch {
+      this.notification.error(this.i18n.get('failed_to_load_blocks'));
     }
   }
 
@@ -547,30 +592,15 @@ export class BlockListComponent implements OnInit, OnDestroy {
     this.router.navigate(['/blocks', block.hash]);
   }
 
-  formatDate(timestamp: number): string {
-    return new Date(timestamp * 1000).toLocaleString();
-  }
-
-  getTimeAgo(timestamp: number): string {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
-  }
-
-  formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    return `${(bytes / 1024).toFixed(1)} KB`;
-  }
-
   openBlockInExplorer(hash: string): void {
     this.blockExplorer.openBlock(hash);
   }
 
   openAddressInExplorer(address: string): void {
     this.blockExplorer.openAddress(address);
+  }
+
+  copyToClipboard(text: string): void {
+    this.clipboard.copy(text);
   }
 }

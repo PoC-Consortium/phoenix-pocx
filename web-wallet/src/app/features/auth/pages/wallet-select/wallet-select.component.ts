@@ -79,6 +79,10 @@ import { AppUpdateService } from '../../../../core/services/app-update.service';
                   <mat-icon>settings</mat-icon>
                   {{ 'settings' | i18n }}
                 </button>
+                <button mat-stroked-button routerLink="/node/setup">
+                  <mat-icon>download</mat-icon>
+                  {{ 're_run_node_setup' | i18n }}
+                </button>
               </div>
             </div>
           }

@@ -20,4 +20,7 @@ export { UpdateDialogComponent } from './update-dialog/update-dialog.component';
 export { AddressDisplayComponent } from './address-display/address-display.component';
 export { BalanceDisplayComponent } from './balance-display/balance-display.component';
 export { EmptyStateComponent } from './empty-state/empty-state.component';
+export { HashRefComponent } from './hash-ref/hash-ref.component';
+export type { HashRefKind } from './hash-ref/hash-ref.component';
 export { LoadingSpinnerComponent } from './loading-spinner/loading-spinner.component';
+export { StepHeaderComponent } from './step-header/step-header.component';

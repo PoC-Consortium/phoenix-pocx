@@ -789,6 +789,7 @@ pub fn run() {
             // Node management commands - Process
             node::commands::is_node_running,
             node::commands::is_node_installed,
+            node::commands::is_first_launch_complete,
             node::commands::get_installed_node_version,
             node::commands::start_managed_node,
             node::commands::stop_managed_node,

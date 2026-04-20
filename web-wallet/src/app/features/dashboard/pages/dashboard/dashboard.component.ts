@@ -1,14 +1,16 @@
 import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
+  Injector,
+  ViewChild,
+  computed,
+  effect,
   inject,
   signal,
-  computed,
-  OnInit,
-  OnDestroy,
-  ViewChild,
-  effect,
 } from '@angular/core';
-import { CommonModule, DecimalPipe } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
+import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,7 +21,6 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
-import { Subject } from 'rxjs';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import {
   WalletTransaction,
@@ -28,7 +29,12 @@ import {
 import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
-import { NotificationService, BlockExplorerService } from '../../../../shared/services';
+import {
+  ClipboardService,
+  NotificationService,
+  BlockExplorerService,
+} from '../../../../shared/services';
+import { BtcxPipe } from '../../../../shared/pipes';
 import {
   FeeBumpDialogComponent,
   FeeBumpDialogData,
@@ -38,8 +44,8 @@ import {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
     MatCardModule,
     MatIconModule,
     MatProgressSpinnerModule,
@@ -50,6 +56,7 @@ import {
     MatTooltipModule,
     I18nPipe,
     DecimalPipe,
+    BtcxPipe,
   ],
   template: `
     <div class="bitcoin-dashboard">
@@ -110,25 +117,25 @@ import {
         </mat-card-header>
         <mat-card-content>
           <div class="total-balance">
-            <span class="amount">{{ formatBtcx(getTotalAll()) }}</span>
+            <span class="amount">{{ getTotalAll() | btcx }}</span>
             <span class="unit">BTCX</span>
           </div>
 
           <div class="balance-breakdown">
             <div class="breakdown-item">
               <span class="label">{{ 'confirmed' | i18n }}:</span>
-              <span class="value confirmed">{{ formatBtcx(totalBalance()) }} BTCX</span>
+              <span class="value confirmed">{{ totalBalance() | btcx }} BTCX</span>
             </div>
             @if (pendingBalance() > 0) {
               <div class="breakdown-item">
                 <span class="label">{{ 'pending' | i18n }}:</span>
-                <span class="value pending">{{ formatBtcx(pendingBalance()) }} BTCX</span>
+                <span class="value pending">{{ pendingBalance() | btcx }} BTCX</span>
               </div>
             }
             @if (immatureBalance() > 0) {
               <div class="breakdown-item">
                 <span class="label">{{ 'immature' | i18n }}:</span>
-                <span class="value immature">{{ formatBtcx(immatureBalance()) }} BTCX</span>
+                <span class="value immature">{{ immatureBalance() | btcx }} BTCX</span>
               </div>
             }
           </div>
@@ -238,7 +245,7 @@ import {
                   </tr>
                 </thead>
                 <tbody>
-                  @for (tx of transactions(); track tx.txid) {
+                  @for (tx of transactions(); track tx.txid + '-' + tx.vout + '-' + tx.category) {
                     <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
                       <td class="col-datetime">
                         <div class="datetime-stack">
@@ -275,7 +282,7 @@ import {
                         <button
                           mat-icon-button
                           [matMenuTriggerFor]="txMenu"
-                          aria-label="More Actions"
+                          [attr.aria-label]="'actions' | i18n"
                         >
                           <mat-icon>more_vert</mat-icon>
                         </button>
@@ -922,7 +929,7 @@ import {
     `,
   ],
 })
-export class DashboardComponent implements OnInit, OnDestroy {
+export class DashboardComponent implements AfterViewInit {
   @ViewChild(MatPaginator, { static: false }) paginator!: MatPaginator;
 
   // Inject centralized state services
@@ -934,8 +941,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly notification = inject(NotificationService);
   private readonly blockExplorer = inject(BlockExplorerService);
+  private readonly clipboard = inject(ClipboardService);
+  private readonly injector = inject(Injector);
   private readonly dialog = inject(MatDialog);
-  private readonly destroy$ = new Subject<void>();
 
   // Loading states derived from services
   isLoadingBlockchain = computed(() => this.blockchainState.isLoading());
@@ -971,25 +979,16 @@ export class DashboardComponent implements OnInit, OnDestroy {
   chartLabels = signal<string[]>([]);
   yAxisLabels = signal<string[]>([]);
 
-  constructor() {
-    // Effect to update transactions page and chart when allTransactions changes
-    effect(() => {
-      const txs = this.allTransactions();
-      if (txs.length > 0) {
+  ngAfterViewInit(): void {
+    effect(
+      () => {
+        const txs = this.allTransactions();
+        if (txs.length === 0) return;
         this.updateTransactionPage();
         this.updateBalanceChart(txs);
-      }
-    });
-  }
-
-  ngOnInit(): void {
-    // Initial page update
-    this.updateTransactionPage();
-  }
-
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+      },
+      { injector: this.injector }
+    );
   }
 
   // Chart methods
@@ -1106,77 +1105,53 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
-  getChartLinePath(): string {
+  getChartLinePath = computed<string>(() => {
     const points = this.chartPoints();
     if (points.length < 2) return '';
 
-    // Create smooth curve using cubic bezier
     let path = `M ${points[0].x} ${points[0].y}`;
-
     for (let i = 1; i < points.length; i++) {
       const prev = points[i - 1];
       const curr = points[i];
       const tension = 0.3;
-
-      // Control points for smooth curve
       const cp1x = prev.x + (curr.x - prev.x) * tension;
       const cp1y = prev.y;
       const cp2x = curr.x - (curr.x - prev.x) * tension;
       const cp2y = curr.y;
-
       path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
     }
-
     return path;
-  }
+  });
 
-  getChartAreaPath(): string {
+  getChartAreaPath = computed<string>(() => {
     const points = this.chartPoints();
     if (points.length < 2) return '';
 
-    const height = 100;
-    const bottomY = height;
-
-    // Start from bottom left
-    let path = `M ${points[0].x} ${bottomY}`;
-
-    // Line up to first point
-    path += ` L ${points[0].x} ${points[0].y}`;
-
-    // Smooth curve through all points
+    const bottomY = 100;
+    let path = `M ${points[0].x} ${bottomY} L ${points[0].x} ${points[0].y}`;
     for (let i = 1; i < points.length; i++) {
       const prev = points[i - 1];
       const curr = points[i];
       const tension = 0.3;
-
       const cp1x = prev.x + (curr.x - prev.x) * tension;
       const cp1y = prev.y;
       const cp2x = curr.x - (curr.x - prev.x) * tension;
       const cp2y = curr.y;
-
       path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
     }
-
-    // Close the path
     path += ` L ${points[points.length - 1].x} ${bottomY} Z`;
-
     return path;
-  }
+  });
 
-  getGridXPositions(): number[] {
+  getGridXPositions = computed<number[]>(() => {
     const points = this.chartPoints();
     if (points.length < 2) return [];
-    // Return x positions for vertical grid lines
     return points.map(p => p.x);
-  }
+  });
 
   // Balance methods
   getTotalAll(): number {
     return this.totalBalance() + this.pendingBalance() + this.immatureBalance();
-  }
-
-  formatBtcx(amount: number): string {
-    return amount.toFixed(8);
   }
 
   // Blockchain info methods
@@ -1189,11 +1164,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (chain === 'test' || chain === 'testnet') return 'Testnet';
     if (chain === 'regtest') return 'Regtest';
     return info.chain;
-  }
-
-  getSyncProgress(): string {
-    const state = this.syncState();
-    return state.percent.toFixed(2);
   }
 
   getSyncStateWithProgress(): string {
@@ -1249,20 +1219,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
-  getAmountClass(tx: WalletTransaction): string {
-    switch (tx.category) {
-      case 'receive':
-      case 'generate':
-        return 'incoming';
-      case 'send':
-        return 'outgoing';
-      case 'immature':
-        return 'immature';
-      default:
-        return '';
-    }
-  }
-
   formatTransactionAmount(tx: WalletTransaction): string {
     const prefix =
       tx.category === 'receive' || tx.category === 'generate' || tx.category === 'immature'
@@ -1287,18 +1243,28 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   formatTxDate(tx: WalletTransaction): string {
     const date = new Date(tx.time * 1000);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(this.i18n.currentLanguageCode(), {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   }
 
   formatTxTime(tx: WalletTransaction): string {
     const date = new Date(tx.time * 1000);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString(this.i18n.currentLanguageCode(), {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   // Pagination
   updateTransactionPage(): void {
-    const pageIndex = this.paginator ? this.paginator.pageIndex : 0;
-    const pageSize = this.paginator ? this.paginator.pageSize : this.txPageSize;
+    // Paginator lives inside the populated-transactions branch of the template,
+    // so on the very first population it does not exist yet — fall back to defaults
+    // so the initial slice can render and the paginator can then mount.
+    const pageIndex = this.paginator?.pageIndex ?? 0;
+    const pageSize = this.paginator?.pageSize ?? this.txPageSize;
     const start = pageIndex * pageSize;
     const end = start + pageSize;
     this.transactions.set(this.allTransactions().slice(start, end));
@@ -1315,10 +1281,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   copyToClipboard(text: string): void {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      this.notification.show(this.i18n.get('copied_to_clipboard'), 'success');
-    }
+    this.clipboard.copy(text);
   }
 
   addToContacts(tx: WalletTransaction): void {
@@ -1350,7 +1313,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       } as FeeBumpDialogData,
     });
 
-    const result = (await dialogRef.afterClosed().toPromise()) as FeeBumpDialogResult | undefined;
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as
+      | FeeBumpDialogResult
+      | undefined;
     if (result?.confirmed) {
       await this.executeBumpFee(tx.txid, result);
     }

@@ -116,14 +116,6 @@ import { MiningService } from '../../mining/services';
               </div>
             }
           </div>
-
-          <div class="logo">
-            <img
-              class="logo-icon"
-              src="assets/images/logos/icon_white.svg"
-              alt="Phoenix PoCX Logo"
-            />
-          </div>
         </div>
 
         <!-- Right Side: Wallet selector + Language -->
@@ -335,17 +327,6 @@ import { MiningService } from '../../mining/services';
 
       .secondary-text {
         color: rgba(0, 0, 0, 0.54);
-      }
-
-      .logo {
-        display: flex;
-        align-items: center;
-        padding: 0 16px;
-
-        .logo-icon {
-          width: 38px;
-          height: 38px;
-        }
       }
 
       /* Wallet button in toolbar */

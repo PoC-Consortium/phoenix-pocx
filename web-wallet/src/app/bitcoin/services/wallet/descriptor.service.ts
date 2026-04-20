@@ -6,6 +6,8 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { ripemd160 } from '@noble/hashes/legacy.js';
 import { base58check } from '@scure/base';
 import { bytesToHex } from '@noble/hashes/utils.js';
+import { descriptorChecksum } from '../../utils/descriptor-checksum';
+import { validateDescriptorChecksum } from '../../utils/descriptor-validation';
 
 /**
  * Descriptor types for Bitcoin Core
@@ -52,9 +54,6 @@ const VERSION_BYTES = {
   mainnet: { xprv: 0x0488ade4, xpub: 0x0488b21e },
   testnet: { tprv: 0x04358394, tpub: 0x043587cf },
 };
-
-// Descriptor checksum character set (same as bech32)
-const CHECKSUM_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 
 /**
  * DescriptorService handles BIP39 mnemonic and Bitcoin descriptor operations.
@@ -290,7 +289,7 @@ export class DescriptorService {
    * Calculate descriptor checksum per BIP-380
    */
   calculateChecksum(descriptor: string): string {
-    return this.descriptorChecksum(descriptor);
+    return descriptorChecksum(descriptor);
   }
 
   /**
@@ -300,7 +299,16 @@ export class DescriptorService {
     if (descriptor.includes('#')) {
       return descriptor; // Already has checksum
     }
-    return `${descriptor}#${this.descriptorChecksum(descriptor)}`;
+    return `${descriptor}#${descriptorChecksum(descriptor)}`;
+  }
+
+  /**
+   * Verify that a `<descriptor>#<checksum>` string has a valid BIP-380
+   * checksum. Returns false if the `#` suffix is missing, the wrong length,
+   * or the body fails to recompute to the provided checksum.
+   */
+  validateChecksum(descriptor: string): boolean {
+    return validateDescriptorChecksum(descriptor);
   }
 
   /**
@@ -429,62 +437,7 @@ export class DescriptorService {
         throw new Error(`Unknown descriptor type: ${type}`);
     }
 
-    const checksum = this.descriptorChecksum(desc);
+    const checksum = descriptorChecksum(desc);
     return `${desc}#${checksum}`;
-  }
-
-  private descriptorChecksum(desc: string): string {
-    const INPUT_CHARSET =
-      '0123456789()[],\'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#"\\ ';
-
-    let c = BigInt(1);
-    let cls = 0;
-    let clscount = 0;
-
-    for (const ch of desc) {
-      const pos = INPUT_CHARSET.indexOf(ch);
-      if (pos === -1) {
-        throw new Error(`Invalid character in descriptor: ${ch}`);
-      }
-
-      c = this.polymod(c, pos & 31);
-      cls = cls * 3 + (pos >> 5);
-      clscount++;
-
-      if (clscount === 3) {
-        c = this.polymod(c, cls);
-        cls = 0;
-        clscount = 0;
-      }
-    }
-
-    if (clscount > 0) {
-      c = this.polymod(c, cls);
-    }
-
-    for (let i = 0; i < 8; i++) {
-      c = this.polymod(c, 0);
-    }
-    c ^= BigInt(1);
-
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += CHECKSUM_CHARSET[Number((c >> BigInt(5 * (7 - i))) & BigInt(31))];
-    }
-
-    return result;
-  }
-
-  private polymod(c: bigint, val: number): bigint {
-    const c0 = c >> BigInt(35);
-    c = ((c & BigInt(0x7ffffffff)) << BigInt(5)) ^ BigInt(val);
-
-    if (c0 & BigInt(1)) c ^= BigInt(0xf5dee51989);
-    if (c0 & BigInt(2)) c ^= BigInt(0xa9fdca3312);
-    if (c0 & BigInt(4)) c ^= BigInt(0x1bab10e32d);
-    if (c0 & BigInt(8)) c ^= BigInt(0x3706b1677a);
-    if (c0 & BigInt(16)) c ^= BigInt(0x644d626ffd);
-
-    return c;
   }
 }

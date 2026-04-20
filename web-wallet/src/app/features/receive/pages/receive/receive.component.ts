@@ -607,6 +607,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   async generateNewAddress(): Promise<void> {
+    if (this.isGenerating()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 

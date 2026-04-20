@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { selectNetwork } from '../../store/settings/settings.selectors';
+import { ElectronService } from '../../core/services/electron.service';
 
 /**
  * BlockExplorerService provides URLs and navigation to the Bitcoin-PoCX block explorer.
@@ -9,10 +10,15 @@ import { selectNetwork } from '../../store/settings/settings.selectors';
  * URLs are network-aware:
  * - Testnet: https://explorer.testnet.bitcoin-pocx.org/testnet
  * - Mainnet: https://explorer.bitcoin-pocx.org/mainnet
+ *
+ * Navigation is routed through ElectronService.openExternal so the OS browser
+ * opens in the Tauri desktop build (plain window.open is blocked by the
+ * webview's security policy).
  */
 @Injectable({ providedIn: 'root' })
 export class BlockExplorerService {
   private readonly store = inject(Store);
+  private readonly electron = inject(ElectronService);
   private readonly network = toSignal(this.store.select(selectNetwork), {
     initialValue: 'mainnet',
   });
@@ -42,26 +48,23 @@ export class BlockExplorerService {
   }
 
   /**
-   * Open a block in the explorer (new tab)
-   * @param hash - Block hash
+   * Open a block in the system browser
    */
   openBlock(hash: string): void {
-    window.open(this.getBlockUrl(hash), '_blank');
+    void this.electron.openExternal(this.getBlockUrl(hash));
   }
 
   /**
-   * Open a transaction in the explorer (new tab)
-   * @param txid - Transaction ID
+   * Open a transaction in the system browser
    */
   openTransaction(txid: string): void {
-    window.open(this.getTransactionUrl(txid), '_blank');
+    void this.electron.openExternal(this.getTransactionUrl(txid));
   }
 
   /**
-   * Open an address in the explorer (new tab)
-   * @param address - Bitcoin address
+   * Open an address in the system browser
    */
   openAddress(address: string): void {
-    window.open(this.getAddressUrl(address), '_blank');
+    void this.electron.openExternal(this.getAddressUrl(address));
   }
 }

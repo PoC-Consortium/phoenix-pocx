@@ -1,5 +1,6 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule, DecimalPipe } from '@angular/common';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -22,7 +23,6 @@ interface Contact {
   id: string;
   name: string;
   address: string;
-  notes?: string;
   createdAt: number;
 }
 import { AddressDisplayComponent, PassphraseDialogComponent } from '../../../../shared';
@@ -33,6 +33,10 @@ import { WalletService } from '../../../../bitcoin/services/wallet/wallet.servic
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { SendConfirmDialogComponent } from '../../components/send-confirm-dialog/send-confirm-dialog.component';
+import { Store } from '@ngrx/store';
+import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import { selectNetwork } from '../../../../store/settings/settings.selectors';
+import type { Network } from '../../../../store/settings/settings.state';
 
 interface FeeOption {
   label: string;
@@ -58,7 +62,6 @@ interface FeeOption {
   selector: 'app-send',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     RouterModule,
     MatCardModule,
@@ -134,20 +137,27 @@ interface FeeOption {
                     matInput
                     [(ngModel)]="recipientAddress"
                     placeholder="tb1q... / m... / n..."
-                    (blur)="validateAddress()"
+                    (ngModelChange)="validateAddress()"
                     autocomplete="off"
                   />
-                  @if (addressError()) {
-                    <mat-hint class="error-hint">
-                      <mat-icon class="small-icon">error</mat-icon>
-                      {{ addressError() }}
-                    </mat-hint>
-                  }
                   @if (addressValid()) {
-                    <mat-hint class="valid-hint">
-                      <mat-icon class="small-icon">check_circle</mat-icon>
-                      {{ 'address_valid' | i18n }}
-                    </mat-hint>
+                    <mat-icon
+                      matSuffix
+                      class="address-badge address-badge-valid"
+                      [matTooltip]="'address_valid' | i18n"
+                      >check_circle</mat-icon
+                    >
+                  } @else if (addressError()) {
+                    <mat-icon
+                      matSuffix
+                      class="address-badge address-badge-invalid"
+                      [matTooltip]="addressError()!.key | i18n: addressError()!.params"
+                      >error</mat-icon
+                    >
+                  }
+                  @let err = addressError();
+                  @if (err) {
+                    <mat-hint class="error-hint">{{ err.key | i18n: err.params }}</mat-hint>
                   }
                 </mat-form-field>
                 <button
@@ -542,17 +552,12 @@ interface FeeOption {
         width: 100%;
       }
 
-      .valid-hint {
-        color: #4caf50;
-        display: flex;
-        align-items: center;
-        gap: 4px;
+      .address-badge-valid {
+        color: #2e7d32;
+      }
 
-        .small-icon {
-          font-size: 16px;
-          width: 16px;
-          height: 16px;
-        }
+      .address-badge-invalid {
+        color: #c62828;
       }
 
       .error-hint {
@@ -1044,6 +1049,8 @@ export class SendComponent implements OnInit, OnDestroy {
   private readonly location = inject(Location);
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
+  private readonly store = inject(Store);
+  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
   private readonly destroy$ = new Subject<void>();
 
   // Currency symbol - always BTCX for Bitcoin-PoCX
@@ -1055,7 +1062,7 @@ export class SendComponent implements OnInit, OnDestroy {
   // Balance from centralized WalletService - auto-updates via polling
   availableBalance = computed(() => this.walletService.balance());
   addressValid = signal(false);
-  addressError = signal<string | null>(null);
+  addressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
   sendError = signal<string | null>(null);
   sending = signal(false);
   sentTxid = signal('');
@@ -1139,26 +1146,43 @@ export class SendComponent implements OnInit, OnDestroy {
     this.loadFeeEstimates();
   }
 
-  async validateAddress(): Promise<void> {
-    if (!this.recipientAddress) {
+  validateAddress(): boolean {
+    const raw = this.recipientAddress;
+    if (!raw.trim()) {
       this.addressValid.set(false);
       this.addressError.set(null);
-      return;
+      return false;
     }
-
-    try {
-      const result = await this.blockchainRpc.validateAddress(this.recipientAddress);
-      if (result.isvalid) {
-        this.addressValid.set(true);
-        this.addressError.set(null);
-      } else {
-        this.addressValid.set(false);
-        this.addressError.set(this.i18n.get('invalid_address'));
-      }
-    } catch {
+    const result = validatePocxAddress(raw);
+    if (result.kind === 'empty') {
       this.addressValid.set(false);
-      this.addressError.set(this.i18n.get('error_validating_address'));
+      this.addressError.set(null);
+      return false;
     }
+    if (result.kind !== 'valid') {
+      this.addressValid.set(false);
+      this.addressError.set({ key: 'invalid_address' });
+      return false;
+    }
+    const appNet = this.network();
+    if (result.network !== appNet) {
+      this.addressValid.set(false);
+      this.addressError.set({
+        key: 'address_wrong_network',
+        params: {
+          addressNetwork: this.translateNetwork(result.network),
+          appNetwork: this.translateNetwork(appNet),
+        },
+      });
+      return false;
+    }
+    this.addressValid.set(true);
+    this.addressError.set(null);
+    return true;
+  }
+
+  private translateNetwork(network: Network): string {
+    return this.i18n.get(network);
   }
 
   setMaxAmount(): void {
@@ -1288,6 +1312,9 @@ export class SendComponent implements OnInit, OnDestroy {
   }
 
   async sendTransaction(): Promise<void> {
+    if (this.sending()) return;
+    // Final validation gate — paste + immediate click can bypass the input event.
+    if (!this.validateAddress()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName || !this.amount) return;
 

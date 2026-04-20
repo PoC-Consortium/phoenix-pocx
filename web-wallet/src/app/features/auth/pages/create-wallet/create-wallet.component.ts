@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,7 @@ import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
+import { StepHeaderComponent } from '../../../../shared/components';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
 import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
@@ -42,25 +43,16 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     MatProgressBarModule,
     MatAutocompleteModule,
     I18nPipe,
+    StepHeaderComponent,
   ],
   template: `
     <div class="create-wallet-container">
       <mat-card class="create-card">
-        <!-- Custom Step Header -->
-        <div class="step-header">
-          <span class="step-title">{{ getCurrentStepTitle() }}</span>
-          <div class="step-indicators">
-            @for (step of [1, 2, 3, 4]; track step) {
-              <span
-                class="step-dot"
-                [class.active]="currentStep() === step"
-                [class.completed]="currentStep() > step"
-              >
-                {{ step }}
-              </span>
-            }
-          </div>
-        </div>
+        <app-step-header
+          [title]="getCurrentStepTitle()"
+          [currentStep]="currentStep()"
+          [totalSteps]="4"
+        ></app-step-header>
 
         @if (creating()) {
           <mat-progress-bar mode="indeterminate"></mat-progress-bar>
@@ -75,10 +67,15 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <input
                   matInput
                   [(ngModel)]="walletName"
+                  (ngModelChange)="onWalletNameChange()"
                   placeholder="My Wallet"
                   [disabled]="creating()"
                 />
-                <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                @if (walletNameConflict()) {
+                  <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
+                } @else {
+                  <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                }
               </mat-form-field>
               <div class="step-actions">
                 <button mat-button routerLink="/auth">
@@ -87,7 +84,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || creating()"
+                  [disabled]="!walletName || walletNameConflict() || creating()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -303,50 +300,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
         max-width: 600px;
       }
 
-      /* Custom step header */
-      .step-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 24px;
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-        color: white;
-        border-radius: 4px 4px 0 0;
-      }
-
-      .step-title {
-        font-size: 18px;
-        font-weight: 500;
-      }
-
-      .step-indicators {
-        display: flex;
-        gap: 8px;
-      }
-
-      .step-dot {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        font-weight: 500;
-        background: rgba(255, 255, 255, 0.2);
-        color: rgba(255, 255, 255, 0.7);
-
-        &.active {
-          background: white;
-          color: #1e3a5f;
-        }
-
-        &.completed {
-          background: rgba(255, 255, 255, 0.4);
-          color: white;
-        }
-      }
-
       .step-content {
         padding: 24px;
       }
@@ -451,12 +404,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
         .mnemonic-actions {
           flex-direction: column;
         }
-
-        .step-header {
-          flex-direction: column;
-          gap: 12px;
-          text-align: center;
-        }
       }
 
       @media (max-width: 400px) {
@@ -467,7 +414,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     `,
   ],
 })
-export class CreateWalletComponent implements OnInit {
+export class CreateWalletComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly store = inject(Store);
   private readonly walletManager = inject(WalletManagerService);
@@ -490,6 +437,10 @@ export class CreateWalletComponent implements OnInit {
   walletName = '';
   mnemonicWrittenDown = false;
   creating = signal(false);
+
+  // Existing wallet names (for conflict check on step 1)
+  private readonly existingWalletNames = signal<string[]>([]);
+  readonly walletNameConflict = signal(false);
   mnemonic = '';
   mnemonicWords = signal<string[]>([]);
 
@@ -510,6 +461,18 @@ export class CreateWalletComponent implements OnInit {
 
   ngOnInit(): void {
     this.generateMnemonic();
+    this.walletManager
+      .listAllWallets()
+      .then(names => this.existingWalletNames.set(names))
+      // RPC unreachable — skip the check; commit-time RPC will surface the real error.
+      .catch(() => undefined);
+  }
+
+  onWalletNameChange(): void {
+    const target = this.walletName.trim().toLowerCase();
+    this.walletNameConflict.set(
+      target.length > 0 && this.existingWalletNames().some(n => n.toLowerCase() === target)
+    );
   }
 
   getCurrentStepTitle(): string {
@@ -518,6 +481,10 @@ export class CreateWalletComponent implements OnInit {
 
   nextStep(): void {
     if (this.currentStep() < 4) {
+      // Re-generate mnemonic on re-entry to step 2 after it was cleared by a prior back-nav
+      if (this.currentStep() === 1 && !this.mnemonic) {
+        this.generateMnemonic();
+      }
       // Generate verification indices when moving to step 3
       if (this.currentStep() === 2) {
         this.selectVerificationIndices();
@@ -528,7 +495,13 @@ export class CreateWalletComponent implements OnInit {
 
   prevStep(): void {
     if (this.currentStep() > 1) {
+      const leaving = this.currentStep();
       this.currentStep.update(s => s - 1);
+      // User abandons the current mnemonic draft on 2 → 1; a fresh one is generated on re-entry.
+      // 3 → 2 intentionally preserves mnemonic so the user can view it again.
+      if (leaving === 2) {
+        this.clearMnemonicDraft();
+      }
     }
   }
 
@@ -614,6 +587,8 @@ export class CreateWalletComponent implements OnInit {
         await this.walletManager.encryptWallet(this.walletName, this.walletPassword);
       }
 
+      this.clearSecrets();
+
       this.snackBar.open(
         this.i18n.get('wallet_created_success', { name: this.walletName }),
         undefined,
@@ -626,5 +601,27 @@ export class CreateWalletComponent implements OnInit {
       this.snackBar.open(errorMessage, this.i18n.get('dismiss'), { duration: 5000 });
       this.creating.set(false);
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearSecrets();
+  }
+
+  private clearMnemonicDraft(): void {
+    this.mnemonic = '';
+    this.mnemonicWords.set([]);
+    this.mnemonicWrittenDown = false;
+    this.passphrase = '';
+    this.passphraseConfirm = '';
+    this.useBip39Passphrase = false;
+  }
+
+  private clearSecrets(): void {
+    this.clearMnemonicDraft();
+    this.walletPassword = '';
+    this.walletPasswordConfirm = '';
+    this.useWalletEncryption = false;
+    this.verifyWords = ['', '', ''];
+    this.wordSuggestions = [[], [], []];
   }
 }

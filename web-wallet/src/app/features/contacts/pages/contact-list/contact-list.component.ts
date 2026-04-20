@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit, computed } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, ActivatedRoute } from '@angular/router';
@@ -8,12 +9,19 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatDialogModule } from '@angular/material/dialog';
+import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { I18nPipe } from '../../../../core/i18n';
+import { Store } from '@ngrx/store';
+import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { ClipboardService, NotificationService } from '../../../../shared/services';
-import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
+import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import { selectNetwork } from '../../../../store/settings/settings.selectors';
+import type { Network } from '../../../../store/settings/settings.state';
+import {
+  ConfirmDialogComponent,
+  ConfirmDialogData,
+} from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 
 interface Contact {
   id: string;
@@ -21,6 +29,7 @@ interface Contact {
   address: string;
   notes?: string;
   createdAt: number;
+  network: Network;
 }
 
 /**
@@ -99,11 +108,27 @@ interface Contact {
                 matInput
                 [(ngModel)]="formAddress"
                 [placeholder]="'address_placeholder' | i18n"
-                (blur)="validateAddress()"
+                (ngModelChange)="validateAddress()"
                 autocomplete="off"
               />
-              @if (addressError()) {
-                <mat-error>{{ addressError() }}</mat-error>
+              @if (addressValid()) {
+                <mat-icon
+                  matSuffix
+                  class="address-badge address-badge-valid"
+                  [matTooltip]="'address_valid' | i18n"
+                  >check_circle</mat-icon
+                >
+              } @else if (addressError()) {
+                <mat-icon
+                  matSuffix
+                  class="address-badge address-badge-invalid"
+                  [matTooltip]="addressError()!.key | i18n: addressError()!.params"
+                  >error</mat-icon
+                >
+              }
+              @let err = addressError();
+              @if (err) {
+                <mat-error>{{ err.key | i18n: err.params }}</mat-error>
               }
             </mat-form-field>
 
@@ -299,6 +324,14 @@ interface Contact {
           margin-bottom: 4px;
         }
 
+        .address-badge-valid {
+          color: #2e7d32;
+        }
+
+        .address-badge-invalid {
+          color: #c62828;
+        }
+
         .form-actions {
           display: flex;
           gap: 12px;
@@ -351,6 +384,11 @@ interface Contact {
               padding: 0 12px;
               background: #fff;
               border-radius: 8px;
+            }
+
+            .mat-mdc-form-field-flex {
+              height: 40px;
+              align-items: center;
             }
 
             .mat-mdc-form-field-infix {
@@ -598,13 +636,18 @@ export class ContactListComponent implements OnInit {
   private readonly location = inject(Location);
   private readonly clipboard = inject(ClipboardService);
   private readonly notification = inject(NotificationService);
-  private readonly blockchainRpc = inject(BlockchainRpcService);
+  private readonly dialog = inject(MatDialog);
+  private readonly i18n = inject(I18nService);
+  private readonly store = inject(Store);
+  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
+  private saveQueued = false;
 
   contacts = signal<Contact[]>([]);
   searchQuery = signal('');
   showAddForm = signal(false);
   editingContact = signal<Contact | null>(null);
-  addressError = signal<string | null>(null);
+  addressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
+  addressValid = signal(false);
 
   // Form fields
   formName = '';
@@ -612,10 +655,12 @@ export class ContactListComponent implements OnInit {
   formNotes = '';
 
   filteredContacts = computed(() => {
+    const net = this.network();
+    const byNet = this.contacts().filter(c => c.network === net);
     const query = this.searchQuery().toLowerCase().trim();
-    if (!query) return this.contacts();
+    if (!query) return byNet;
 
-    return this.contacts().filter(
+    return byNet.filter(
       c =>
         c.name.toLowerCase().includes(query) ||
         c.address.toLowerCase().includes(query) ||
@@ -641,38 +686,76 @@ export class ContactListComponent implements OnInit {
 
   loadContacts(): void {
     const stored = localStorage.getItem('wallet_contacts');
-    if (stored) {
-      try {
-        const contacts = JSON.parse(stored) as Contact[];
-        // Sort by name
-        contacts.sort((a, b) => a.name.localeCompare(b.name));
-        this.contacts.set(contacts);
-      } catch {
-        // Invalid data
-      }
+    if (!stored) return;
+    try {
+      const raw = JSON.parse(stored) as (Omit<Contact, 'network'> & { network?: Network })[];
+      let mutated = false;
+      const migrated: Contact[] = raw.map(c => {
+        if (c.network) return c as Contact;
+        // Legacy entry — infer the network from the address itself so mainnet
+        // and testnet contacts survive the split accurately.
+        mutated = true;
+        const result = validatePocxAddress(c.address);
+        const network: Network = result.kind === 'valid' ? result.network : this.network();
+        return { ...c, network };
+      });
+      migrated.sort((a, b) => a.name.localeCompare(b.name));
+      this.contacts.set(migrated);
+      if (mutated) this.saveContacts();
+    } catch {
+      // Invalid data
     }
   }
 
   saveContacts(): void {
-    localStorage.setItem('wallet_contacts', JSON.stringify(this.contacts()));
+    if (this.saveQueued) return;
+    this.saveQueued = true;
+    queueMicrotask(() => {
+      localStorage.setItem('wallet_contacts', JSON.stringify(this.contacts()));
+      this.saveQueued = false;
+    });
   }
 
-  async validateAddress(): Promise<void> {
-    if (!this.formAddress) {
+  validateAddress(): boolean {
+    const raw = this.formAddress;
+    if (!raw.trim()) {
       this.addressError.set(null);
-      return;
+      this.addressValid.set(false);
+      return false;
     }
 
-    try {
-      const result = await this.blockchainRpc.validateAddress(this.formAddress);
-      if (!result.isvalid) {
-        this.addressError.set('invalid_address');
-      } else {
-        this.addressError.set(null);
-      }
-    } catch {
-      this.addressError.set('error_validating_address');
+    const result = validatePocxAddress(raw);
+    if (result.kind === 'empty') {
+      this.addressError.set(null);
+      this.addressValid.set(false);
+      return false;
     }
+    if (result.kind !== 'valid') {
+      this.addressError.set({ key: 'invalid_address' });
+      this.addressValid.set(false);
+      return false;
+    }
+
+    const appNet = this.network();
+    if (result.network !== appNet) {
+      this.addressError.set({
+        key: 'address_wrong_network',
+        params: {
+          addressNetwork: this.translateNetwork(result.network),
+          appNetwork: this.translateNetwork(appNet),
+        },
+      });
+      this.addressValid.set(false);
+      return false;
+    }
+
+    this.addressError.set(null);
+    this.addressValid.set(true);
+    return true;
+  }
+
+  private translateNetwork(network: Network): string {
+    return this.i18n.get(network);
   }
 
   canSaveContact(): boolean {
@@ -680,37 +763,46 @@ export class ContactListComponent implements OnInit {
   }
 
   saveContact(): void {
+    // Final validation gate — catches the case where the user never blurred the
+    // address field, or pasted + clicked save in the same tick.
+    if (!this.validateAddress()) return;
     if (!this.canSaveContact()) return;
 
     const editing = this.editingContact();
+    const address = this.formAddress.trim();
+    const name = this.formName.trim();
+    const notes = this.formNotes.trim() || undefined;
+    // Validation already ensured the address matches the current network.
+    const network = this.network();
+
+    const addressKey = address.toLowerCase();
+    const conflict = this.contacts().some(
+      c => c.address.toLowerCase() === addressKey && c.id !== editing?.id
+    );
+    if (conflict) {
+      this.notification.error(this.i18n.get('contact_address_exists'));
+      return;
+    }
 
     if (editing) {
-      // Update existing contact
       const updated = this.contacts().map(c =>
-        c.id === editing.id
-          ? {
-              ...c,
-              name: this.formName.trim(),
-              address: this.formAddress.trim(),
-              notes: this.formNotes.trim() || undefined,
-            }
-          : c
+        c.id === editing.id ? { ...c, name, address, notes, network } : c
       );
       this.contacts.set(updated);
-      this.notification.success('Contact updated');
+      this.notification.success(this.i18n.get('contact_updated'));
     } else {
-      // Add new contact
       const newContact: Contact = {
         id: Date.now().toString(),
-        name: this.formName.trim(),
-        address: this.formAddress.trim(),
-        notes: this.formNotes.trim() || undefined,
+        name,
+        address,
+        notes,
         createdAt: Date.now(),
+        network,
       };
       this.contacts.set(
         [...this.contacts(), newContact].sort((a, b) => a.name.localeCompare(b.name))
       );
-      this.notification.success('Contact added');
+      this.notification.success(this.i18n.get('contact_added'));
     }
 
     this.saveContacts();
@@ -726,12 +818,22 @@ export class ContactListComponent implements OnInit {
   }
 
   deleteContact(contact: Contact): void {
-    if (confirm(`Delete contact "${contact.name}"?`)) {
-      const updated = this.contacts().filter(c => c.id !== contact.id);
-      this.contacts.set(updated);
-      this.saveContacts();
-      this.notification.success('Contact deleted');
-    }
+    const data: ConfirmDialogData = {
+      title: this.i18n.get('delete_contact_title'),
+      message: this.i18n.get('delete_contact_confirm', { name: contact.name }),
+      confirmText: this.i18n.get('delete'),
+      cancelText: this.i18n.get('cancel'),
+      type: 'danger',
+    };
+    this.dialog
+      .open(ConfirmDialogComponent, { data })
+      .afterClosed()
+      .subscribe(confirmed => {
+        if (!confirmed) return;
+        this.contacts.set(this.contacts().filter(c => c.id !== contact.id));
+        this.saveContacts();
+        this.notification.success(this.i18n.get('contact_deleted'));
+      });
   }
 
   cancelForm(): void {

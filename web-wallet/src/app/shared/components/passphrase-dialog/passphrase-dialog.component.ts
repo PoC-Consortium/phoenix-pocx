@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, OnDestroy } from '@angular/core';
 
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
@@ -121,7 +121,7 @@ export interface PassphraseDialogResult {
     `,
   ],
 })
-export class PassphraseDialogComponent {
+export class PassphraseDialogComponent implements OnDestroy {
   private readonly dialogRef = inject(MatDialogRef<PassphraseDialogComponent>);
   private readonly data = inject<PassphraseDialogData>(MAT_DIALOG_DATA);
 
@@ -155,5 +155,9 @@ export class PassphraseDialogComponent {
 
   toggleShowPassphrase(): void {
     this.showPassphrase.update(v => !v);
+  }
+
+  ngOnDestroy(): void {
+    this.passphrase = '';
   }
 }

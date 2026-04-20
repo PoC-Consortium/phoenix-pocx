@@ -24,6 +24,11 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
+import { Store } from '@ngrx/store';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import { selectNetwork } from '../../../../store/settings/settings.selectors';
+import type { Network } from '../../../../store/settings/settings.state';
 import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
 import {
   MiningRpcService,
@@ -140,8 +145,26 @@ interface WalletAddress {
                         </mat-option>
                       }
                     </mat-autocomplete>
-                    @if (plotAddressError()) {
-                      <mat-hint class="error-hint">{{ plotAddressError() }}</mat-hint>
+                    @if (isPlotAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (plotAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                        >error</mat-icon
+                      >
+                    }
+                    @let createPlotErr = plotAddressError();
+                    @if (createPlotErr) {
+                      <mat-hint class="error-hint">
+                        {{ createPlotErr.key | i18n: createPlotErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
@@ -157,67 +180,34 @@ interface WalletAddress {
                       (ngModelChange)="onForgingAddressChange()"
                       placeholder="tb1q... / bc1q..."
                     />
-                    @if (forgingAddressError()) {
-                      <mat-hint class="error-hint">{{ forgingAddressError() }}</mat-hint>
+                    @if (isForgingAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (forgingAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="
+                          forgingAddressError()!.key | i18n: forgingAddressError()!.params
+                        "
+                        >error</mat-icon
+                      >
+                    }
+                    @let forgErr = forgingAddressError();
+                    @if (forgErr) {
+                      <mat-hint class="error-hint">
+                        {{ forgErr.key | i18n: forgErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
 
                 <!-- Fee Section -->
-                <div class="fee-section">
-                  <div class="section-header">
-                    <label class="field-label">{{ 'fee' | i18n }}</label>
-                    <button
-                      type="button"
-                      class="refresh-button"
-                      (click)="refreshFeeEstimates()"
-                      [disabled]="isLoadingFees()"
-                      [title]="'refresh_fees' | i18n"
-                    >
-                      <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
-                    </button>
-                  </div>
-
-                  <div class="fee-options">
-                    @for (option of feeOptions; track option.label) {
-                      <button
-                        mat-stroked-button
-                        [class.selected]="selectedFeeOption === option"
-                        (click)="selectFeeOption(option)"
-                        [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
-                      >
-                        <div class="fee-option">
-                          <span class="fee-label">{{ option.label | i18n }}</span>
-                          @if (option.label === 'fee_custom') {
-                            <mat-icon class="custom-icon">tune</mat-icon>
-                          } @else if (option.feeRate !== null) {
-                            <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
-                            <span class="fee-time">{{ option.timeEstimate }}</span>
-                          } @else {
-                            <span class="fee-rate">--</span>
-                          }
-                        </div>
-                      </button>
-                    }
-                  </div>
-
-                  @if (selectedFeeOption?.label === 'fee_custom') {
-                    <div class="custom-fee-input">
-                      <mat-form-field appearance="outline">
-                        <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
-                        <input
-                          matInput
-                          type="number"
-                          [(ngModel)]="customFeeRate"
-                          (ngModelChange)="onCustomFeeChange()"
-                          min="1"
-                          step="1"
-                          autocomplete="off"
-                        />
-                      </mat-form-field>
-                    </div>
-                  }
-                </div>
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
 
                 <!-- Action Buttons -->
                 <div class="action-buttons">
@@ -277,67 +267,32 @@ interface WalletAddress {
                         </mat-option>
                       }
                     </mat-autocomplete>
-                    @if (plotAddressError()) {
-                      <mat-hint class="error-hint">{{ plotAddressError() }}</mat-hint>
+                    @if (isPlotAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (plotAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                        >error</mat-icon
+                      >
+                    }
+                    @let revokePlotErr = plotAddressError();
+                    @if (revokePlotErr) {
+                      <mat-hint class="error-hint">
+                        {{ revokePlotErr.key | i18n: revokePlotErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
 
                 <!-- Fee Section -->
-                <div class="fee-section">
-                  <div class="section-header">
-                    <label class="field-label">{{ 'fee' | i18n }}</label>
-                    <button
-                      type="button"
-                      class="refresh-button"
-                      (click)="refreshFeeEstimates()"
-                      [disabled]="isLoadingFees()"
-                      [title]="'refresh_fees' | i18n"
-                    >
-                      <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
-                    </button>
-                  </div>
-
-                  <div class="fee-options">
-                    @for (option of feeOptions; track option.label) {
-                      <button
-                        mat-stroked-button
-                        [class.selected]="selectedFeeOption === option"
-                        (click)="selectFeeOption(option)"
-                        [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
-                      >
-                        <div class="fee-option">
-                          <span class="fee-label">{{ option.label | i18n }}</span>
-                          @if (option.label === 'fee_custom') {
-                            <mat-icon class="custom-icon">tune</mat-icon>
-                          } @else if (option.feeRate !== null) {
-                            <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
-                            <span class="fee-time">{{ option.timeEstimate }}</span>
-                          } @else {
-                            <span class="fee-rate">--</span>
-                          }
-                        </div>
-                      </button>
-                    }
-                  </div>
-
-                  @if (selectedFeeOption?.label === 'fee_custom') {
-                    <div class="custom-fee-input">
-                      <mat-form-field appearance="outline">
-                        <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
-                        <input
-                          matInput
-                          type="number"
-                          [(ngModel)]="customFeeRate"
-                          (ngModelChange)="onCustomFeeChange()"
-                          min="1"
-                          step="1"
-                          autocomplete="off"
-                        />
-                      </mat-form-field>
-                    </div>
-                  }
-                </div>
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
 
                 <!-- Action Buttons -->
                 <div class="action-buttons">
@@ -397,8 +352,26 @@ interface WalletAddress {
                         </mat-option>
                       }
                     </mat-autocomplete>
-                    @if (plotAddressError()) {
-                      <mat-hint class="error-hint">{{ plotAddressError() }}</mat-hint>
+                    @if (isPlotAddressValid()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-valid"
+                        [matTooltip]="'address_valid' | i18n"
+                        >check_circle</mat-icon
+                      >
+                    } @else if (plotAddressError()) {
+                      <mat-icon
+                        matSuffix
+                        class="address-badge address-badge-invalid"
+                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                        >error</mat-icon
+                      >
+                    }
+                    @let checkPlotErr = plotAddressError();
+                    @if (checkPlotErr) {
+                      <mat-hint class="error-hint">
+                        {{ checkPlotErr.key | i18n: checkPlotErr.params }}
+                      </mat-hint>
                     }
                   </mat-form-field>
                 </div>
@@ -591,6 +564,64 @@ interface WalletAddress {
         </div>
       </div>
     </div>
+
+    <!-- Shared fee section (Create + Revoke tabs) -->
+    <ng-template #feeSection>
+      <div class="fee-section">
+        <div class="section-header">
+          <label class="field-label">{{ 'fee' | i18n }}</label>
+          <button
+            type="button"
+            class="refresh-button"
+            (click)="refreshFeeEstimates()"
+            [disabled]="isLoadingFees()"
+            [title]="'refresh_fees' | i18n"
+          >
+            <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
+          </button>
+        </div>
+
+        <div class="fee-options">
+          @for (option of feeOptions; track option.label) {
+            <button
+              mat-stroked-button
+              [class.selected]="selectedFeeOption === option"
+              (click)="selectFeeOption(option)"
+              [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
+            >
+              <div class="fee-option">
+                <span class="fee-label">{{ option.label | i18n }}</span>
+                @if (option.label === 'fee_custom') {
+                  <mat-icon class="custom-icon">tune</mat-icon>
+                } @else if (option.feeRate !== null) {
+                  <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
+                  <span class="fee-time">{{ option.timeEstimate }}</span>
+                } @else {
+                  <span class="fee-rate">--</span>
+                }
+              </div>
+            </button>
+          }
+        </div>
+
+        @if (selectedFeeOption?.label === 'fee_custom') {
+          <div class="custom-fee-input">
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
+              <input
+                matInput
+                type="number"
+                [(ngModel)]="customFeeRate"
+                (ngModelChange)="onCustomFeeChange()"
+                min="1"
+                step="1"
+                autocomplete="off"
+              />
+            </mat-form-field>
+          </div>
+        }
+      </div>
+    </ng-template>
   `,
   styles: [
     `
@@ -1074,6 +1105,14 @@ interface WalletAddress {
         color: #f44336;
       }
 
+      .address-badge-valid {
+        color: #2e7d32;
+      }
+
+      .address-badge-invalid {
+        color: #c62828;
+      }
+
       // Animations
       @keyframes spin {
         from {
@@ -1156,6 +1195,8 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private readonly blockchainState = inject(BlockchainStateService);
   private readonly miningRpc = inject(MiningRpcService);
   private readonly dialog = inject(MatDialog);
+  private readonly store = inject(Store);
+  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
   private readonly destroy$ = new Subject<void>();
 
   // Tab selection
@@ -1190,8 +1231,8 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   // Validation
   isPlotAddressValid = signal(false);
   isForgingAddressValid = signal(false);
-  plotAddressError = signal<string | null>(null);
-  forgingAddressError = signal<string | null>(null);
+  plotAddressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
+  forgingAddressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
 
   ngOnInit(): void {
     this.loadWalletAddresses();
@@ -1269,51 +1310,89 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
 
   private validatePlotAddress(): void {
     const address = this.selectedPlotAddress.trim();
-
     if (!address) {
       this.isPlotAddressValid.set(false);
       this.plotAddressError.set(null);
       return;
     }
-
-    // Check if it's a SegWit v0 address
-    const isSegwitV0 = /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(address);
-    if (!isSegwitV0) {
+    const result = validatePocxAddress(address);
+    if (result.kind === 'empty') {
       this.isPlotAddressValid.set(false);
-      this.plotAddressError.set(this.i18n.get('address_must_be_segwit_v0'));
+      this.plotAddressError.set(null);
       return;
     }
-
+    if (result.kind !== 'valid') {
+      this.isPlotAddressValid.set(false);
+      this.plotAddressError.set({ key: 'invalid_address' });
+      return;
+    }
+    const appNet = this.network();
+    if (result.network !== appNet) {
+      this.isPlotAddressValid.set(false);
+      this.plotAddressError.set({
+        key: 'address_wrong_network',
+        params: {
+          addressNetwork: this.translateNetwork(result.network),
+          appNetwork: this.translateNetwork(appNet),
+        },
+      });
+      return;
+    }
+    if (result.type !== 'Bech32 (SegWit)') {
+      this.isPlotAddressValid.set(false);
+      this.plotAddressError.set({ key: 'address_must_be_segwit_v0' });
+      return;
+    }
     this.isPlotAddressValid.set(true);
     this.plotAddressError.set(null);
   }
 
   private validateForgingAddress(): void {
     const address = this.forgingAddress.trim();
-
     if (!address) {
       this.isForgingAddressValid.set(false);
       this.forgingAddressError.set(null);
       return;
     }
-
-    // Check if it's a SegWit v0 address
-    const isSegwitV0 = /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(address);
-    if (!isSegwitV0) {
+    const result = validatePocxAddress(address);
+    if (result.kind === 'empty') {
       this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set(this.i18n.get('address_must_be_segwit_v0'));
+      this.forgingAddressError.set(null);
       return;
     }
-
-    // Check it's different from plot address
+    if (result.kind !== 'valid') {
+      this.isForgingAddressValid.set(false);
+      this.forgingAddressError.set({ key: 'invalid_address' });
+      return;
+    }
+    const appNet = this.network();
+    if (result.network !== appNet) {
+      this.isForgingAddressValid.set(false);
+      this.forgingAddressError.set({
+        key: 'address_wrong_network',
+        params: {
+          addressNetwork: this.translateNetwork(result.network),
+          appNetwork: this.translateNetwork(appNet),
+        },
+      });
+      return;
+    }
+    if (result.type !== 'Bech32 (SegWit)') {
+      this.isForgingAddressValid.set(false);
+      this.forgingAddressError.set({ key: 'address_must_be_segwit_v0' });
+      return;
+    }
     if (address.toLowerCase() === this.selectedPlotAddress.toLowerCase()) {
       this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set(this.i18n.get('forging_address_must_differ'));
+      this.forgingAddressError.set({ key: 'forging_address_must_differ' });
       return;
     }
-
     this.isForgingAddressValid.set(true);
     this.forgingAddressError.set(null);
+  }
+
+  private translateNetwork(network: Network): string {
+    return this.i18n.get(network);
   }
 
   private validateInputs(): void {
@@ -1397,7 +1476,6 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
       this.assignmentStatus.set(status);
     } catch (error) {
-      console.error('Failed to check assignment status:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.notification.error(`${this.i18n.get('error_checking_status')}: ${errorMsg}`);
     } finally {
@@ -1421,6 +1499,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   }
 
   async onSubmit(): Promise<void> {
+    if (this.isSubmitting()) return;
     if (!this.canSubmit()) return;
 
     const walletName = this.walletManager.activeWallet;
@@ -1429,39 +1508,38 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Pre-flight check: verify current state allows the operation
-    try {
-      const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
-
-      if (this.currentMode === 'create') {
-        if (status.state !== 'UNASSIGNED' && status.state !== 'REVOKED') {
-          this.notification.error(
-            this.i18n.get('cannot_create_assignment_state').replace('{state}', status.state)
-          );
-          return;
-        }
-      } else if (this.currentMode === 'revoke') {
-        if (status.state !== 'ASSIGNED') {
-          this.notification.error(
-            this.i18n.get('cannot_revoke_assignment_state').replace('{state}', status.state)
-          );
-          return;
-        }
-      }
-    } catch {
-      // If get_assignment fails, the plot might be unassigned (no record)
-      // For create, this is OK. For revoke, this is an error.
-      if (this.currentMode === 'revoke') {
-        this.notification.error(this.i18n.get('no_assignment_to_revoke'));
-        return;
-      }
-    }
-
     this.isSubmitting.set(true);
 
     try {
+      // Pre-flight check: verify current state allows the operation
+      try {
+        const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
+
+        if (this.currentMode === 'create') {
+          if (status.state !== 'UNASSIGNED' && status.state !== 'REVOKED') {
+            this.notification.error(
+              this.i18n.get('cannot_create_assignment_state').replace('{state}', status.state)
+            );
+            return;
+          }
+        } else if (this.currentMode === 'revoke') {
+          if (status.state !== 'ASSIGNED') {
+            this.notification.error(
+              this.i18n.get('cannot_revoke_assignment_state').replace('{state}', status.state)
+            );
+            return;
+          }
+        }
+      } catch {
+        // If get_assignment fails, the plot might be unassigned (no record)
+        // For create, this is OK. For revoke, this is an error.
+        if (this.currentMode === 'revoke') {
+          this.notification.error(this.i18n.get('no_assignment_to_revoke'));
+          return;
+        }
+      }
+
       if (!(await this.ensureWalletUnlocked(walletName))) {
-        this.isSubmitting.set(false);
         return;
       }
 
@@ -1492,7 +1570,6 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
         this.clear();
       }
     } catch (error) {
-      console.error('Transaction failed:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
       this.notification.error(`${this.i18n.get('transaction_failed')}: ${errorMsg}`);
     } finally {

@@ -9,7 +9,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { Subject } from 'rxjs';
 import { I18nPipe } from '../../../../core/i18n';
-import { ClipboardService, BlockExplorerService } from '../../../../shared/services';
+import { HashRefComponent } from '../../../../shared/components';
+import { UnixDatePipe, BtcxPipe, truncateHash } from '../../../../shared/pipes';
 import {
   BlockchainRpcService,
   Transaction,
@@ -26,6 +27,9 @@ import {
     MatTooltipModule,
     MatExpansionModule,
     I18nPipe,
+    UnixDatePipe,
+    BtcxPipe,
+    HashRefComponent,
   ],
   template: `
     <div class="page-layout">
@@ -61,23 +65,7 @@ import {
             <mat-card-content>
               <div class="detail-row">
                 <span class="label">{{ 'txid' | i18n }}</span>
-                <div class="value hash-value">
-                  <span (click)="copyToClipboard(tx()!.txid)" [matTooltip]="'copy' | i18n">{{
-                    tx()!.txid
-                  }}</span>
-                  <mat-icon
-                    class="copy-icon"
-                    (click)="copyToClipboard(tx()!.txid)"
-                    [matTooltip]="'copy' | i18n"
-                    >content_copy</mat-icon
-                  >
-                  <mat-icon
-                    class="explorer-icon"
-                    (click)="openTransactionInExplorer(tx()!.txid)"
-                    [matTooltip]="'view_tx_in_explorer' | i18n"
-                    >open_in_new</mat-icon
-                  >
-                </div>
+                <app-hash-ref [value]="tx()!.txid" kind="txid" [link]="false" [truncate]="false" />
               </div>
               <div class="detail-row">
                 <span class="label">{{ 'status' | i18n }}</span>
@@ -94,7 +82,7 @@ import {
               @if (tx()!.time) {
                 <div class="detail-row">
                   <span class="label">{{ 'timestamp' | i18n }}</span>
-                  <span class="value">{{ formatDate(tx()!.time!) }}</span>
+                  <span class="value">{{ tx()!.time! | unixDate }}</span>
                 </div>
               }
               <div class="detail-row">
@@ -112,7 +100,7 @@ import {
               @if (calculatedFee() !== null) {
                 <div class="detail-row">
                   <span class="label">{{ 'fee' | i18n }}</span>
-                  <span class="value mono">{{ formatBtcx(calculatedFee()!) }} BTCX</span>
+                  <span class="value mono">{{ calculatedFee()! | btcx }} BTCX</span>
                 </div>
                 <div class="detail-row">
                   <span class="label">{{ 'fee_rate' | i18n }}</span>
@@ -138,29 +126,17 @@ import {
                         <span>{{ 'coinbase' | i18n }} ({{ 'block_reward' | i18n }})</span>
                       </div>
                     } @else {
-                      <div class="io-address">
-                        <span
-                          (click)="copyToClipboard(getInputAddress(input))"
-                          [matTooltip]="'copy' | i18n"
-                          >{{ getInputAddress(input) }}</span
-                        >
-                        <mat-icon
-                          class="copy-icon"
-                          (click)="copyToClipboard(getInputAddress(input))"
-                          [matTooltip]="'copy' | i18n"
-                          >content_copy</mat-icon
-                        >
-                        @if (input.prevout?.scriptPubKey?.address) {
-                          <mat-icon
-                            class="explorer-icon"
-                            (click)="openAddressInExplorer(input.prevout!.scriptPubKey!.address!)"
-                            [matTooltip]="'view_address_in_explorer' | i18n"
-                            >open_in_new</mat-icon
-                          >
-                        }
-                      </div>
+                      @if (input.prevout?.scriptPubKey?.address) {
+                        <app-hash-ref
+                          [value]="input.prevout!.scriptPubKey!.address!"
+                          kind="address"
+                          [truncate]="false"
+                        />
+                      } @else {
+                        <span class="io-unknown">{{ getInputAddress(input) }}</span>
+                      }
                       @if (input.prevout?.value !== undefined) {
-                        <div class="io-amount">{{ formatBtcx(input.prevout!.value) }} BTCX</div>
+                        <div class="io-amount">{{ input.prevout!.value | btcx }} BTCX</div>
                       }
                     }
                   </div>
@@ -169,7 +145,7 @@ import {
               @if (totalInput() !== null) {
                 <div class="io-total">
                   <span class="label">{{ 'total_input' | i18n }}</span>
-                  <span class="value mono">{{ formatBtcx(totalInput()!) }} BTCX</span>
+                  <span class="value mono">{{ totalInput()! | btcx }} BTCX</span>
                 </div>
               }
             </mat-card-content>
@@ -185,34 +161,22 @@ import {
                 <div class="io-row">
                   <div class="io-index">{{ output.n }}</div>
                   <div class="io-content">
-                    <div class="io-address">
-                      <span
-                        (click)="copyToClipboard(output.scriptPubKey.address || 'N/A')"
-                        [matTooltip]="'copy' | i18n"
-                        >{{ output.scriptPubKey.address || 'OP_RETURN / Non-standard' }}</span
-                      >
-                      @if (output.scriptPubKey.address) {
-                        <mat-icon
-                          class="copy-icon"
-                          (click)="copyToClipboard(output.scriptPubKey.address)"
-                          [matTooltip]="'copy' | i18n"
-                          >content_copy</mat-icon
-                        >
-                        <mat-icon
-                          class="explorer-icon"
-                          (click)="openAddressInExplorer(output.scriptPubKey.address)"
-                          [matTooltip]="'view_address_in_explorer' | i18n"
-                          >open_in_new</mat-icon
-                        >
-                      }
-                    </div>
-                    <div class="io-amount">{{ formatBtcx(output.value) }} BTCX</div>
+                    @if (output.scriptPubKey.address) {
+                      <app-hash-ref
+                        [value]="output.scriptPubKey.address"
+                        kind="address"
+                        [truncate]="false"
+                      />
+                    } @else {
+                      <span class="io-unknown">OP_RETURN / Non-standard</span>
+                    }
+                    <div class="io-amount">{{ output.value | btcx }} BTCX</div>
                   </div>
                 </div>
               }
               <div class="io-total">
                 <span class="label">{{ 'total_output' | i18n }}</span>
-                <span class="value mono">{{ formatBtcx(totalOutput()) }} BTCX</span>
+                <span class="value mono">{{ totalOutput() | btcx }} BTCX</span>
               </div>
             </mat-card-content>
           </mat-card>
@@ -226,28 +190,12 @@ import {
               <mat-card-content>
                 <div class="detail-row">
                   <span class="label">{{ 'block_hash' | i18n }}</span>
-                  <div class="value link-value">
-                    <span (click)="viewBlock(tx()!.blockhash!)">{{
-                      truncateHash(tx()!.blockhash!, 16, 12)
-                    }}</span>
-                    <mat-icon
-                      class="link-icon"
-                      (click)="viewBlock(tx()!.blockhash!)"
-                      [matTooltip]="'view_details' | i18n"
-                      >chevron_right</mat-icon
-                    >
-                    <mat-icon
-                      class="explorer-icon"
-                      (click)="openBlockInExplorer(tx()!.blockhash!)"
-                      [matTooltip]="'view_block_in_explorer' | i18n"
-                      >open_in_new</mat-icon
-                    >
-                  </div>
+                  <app-hash-ref [value]="tx()!.blockhash!" kind="blockhash" />
                 </div>
                 @if (tx()!.blocktime) {
                   <div class="detail-row">
                     <span class="label">{{ 'block_time' | i18n }}</span>
-                    <span class="value">{{ formatDate(tx()!.blocktime!) }}</span>
+                    <span class="value">{{ tx()!.blocktime! | unixDate }}</span>
                   </div>
                 }
               </mat-card-content>
@@ -271,14 +219,7 @@ import {
               @if (tx()!.hash !== tx()!.txid) {
                 <div class="detail-row">
                   <span class="label">{{ 'wtxid' | i18n }}</span>
-                  <div
-                    class="value hash-value small"
-                    (click)="copyToClipboard(tx()!.hash)"
-                    [matTooltip]="'copy' | i18n"
-                  >
-                    <span>{{ truncateHash(tx()!.hash, 16, 12) }}</span>
-                    <mat-icon class="copy-icon">content_copy</mat-icon>
-                  </div>
+                  <app-hash-ref [value]="tx()!.hash" kind="plain" />
                 </div>
               }
             </mat-card-content>
@@ -290,13 +231,7 @@ import {
               <mat-expansion-panel-header>
                 <mat-panel-title>{{ 'raw_transaction' | i18n }}</mat-panel-title>
               </mat-expansion-panel-header>
-              <div
-                class="raw-hex"
-                (click)="copyToClipboard(tx()!.hex!)"
-                [matTooltip]="'copy' | i18n"
-              >
-                {{ tx()!.hex }}
-              </div>
+              <app-hash-ref [value]="tx()!.hex!" kind="plain" [startChars]="32" [endChars]="24" />
             </mat-expansion-panel>
           }
         }
@@ -704,8 +639,6 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly blockchainRpc = inject(BlockchainRpcService);
-  private readonly clipboard = inject(ClipboardService);
-  private readonly blockExplorer = inject(BlockExplorerService);
   private readonly destroy$ = new Subject<void>();
 
   loading = signal(true);
@@ -738,8 +671,7 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
     try {
       const transaction = (await this.blockchainRpc.getRawTransaction(txid, true)) as Transaction;
       this.tx.set(transaction);
-    } catch (err) {
-      console.error('Failed to load transaction:', err);
+    } catch {
       this.error.set('Failed to load transaction. It may not exist or the node is unavailable.');
     } finally {
       this.loading.set(false);
@@ -750,29 +682,12 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
     this.router.navigate(['/blocks', blockhash]);
   }
 
-  copyToClipboard(text: string): void {
-    this.clipboard.copy(text);
-  }
-
-  formatDate(timestamp: number): string {
-    return new Date(timestamp * 1000).toLocaleString();
-  }
-
-  formatBtcx(amount: number): string {
-    return amount.toFixed(8);
-  }
-
-  truncateHash(hash: string, startChars = 16, endChars = 12): string {
-    if (!hash || hash.length <= startChars + endChars + 3) return hash;
-    return `${hash.slice(0, startChars)}...${hash.slice(-endChars)}`;
-  }
-
   getInputAddress(input: Transaction['vin'][0]): string {
     if (input.prevout?.scriptPubKey?.address) {
       return input.prevout.scriptPubKey.address;
     }
     if (input.txid) {
-      return `${this.truncateHash(input.txid, 12, 8)}:${input.vout}`;
+      return `${truncateHash(input.txid, 12, 8)}:${input.vout}`;
     }
     return 'Unknown';
   }
@@ -815,17 +730,5 @@ export class TransactionDetailsComponent implements OnInit, OnDestroy {
     const feeInSats = fee * 100000000;
     const rate = feeInSats / transaction.vsize;
     return rate.toFixed(2);
-  }
-
-  openTransactionInExplorer(txid: string): void {
-    this.blockExplorer.openTransaction(txid);
-  }
-
-  openAddressInExplorer(address: string): void {
-    this.blockExplorer.openAddress(address);
-  }
-
-  openBlockInExplorer(hash: string): void {
-    this.blockExplorer.openBlock(hash);
   }
 }

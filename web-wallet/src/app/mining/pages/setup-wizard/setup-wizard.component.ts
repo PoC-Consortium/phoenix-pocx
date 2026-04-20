@@ -19,6 +19,7 @@ import { AggregatorConfig } from '../../../aggregator/models/aggregator.models';
 import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletRpcService } from '../../../bitcoin/services/rpc/wallet-rpc.service';
 import { MiningRpcService } from '../../../bitcoin/services/rpc/mining-rpc.service';
+import { validatePocxAddress } from '../../../bitcoin/utils/address-validation';
 import { NodeService } from '../../../node';
 import {
   selectRpcHost,
@@ -1022,37 +1023,7 @@ interface ChainModalData {
                   }
                 </select>
               </div>
-              <!-- Auth Type for Pool -->
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label>{{ 'setup_authentication' | i18n }}</label>
-                <select
-                  [ngModel]="chainModalData().authType"
-                  (ngModelChange)="updateChainModal('authType', $event)"
-                >
-                  <option value="none">{{ 'setup_auth_none' | i18n }}</option>
-                  <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
-                </select>
-              </div>
-              @if (chainModalData().authType === 'userpass') {
-                <div class="form-row" style="margin-bottom: 16px;">
-                  <div class="form-group">
-                    <label>{{ 'setup_username' | i18n }}</label>
-                    <input
-                      type="text"
-                      [ngModel]="chainModalData().authUsername"
-                      (ngModelChange)="updateChainModal('authUsername', $event)"
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label>{{ 'setup_password' | i18n }}</label>
-                    <input
-                      type="password"
-                      [ngModel]="chainModalData().authPassword"
-                      (ngModelChange)="updateChainModal('authPassword', $event)"
-                    />
-                  </div>
-                </div>
-              }
+              <ng-container *ngTemplateOutlet="authInputs"></ng-container>
             }
 
             <!-- Custom Mode -->
@@ -1095,37 +1066,7 @@ interface ChainModalData {
                   />
                 </div>
               </div>
-              <!-- Auth Type for Custom (same as Pool: None or UserPass) -->
-              <div class="form-group" style="margin-bottom: 16px;">
-                <label>{{ 'setup_authentication' | i18n }}</label>
-                <select
-                  [ngModel]="chainModalData().authType"
-                  (ngModelChange)="updateChainModal('authType', $event)"
-                >
-                  <option value="none">{{ 'setup_auth_none' | i18n }}</option>
-                  <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
-                </select>
-              </div>
-              @if (chainModalData().authType === 'userpass') {
-                <div class="form-row" style="margin-bottom: 16px;">
-                  <div class="form-group">
-                    <label>{{ 'setup_username' | i18n }}</label>
-                    <input
-                      type="text"
-                      [ngModel]="chainModalData().authUsername"
-                      (ngModelChange)="updateChainModal('authUsername', $event)"
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label>{{ 'setup_password' | i18n }}</label>
-                    <input
-                      type="password"
-                      [ngModel]="chainModalData().authPassword"
-                      (ngModelChange)="updateChainModal('authPassword', $event)"
-                    />
-                  </div>
-                </div>
-              }
+              <ng-container *ngTemplateOutlet="authInputs"></ng-container>
             }
           </div>
           <div class="modal-footer">
@@ -1137,6 +1078,40 @@ interface ChainModalData {
         </div>
       </div>
     }
+
+    <!-- Shared auth block used by both Pool and Custom modes. -->
+    <ng-template #authInputs>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label>{{ 'setup_authentication' | i18n }}</label>
+        <select
+          [ngModel]="chainModalData().authType"
+          (ngModelChange)="updateChainModal('authType', $event)"
+        >
+          <option value="none">{{ 'setup_auth_none' | i18n }}</option>
+          <option value="userpass">{{ 'setup_auth_userpass' | i18n }}</option>
+        </select>
+      </div>
+      @if (chainModalData().authType === 'userpass') {
+        <div class="form-row" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>{{ 'setup_username' | i18n }}</label>
+            <input
+              type="text"
+              [ngModel]="chainModalData().authUsername"
+              (ngModelChange)="updateChainModal('authUsername', $event)"
+            />
+          </div>
+          <div class="form-group">
+            <label>{{ 'setup_password' | i18n }}</label>
+            <input
+              type="password"
+              [ngModel]="chainModalData().authPassword"
+              (ngModelChange)="updateChainModal('authPassword', $event)"
+            />
+          </div>
+        </div>
+      }
+    </ng-template>
   `,
   styles: [
     `
@@ -3452,58 +3427,70 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   async onCustomAddressChange(address: string): Promise<void> {
     this.customPlottingAddress.set(address);
-    if (address.length > 10) {
+
+    if (address.length <= 10) {
+      this.addressValidation.set(null);
+      return;
+    }
+
+    // Local bech32/base58 check — cheap, synchronous. Intermediate partial
+    // strings almost never pass the checksum, so this acts as a natural
+    // keystroke filter before we fire any RPCs. Plots are network-agnostic,
+    // so any PoCX network is acceptable here.
+    const local = validatePocxAddress(address);
+    if (local.kind !== 'valid') {
+      this.addressValidation.set({ valid: false, address, payloadHex: '', network: 'unknown' });
+      return;
+    }
+
+    const result: AddressInfo = {
+      valid: true,
+      address,
+      payloadHex: '',
+      network: local.network,
+    };
+
+    const walletName = this.walletManager.activeWallet;
+    if (walletName) {
       try {
-        // First validate bech32 format
-        const result = await this.miningService.validateAddress(address);
+        const walletInfo = await this.walletRpc.getAddressInfo(walletName, address);
+        result.isMine = walletInfo.ismine;
+      } catch {
+        // Wallet check failed, but address is still valid
+        result.isMine = undefined;
+      }
 
-        // If valid, check wallet ownership
-        if (result.valid) {
-          const walletName = this.walletManager.activeWallet;
-          if (walletName) {
+      // If not our address, check if there's a forging assignment to us
+      if (!result.isMine) {
+        try {
+          const assignmentStatus = await this.miningRpc.getAssignmentStatus(address);
+          result.hasAssignment =
+            assignmentStatus.has_assignment && assignmentStatus.state === 'ASSIGNED';
+
+          if (result.hasAssignment && assignmentStatus.forging_address) {
             try {
-              const walletInfo = await this.walletRpc.getAddressInfo(walletName, address);
-              result.isMine = walletInfo.ismine;
+              const forgingAddrInfo = await this.walletRpc.getAddressInfo(
+                walletName,
+                assignmentStatus.forging_address
+              );
+              result.assignedToUs = forgingAddrInfo.ismine;
             } catch {
-              // Wallet check failed, but address is still valid
-              result.isMine = undefined;
-            }
-
-            // If not our address, check if there's a forging assignment to us
-            if (!result.isMine) {
-              try {
-                const assignmentStatus = await this.miningRpc.getAssignmentStatus(address);
-                result.hasAssignment =
-                  assignmentStatus.has_assignment && assignmentStatus.state === 'ASSIGNED';
-
-                // If assigned, check if the forging_address belongs to our wallet
-                if (result.hasAssignment && assignmentStatus.forging_address) {
-                  try {
-                    const forgingAddrInfo = await this.walletRpc.getAddressInfo(
-                      walletName,
-                      assignmentStatus.forging_address
-                    );
-                    result.assignedToUs = forgingAddrInfo.ismine;
-                  } catch {
-                    result.assignedToUs = false;
-                  }
-                }
-              } catch {
-                // Assignment check failed, assume no assignment
-                result.hasAssignment = false;
-                result.assignedToUs = false;
-              }
+              result.assignedToUs = false;
             }
           }
+        } catch {
+          result.hasAssignment = false;
+          result.assignedToUs = false;
         }
-
-        this.addressValidation.set(result);
-      } catch {
-        this.addressValidation.set({ valid: false, address, payloadHex: '', network: 'unknown' });
       }
-    } else {
-      this.addressValidation.set(null);
     }
+
+    // Stale-response guard: the user may have edited the field while our
+    // RPC chain was in flight. Drop the result if the input no longer
+    // matches, so a late response can't overwrite a newer state.
+    if (this.customPlottingAddress() !== address) return;
+
+    this.addressValidation.set(result);
   }
 
   // Step 3: Drive management - GiB based

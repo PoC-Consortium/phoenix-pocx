@@ -8,6 +8,7 @@ import { Clipboard } from '@angular/cdk/clipboard';
 import { I18nPipe, I18nService } from '../../../core/i18n';
 import { AddressPipe } from '../../pipes';
 import { NotificationService } from '../../services';
+import { ElectronService } from '../../../core/services/electron.service';
 
 /**
  * AddressDisplayComponent shows a Bitcoin address with optional actions.
@@ -121,6 +122,7 @@ export class AddressDisplayComponent {
   private readonly clipboard = inject(Clipboard);
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
+  private readonly electron = inject(ElectronService);
 
   @Input() address: string = '';
   @Input() shortForm: boolean = false;
@@ -150,7 +152,7 @@ export class AddressDisplayComponent {
   openInExplorer(): void {
     if (this.address) {
       const url = this.explorerUrl || this.getDefaultExplorerUrl();
-      window.open(url, '_blank');
+      void this.electron.openExternal(url);
     }
   }
 

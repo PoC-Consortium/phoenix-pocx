@@ -16,10 +16,14 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatDialog } from '@angular/material/dialog';
-import { Subject } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
 import { takeUntil, skip } from 'rxjs/operators';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { NotificationService, BlockExplorerService } from '../../../../shared/services';
+import {
+  ClipboardService,
+  NotificationService,
+  BlockExplorerService,
+} from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import {
@@ -204,7 +208,10 @@ type TransactionFilter = 'all' | 'send' | 'receive' | 'immature' | 'generate';
                   </tr>
                 </thead>
                 <tbody>
-                  @for (tx of paginatedTransactions(); track tx.txid) {
+                  @for (
+                    tx of paginatedTransactions();
+                    track tx.txid + '-' + tx.vout + '-' + tx.category
+                  ) {
                     <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
                       <td class="col-datetime">
                         <div class="datetime-stack">
@@ -855,6 +862,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly notification = inject(NotificationService);
   private readonly blockExplorer = inject(BlockExplorerService);
+  private readonly clipboard = inject(ClipboardService);
   private readonly dialog = inject(MatDialog);
   private readonly destroy$ = new Subject<void>();
 
@@ -868,6 +876,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   selectedType: TransactionFilter = 'all';
   dateFrom: Date | null = null;
   dateTo: Date | null = null;
+  private filterVersion = signal(0);
 
   // Load limit options (0 = ALL)
   loadLimitOptions: Array<{ value: number; label: string }> = [
@@ -887,6 +896,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   ];
 
   filteredTransactions = computed(() => {
+    this.filterVersion();
     let txs = this.transactions();
     const filter = this.activeFilter();
     const query = this.searchQuery.toLowerCase().trim();
@@ -910,6 +920,18 @@ export class TransactionListComponent implements OnInit, OnDestroy {
           tx.address?.toLowerCase().includes(query) ||
           tx.label?.toLowerCase().includes(query)
       );
+    }
+
+    // Apply date range (tx.time is Unix seconds; end-of-day inclusive)
+    if (this.dateFrom) {
+      const fromSec = Math.floor(this.dateFrom.getTime() / 1000);
+      txs = txs.filter(tx => tx.time >= fromSec);
+    }
+    if (this.dateTo) {
+      const toEnd = new Date(this.dateTo);
+      toEnd.setHours(23, 59, 59, 999);
+      const toSec = Math.floor(toEnd.getTime() / 1000);
+      txs = txs.filter(tx => tx.time <= toSec);
     }
 
     return txs;
@@ -959,8 +981,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       const count = this.loadLimit === 0 ? 999999 : this.loadLimit;
       const txs = await this.walletRpc.listTransactions(walletName, '*', count, 0);
 
-      // Sort by time descending
-      const sorted = txs.sort((a, b) => b.time - a.time);
+      // Sort by time descending — copy first to avoid mutating the RPC response.
+      const sorted = [...txs].sort((a, b) => b.time - a.time);
       this.transactions.set(sorted);
     } catch (error) {
       console.error('Failed to load transactions:', error);
@@ -982,8 +1004,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   applyFilters(): void {
     this.pageIndex.set(0);
-    // Trigger recomputation by touching activeFilter
-    this.activeFilter.set(this.activeFilter());
+    this.filterVersion.update(v => v + 1);
   }
 
   clearSearch(): void {
@@ -998,6 +1019,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     this.dateFrom = null;
     this.dateTo = null;
     this.pageIndex.set(0);
+    this.filterVersion.update(v => v + 1);
   }
 
   goBack(): void {
@@ -1048,13 +1070,18 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   }
 
   formatTxDate(tx: WalletTransaction): string {
-    const date = new Date(tx.time * 1000);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(tx.time * 1000).toLocaleDateString(this.i18n.currentLanguageCode(), {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   }
 
   formatTxTime(tx: WalletTransaction): string {
-    const date = new Date(tx.time * 1000);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return new Date(tx.time * 1000).toLocaleTimeString(this.i18n.currentLanguageCode(), {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   // Actions
@@ -1063,10 +1090,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   }
 
   copyToClipboard(text: string): void {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
-      this.notification.show(this.i18n.get('copied_to_clipboard'), 'success');
-    }
+    this.clipboard.copy(text);
   }
 
   addToContacts(tx: WalletTransaction): void {
@@ -1097,7 +1121,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       } as FeeBumpDialogData,
     });
 
-    const result = (await dialogRef.afterClosed().toPromise()) as FeeBumpDialogResult | undefined;
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as
+      | FeeBumpDialogResult
+      | undefined;
     if (result?.confirmed) {
       await this.executeBumpFee(tx.txid, result);
     }

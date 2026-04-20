@@ -1,4 +1,5 @@
-import { Component, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
+import { Component, DestroyRef, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -10,14 +11,7 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
 import { AppModeService } from '../../../core/services/app-mode.service';
 import { invoke } from '@tauri-apps/api/core';
 import { MiningService } from '../../services';
-import {
-  MiningStatus,
-  PlottingStatus,
-  ChainConfig,
-  DriveConfig,
-  calculateNetworkCapacityTib,
-  formatCapacity,
-} from '../../models';
+import { DriveConfig, calculateNetworkCapacityTib, formatCapacity } from '../../models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/plan-viewer-dialog.component';
 
@@ -269,9 +263,9 @@ import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/p
                       />
                     }
                     <!-- Chart area and line -->
-                    <path [attr.d]="getCapacityAreaPath()" fill="url(#capacityGradient)" />
+                    <path [attr.d]="capacityAreaPath()" fill="url(#capacityGradient)" />
                     <path
-                      [attr.d]="getCapacityLinePath()"
+                      [attr.d]="capacityLinePath()"
                       fill="none"
                       stroke="#81c784"
                       stroke-width="2"
@@ -1661,21 +1655,25 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
   private readonly appMode = inject(AppModeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Setup route path - differs between wallet mode and mining-only mode */
   readonly setupRoute = computed(() =>
     this.appMode.isMiningOnly() ? '/miner/setup' : '/mining/setup'
   );
 
-  readonly miningStatus = signal<MiningStatus | null>(null);
-  readonly plottingStatus = signal<PlottingStatus | null>(null);
-  // Use service signals directly for real-time miner event updates
+  // Use service signals directly so component state stays in lock-step with
+  // MiningService. Event-driven updates on the service (mining/plotting status,
+  // drive scans, deadlines) propagate here without a manual loadState() mirror.
   readonly recentDeadlines = this.miningService.minerDeadlines;
   readonly currentBlock = this.miningService.minerCurrentBlock;
-  readonly configured = signal(false);
+  readonly configured = this.miningService.isConfigured;
   readonly stateLoaded = signal(false);
-  readonly enabledChains = signal<ChainConfig[]>([]);
-  readonly drives = signal<DriveConfig[]>([]);
+  readonly isToggling = signal(false);
+  readonly enabledChains = computed(() =>
+    (this.miningService.config()?.chains ?? []).filter(c => c.enabled)
+  );
+  readonly drives = computed(() => this.miningService.config()?.drives ?? []);
   /** Android storage permission state */
   readonly hasStoragePermission = signal(true);
   // Activity logs from service (survives navigation, auto-cleanup > 1 day)
@@ -1709,7 +1707,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     });
   });
 
-  readonly totalPlotSize = signal('0 GiB');
+  readonly totalPlotSize = computed(() => {
+    const drives = this.miningService.config()?.drives ?? [];
+    const totalGib = drives.reduce((sum, d) => sum + d.allocatedGib, 0);
+    return this.formatSize(totalGib);
+  });
   readonly readySize = signal('0 GiB');
   readonly pendingFiles = signal(0);
   // Use service's cache directly so updates propagate automatically
@@ -1838,31 +1840,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   private async loadState(): Promise<void> {
     try {
-      const state = await this.miningService.getState();
-      this.miningStatus.set(state.miningStatus);
-
-      // plottingStatus type comes from backend, progress/speed come from service's
-      // global plottingProgress signal (updated by event listeners).
-      // Use backend for type and filePath, but getPlottingProgress/getPlottingSpeed
-      // read from the service's global state.
-      this.plottingStatus.set(state.plottingStatus);
-
-      // Note: recentDeadlines and currentBlock now read from service's miner event signals
-      // (minerDeadlines, minerCurrentBlock) for real-time updates instead of polling
-      this.configured.set(state.isConfigured);
-
-      if (state.config) {
-        this.enabledChains.set((state.config.chains || []).filter(c => c.enabled));
-        this.drives.set(state.config.drives || []);
-
-        // Calculate totals from cached driveInfos (no scanning during poll)
-        let totalAllocated = 0;
-        for (const drive of state.config.drives || []) {
-          totalAllocated += drive.allocatedGib;
-        }
-        this.totalPlotSize.set(this.formatSize(totalAllocated));
-      }
-
+      // Ensure the service has loaded state at least once. Its signals
+      // (config, isConfigured, miningStatus, plottingStatus) are what the
+      // template reads; this component no longer mirrors them locally.
+      await this.miningService.getState();
       this.stateLoaded.set(true);
     } catch (error) {
       console.error('Failed to load mining state:', error);
@@ -2016,10 +1997,12 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Generate SVG path for effective capacity line with bezier curves.
-   * SVG viewBox is 0 0 280 100, with data area from y=10 to y=90
+   * SVG path for the effective-capacity line (bezier curves).
+   * viewBox 0 0 280 100, data area y=10..90. Recomputed only when
+   * sparklineData changes; the template re-renders each CD tick without
+   * re-running the math.
    */
-  getCapacityLinePath(): string {
+  readonly capacityLinePath = computed(() => {
     const data = this.sparklineData();
     if (data.length < 2) return '';
 
@@ -2028,13 +2011,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     const maxY = 90;
     const dataRange = maxY - minY;
 
-    // Find min/max for scaling
     const capacities = data.map(d => d.capacity);
     const min = Math.min(...capacities);
     const max = Math.max(...capacities);
     const range = max - min || 0.1; // Avoid division by zero
 
-    // Calculate points
     const points = data.map((d, i) => {
       const x = (i / (data.length - 1)) * width;
       // Invert Y because SVG Y increases downward
@@ -2042,7 +2023,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       return { x, y };
     });
 
-    // Generate bezier curve path (matching main dashboard style)
     const tension = 0.3;
     let path = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
 
@@ -2052,7 +2032,6 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       const p2 = points[i + 1];
       const p3 = points[Math.min(points.length - 1, i + 2)];
 
-      // Control points for cubic bezier
       const cp1x = p1.x + (p2.x - p0.x) * tension;
       const cp1y = p1.y + (p2.y - p0.y) * tension;
       const cp2x = p2.x - (p3.x - p1.x) * tension;
@@ -2062,26 +2041,22 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     }
 
     return path;
-  }
+  });
 
   /**
-   * Generate SVG path for effective capacity area fill with bezier curves.
-   * Extends the line path to close the area at the bottom.
+   * SVG path for the capacity area fill — extends the line path to close
+   * the area at the bottom. Shares the same reactive source as the line.
    */
-  getCapacityAreaPath(): string {
-    const linePath = this.getCapacityLinePath();
+  readonly capacityAreaPath = computed(() => {
+    const linePath = this.capacityLinePath();
     if (!linePath) return '';
 
-    const data = this.sparklineData();
     const width = 280;
     const bottomY = 100;
 
-    // Get the last X coordinate (should be width)
-    const lastX = ((data.length - 1) / (data.length - 1)) * width;
-
-    // Close the path by going to bottom-right, bottom-left, then back to start
-    return `${linePath} L${lastX.toFixed(1)},${bottomY} L0,${bottomY} Z`;
-  }
+    // Last X always lands on `width` since we span the full viewBox.
+    return `${linePath} L${width.toFixed(1)},${bottomY} L0,${bottomY} Z`;
+  });
 
   getPlottingSpeed(): string {
     // Use the service's global plotting progress (persists across navigation)
@@ -2328,13 +2303,19 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   }
 
   async toggleMining(): Promise<void> {
-    if (this.isRunning()) {
-      await this.miningService.stopMiner();
-    } else {
-      await this.miningService.startMiner();
+    if (this.isToggling()) return;
+    this.isToggling.set(true);
+    try {
+      if (this.isRunning()) {
+        await this.miningService.stopMiner();
+      } else {
+        await this.miningService.startMiner();
+      }
+      // Service logs timing internally; just sync local UI state
+      await this.loadState();
+    } finally {
+      this.isToggling.set(false);
     }
-    // Service logs timing internally; just sync local UI state
-    await this.loadState();
   }
 
   /**
@@ -2543,19 +2524,22 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
         },
       });
 
-      dialogRef.afterClosed().subscribe(async (result: boolean | string) => {
-        if (result === true) {
-          // Soft stop - finish current batch, keep plan
-          await this.miningService.softStopPlotPlan();
-          this.miningService.addActivityLog('info', this.i18n.get('mining_soft_stop_requested'));
-          await this.miningService.refreshPlotterState();
-        } else if (result === 'secondary') {
-          // Hard stop - finish current item, clear plan, regenerate
-          await this.miningService.hardStopPlotPlan();
-          this.miningService.addActivityLog('warning', this.i18n.get('mining_hard_stop_aborted'));
-          await this.miningService.refreshPlotterState();
-        }
-      });
+      dialogRef
+        .afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(async (result: boolean | string) => {
+          if (result === true) {
+            // Soft stop - finish current batch, keep plan
+            await this.miningService.softStopPlotPlan();
+            this.miningService.addActivityLog('info', this.i18n.get('mining_soft_stop_requested'));
+            await this.miningService.refreshPlotterState();
+          } else if (result === 'secondary') {
+            // Hard stop - finish current item, clear plan, regenerate
+            await this.miningService.hardStopPlotPlan();
+            this.miningService.addActivityLog('warning', this.i18n.get('mining_hard_stop_aborted'));
+            await this.miningService.refreshPlotterState();
+          }
+        });
     } else {
       // Start plotting with plan
       await this.startPlottingWithPlan();
@@ -2579,6 +2563,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
           },
         })
         .afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((result: boolean) => {
           if (result) {
             this.navigateToSetup(0);
@@ -2603,6 +2588,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
           },
         })
         .afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((result: boolean) => {
           if (result) {
             this.navigateToSetup(0);
