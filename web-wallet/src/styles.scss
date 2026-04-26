@@ -487,6 +487,15 @@ a {
       height: 18px;
     }
 
+    .wallet-row-lock-action {
+      cursor: pointer;
+      opacity: 0.7;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+
     .wallet-row-eject,
     .wallet-row-eject-placeholder {
       flex-shrink: 0;
@@ -494,7 +503,8 @@ a {
       text-align: center;
     }
 
-    .wallet-row-eject {
+    .wallet-row-eject,
+    .wallet-row-load {
       font-size: 18px;
       width: 18px;
       height: 18px;
@@ -521,8 +531,16 @@ a {
         color: rgba(0, 0, 0, 0.87);
       }
 
-      .wallet-row-lock {
-        color: rgba(0, 0, 0, 0.54);
+      .wallet-lock-encrypted-locked {
+        color: #4caf50;
+      }
+
+      .wallet-lock-encrypted-unlocked {
+        color: #ff9800;
+      }
+
+      .wallet-lock-not-encrypted {
+        color: rgba(0, 0, 0, 0.38);
       }
     }
 

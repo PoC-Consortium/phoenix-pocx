@@ -10,3 +10,5 @@ export { ClipboardService } from './clipboard.service';
 export { ThemeService } from './theme.service';
 
 export { BlockExplorerService } from './block-explorer.service';
+
+export { WalletUnlockService } from './wallet-unlock.service';
