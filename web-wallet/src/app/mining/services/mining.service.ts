@@ -15,6 +15,7 @@ import {
   CommandResult,
   AddressInfo,
   BenchmarkResult,
+  OrphanDrive,
   PlotPlan,
   PlotPlanItem,
   PlotExecutionResult,
@@ -47,6 +48,7 @@ import {
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
 import { NodeService } from '../../node/services/node.service';
+import { I18nService } from '../../core/i18n';
 
 /**
  * Mining Service
@@ -59,6 +61,7 @@ import { NodeService } from '../../node/services/node.service';
 export class MiningService {
   private readonly plotPlanService = inject(PlotPlanService);
   private readonly nodeService = inject(NodeService);
+  private readonly i18n = inject(I18nService);
 
   // Signals for reactive state
   private readonly _state = signal<MiningState | null>(null);
@@ -96,6 +99,12 @@ export class MiningService {
   private readonly _driveInfoCache = signal<Map<string, DriveInfo>>(new Map());
   private _driveInfoLoaded = false;
   readonly driveInfoCache = this._driveInfoCache.asReadonly();
+
+  // Orphan blocker: set when plan generation finds .tmp files that don't match
+  // current address/compression. UI shows the resolution dialog and the user
+  // must delete the files (or restore matching settings) before plotting.
+  private readonly _orphanBlocker = signal<OrphanDrive[] | null>(null);
+  readonly orphanBlocker = this._orphanBlocker.asReadonly();
 
   // Dev mode detection (cached on init)
   private readonly _isDevMode = signal<boolean>(false);
@@ -460,9 +469,33 @@ export class MiningService {
   }
 
   async saveConfig(config: MiningConfig): Promise<boolean> {
+    // Detect changes that affect .tmp filename matching (compression, address).
+    // If either changes, the in-memory plan can no longer be trusted — any
+    // pending Resume row references files whose filenames embed the OLD
+    // address/compression. Clearing forces regeneration under the new config,
+    // which will trip the orphan check and surface the file conflict cleanly
+    // instead of silently orphaning .tmp files at execution time.
+    const previous = this.config();
+    const filenameRelevantChanged =
+      previous !== null &&
+      (previous.compressionLevel !== config.compressionLevel ||
+        previous.plottingAddress !== config.plottingAddress);
+
     try {
       const result = await invoke<CommandResult<void>>('save_mining_config', { config });
       if (result.success) {
+        if (filenameRelevantChanged) {
+          console.log(
+            'MiningService: compression or plotting address changed, clearing plot plan'
+          );
+          // Best-effort: don't block saveConfig on a clear failure.
+          await this.clearPlotPlan().catch(err =>
+            console.warn('MiningService: clearPlotPlan after config change failed:', err)
+          );
+          // Also clear any existing orphan blocker — it was computed against the
+          // previous config, so it's stale now. Next plan generation will recompute.
+          this._orphanBlocker.set(null);
+        }
         await this.refreshState();
         return true;
       }
@@ -472,6 +505,57 @@ export class MiningService {
       this._error.set(`Failed to save config: ${err}`);
       return false;
     }
+  }
+
+  /**
+   * Delete an orphan .tmp file. After successful delete, refreshes the drive
+   * cache and re-evaluates the orphan blocker (so the dialog auto-closes once
+   * all orphans are resolved).
+   */
+  async deleteOrphan(dirPath: string, filename: string): Promise<boolean> {
+    try {
+      const result = await invoke<CommandResult<void>>('delete_orphan_file', {
+        dirPath,
+        filename,
+      });
+      if (!result.success) {
+        this._error.set(result.error ?? 'Failed to delete orphan file');
+        return false;
+      }
+      await this.refreshDriveInCache(dirPath);
+      this.recomputeOrphanBlocker();
+      return true;
+    } catch (err) {
+      this._error.set(`Failed to delete orphan: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Manually dismiss the orphan blocker (e.g. user closed the dialog without
+   * resolving). Plan generation will re-trip the blocker on the next attempt.
+   */
+  dismissOrphanBlocker(): void {
+    this._orphanBlocker.set(null);
+  }
+
+  /** Recompute the orphan blocker from currently-cached drive info. */
+  private recomputeOrphanBlocker(): void {
+    const config = this.config();
+    if (!config) {
+      this._orphanBlocker.set(null);
+      return;
+    }
+    const cache = this._driveInfoCache();
+    const orphanDrives: OrphanDrive[] = config.drives
+      .map(dc => cache.get(dc.path))
+      .filter((info): info is DriveInfo => !!info && (info.orphanFiles?.length ?? 0) > 0)
+      .map(info => ({
+        path: info.path,
+        label: info.label,
+        orphans: info.orphanFiles,
+      }));
+    this._orphanBlocker.set(orphanDrives.length > 0 ? orphanDrives : null);
   }
 
   /**
@@ -1625,6 +1709,27 @@ export class MiningService {
       this._error.set('Cannot generate plan: no valid drive info');
       return null;
     }
+
+    // Fail-fast: any orphan .tmp on any configured drive blocks the entire plan.
+    // Per-drive blocking would silently halve user-perceived parallelism.
+    const orphanDrives: OrphanDrive[] = driveInfos
+      .filter(info => info.orphanFiles && info.orphanFiles.length > 0)
+      .map(info => ({
+        path: info.path,
+        label: info.label,
+        orphans: info.orphanFiles,
+      }));
+    if (orphanDrives.length > 0) {
+      console.warn(
+        'MiningService: Plan blocked by orphan .tmp files on',
+        orphanDrives.map(d => d.path)
+      );
+      this._orphanBlocker.set(orphanDrives);
+      this._error.set(this.i18n.get('plan_blocked_orphans'));
+      return null;
+    }
+    // Clear any prior blocker — config now matches all on-disk .tmp files.
+    this._orphanBlocker.set(null);
 
     // Generate plan using the service
     const plan = this.plotPlanService.generatePlan(driveInfos, config.drives, {

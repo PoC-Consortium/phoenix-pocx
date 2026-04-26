@@ -1,4 +1,14 @@
-import { Component, DestroyRef, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  effect,
+  inject,
+  signal,
+  OnInit,
+  OnDestroy,
+  computed,
+} from '@angular/core';
+import { MatDialogRef } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
@@ -14,6 +24,7 @@ import { MiningService } from '../../services';
 import { DriveConfig, calculateNetworkCapacityTib, formatCapacity } from '../../models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/plan-viewer-dialog.component';
+import { OrphanResolutionDialogComponent } from '../../components/orphan-resolution-dialog/orphan-resolution-dialog.component';
 
 @Component({
   selector: 'app-mining-dashboard',
@@ -1656,6 +1667,31 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly appMode = inject(AppModeService);
   private readonly destroyRef = inject(DestroyRef);
+
+  /**
+   * Open the orphan resolution dialog whenever plan generation flags
+   * incompatible .tmp files. Auto-close once all orphans are resolved
+   * (the service signal goes back to null/empty).
+   */
+  private orphanDialogRef: MatDialogRef<OrphanResolutionDialogComponent> | null = null;
+  private readonly _orphanDialogEffect = effect(() => {
+    const blocker = this.miningService.orphanBlocker();
+    const hasOrphans = !!blocker && blocker.length > 0;
+
+    if (hasOrphans && !this.orphanDialogRef) {
+      this.orphanDialogRef = this.dialog.open(OrphanResolutionDialogComponent, {
+        width: '640px',
+        maxHeight: '80vh',
+        disableClose: false,
+      });
+      this.orphanDialogRef.afterClosed().subscribe(() => {
+        this.orphanDialogRef = null;
+      });
+    } else if (!hasOrphans && this.orphanDialogRef) {
+      // All resolved while dialog open — close it.
+      this.orphanDialogRef.close();
+    }
+  });
 
   /** Setup route path - differs between wallet mode and mining-only mode */
   readonly setupRoute = computed(() =>

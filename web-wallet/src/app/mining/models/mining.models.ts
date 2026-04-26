@@ -46,9 +46,30 @@ export interface DriveInfo {
   isSystemDrive: boolean;
   completeFiles: number; // .pocx files (ready for mining)
   completeSizeGib: number; // Size of complete files
-  incompleteFiles: number; // .tmp files (can resume)
-  incompleteSizeGib: number; // Size of incomplete files
+  incompleteFiles: number; // Resumable .tmp files (matching current config)
+  incompleteSizeGib: number; // Size of resumable .tmp files
   volumeId?: string; // Volume GUID for same-drive detection (handles mount points)
+  orphanFiles: OrphanFile[]; // .tmp files that can't be resumed under current config
+}
+
+export type OrphanReason = 'address_mismatch' | 'compression_mismatch';
+
+export interface OrphanFile {
+  filename: string;
+  sizeGib: number;
+  reason: OrphanReason;
+  expected: string; // current config value
+  actual: string; // value embedded in .tmp filename
+}
+
+/**
+ * A drive with at least one orphan .tmp file. Surfaced when plan generation
+ * is blocked so the UI can render the resolution dialog.
+ */
+export interface OrphanDrive {
+  path: string;
+  label: string;
+  orphans: OrphanFile[];
 }
 
 /**

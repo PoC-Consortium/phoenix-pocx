@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Runtime};
 
 use super::callback::TauriPlotterCallback;
+use super::drives::{parse_tmp_filename, ScanConfig};
 use super::state::{MiningConfig, PlotPlanItem, PlottingStatus, SharedMiningState};
 
 // ============================================================================
@@ -380,9 +381,18 @@ pub async fn execute_plot_batch<R: Runtime>(
         return Err("No plotting address configured".to_string());
     }
 
-    // Collect outputs from all items
+    // Build a ScanConfig once so we can match Resume items to their .tmp files.
+    // Plan-time orphan checking should mean every Resume here has a matching .tmp,
+    // but we re-verify defensively and bail with a clear error otherwise.
+    let scan_cfg = ScanConfig::from_mining_config(&config.plotting_address, config.compression_level);
+
+    // Single pass: collect outputs + per-output resume seeds.
+    // For Resume items, both `warps` and `seed` come from the .tmp filename
+    // (the source of truth — preallocation can be partial on disk-full / non-elevated
+    // Windows / network mounts, so trusting the on-disk size is unsafe).
     let mut outputs: Vec<BatchPlotOutput> = Vec::new();
     let mut paths: Vec<String> = Vec::new();
+    let mut seeds: Vec<Option<[u8; 32]>> = Vec::new();
 
     for item in &items {
         match item {
@@ -396,15 +406,31 @@ pub async fn execute_plot_batch<R: Runtime>(
                     warps: *warps,
                 });
                 paths.push(path.clone());
+                seeds.push(None); // New plots get random seeds
             }
-            PlotPlanItem::Resume { path, size_gib, .. } => {
-                // For resume, we still need to handle .tmp files
-                // But for batching, we treat it as a regular output
+            PlotPlanItem::Resume { path, .. } => {
+                let parsed = match find_resumable_tmp(path, scan_cfg.as_ref()) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        return Err(format!(
+                            "Resume aborted for {}: {}. Delete orphan .tmp files or restore matching settings.",
+                            path, e
+                        ));
+                    }
+                };
+                log::info!(
+                    "Resume for {}: warps={}, compression=X{}, seed={}",
+                    path,
+                    parsed.warps,
+                    parsed.compression,
+                    hex::encode(parsed.seed)
+                );
                 outputs.push(BatchPlotOutput {
                     path: path.clone(),
-                    warps: *size_gib,
+                    warps: parsed.warps,
                 });
                 paths.push(path.clone());
+                seeds.push(Some(parsed.seed));
             }
             PlotPlanItem::AddToMiner => {
                 // Skip add_to_miner items in batch - they're executed separately
@@ -415,30 +441,6 @@ pub async fn execute_plot_batch<R: Runtime>(
 
     if outputs.is_empty() {
         return Err("No plot items in batch".to_string());
-    }
-
-    // Build per-path seeds for resume support
-    let mut seeds: Vec<Option<[u8; 32]>> = Vec::new();
-    for item in &items {
-        match item {
-            PlotPlanItem::Resume { path, .. } => {
-                // Extract seed from .tmp file for this path
-                let tmp_files = find_tmp_files(path).unwrap_or_default();
-                let seed = tmp_files
-                    .first()
-                    .and_then(|f| parse_seed_from_tmp_filename(f));
-                if let Some(ref s) = seed {
-                    log::info!("Resume seed for {}: {}", path, hex::encode(s));
-                }
-                seeds.push(seed);
-            }
-            PlotPlanItem::Plot { .. } => {
-                seeds.push(None); // New plots get random seeds
-            }
-            PlotPlanItem::AddToMiner => {
-                // Skip - not included in outputs
-            }
-        }
     }
 
     // Build the plotter task with all outputs and per-path seeds
@@ -711,85 +713,95 @@ pub async fn execute_plot_item<R: Runtime>(
     }
 }
 
-/// Parse seed from .tmp filename
-/// Filename format: {account}_{seed}_{warps}_X{compression}.tmp
-fn parse_seed_from_tmp_filename(filename: &str) -> Option<[u8; 32]> {
-    // Get just the filename without path
-    let name = std::path::Path::new(filename)
-        .file_name()
-        .and_then(|n| n.to_str())?;
-
-    // Split by underscore: [account, seed, warps, X{compression}.tmp]
-    let parts: Vec<&str> = name.split('_').collect();
-    if parts.len() < 2 {
-        log::warn!("Invalid .tmp filename format: {}", name);
-        return None;
+/// Find the single .tmp file in `dir_path` that matches the current scan config.
+///
+/// Returns the parsed components (seed, warps from filename) so the caller can
+/// build a resume task without needing to re-scan or trust on-disk file size.
+///
+/// Errors if no matching .tmp exists, or if multiple do (which would indicate
+/// the orphan check was bypassed — keep this strict so we never silently pick
+/// the wrong file).
+fn find_resumable_tmp(
+    dir_path: &str,
+    scan_config: Option<&ScanConfig>,
+) -> Result<super::drives::ParsedTmpFilename, String> {
+    let dir = Path::new(dir_path);
+    if !dir.exists() || !dir.is_dir() {
+        return Err(format!("Directory does not exist: {}", dir_path));
     }
 
-    let seed_hex = parts[1];
+    let entries = std::fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?;
 
-    // Parse hex string to bytes
-    let seed_bytes = hex::decode(seed_hex).ok()?;
-    if seed_bytes.len() != 32 {
-        log::warn!(
-            "Invalid seed length in filename: {} bytes (expected 32)",
-            seed_bytes.len()
-        );
-        return None;
+    let mut matches: Vec<super::drives::ParsedTmpFilename> = Vec::new();
+    for entry in entries.flatten() {
+        let file_path = entry.path();
+        if file_path.extension().and_then(|e| e.to_str()) != Some("tmp") {
+            continue;
+        }
+        let filename = match file_path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n,
+            None => continue,
+        };
+        let parsed = match parse_tmp_filename(filename) {
+            Some(p) => p,
+            None => continue, // unparseable filename — skip silently
+        };
+        // Filter to the current config when one is available; otherwise accept any
+        // parseable .tmp (legacy / pre-config code paths).
+        if let Some(cfg) = scan_config {
+            if parsed.addr_hex != cfg.address_hex_upper || parsed.compression != cfg.compression {
+                continue;
+            }
+        }
+        matches.push(parsed);
     }
 
-    let mut seed = [0u8; 32];
-    seed.copy_from_slice(&seed_bytes);
-    Some(seed)
+    match matches.len() {
+        0 => Err(format!("No matching .tmp file found in {}", dir_path)),
+        1 => Ok(matches.into_iter().next().unwrap()),
+        n => Err(format!(
+            "Found {} resumable .tmp files in {} — expected exactly 1. Delete extras manually.",
+            n, dir_path
+        )),
+    }
 }
 
 /// Execute a resume task (resume incomplete .tmp file)
 async fn execute_resume<R: Runtime>(
     app_handle: AppHandle<R>,
     drive_path: String,
-    size_gib: u64,
+    _size_gib: u64, // ignored — warps come from the .tmp filename, not the plan
     config: &MiningConfig,
     mining_state: SharedMiningState,
     plotter_runtime: SharedPlotterRuntime,
 ) -> Result<PlotExecutionResult, String> {
-    log::info!("[RESUME] Looking for .tmp files in: {}", drive_path);
+    log::info!("[RESUME] Looking for resumable .tmp file in: {}", drive_path);
 
-    // Find .tmp files in the drive path
-    let tmp_files = find_tmp_files(&drive_path)?;
-    log::info!("[RESUME] Found {} .tmp files", tmp_files.len());
+    let scan_cfg =
+        ScanConfig::from_mining_config(&config.plotting_address, config.compression_level);
+    let parsed = find_resumable_tmp(&drive_path, scan_cfg.as_ref()).map_err(|e| {
+        format!(
+            "{}. Delete orphan .tmp files or restore matching settings.",
+            e
+        )
+    })?;
 
-    if tmp_files.is_empty() {
-        log::error!(
-            "[RESUME] No .tmp files found in {} - returning error",
-            drive_path
-        );
-        return Err(format!("No .tmp files found in {}", drive_path));
-    }
+    log::info!(
+        "[RESUME] Resuming: warps={}, compression=X{}, seed={}",
+        parsed.warps,
+        parsed.compression,
+        hex::encode(parsed.seed)
+    );
 
-    // Use the first .tmp file (in practice, should match file_index)
-    let tmp_file = &tmp_files[0];
-    log::info!("[RESUME] Resuming plot from: {}", tmp_file);
-
-    // Parse seed from filename for resume
-    let seed = parse_seed_from_tmp_filename(tmp_file);
-    if seed.is_none() {
-        return Err(format!(
-            "Failed to parse seed from .tmp filename: {}",
-            tmp_file
-        ));
-    }
-    log::info!("Extracted seed for resume: {:?}", seed);
-
-    // Execute the plot with resume seed
     execute_plot_internal(
         app_handle,
         "resume",
         drive_path,
-        size_gib, // warps = GiB
+        parsed.warps, // ← from filename, not plan
         config,
         mining_state,
         plotter_runtime,
-        seed,
+        Some(parsed.seed),
     )
     .await
 }
@@ -1129,33 +1141,3 @@ fn build_plotter_task_batch(
     Ok(task)
 }
 
-/// Find .tmp files in a directory
-fn find_tmp_files(dir_path: &str) -> Result<Vec<String>, String> {
-    let path = Path::new(dir_path);
-    if !path.exists() || !path.is_dir() {
-        return Err(format!(
-            "Path does not exist or is not a directory: {}",
-            dir_path
-        ));
-    }
-
-    let mut tmp_files = Vec::new();
-
-    match std::fs::read_dir(path) {
-        Ok(entries) => {
-            for entry in entries.flatten() {
-                let file_path = entry.path();
-                if let Some(ext) = file_path.extension() {
-                    if ext == "tmp" {
-                        if let Some(path_str) = file_path.to_str() {
-                            tmp_files.push(path_str.to_string());
-                        }
-                    }
-                }
-            }
-        }
-        Err(e) => return Err(format!("Failed to read directory: {}", e)),
-    }
-
-    Ok(tmp_files)
-}

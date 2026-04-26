@@ -4,7 +4,7 @@
 
 use super::callback::TauriPlotterCallback;
 use super::devices::{detect_devices, DeviceInfo};
-use super::drives::{get_drive_info, list_drives, DriveInfo};
+use super::drives::{get_drive_info, list_drives, DriveInfo, ScanConfig};
 use super::plotter::{
     self, PlotExecutionResult, PlotPlan, PlotterState, SharedPlotterRuntime, StopType,
 };
@@ -88,20 +88,61 @@ pub fn detect_mining_devices() -> CommandResult<DeviceInfo> {
 // Drive Detection Commands
 // ============================================================================
 
+/// Snapshot the current address+compression from shared state for orphan classification.
+fn current_scan_config(state: &State<SharedMiningState>) -> Option<ScanConfig> {
+    let cfg = state.lock().ok()?.config.clone();
+    ScanConfig::from_mining_config(&cfg.plotting_address, cfg.compression_level)
+}
+
 /// List all available drives for plotting
 #[tauri::command]
-pub fn list_plot_drives() -> CommandResult<Vec<DriveInfo>> {
+pub fn list_plot_drives(state: State<SharedMiningState>) -> CommandResult<Vec<DriveInfo>> {
     log::info!("Scanning drives...");
-    CommandResult::ok(list_drives())
+    let scan_cfg = current_scan_config(&state);
+    CommandResult::ok(list_drives(scan_cfg.as_ref()))
 }
 
 /// Get drive info for a specific path
 #[tauri::command]
-pub fn get_plot_drive_info(path: String) -> CommandResult<DriveInfo> {
+pub fn get_plot_drive_info(
+    path: String,
+    state: State<SharedMiningState>,
+) -> CommandResult<DriveInfo> {
     log::info!("Scanning drive: {}", path);
-    match get_drive_info(&path) {
+    let scan_cfg = current_scan_config(&state);
+    match get_drive_info(&path, scan_cfg.as_ref()) {
         Some(info) => CommandResult::ok(info),
         None => CommandResult::err(format!("Drive not found for path: {}", path)),
+    }
+}
+
+/// Delete an orphan .tmp file. Validates the filename matches the .tmp pattern
+/// and lives directly inside `dir_path` — no traversal, no other extensions.
+#[tauri::command]
+pub fn delete_orphan_file(dir_path: String, filename: String) -> CommandResult<()> {
+    // Defensive: reject any path-like input in `filename`.
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return CommandResult::err(format!("Invalid filename: {}", filename));
+    }
+    if !filename.ends_with(".tmp") {
+        return CommandResult::err(format!("Refusing to delete non-.tmp file: {}", filename));
+    }
+    if super::drives::parse_tmp_filename(&filename).is_none() {
+        return CommandResult::err(format!(
+            "Refusing to delete file that doesn't match plot filename pattern: {}",
+            filename
+        ));
+    }
+
+    let full_path = std::path::Path::new(&dir_path).join(&filename);
+    if !full_path.exists() {
+        return CommandResult::err(format!("File does not exist: {:?}", full_path));
+    }
+
+    log::info!("Deleting orphan .tmp file: {:?}", full_path);
+    match std::fs::remove_file(&full_path) {
+        Ok(()) => CommandResult::ok(()),
+        Err(e) => CommandResult::err(format!("Failed to delete file {:?}: {}", full_path, e)),
     }
 }
 
@@ -525,8 +566,9 @@ pub async fn start_mining(
             if !d.enabled {
                 return false;
             }
-            // Check if drive is ready (has complete plots >= allocated size)
-            if let Some(info) = super::drives::get_drive_info(&d.path) {
+            // Check if drive is ready (has complete plots >= allocated size).
+            // Orphan classification not needed here — only complete_size_gib is read.
+            if let Some(info) = super::drives::get_drive_info(&d.path, None) {
                 let is_ready = info.complete_size_gib >= d.allocated_gib as f64;
                 if !is_ready {
                     log::info!(
