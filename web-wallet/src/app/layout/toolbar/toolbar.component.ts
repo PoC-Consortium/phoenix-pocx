@@ -143,10 +143,7 @@ import { MiningService } from '../../mining/services';
                   <mat-icon class="wallet-status-unlocked">lock_open</mat-icon>
                 </div>
               } @else {
-                <div
-                  class="status-indicator"
-                  [matTooltip]="'wallet_lock_status_all_locked' | i18n"
-                >
+                <div class="status-indicator" [matTooltip]="'wallet_lock_status_all_locked' | i18n">
                   <mat-icon class="wallet-status-locked">lock</mat-icon>
                 </div>
               }

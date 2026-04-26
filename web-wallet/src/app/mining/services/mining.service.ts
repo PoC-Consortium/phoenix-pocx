@@ -485,9 +485,7 @@ export class MiningService {
       const result = await invoke<CommandResult<void>>('save_mining_config', { config });
       if (result.success) {
         if (filenameRelevantChanged) {
-          console.log(
-            'MiningService: compression or plotting address changed, clearing plot plan'
-          );
+          console.log('MiningService: compression or plotting address changed, clearing plot plan');
           // Best-effort: don't block saveConfig on a clear failure.
           await this.clearPlotPlan().catch(err =>
             console.warn('MiningService: clearPlotPlan after config change failed:', err)

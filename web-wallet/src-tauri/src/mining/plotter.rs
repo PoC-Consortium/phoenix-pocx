@@ -384,7 +384,8 @@ pub async fn execute_plot_batch<R: Runtime>(
     // Build a ScanConfig once so we can match Resume items to their .tmp files.
     // Plan-time orphan checking should mean every Resume here has a matching .tmp,
     // but we re-verify defensively and bail with a clear error otherwise.
-    let scan_cfg = ScanConfig::from_mining_config(&config.plotting_address, config.compression_level);
+    let scan_cfg =
+        ScanConfig::from_mining_config(&config.plotting_address, config.compression_level);
 
     // Single pass: collect outputs + per-output resume seeds.
     // For Resume items, both `warps` and `seed` come from the .tmp filename
@@ -775,7 +776,10 @@ async fn execute_resume<R: Runtime>(
     mining_state: SharedMiningState,
     plotter_runtime: SharedPlotterRuntime,
 ) -> Result<PlotExecutionResult, String> {
-    log::info!("[RESUME] Looking for resumable .tmp file in: {}", drive_path);
+    log::info!(
+        "[RESUME] Looking for resumable .tmp file in: {}",
+        drive_path
+    );
 
     let scan_cfg =
         ScanConfig::from_mining_config(&config.plotting_address, config.compression_level);
@@ -1140,4 +1144,3 @@ fn build_plotter_task_batch(
     );
     Ok(task)
 }
-

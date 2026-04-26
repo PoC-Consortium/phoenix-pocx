@@ -15,10 +15,10 @@ pub struct DriveInfo {
     pub total_gib: f64,
     pub free_gib: f64,
     pub is_system_drive: bool,
-    pub complete_files: u32,      // .pocx files (ready for mining)
-    pub complete_size_gib: f64,   // Size of complete files
-    pub incomplete_files: u32,    // Resumable .tmp files (matching current config)
-    pub incomplete_size_gib: f64, // Size of resumable .tmp files
+    pub complete_files: u32,           // .pocx files (ready for mining)
+    pub complete_size_gib: f64,        // Size of complete files
+    pub incomplete_files: u32,         // Resumable .tmp files (matching current config)
+    pub incomplete_size_gib: f64,      // Size of resumable .tmp files
     pub volume_id: Option<String>, // Volume GUID for same-drive detection (handles mount points)
     pub orphan_files: Vec<OrphanFile>, // .tmp files that can't be resumed under current config
 }
@@ -102,10 +102,7 @@ pub struct ScanConfig {
 impl ScanConfig {
     /// Build from a MiningConfig. Returns `None` if the address can't be decoded
     /// (e.g. unconfigured wallet) — caller should treat that as "skip classification".
-    pub fn from_mining_config(
-        plotting_address: &str,
-        compression: u8,
-    ) -> Option<Self> {
+    pub fn from_mining_config(plotting_address: &str, compression: u8) -> Option<Self> {
         if plotting_address.is_empty() {
             return None;
         }
