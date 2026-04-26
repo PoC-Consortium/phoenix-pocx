@@ -1,4 +1,13 @@
-import { Component, inject, signal, input, output, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  inject,
+  signal,
+  computed,
+  input,
+  output,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -15,6 +24,7 @@ import {
   WalletManagerService,
   WalletSummary,
 } from '../../bitcoin/services/wallet/wallet-manager.service';
+import { WalletUnlockService } from '../../shared/services/wallet-unlock.service';
 import { RpcClientService } from '../../bitcoin/services/rpc/rpc-client.service';
 import { selectNetwork } from '../../store/settings/settings.selectors';
 import { Network } from '../../store/settings/settings.state';
@@ -115,6 +125,29 @@ import { MiningService } from '../../mining/services';
                 >
               </div>
             }
+
+            <!-- Wallet Lock Indicator (visible only when at least one encrypted wallet is loaded) -->
+            @if (hasEncryptedWalletsLoaded()) {
+              @if (anyWalletUnlocked()) {
+                <div
+                  class="status-indicator"
+                  [matTooltip]="
+                    'wallet_lock_status_some_unlocked'
+                      | i18n
+                        : {
+                            unlocked: unlockedEncryptedWallets().length,
+                            total: encryptedWallets().length,
+                          }
+                  "
+                >
+                  <mat-icon class="wallet-status-unlocked">lock_open</mat-icon>
+                </div>
+              } @else {
+                <div class="status-indicator" [matTooltip]="'wallet_lock_status_all_locked' | i18n">
+                  <mat-icon class="wallet-status-locked">lock</mat-icon>
+                </div>
+              }
+            }
           </div>
         </div>
 
@@ -162,15 +195,27 @@ import { MiningService } from '../../mining/services';
                     } @else {
                       <span class="wallet-row-watch-placeholder"></span>
                     }
-                    <!-- Column 4: Lock status (only for loaded non-watch-only wallets) -->
-                    @if (wallet.isLoaded && !wallet.isWatchOnly) {
-                      <mat-icon class="wallet-row-lock">{{
-                        wallet.isEncrypted ? 'lock' : 'lock_open'
-                      }}</mat-icon>
+                    <!-- Column 4: Lock status (only for loaded encrypted non-watch-only wallets) -->
+                    @if (wallet.isLoaded && !wallet.isWatchOnly && wallet.isEncrypted) {
+                      @if (isWalletLocked(wallet)) {
+                        <mat-icon
+                          class="wallet-row-lock wallet-row-lock-action wallet-lock-encrypted-locked"
+                          (click)="onUnlockClick(wallet, $event)"
+                          [matTooltip]="'unlock_wallet_for_session_tooltip' | i18n"
+                          >lock</mat-icon
+                        >
+                      } @else {
+                        <mat-icon
+                          class="wallet-row-lock wallet-row-lock-action wallet-lock-encrypted-unlocked"
+                          (click)="onLockClick(wallet, $event)"
+                          [matTooltip]="'lock_wallet_tooltip' | i18n"
+                          >lock_open</mat-icon
+                        >
+                      }
                     } @else if (!wallet.isWatchOnly) {
                       <span class="wallet-row-lock-placeholder"></span>
                     }
-                    <!-- Column 5: Eject button (only for loaded wallets) -->
+                    <!-- Column 5: Load (unloaded) / Eject (loaded) action -->
                     @if (wallet.isLoaded) {
                       <mat-icon
                         class="wallet-row-eject"
@@ -179,7 +224,12 @@ import { MiningService } from '../../mining/services';
                         >eject</mat-icon
                       >
                     } @else {
-                      <span class="wallet-row-eject-placeholder"></span>
+                      <mat-icon
+                        class="wallet-row-load"
+                        (click)="onLoadClick(wallet, $event)"
+                        matTooltip="{{ 'load_wallet' | i18n }}"
+                        >play_arrow</mat-icon
+                      >
                     }
                     <!-- Loading spinner -->
                     @if (isWalletLoading(wallet.name)) {
@@ -424,8 +474,13 @@ import { MiningService } from '../../mining/services';
           color: rgba(0, 0, 0, 0.25);
           transition: color 0.2s ease;
 
-          &.active {
+          &.active,
+          &.wallet-status-locked {
             color: #4caf50;
+          }
+
+          &.wallet-status-unlocked {
+            color: #ff9800;
           }
         }
       }
@@ -482,6 +537,7 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   private readonly store = inject(Store);
   private readonly walletManager = inject(WalletManagerService);
   private readonly rpcClient = inject(RpcClientService);
+  private readonly walletUnlock = inject(WalletUnlockService);
   readonly i18n = inject(I18nService);
   readonly nodeService = inject(NodeService);
   readonly miningService = inject(MiningService);
@@ -497,6 +553,18 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   currentWalletName = signal<string | null>(null);
   wallets = signal<WalletSummary[]>([]);
   network = signal<Network>('mainnet');
+
+  // Encrypted-wallet lock state, surfaced in the toolbar as a security indicator.
+  // Visible only when at least one encrypted wallet is loaded; reflects whether
+  // any are currently unlocked (i.e. keys exposed for the session).
+  readonly encryptedWallets = computed(() =>
+    this.wallets().filter(w => w.isLoaded && !w.isWatchOnly && w.isEncrypted)
+  );
+  readonly unlockedEncryptedWallets = computed(() =>
+    this.encryptedWallets().filter(w => (w.unlockedUntil ?? 0) > 0)
+  );
+  readonly hasEncryptedWalletsLoaded = computed(() => this.encryptedWallets().length > 0);
+  readonly anyWalletUnlocked = computed(() => this.unlockedEncryptedWallets().length > 0);
 
   // Loading tracking
   loadingWallets = new Set<string>();
@@ -551,6 +619,35 @@ export class ToolbarComponent implements OnInit, OnDestroy {
 
   isWalletLoading(walletName: string): boolean {
     return this.loadingWallets.has(walletName);
+  }
+
+  isWalletLocked(wallet: WalletSummary): boolean {
+    return !!wallet.isEncrypted && (wallet.unlockedUntil ?? 0) === 0;
+  }
+
+  async onUnlockClick(wallet: WalletSummary, event: Event): Promise<void> {
+    event.stopPropagation();
+    await this.walletUnlock.promptAndUnlockSession(wallet.name);
+  }
+
+  async onLockClick(wallet: WalletSummary, event: Event): Promise<void> {
+    event.stopPropagation();
+    await this.walletUnlock.lockNow(wallet.name);
+  }
+
+  async onLoadClick(wallet: WalletSummary, event: Event): Promise<void> {
+    event.stopPropagation();
+    if (this.isWalletLoading(wallet.name)) return;
+
+    this.loadingWallets.add(wallet.name);
+    try {
+      await this.walletManager.loadWallet(wallet.name, true);
+      await this.loadWallets();
+    } catch (error) {
+      console.error('Failed to load wallet:', error);
+    } finally {
+      this.loadingWallets.delete(wallet.name);
+    }
   }
 
   async selectWallet(wallet: WalletSummary): Promise<void> {

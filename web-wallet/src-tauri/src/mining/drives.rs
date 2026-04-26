@@ -15,11 +15,103 @@ pub struct DriveInfo {
     pub total_gib: f64,
     pub free_gib: f64,
     pub is_system_drive: bool,
-    pub complete_files: u32,       // .pocx files (ready for mining)
-    pub complete_size_gib: f64,    // Size of complete files
-    pub incomplete_files: u32,     // .tmp files (can resume)
-    pub incomplete_size_gib: f64,  // Size of incomplete files
+    pub complete_files: u32,           // .pocx files (ready for mining)
+    pub complete_size_gib: f64,        // Size of complete files
+    pub incomplete_files: u32,         // Resumable .tmp files (matching current config)
+    pub incomplete_size_gib: f64,      // Size of resumable .tmp files
     pub volume_id: Option<String>, // Volume GUID for same-drive detection (handles mount points)
+    pub orphan_files: Vec<OrphanFile>, // .tmp files that can't be resumed under current config
+}
+
+/// Reason a .tmp file is considered an orphan (incompatible with current config)
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OrphanReason {
+    AddressMismatch,
+    CompressionMismatch,
+}
+
+/// A .tmp file that can't be resumed under the current config.
+/// Plotting is blocked until the user deletes the file (or restores matching settings).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrphanFile {
+    pub filename: String,
+    pub size_gib: f64,
+    pub reason: OrphanReason,
+    pub expected: String, // current config value
+    pub actual: String,   // value embedded in .tmp filename
+}
+
+/// Parsed components of a `{addr}_{seed}_{warps}_X{compress}.tmp` filename.
+/// Used both for orphan classification and for resume to recover the file's true warps
+/// (the filename is the source of truth — preallocation can be partial on disk-full,
+/// non-elevated Windows fallback, network mounts that ignore allocation hints, etc.).
+#[derive(Debug, Clone)]
+pub struct ParsedTmpFilename {
+    pub addr_hex: String, // uppercase, 40 chars
+    pub seed: [u8; 32],
+    pub warps: u64,
+    pub compression: u8,
+}
+
+pub fn parse_tmp_filename(filename: &str) -> Option<ParsedTmpFilename> {
+    // Strip path components if a full path was passed.
+    let basename = std::path::Path::new(filename)
+        .file_name()
+        .and_then(|n| n.to_str())?;
+    let stripped = basename.strip_suffix(".tmp")?;
+    let parts: Vec<&str> = stripped.split('_').collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    let addr_hex = parts[0].to_uppercase();
+    let seed_hex = parts[1].to_uppercase();
+    if addr_hex.len() != 40 || seed_hex.len() != 64 {
+        return None;
+    }
+    if !addr_hex.chars().all(|c| c.is_ascii_hexdigit())
+        || !seed_hex.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return None;
+    }
+    let seed_bytes = hex::decode(&seed_hex).ok()?;
+    if seed_bytes.len() != 32 {
+        return None;
+    }
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(&seed_bytes);
+    let warps: u64 = parts[2].parse().ok()?;
+    let compression: u8 = parts[3].strip_prefix('X')?.parse().ok()?;
+    Some(ParsedTmpFilename {
+        addr_hex,
+        seed,
+        warps,
+        compression,
+    })
+}
+
+/// Current config used to classify .tmp files. `None` skips classification —
+/// every .tmp counts as incomplete (legacy behaviour, used before a config is set).
+#[derive(Debug, Clone)]
+pub struct ScanConfig {
+    pub address_hex_upper: String, // 40-char hex of the 20-byte address payload
+    pub compression: u8,
+}
+
+impl ScanConfig {
+    /// Build from a MiningConfig. Returns `None` if the address can't be decoded
+    /// (e.g. unconfigured wallet) — caller should treat that as "skip classification".
+    pub fn from_mining_config(plotting_address: &str, compression: u8) -> Option<Self> {
+        if plotting_address.is_empty() {
+            return None;
+        }
+        let (payload, _network) = pocx_address::decode_address(plotting_address).ok()?;
+        Some(Self {
+            address_hex_upper: hex::encode_upper(payload),
+            compression,
+        })
+    }
 }
 
 /// Plot file scan results
@@ -29,6 +121,7 @@ struct PlotFileScan {
     complete_bytes: u64,
     incomplete_count: u32,
     incomplete_bytes: u64,
+    orphan_files: Vec<OrphanFile>,
 }
 
 /// Get the volume GUID for a given path (Windows only)
@@ -128,8 +221,13 @@ fn is_plot_filename(filename: &str) -> bool {
     last.ends_with(".pocx") || last.ends_with(".tmp")
 }
 
-/// Scan directory for plot files (.pocx and .tmp)
-fn scan_plot_files(path: &str) -> PlotFileScan {
+/// Scan directory for plot files (.pocx and .tmp).
+///
+/// When `scan_config` is `Some`, .tmp files are classified against the current
+/// config: matches go into `incomplete_*`, mismatches go into `orphan_files`.
+/// When `None`, every .tmp counts as incomplete (used before any config is set).
+fn scan_plot_files(path: &str, scan_config: Option<&ScanConfig>) -> PlotFileScan {
+    let gib = 1024.0 * 1024.0 * 1024.0;
     let dir = Path::new(path);
     if !dir.exists() || !dir.is_dir() {
         return PlotFileScan::default();
@@ -163,8 +261,41 @@ fn scan_plot_files(path: &str) -> PlotFileScan {
                         result.complete_bytes += file_size;
                     }
                     "tmp" => {
-                        result.incomplete_count += 1;
-                        result.incomplete_bytes += file_size;
+                        // Classify against current config if provided.
+                        let orphan = match (scan_config, parse_tmp_filename(filename)) {
+                            (Some(cfg), Some(parsed)) => {
+                                if parsed.addr_hex != cfg.address_hex_upper {
+                                    Some(OrphanFile {
+                                        filename: filename.to_string(),
+                                        size_gib: file_size as f64 / gib,
+                                        reason: OrphanReason::AddressMismatch,
+                                        expected: cfg.address_hex_upper.clone(),
+                                        actual: parsed.addr_hex,
+                                    })
+                                } else if parsed.compression != cfg.compression {
+                                    Some(OrphanFile {
+                                        filename: filename.to_string(),
+                                        size_gib: file_size as f64 / gib,
+                                        reason: OrphanReason::CompressionMismatch,
+                                        expected: format!("X{}", cfg.compression),
+                                        actual: format!("X{}", parsed.compression),
+                                    })
+                                } else {
+                                    None
+                                }
+                            }
+                            // No config or unparseable filename → treat as resumable
+                            // (legacy behaviour; the resume code will surface its own
+                            // error if the file is genuinely unusable).
+                            _ => None,
+                        };
+
+                        if let Some(orphan_file) = orphan {
+                            result.orphan_files.push(orphan_file);
+                        } else {
+                            result.incomplete_count += 1;
+                            result.incomplete_bytes += file_size;
+                        }
                     }
                     _ => {}
                 }
@@ -175,8 +306,11 @@ fn scan_plot_files(path: &str) -> PlotFileScan {
     result
 }
 
-/// List available drives for plotting
-pub fn list_drives() -> Vec<DriveInfo> {
+/// List available drives for plotting.
+///
+/// Pass `Some(scan_config)` to classify .tmp files against the current config —
+/// mismatched files end up in `orphan_files`, matching files in `incomplete_*`.
+pub fn list_drives(scan_config: Option<&ScanConfig>) -> Vec<DriveInfo> {
     let disks = Disks::new_with_refreshed_list();
     let gib = 1024.0 * 1024.0 * 1024.0;
 
@@ -192,7 +326,7 @@ pub fn list_drives() -> Vec<DriveInfo> {
             let free_bytes = d.available_space() as f64;
             let is_system = is_system_drive_path(&mount_point);
 
-            let scan = scan_plot_files(&mount_point);
+            let scan = scan_plot_files(&mount_point, scan_config);
 
             DriveInfo {
                 path: mount_point.clone(),
@@ -205,18 +339,21 @@ pub fn list_drives() -> Vec<DriveInfo> {
                 incomplete_files: scan.incomplete_count,
                 incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
                 volume_id: get_volume_guid(&mount_point),
+                orphan_files: scan.orphan_files,
             }
         })
         .collect()
 }
 
-/// Get drive info for a specific path
-pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
+/// Get drive info for a specific path.
+///
+/// Pass `Some(scan_config)` to classify .tmp files against the current config.
+pub fn get_drive_info(path: &str, scan_config: Option<&ScanConfig>) -> Option<DriveInfo> {
     // On Android, sysinfo::Disks doesn't work properly for app storage paths
     // Use statvfs to get space info directly from the path
     #[cfg(target_os = "android")]
     {
-        return get_drive_info_android(path);
+        return get_drive_info_android(path, scan_config);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -254,7 +391,7 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
             let is_system = is_system_drive_path(&mount_str);
 
             // Scan the specific path for plot files (not the mount point)
-            let scan = scan_plot_files(path);
+            let scan = scan_plot_files(path, scan_config);
 
             DriveInfo {
                 path: path.to_string(),
@@ -267,6 +404,7 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
                 incomplete_files: scan.incomplete_count,
                 incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
                 volume_id: get_volume_guid(path),
+                orphan_files: scan.orphan_files,
             }
         });
 
@@ -275,13 +413,13 @@ pub fn get_drive_info(path: &str) -> Option<DriveInfo> {
         }
 
         // Fallback: sysinfo didn't find the drive (e.g., network mount)
-        get_drive_info_fallback(path)
+        get_drive_info_fallback(path, scan_config)
     }
 }
 
 /// Android-specific drive info using statvfs
 #[cfg(target_os = "android")]
-fn get_drive_info_android(path: &str) -> Option<DriveInfo> {
+fn get_drive_info_android(path: &str, scan_config: Option<&ScanConfig>) -> Option<DriveInfo> {
     use std::ffi::CString;
     use std::os::raw::c_char;
 
@@ -351,7 +489,7 @@ fn get_drive_info_android(path: &str) -> Option<DriveInfo> {
     let free_bytes = (stat.f_bavail * block_size) as f64;
 
     // Scan for plot files
-    let scan = scan_plot_files(path);
+    let scan = scan_plot_files(path, scan_config);
 
     // Extract a label from the path
     let label = target_path
@@ -371,13 +509,14 @@ fn get_drive_info_android(path: &str) -> Option<DriveInfo> {
         incomplete_files: scan.incomplete_count,
         incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
         volume_id: get_volume_guid(path),
+        orphan_files: scan.orphan_files,
     })
 }
 
 /// Fallback drive info using OS-native filesystem stat calls.
 /// Used when sysinfo doesn't find the drive (e.g., network mounts like SMB/NFS).
 #[cfg(all(unix, not(target_os = "android")))]
-fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
+fn get_drive_info_fallback(path: &str, scan_config: Option<&ScanConfig>) -> Option<DriveInfo> {
     use std::ffi::CString;
 
     let gib = 1024.0 * 1024.0 * 1024.0;
@@ -408,7 +547,7 @@ fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
     #[allow(clippy::unnecessary_cast)]
     let free_bytes = (stat.f_bavail as u64 * block_size) as f64;
 
-    let scan = scan_plot_files(path);
+    let scan = scan_plot_files(path, scan_config);
 
     let label = target_path
         .file_name()
@@ -427,13 +566,14 @@ fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
         incomplete_files: scan.incomplete_count,
         incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
         volume_id: get_volume_guid(path),
+        orphan_files: scan.orphan_files,
     })
 }
 
 /// Fallback drive info using GetDiskFreeSpaceExW.
 /// Used when sysinfo doesn't find the drive (e.g., network mounts like SMB/CIFS).
 #[cfg(windows)]
-fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
+fn get_drive_info_fallback(path: &str, scan_config: Option<&ScanConfig>) -> Option<DriveInfo> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
@@ -466,7 +606,7 @@ fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
         return None;
     }
 
-    let scan = scan_plot_files(path);
+    let scan = scan_plot_files(path, scan_config);
 
     let label = target_path
         .file_name()
@@ -485,5 +625,6 @@ fn get_drive_info_fallback(path: &str) -> Option<DriveInfo> {
         incomplete_files: scan.incomplete_count,
         incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
         volume_id: get_volume_guid(path),
+        orphan_files: scan.orphan_files,
     })
 }

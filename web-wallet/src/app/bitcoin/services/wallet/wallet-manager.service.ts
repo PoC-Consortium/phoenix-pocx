@@ -71,7 +71,20 @@ export interface WalletSummary {
   isDescriptor?: boolean;
   isWatchOnly?: boolean;
   isEncrypted?: boolean;
+  /**
+   * Mirrors `getwalletinfo.unlocked_until`. `undefined` if the wallet is not
+   * encrypted, `0` if encrypted and locked, `>0` (unix timestamp) if unlocked.
+   */
+  unlockedUntil?: number;
 }
+
+/**
+ * Timeout passed to `walletpassphrase` when the user opts into a session-long
+ * unlock. Bitcoin Core requires a positive integer; `0` is treated as "unlock
+ * for 0 seconds". `i32::MAX` (~68 years) is the conventional "until restart"
+ * value — the wallet will re-lock when the node process exits.
+ */
+export const SESSION_UNLOCK_SECONDS = 2_147_483_647;
 
 /**
  * WalletManagerService handles wallet lifecycle operations.
@@ -161,6 +174,7 @@ export class WalletManagerService {
           summary.isWatchOnly = !info.private_keys_enabled;
           // Wallet is encrypted if unlocked_until field exists (0 means locked, >0 means unlocked until timestamp)
           summary.isEncrypted = info.unlocked_until !== undefined;
+          summary.unlockedUntil = info.unlocked_until;
         } catch {
           // Wallet info failed, just mark as loaded
         }
@@ -467,6 +481,17 @@ export class WalletManagerService {
     timeoutSeconds: number
   ): Promise<void> {
     await this.walletRpc.walletPassphrase(walletName, passphrase, timeoutSeconds);
+    this.walletsChangedSubject.next();
+  }
+
+  /**
+   * Unlock an encrypted wallet for the lifetime of the Phoenix / node session.
+   * The passphrase is forwarded to bitcoin-pocx core and not stored anywhere
+   * in Phoenix; on a node restart the wallet will be locked again and the user
+   * must re-enter it.
+   */
+  async unlockWalletForSession(walletName: string, passphrase: string): Promise<void> {
+    await this.unlockWallet(walletName, passphrase, SESSION_UNLOCK_SECONDS);
   }
 
   /**
@@ -474,6 +499,7 @@ export class WalletManagerService {
    */
   async lockWallet(walletName: string): Promise<void> {
     await this.walletRpc.walletLock(walletName);
+    this.walletsChangedSubject.next();
   }
 
   // ============================================================

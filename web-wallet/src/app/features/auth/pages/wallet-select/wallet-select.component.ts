@@ -15,6 +15,7 @@ import {
 } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { AppUpdateService } from '../../../../core/services/app-update.service';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 
 /**
  * WalletSelectComponent displays available wallets and options to create/import.
@@ -164,23 +165,25 @@ import { AppUpdateService } from '../../../../core/services/app-update.service';
                   <td mat-cell *matCellDef="let wallet" class="encryption-cell">
                     @if (wallet.isLoaded && wallet.isWatchOnly) {
                       <mat-icon
-                        class="encryption-icon watch-only"
+                        class="encryption-icon wallet-lock-watch-only"
                         matTooltip="{{ 'watch_only_wallet' | i18n }}"
                         >visibility</mat-icon
                       >
-                    } @else if (wallet.isLoaded && wallet.isEncrypted === true) {
+                    } @else if (wallet.isLoaded && isWalletLocked(wallet)) {
                       <mat-icon
-                        class="encryption-icon encrypted"
-                        matTooltip="{{ 'wallet_encrypted' | i18n }}"
+                        class="encryption-icon encryption-icon-action wallet-lock-encrypted-locked"
+                        (click)="onUnlockClick(wallet, $event)"
+                        [matTooltip]="'unlock_wallet_for_session_tooltip' | i18n"
                         >lock</mat-icon
                       >
-                    } @else if (wallet.isLoaded && wallet.isEncrypted === false) {
+                    } @else if (wallet.isLoaded && wallet.isEncrypted) {
                       <mat-icon
-                        class="encryption-icon not-encrypted"
-                        matTooltip="{{ 'wallet_not_encrypted' | i18n }}"
+                        class="encryption-icon encryption-icon-action wallet-lock-encrypted-unlocked"
+                        (click)="onLockClick(wallet, $event)"
+                        [matTooltip]="'lock_wallet_tooltip' | i18n"
                         >lock_open</mat-icon
                       >
-                    } @else {
+                    } @else if (!wallet.isLoaded) {
                       <span class="no-encryption">--</span>
                     }
                   </td>
@@ -522,24 +525,38 @@ import { AppUpdateService } from '../../../../core/services/app-update.service';
         }
 
         .encryption-cell {
-          font-size: 0; /* Hide any stray text nodes */
+          font-size: 0; /* Hide stray template text — .no-encryption opts back in */
         }
 
         .encryption-icon {
           font-size: 20px;
           width: 20px;
           height: 20px;
+          vertical-align: middle;
 
-          &.encrypted {
+          &.wallet-lock-encrypted-locked {
             color: #4caf50;
           }
 
-          &.not-encrypted {
-            color: rgba(0, 0, 0, 0.25);
+          &.wallet-lock-encrypted-unlocked {
+            color: #ff9800;
           }
 
-          &.watch-only {
+          &.wallet-lock-not-encrypted {
+            color: rgba(0, 0, 0, 0.38);
+          }
+
+          &.wallet-lock-watch-only {
             color: #2196f3;
+          }
+        }
+
+        .encryption-icon-action {
+          cursor: pointer;
+          opacity: 0.85;
+
+          &:hover {
+            opacity: 1;
           }
         }
 
@@ -645,6 +662,7 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
   private readonly appUpdateService = inject(AppUpdateService);
+  private readonly walletUnlock = inject(WalletUnlockService);
   private readonly destroy$ = new Subject<void>();
 
   /** App version from backend */
@@ -737,6 +755,20 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
 
   isWalletLoading(walletName: string): boolean {
     return this.loadingWallets.has(walletName);
+  }
+
+  isWalletLocked(wallet: WalletSummary): boolean {
+    return !!wallet.isEncrypted && (wallet.unlockedUntil ?? 0) === 0;
+  }
+
+  async onUnlockClick(wallet: WalletSummary, event: Event): Promise<void> {
+    event.stopPropagation();
+    await this.walletUnlock.promptAndUnlockSession(wallet.name);
+  }
+
+  async onLockClick(wallet: WalletSummary, event: Event): Promise<void> {
+    event.stopPropagation();
+    await this.walletUnlock.lockNow(wallet.name);
   }
 
   /**

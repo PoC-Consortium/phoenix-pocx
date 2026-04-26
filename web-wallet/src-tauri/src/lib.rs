@@ -822,6 +822,7 @@ pub fn run() {
             // Mining drive commands
             mining::commands::list_plot_drives,
             mining::commands::get_plot_drive_info,
+            mining::commands::delete_orphan_file,
             // Mining state commands
             mining::commands::get_mining_state,
             mining::commands::get_mining_config,

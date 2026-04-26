@@ -8,9 +8,19 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { I18nPipe } from '../../../core/i18n';
 
+export type PassphraseDialogMode = 'tx' | 'session';
+
 export interface PassphraseDialogData {
   walletName: string;
   timeout?: number;
+  /**
+   * 'tx' (default) — temporary unlock for a single signing operation. Shows
+   * the timeout-based explanatory note.
+   * 'session' — unlock for the lifetime of the Phoenix / node session (used
+   * for forging, where deadlines arrive at unpredictable intervals). Shows a
+   * security trade-off note instead of a seconds count.
+   */
+  mode?: PassphraseDialogMode;
 }
 
 export interface PassphraseDialogResult {
@@ -74,7 +84,11 @@ export interface PassphraseDialogResult {
         </button>
       </mat-form-field>
 
-      <p class="unlock-note">{{ 'unlock_timeout_note' | i18n: { seconds: timeout } }}</p>
+      @if (mode === 'session') {
+        <p class="unlock-note">{{ 'unlock_session_note' | i18n }}</p>
+      } @else {
+        <p class="unlock-note">{{ 'unlock_timeout_note' | i18n: { seconds: timeout } }}</p>
+      }
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
@@ -128,12 +142,14 @@ export class PassphraseDialogComponent implements OnDestroy {
   passphrase = '';
   walletName: string;
   timeout: number;
+  mode: PassphraseDialogMode;
 
   showPassphrase = signal(false);
 
   constructor() {
     this.walletName = this.data?.walletName ?? '';
     this.timeout = this.data?.timeout ?? 5;
+    this.mode = this.data?.mode ?? 'tx';
   }
 
   canSubmit(): boolean {
