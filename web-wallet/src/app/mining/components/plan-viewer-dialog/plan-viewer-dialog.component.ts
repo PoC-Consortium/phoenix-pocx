@@ -89,7 +89,7 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
                     @case ('resume') {
                       <span class="badge resume">{{ 'plan_resume' | i18n }}</span>
                       <span class="item-path">{{ formatPath(item.path) }}</span>
-                      <span class="item-detail">{{ item.sizeGib }} GiB</span>
+                      <span class="item-detail">{{ item.warps }} GiB</span>
                       <span class="item-batch" [matTooltip]="getParallelBatchTooltip(item.batchId)">
                         B{{ item.batchId + 1 }}
                       </span>

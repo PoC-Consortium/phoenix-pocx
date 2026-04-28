@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Vsetky osirote subory vyriesene. Mozete zavriet tento dialog a zacat s plotovanim.",
   "orphan_reason_address": "Nezhoda plotovacej adresy (subor: {actual}, aktualna: {expected})",
   "orphan_reason_compression": "Nezhoda kompresie (subor: {actual}, aktualna: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Aktuálna verzia",
   "custom": "Vlastne",
   "danger_zone": "Nebezpecna zona",

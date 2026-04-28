@@ -15,10 +15,11 @@ pub struct DriveInfo {
     pub total_gib: f64,
     pub free_gib: f64,
     pub is_system_drive: bool,
-    pub complete_files: u32,           // .pocx files (ready for mining)
-    pub complete_size_gib: f64,        // Size of complete files
-    pub incomplete_files: u32,         // Resumable .tmp files (matching current config)
-    pub incomplete_size_gib: f64,      // Size of resumable .tmp files
+    pub complete_files: u32,    // .pocx files (ready for mining)
+    pub complete_size_gib: f64, // Size of complete files
+    pub incomplete_files: u32,  // Count of resumable .tmp files (== incomplete_details.len())
+    pub incomplete_size_gib: f64, // Total size of resumable .tmp files
+    pub incomplete_details: Vec<IncompleteFile>, // Per-file resume metadata (seed, warps)
     pub volume_id: Option<String>, // Volume GUID for same-drive detection (handles mount points)
     pub orphan_files: Vec<OrphanFile>, // .tmp files that can't be resumed under current config
 }
@@ -29,6 +30,9 @@ pub struct DriveInfo {
 pub enum OrphanReason {
     AddressMismatch,
     CompressionMismatch,
+    /// Two or more parseable .tmp files in one dir share the same seed —
+    /// only one can resume cleanly, so the user must pick which to keep.
+    DuplicateSeed,
 }
 
 /// A .tmp file that can't be resumed under the current config.
@@ -41,6 +45,18 @@ pub struct OrphanFile {
     pub reason: OrphanReason,
     pub expected: String, // current config value
     pub actual: String,   // value embedded in .tmp filename
+}
+
+/// A .tmp file that can be resumed under the current config.
+/// Carries the seed (from the filename) so the plotter can target it directly,
+/// without re-scanning the directory at execute time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncompleteFile {
+    pub filename: String,
+    pub seed_hex: String, // 64-char uppercase hex
+    pub warps: u64,
+    pub size_gib: f64,
 }
 
 /// Parsed components of a `{addr}_{seed}_{warps}_X{compress}.tmp` filename.
@@ -119,8 +135,7 @@ impl ScanConfig {
 struct PlotFileScan {
     complete_count: u32,
     complete_bytes: u64,
-    incomplete_count: u32,
-    incomplete_bytes: u64,
+    incomplete: Vec<IncompleteFile>,
     orphan_files: Vec<OrphanFile>,
 }
 
@@ -224,8 +239,12 @@ fn is_plot_filename(filename: &str) -> bool {
 /// Scan directory for plot files (.pocx and .tmp).
 ///
 /// When `scan_config` is `Some`, .tmp files are classified against the current
-/// config: matches go into `incomplete_*`, mismatches go into `orphan_files`.
-/// When `None`, every .tmp counts as incomplete (used before any config is set).
+/// config: parseable matches go into `incomplete`, mismatches go into `orphan_files`.
+/// Unparseable .tmp files are skipped silently — they are not Phoenix-managed plots.
+///
+/// As a final pass, parseable matches are grouped by seed: any group with 2+ files
+/// is reclassified as `DuplicateSeed` orphans (the plotter can only resume one .tmp
+/// per seed; the user must delete duplicates).
 fn scan_plot_files(path: &str, scan_config: Option<&ScanConfig>) -> PlotFileScan {
     let gib = 1024.0 * 1024.0 * 1024.0;
     let dir = Path::new(path);
@@ -234,6 +253,9 @@ fn scan_plot_files(path: &str, scan_config: Option<&ScanConfig>) -> PlotFileScan
     }
 
     let mut result = PlotFileScan::default();
+    // Buffer parseable matches until we've seen all entries — we can only flag
+    // DuplicateSeed once we know whether another file shares the same seed.
+    let mut candidates: Vec<IncompleteFile> = Vec::new();
 
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -247,58 +269,87 @@ fn scan_plot_files(path: &str, scan_config: Option<&ScanConfig>) -> PlotFileScan
                 None => continue,
             };
 
-            // Check if it matches plot file pattern
             if !is_plot_filename(filename) {
                 continue;
             }
 
             let file_size = std::fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
 
-            if let Some(ext) = file_path.extension().and_then(|e| e.to_str()) {
-                match ext {
-                    "pocx" => {
-                        result.complete_count += 1;
-                        result.complete_bytes += file_size;
-                    }
-                    "tmp" => {
-                        // Classify against current config if provided.
-                        let orphan = match (scan_config, parse_tmp_filename(filename)) {
-                            (Some(cfg), Some(parsed)) => {
-                                if parsed.addr_hex != cfg.address_hex_upper {
-                                    Some(OrphanFile {
-                                        filename: filename.to_string(),
-                                        size_gib: file_size as f64 / gib,
-                                        reason: OrphanReason::AddressMismatch,
-                                        expected: cfg.address_hex_upper.clone(),
-                                        actual: parsed.addr_hex,
-                                    })
-                                } else if parsed.compression != cfg.compression {
-                                    Some(OrphanFile {
-                                        filename: filename.to_string(),
-                                        size_gib: file_size as f64 / gib,
-                                        reason: OrphanReason::CompressionMismatch,
-                                        expected: format!("X{}", cfg.compression),
-                                        actual: format!("X{}", parsed.compression),
-                                    })
-                                } else {
-                                    None
-                                }
-                            }
-                            // No config or unparseable filename → treat as resumable
-                            // (legacy behaviour; the resume code will surface its own
-                            // error if the file is genuinely unusable).
-                            _ => None,
-                        };
+            let ext = match file_path.extension().and_then(|e| e.to_str()) {
+                Some(e) => e,
+                None => continue,
+            };
 
-                        if let Some(orphan_file) = orphan {
-                            result.orphan_files.push(orphan_file);
-                        } else {
-                            result.incomplete_count += 1;
-                            result.incomplete_bytes += file_size;
+            match ext {
+                "pocx" => {
+                    result.complete_count += 1;
+                    result.complete_bytes += file_size;
+                }
+                "tmp" => {
+                    let parsed = match parse_tmp_filename(filename) {
+                        Some(p) => p,
+                        // Unparseable .tmp — not Phoenix-managed, skip silently.
+                        None => continue,
+                    };
+
+                    // Address/compression classification only applies when we have
+                    // a config to compare against. Without one, every parseable
+                    // .tmp is a potential candidate (used before any config is set).
+                    if let Some(cfg) = scan_config {
+                        if parsed.addr_hex != cfg.address_hex_upper {
+                            result.orphan_files.push(OrphanFile {
+                                filename: filename.to_string(),
+                                size_gib: file_size as f64 / gib,
+                                reason: OrphanReason::AddressMismatch,
+                                expected: cfg.address_hex_upper.clone(),
+                                actual: parsed.addr_hex,
+                            });
+                            continue;
+                        }
+                        if parsed.compression != cfg.compression {
+                            result.orphan_files.push(OrphanFile {
+                                filename: filename.to_string(),
+                                size_gib: file_size as f64 / gib,
+                                reason: OrphanReason::CompressionMismatch,
+                                expected: format!("X{}", cfg.compression),
+                                actual: format!("X{}", parsed.compression),
+                            });
+                            continue;
                         }
                     }
-                    _ => {}
+
+                    candidates.push(IncompleteFile {
+                        filename: filename.to_string(),
+                        seed_hex: hex::encode_upper(parsed.seed),
+                        warps: parsed.warps,
+                        size_gib: file_size as f64 / gib,
+                    });
                 }
+                _ => {}
+            }
+        }
+    }
+
+    // Group candidates by seed. Singletons are real Resume targets; any group
+    // with 2+ files indicates a duplicate (manual copy / corruption) and gets
+    // surfaced through the orphan dialog rather than silently picked.
+    let mut by_seed: std::collections::HashMap<String, Vec<IncompleteFile>> =
+        std::collections::HashMap::new();
+    for c in candidates {
+        by_seed.entry(c.seed_hex.clone()).or_default().push(c);
+    }
+    for (seed, group) in by_seed {
+        if group.len() == 1 {
+            result.incomplete.extend(group);
+        } else {
+            for f in group {
+                result.orphan_files.push(OrphanFile {
+                    filename: f.filename,
+                    size_gib: f.size_gib,
+                    reason: OrphanReason::DuplicateSeed,
+                    expected: seed.clone(), // the shared seed — for display
+                    actual: seed.clone(),
+                });
             }
         }
     }
@@ -336,8 +387,9 @@ pub fn list_drives(scan_config: Option<&ScanConfig>) -> Vec<DriveInfo> {
                 is_system_drive: is_system,
                 complete_files: scan.complete_count,
                 complete_size_gib: scan.complete_bytes as f64 / gib,
-                incomplete_files: scan.incomplete_count,
-                incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+                incomplete_files: scan.incomplete.len() as u32,
+                incomplete_size_gib: scan.incomplete.iter().map(|f| f.size_gib).sum(),
+                incomplete_details: scan.incomplete,
                 volume_id: get_volume_guid(&mount_point),
                 orphan_files: scan.orphan_files,
             }
@@ -401,8 +453,9 @@ pub fn get_drive_info(path: &str, scan_config: Option<&ScanConfig>) -> Option<Dr
                 is_system_drive: is_system,
                 complete_files: scan.complete_count,
                 complete_size_gib: scan.complete_bytes as f64 / gib,
-                incomplete_files: scan.incomplete_count,
-                incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+                incomplete_files: scan.incomplete.len() as u32,
+                incomplete_size_gib: scan.incomplete.iter().map(|f| f.size_gib).sum(),
+                incomplete_details: scan.incomplete,
                 volume_id: get_volume_guid(path),
                 orphan_files: scan.orphan_files,
             }
@@ -506,8 +559,9 @@ fn get_drive_info_android(path: &str, scan_config: Option<&ScanConfig>) -> Optio
         is_system_drive: false, // Android app storage is never system drive
         complete_files: scan.complete_count,
         complete_size_gib: scan.complete_bytes as f64 / gib,
-        incomplete_files: scan.incomplete_count,
-        incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+        incomplete_files: scan.incomplete.len() as u32,
+        incomplete_size_gib: scan.incomplete.iter().map(|f| f.size_gib).sum(),
+        incomplete_details: scan.incomplete,
         volume_id: get_volume_guid(path),
         orphan_files: scan.orphan_files,
     })
@@ -563,8 +617,9 @@ fn get_drive_info_fallback(path: &str, scan_config: Option<&ScanConfig>) -> Opti
         is_system_drive: false,
         complete_files: scan.complete_count,
         complete_size_gib: scan.complete_bytes as f64 / gib,
-        incomplete_files: scan.incomplete_count,
-        incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+        incomplete_files: scan.incomplete.len() as u32,
+        incomplete_size_gib: scan.incomplete.iter().map(|f| f.size_gib).sum(),
+        incomplete_details: scan.incomplete,
         volume_id: get_volume_guid(path),
         orphan_files: scan.orphan_files,
     })
@@ -622,8 +677,9 @@ fn get_drive_info_fallback(path: &str, scan_config: Option<&ScanConfig>) -> Opti
         is_system_drive: false,
         complete_files: scan.complete_count,
         complete_size_gib: scan.complete_bytes as f64 / gib,
-        incomplete_files: scan.incomplete_count,
-        incomplete_size_gib: scan.incomplete_bytes as f64 / gib,
+        incomplete_files: scan.incomplete.len() as u32,
+        incomplete_size_gib: scan.incomplete.iter().map(|f| f.size_gib).sum(),
+        incomplete_details: scan.incomplete,
         volume_id: get_volume_guid(path),
         orphan_files: scan.orphan_files,
     })

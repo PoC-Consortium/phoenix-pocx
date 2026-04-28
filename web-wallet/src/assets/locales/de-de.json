@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Alle verwaisten Dateien behoben. Sie koennen diesen Dialog schliessen und mit dem Plotten beginnen.",
   "orphan_reason_address": "Plot-Adresse stimmt nicht ueberein (Datei: {actual}, aktuell: {expected})",
   "orphan_reason_compression": "Kompression stimmt nicht ueberein (Datei: {actual}, aktuell: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Aktuelle Version",
   "custom": "Benutzerdefiniert",
   "danger_zone": "Gefahrenzone",

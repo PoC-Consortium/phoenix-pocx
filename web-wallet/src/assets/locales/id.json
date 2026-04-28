@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Semua file yatim telah diselesaikan. Anda dapat menutup dialog ini dan mulai plotting.",
   "orphan_reason_address": "Alamat plotting tidak cocok (file: {actual}, saat ini: {expected})",
   "orphan_reason_compression": "Kompresi tidak cocok (file: {actual}, saat ini: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Versi Saat Ini",
   "custom": "Kustom",
   "danger_zone": "Zona Bahaya",

@@ -481,6 +481,7 @@
   "orphan_all_resolved": "All orphan files resolved. You can close this dialog and start plotting.",
   "orphan_reason_address": "Plotting address mismatch (file: {actual}, current: {expected})",
   "orphan_reason_compression": "Compression mismatch (file: {actual}, current: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "exit_confirm_title": "Confirm Exit",
   "exit_confirm_message": "These processes will be stopped when you exit.",
   "exit_anyway": "Exit",

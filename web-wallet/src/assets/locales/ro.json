@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Toate fișierele orfane rezolvate. Puteți închide acest dialog și începe plottingul.",
   "orphan_reason_address": "Adresa de plotting nu corespunde (fișier: {actual}, actual: {expected})",
   "orphan_reason_compression": "Compresia nu corespunde (fișier: {actual}, actual: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Versiunea curentă",
   "custom": "Personalizat",
   "danger_zone": "Zonă periculoasă",

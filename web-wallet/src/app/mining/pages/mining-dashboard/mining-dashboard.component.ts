@@ -2413,7 +2413,7 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       if (item.type === 'plot') {
         remaining += item.warps;
       } else if (item.type === 'resume') {
-        remaining += item.sizeGib;
+        remaining += item.warps;
       }
     }
     if (remaining >= 1024) {

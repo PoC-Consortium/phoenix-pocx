@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Tutti i file orfani risolti. Puoi chiudere questo dialogo e avviare il plotting.",
   "orphan_reason_address": "Indirizzo di plotting diverso (file: {actual}, attuale: {expected})",
   "orphan_reason_compression": "Compressione diversa (file: {actual}, attuale: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Versione attuale",
   "custom": "Personalizzato",
   "danger_zone": "Zona pericolosa",

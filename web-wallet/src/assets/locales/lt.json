@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Visi naslaiciu failai issprestos. Galite uzdaryti si dialoga ir pradeti plottinga.",
   "orphan_reason_address": "Plottingo adreso neatitikimas (failas: {actual}, esamas: {expected})",
   "orphan_reason_compression": "Suspaudimo neatitikimas (failas: {actual}, esamas: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Dabartinė versija",
   "custom": "Pasirinktinis",
   "danger_zone": "Pavojaus zona",

@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Све сирочадне датотеке су решене. Можете затворити овај дијалог и почети плотовање.",
   "orphan_reason_address": "Неподударање плот адресе (датотека: {actual}, тренутно: {expected})",
   "orphan_reason_compression": "Неподударање компресије (датотека: {actual}, тренутно: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Тренутна верзија",
   "custom": "Прилагођено",
   "danger_zone": "Опасна зона",
