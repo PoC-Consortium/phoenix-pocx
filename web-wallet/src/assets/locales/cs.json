@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Vsechny osirele soubory vyreseny. Muzete zavrit tento dialog a zacit s plotovanim.",
   "orphan_reason_address": "Neshoda plotovaci adresy (soubor: {actual}, aktualni: {expected})",
   "orphan_reason_compression": "Neshoda komprese (soubor: {actual}, aktualni: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Aktuální verze",
   "custom": "Vlastni",
   "danger_zone": "Nebezpecna zona",

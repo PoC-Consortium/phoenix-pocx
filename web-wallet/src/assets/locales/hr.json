@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Sve siroce datoteke su rijesene. Mozete zatvoriti ovaj dijalog i zapoceti plottanje.",
   "orphan_reason_address": "Nepodudaranje plot adrese (datoteka: {actual}, trenutno: {expected})",
   "orphan_reason_compression": "Nepodudaranje kompresije (datoteka: {actual}, trenutno: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Trenutna verzija",
   "custom": "Prilagodeno",
   "danger_zone": "Opasna zona",

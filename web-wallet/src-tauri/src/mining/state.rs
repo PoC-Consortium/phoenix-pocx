@@ -141,13 +141,14 @@ pub struct PlotterDeviceConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PlotPlanItem {
-    /// Resume an incomplete .tmp file
+    /// Resume an incomplete .tmp file. The `seed_hex` (uppercase, 64 chars)
+    /// uniquely identifies which `.tmp` to target — multiple resumable files
+    /// can coexist in the same directory as long as their seeds differ.
     Resume {
         path: String,
-        #[serde(rename = "fileIndex")]
-        file_index: u32,
-        #[serde(rename = "sizeGib")]
-        size_gib: u64,
+        warps: u64,
+        #[serde(rename = "seedHex")]
+        seed_hex: String,
         #[serde(rename = "batchId")]
         batch_id: u32,
     },

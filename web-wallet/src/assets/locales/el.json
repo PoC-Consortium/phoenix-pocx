@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Όλα τα ορφανά αρχεία επιλύθηκαν. Μπορείτε να κλείσετε αυτό το παράθυρο και να ξεκινήσετε το plotting.",
   "orphan_reason_address": "Ασυμφωνία διεύθυνσης plotting (αρχείο: {actual}, τρέχουσα: {expected})",
   "orphan_reason_compression": "Ασυμφωνία συμπίεσης (αρχείο: {actual}, τρέχουσα: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Τρέχουσα έκδοση",
   "custom": "Προσαρμοσμένο",
   "danger_zone": "Επικίνδυνη ζώνη",

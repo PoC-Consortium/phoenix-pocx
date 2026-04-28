@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Alle weesbestanden opgelost. U kunt dit dialoogvenster sluiten en beginnen met plotten.",
   "orphan_reason_address": "Plot-adres komt niet overeen (bestand: {actual}, huidig: {expected})",
   "orphan_reason_compression": "Compressie komt niet overeen (bestand: {actual}, huidig: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Huidige versie",
   "custom": "Aangepast",
   "danger_zone": "Gevarenzone",

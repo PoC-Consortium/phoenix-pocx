@@ -1,5 +1,12 @@
 import { Injectable } from '@angular/core';
-import { DriveInfo, DriveConfig, PlotPlan, PlotPlanItem, PlotPlanStats } from '../models';
+import {
+  DriveInfo,
+  DriveConfig,
+  IncompleteFile,
+  PlotPlan,
+  PlotPlanItem,
+  PlotPlanStats,
+} from '../models';
 
 const BATCH_SIZE = 1024; // 1024 warps = 1 TiB
 
@@ -12,6 +19,7 @@ interface DriveState {
   completeSizeGib: number;
   incompleteSizeGib: number;
   incompleteFiles: number;
+  incompleteDetails: IncompleteFile[];
   allocatedGib: number;
 }
 
@@ -33,6 +41,7 @@ export class PlotPlanService {
         completeSizeGib: drive.completeSizeGib,
         incompleteSizeGib: drive.incompleteSizeGib,
         incompleteFiles: drive.incompleteFiles,
+        incompleteDetails: drive.incompleteDetails ?? [],
         allocatedGib: cfg?.allocatedGib ?? 0,
       };
     });
@@ -97,31 +106,35 @@ export class PlotPlanService {
     };
 
     // Step 3: Generate resume tasks (highest priority)
-    // v2 plotter supports parallel resume with per-path seeds,
-    // so we group resume items across different drives into batches.
-    const resumeItems: Array<{ path: string; fileIndex: number; sizeGib: number }> = [];
+    // v2 plotter supports parallel resume with per-path seeds, so we group
+    // resume items across different drives into batches. Each Resume item
+    // carries its own seed (parsed from the .tmp filename by the scanner),
+    // so two .tmps in the same dir with different seeds can each be resumed.
+    interface ResumeCandidate {
+      path: string;
+      seedHex: string;
+      warps: number;
+    }
+    const resumeItems: ResumeCandidate[] = [];
     for (const drive of driveStates) {
-      if (drive.incompleteFiles > 0) {
-        const sizePerFile = drive.incompleteSizeGib / drive.incompleteFiles;
-        for (let i = 0; i < drive.incompleteFiles; i++) {
-          resumeItems.push({
-            path: drive.path,
-            fileIndex: i,
-            sizeGib: Math.round(sizePerFile),
-          });
-        }
+      for (const file of drive.incompleteDetails) {
+        resumeItems.push({
+          path: drive.path,
+          seedHex: file.seedHex,
+          warps: file.warps,
+        });
       }
     }
 
-    // Group resume items into parallel batches (up to parallelDrives, one per drive per batch)
-    // This leverages v2 plotter's per-path seed support for parallel resume
+    // Group resume items into parallel batches (up to parallelDrives, one per
+    // drive per batch — multiple resumables on the same drive run sequentially
+    // across batches).
     const remaining = [...resumeItems];
     while (remaining.length > 0) {
-      const batch: typeof resumeItems = [];
+      const batch: ResumeCandidate[] = [];
       const usedPaths = new Set<string>();
       const consumed = new Set<number>();
 
-      // Fill batch with items from different drives
       for (let i = 0; i < remaining.length && batch.length < config.parallelDrives; i++) {
         if (!usedPaths.has(remaining[i].path)) {
           batch.push(remaining[i]);
@@ -132,25 +145,22 @@ export class PlotPlanService {
 
       if (batch.length === 0) break; // Safety
 
-      // Add batch items to plan
       for (const item of batch) {
         plan.push({
           type: 'resume',
           path: item.path,
-          fileIndex: item.fileIndex,
-          sizeGib: item.sizeGib,
+          warps: item.warps,
+          seedHex: item.seedHex,
           batchId,
         });
         markTaskComplete(item.path);
       }
       batchId++;
 
-      // Check for completed drives after batch
       for (const item of batch) {
         checkAndAddMiner(item.path);
       }
 
-      // Remove consumed items (reverse order to preserve indices)
       const indices = [...consumed].sort((a, b) => b - a);
       for (const idx of indices) {
         remaining.splice(idx, 1);
@@ -427,9 +437,9 @@ export class PlotPlanService {
           completedTasks++;
         }
       } else if (item.type === 'resume') {
-        totalWarps += item.sizeGib;
+        totalWarps += item.warps;
         if (i < currentIndex) {
-          completedWarps += item.sizeGib;
+          completedWarps += item.warps;
         }
 
         // Count unique resume batches

@@ -150,6 +150,7 @@
   "orphan_all_resolved": "सभी अनाथ फ़ाइलें हल हो गईं. आप इस संवाद को बंद कर सकते हैं और प्लॉटिंग शुरू कर सकते हैं.",
   "orphan_reason_address": "प्लॉटिंग पता मेल नहीं खाता (फ़ाइल: {actual}, वर्तमान: {expected})",
   "orphan_reason_compression": "कम्प्रेशन मेल नहीं खाता (फ़ाइल: {actual}, वर्तमान: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "वर्तमान संस्करण",
   "custom": "कस्टम",
   "danger_zone": "खतरा क्षेत्र",

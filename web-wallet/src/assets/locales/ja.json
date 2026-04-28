@@ -150,6 +150,7 @@
   "orphan_all_resolved": "すべての孤立ファイルが解決されました。このダイアログを閉じてプロットを開始できます。",
   "orphan_reason_address": "プロットアドレスが一致しません (ファイル: {actual}、現在: {expected})",
   "orphan_reason_compression": "圧縮が一致しません (ファイル: {actual}、現在: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "現在のバージョン",
   "custom": "カスタム",
   "danger_zone": "危険ゾーン",

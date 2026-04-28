@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Todos os ficheiros orfos resoltos. Pode pechar este diálogo e iniciar o plotting.",
   "orphan_reason_address": "Enderezo de plotting non coincidente (ficheiro: {actual}, actual: {expected})",
   "orphan_reason_compression": "Compresión non coincidente (ficheiro: {actual}, actual: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Versión actual",
   "custom": "Personalizado",
   "danger_zone": "Zona de perigo",

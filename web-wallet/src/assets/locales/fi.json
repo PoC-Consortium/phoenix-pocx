@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Kaikki orpotiedostot ratkaistu. Voit sulkea tämän valintaikkunan ja aloittaa plotin.",
   "orphan_reason_address": "Plot-osoite ei täsmää (tiedosto: {actual}, nykyinen: {expected})",
   "orphan_reason_compression": "Pakkaus ei täsmää (tiedosto: {actual}, nykyinen: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Nykyinen versio",
   "custom": "Mukautettu",
   "danger_zone": "Vaaravyohyke",

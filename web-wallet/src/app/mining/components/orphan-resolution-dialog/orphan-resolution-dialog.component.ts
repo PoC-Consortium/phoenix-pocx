@@ -188,13 +188,13 @@ export class OrphanResolutionDialogComponent {
   readonly orphanDrives = computed(() => this.miningService.orphanBlocker() ?? []);
 
   formatReason(orphan: OrphanFile): string {
-    const expected = orphan.expected;
-    const actual = orphan.actual;
-    const key: Record<OrphanReason, string> =
-      orphan.reason === 'address_mismatch'
-        ? { address_mismatch: 'orphan_reason_address', compression_mismatch: '' }
-        : { compression_mismatch: 'orphan_reason_compression', address_mismatch: '' };
-    return this.i18n.get(key[orphan.reason], { expected, actual });
+    const params = { expected: orphan.expected, actual: orphan.actual };
+    const keyMap: Record<OrphanReason, string> = {
+      address_mismatch: 'orphan_reason_address',
+      compression_mismatch: 'orphan_reason_compression',
+      duplicate_seed: 'orphan_reason_duplicate_seed',
+    };
+    return this.i18n.get(keyMap[orphan.reason], params);
   }
 
   async deleteOrphan(dirPath: string, orphan: OrphanFile): Promise<void> {
