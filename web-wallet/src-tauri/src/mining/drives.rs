@@ -15,9 +15,9 @@ pub struct DriveInfo {
     pub total_gib: f64,
     pub free_gib: f64,
     pub is_system_drive: bool,
-    pub complete_files: u32,    // .pocx files (ready for mining)
-    pub complete_size_gib: f64, // Size of complete files
-    pub incomplete_files: u32,  // Count of resumable .tmp files (== incomplete_details.len())
+    pub complete_files: u32,      // .pocx files (ready for mining)
+    pub complete_size_gib: f64,   // Size of complete files
+    pub incomplete_files: u32,    // Count of resumable .tmp files (== incomplete_details.len())
     pub incomplete_size_gib: f64, // Total size of resumable .tmp files
     pub incomplete_details: Vec<IncompleteFile>, // Per-file resume metadata (seed, warps)
     pub volume_id: Option<String>, // Volume GUID for same-drive detection (handles mount points)

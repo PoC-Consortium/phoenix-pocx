@@ -408,12 +408,7 @@ pub async fn execute_plot_batch<R: Runtime>(
                 ..
             } => {
                 let seed = decode_seed_hex(seed_hex)?;
-                log::info!(
-                    "Resume for {}: warps={}, seed={}",
-                    path,
-                    warps,
-                    seed_hex
-                );
+                log::info!("Resume for {}: warps={}, seed={}", path, warps, seed_hex);
                 outputs.push(BatchPlotOutput {
                     path: path.clone(),
                     warps: *warps,
