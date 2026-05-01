@@ -85,13 +85,11 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
               </div>
             </div>
 
-            <!-- #POCXTODO: mainnet blocker — testnet forced on and disabled until mainnet launch -->
             <label class="testnet-toggle">
               <input
                 type="checkbox"
                 [checked]="testnetMode()"
                 (change)="toggleTestnetMode()"
-                disabled
               />
               <span>{{ 'node_setup_testnet_mode' | i18n }}</span>
             </label>
@@ -661,7 +659,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   // State
   readonly currentStep = signal(0);
   readonly selectedMode = signal<NodeMode>('managed');
-  readonly testnetMode = signal(true); // #POCXTODO: mainnet blocker — default to testnet until mainnet launch
+  readonly testnetMode = signal(false);
   readonly releaseInfo = signal<ReleaseInfo | null>(null);
   readonly isFetchingRelease = signal(false);
   readonly platformArch = signal<string>('unknown');
