@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Tüm yetim dosyalar çözüldü. Bu iletişim kutusunu kapatabilir ve plotlamaya başlayabilirsiniz.",
   "orphan_reason_address": "Plotlama adresi uyuşmazlığı (dosya: {actual}, mevcut: {expected})",
   "orphan_reason_compression": "Sıkıştırma uyuşmazlığı (dosya: {actual}, mevcut: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Mevcut Sürüm",
   "custom": "Özel",
   "danger_zone": "Tehlikeli Bölge",

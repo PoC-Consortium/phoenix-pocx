@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Wszystkie osierocone pliki rozwiazane. Mozesz zamknac ten dialog i rozpoczac plotting.",
   "orphan_reason_address": "Niezgodny adres plottingu (plik: {actual}, aktualny: {expected})",
   "orphan_reason_compression": "Niezgodna kompresja (plik: {actual}, aktualna: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Aktualna wersja",
   "custom": "Wlasne",
   "danger_zone": "Strefa niebezpieczenstwa",

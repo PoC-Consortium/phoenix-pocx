@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Усі загублені файли вирішено. Ви можете закрити цей діалог і почати плотинг.",
   "orphan_reason_address": "Невідповідність адреси плотингу (файл: {actual}, поточна: {expected})",
   "orphan_reason_compression": "Невідповідність стиснення (файл: {actual}, поточне: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Поточна версія",
   "custom": "Користувацький",
   "danger_zone": "Небезпечна зона",

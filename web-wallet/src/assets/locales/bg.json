@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Всички осиротели файлове са разрешени. Можете да затворите този диалог и да започнете плотването.",
   "orphan_reason_address": "Несъответствие на адреса за плотване (файл: {actual}, текущ: {expected})",
   "orphan_reason_compression": "Несъответствие на компресията (файл: {actual}, текуща: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Текуща версия",
   "custom": "Персонализиран",
   "danger_zone": "Опасна зона",

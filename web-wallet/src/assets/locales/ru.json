@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Все потерянные файлы устранены. Вы можете закрыть этот диалог и начать плоттинг.",
   "orphan_reason_address": "Адрес плоттинга не совпадает (файл: {actual}, текущий: {expected})",
   "orphan_reason_compression": "Сжатие не совпадает (файл: {actual}, текущее: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Текущая версия",
   "custom": "Пользовательский",
   "danger_zone": "Опасная зона",

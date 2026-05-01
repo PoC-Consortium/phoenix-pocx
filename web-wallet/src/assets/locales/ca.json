@@ -150,6 +150,7 @@
   "orphan_all_resolved": "Tots els fitxers orfes resolts. Podeu tancar aquest diàleg i començar el plotting.",
   "orphan_reason_address": "Adreça de plotting no coincident (fitxer: {actual}, actual: {expected})",
   "orphan_reason_compression": "Compressió no coincident (fitxer: {actual}, actual: {expected})",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "Versió actual",
   "custom": "Personalitzat",
   "danger_zone": "Zona perillosa",

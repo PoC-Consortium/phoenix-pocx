@@ -1361,7 +1361,7 @@ export class MiningService {
           break;
         }
         batchItems.push(item);
-        totalBatchWarps += item.sizeGib;
+        totalBatchWarps += item.warps;
       }
 
       console.log(

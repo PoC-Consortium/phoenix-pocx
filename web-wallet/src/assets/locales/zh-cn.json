@@ -150,6 +150,7 @@
   "orphan_all_resolved": "所有孤立文件已解决。您可以关闭此对话框并开始绘图。",
   "orphan_reason_address": "绘图地址不匹配（文件：{actual}，当前：{expected}）",
   "orphan_reason_compression": "压缩不匹配（文件：{actual}，当前：{expected}）",
+  "orphan_reason_duplicate_seed": "Duplicate of another .tmp with the same seed — only one can be resumed",
   "current_version": "当前版本",
   "custom": "自定义",
   "danger_zone": "危险区",

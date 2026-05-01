@@ -46,13 +46,26 @@ export interface DriveInfo {
   isSystemDrive: boolean;
   completeFiles: number; // .pocx files (ready for mining)
   completeSizeGib: number; // Size of complete files
-  incompleteFiles: number; // Resumable .tmp files (matching current config)
-  incompleteSizeGib: number; // Size of resumable .tmp files
+  incompleteFiles: number; // Count of resumable .tmp files (== incompleteDetails.length)
+  incompleteSizeGib: number; // Total size of resumable .tmp files
+  incompleteDetails: IncompleteFile[]; // Per-file resume metadata (seed, warps)
   volumeId?: string; // Volume GUID for same-drive detection (handles mount points)
   orphanFiles: OrphanFile[]; // .tmp files that can't be resumed under current config
 }
 
-export type OrphanReason = 'address_mismatch' | 'compression_mismatch';
+/**
+ * A resumable .tmp file. The seed (parsed from the filename) is the unique key
+ * — the plan generator emits one Resume task per file, carrying its seed so the
+ * plotter targets the right .tmp directly.
+ */
+export interface IncompleteFile {
+  filename: string;
+  seedHex: string; // 64-char uppercase hex
+  warps: number;
+  sizeGib: number;
+}
+
+export type OrphanReason = 'address_mismatch' | 'compression_mismatch' | 'duplicate_seed';
 
 export interface OrphanFile {
   filename: string;
@@ -307,7 +320,7 @@ export type PlotterUIState = 'plotting' | 'stopping' | 'ready' | 'complete';
 // ============================================================================
 
 export type PlotPlanItem =
-  | { type: 'resume'; path: string; fileIndex: number; sizeGib: number; batchId: number }
+  | { type: 'resume'; path: string; warps: number; seedHex: string; batchId: number }
   | { type: 'plot'; path: string; warps: number; batchId: number }
   | { type: 'add_to_miner' };
 
