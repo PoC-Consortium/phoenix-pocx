@@ -86,11 +86,7 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
             </div>
 
             <label class="testnet-toggle">
-              <input
-                type="checkbox"
-                [checked]="testnetMode()"
-                (change)="toggleTestnetMode()"
-              />
+              <input type="checkbox" [checked]="testnetMode()" (change)="toggleTestnetMode()" />
               <span>{{ 'node_setup_testnet_mode' | i18n }}</span>
             </label>
           </div>
