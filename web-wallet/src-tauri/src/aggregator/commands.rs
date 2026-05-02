@@ -112,7 +112,7 @@ pub async fn start_aggregator(
     };
     let listen_address =
         if config.listen_address.ends_with(":0") || config.listen_address.ends_with(":1") {
-            format!("0.0.0.0:{}", effective_port + 1)
+            format!("0.0.0.0:{}", effective_port + 7)
         } else {
             config.listen_address.clone()
         };

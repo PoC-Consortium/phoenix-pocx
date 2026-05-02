@@ -3187,7 +3187,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       const nodeConfig = this.nodeService.config();
       const walletRpcHost = nodeConfig.rpcHost || '127.0.0.1';
       const walletRpcPort = nodeConfig.rpcPort || (nodeConfig.network === 'mainnet' ? 8332 : 18332);
-      const aggregatorPort = walletRpcPort + 1;
+      const aggregatorPort = walletRpcPort + 7;
       const useAggregator = data.aggregatorEnabled;
 
       // Build auth based on node config: aggregator needs no auth (local),
@@ -3303,11 +3303,12 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
    * The config is persisted in saveAndStart() after the mining config is saved.
    */
   private updateAggregatorFromSoloChain(chain: ChainConfig, enabled: boolean): void {
-    // Aggregator listens on upstream RPC port + 1, forwards to wallet RPC node
+    // Aggregator listens on upstream RPC port + 7 (e.g. mainnet 8332 → 8339,
+    // adjacent to PoCX P2P 8338; avoids Bitcoin's mainnet P2P port 8333).
     const nodeConfig = this.nodeService.config();
     const walletRpcHost = nodeConfig.rpcHost || '127.0.0.1';
     const walletRpcPort = nodeConfig.rpcPort || (nodeConfig.network === 'mainnet' ? 8332 : 18332);
-    const aggregatorPort = walletRpcPort + 1;
+    const aggregatorPort = walletRpcPort + 7;
     const config: AggregatorConfig = {
       enabled,
       listenAddress: `0.0.0.0:${aggregatorPort}`,
