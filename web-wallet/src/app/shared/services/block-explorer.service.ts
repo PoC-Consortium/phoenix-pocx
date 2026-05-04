@@ -9,7 +9,7 @@ import { ElectronService } from '../../core/services/electron.service';
  *
  * URLs are network-aware:
  * - Testnet: https://explorer.testnet.bitcoin-pocx.org/testnet
- * - Mainnet: https://explorer.bitcoin-pocx.org/mainnet
+ * - Mainnet: https://explorer.bitcoin-pocx.org
  *
  * Navigation is routed through ElectronService.openExternal so the OS browser
  * opens in the Tauri desktop build (plain window.open is blocked by the
@@ -29,7 +29,7 @@ export class BlockExplorerService {
   private getBaseUrl(): string {
     const net = this.network();
     if (net === 'mainnet') {
-      return 'https://explorer.bitcoin-pocx.org/mainnet';
+      return 'https://explorer.bitcoin-pocx.org';
     }
     // Default to testnet for both testnet and regtest
     return 'https://explorer.testnet.bitcoin-pocx.org/testnet';
