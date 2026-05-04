@@ -1017,6 +1017,9 @@ interface ChainModalData {
                   <option value="https://pool.testnet.bitcoin-pocx.org:443">
                     Nogrod Testnet (pool.testnet.bitcoin-pocx.org)
                   </option>
+                  <option value="https://btcx-pool.cryptoguru.org:443">
+                    CryptoGuru Mainnet (btcx-pool.cryptoguru.org)
+                  </option>
                 </select>
               </div>
               <ng-container *ngTemplateOutlet="authInputs"></ng-container>
@@ -3211,7 +3214,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         priority: editing?.priority ?? this.chainConfigs().length + 1,
       };
     } else if (data.mode === 'pool') {
-      // Match the known Nogrod endpoints so the chain shows up with a
+      // Match the known pool endpoints so the chain shows up with a
       // friendly name. The testnet URL contains `pool.testnet.bitcoin-pocx.org`
       // (not `pool.bitcoin-pocx.org`), so test for the testnet variant first.
       let poolName: string;
@@ -3219,6 +3222,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         poolName = 'Nogrod Testnet';
       } else if (data.poolUrl.includes('pool.bitcoin-pocx.org')) {
         poolName = 'Nogrod Mainnet';
+      } else if (data.poolUrl.includes('btcx-pool.cryptoguru.org')) {
+        poolName = 'CryptoGuru Mainnet';
       } else {
         poolName = data.chainName || 'Pool';
       }
