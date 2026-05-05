@@ -42,3 +42,6 @@ desktop/
 # Claude Code
 .claude/
 todo/
+
+# Git worktrees
+.worktrees/
