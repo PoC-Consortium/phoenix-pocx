@@ -19,6 +19,9 @@ pub mod mining;
 // Node management module
 pub mod node;
 
+// Pool discovery module
+pub mod pools;
+
 // Update checking module
 pub mod update;
 
