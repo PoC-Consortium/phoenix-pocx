@@ -48,7 +48,7 @@ export interface WatchOnlyWalletOptions {
   rescan: WatchOnlyRescan;
 }
 
-function rescanToTimestamp(rescan: WatchOnlyRescan): number | 'now' {
+export function rescanToTimestamp(rescan: WatchOnlyRescan): number | 'now' {
   switch (rescan.kind) {
     case 'now':
       return 'now';
