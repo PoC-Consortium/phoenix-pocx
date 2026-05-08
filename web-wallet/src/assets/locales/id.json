@@ -23,6 +23,8 @@
   "aggregator_capacity": "Kapasitas",
   "aggregator_capacity_estimate": "Estimasi Kapasitas",
   "aggregator_error": "Error",
+
+  "aggregator_listen_port": "Port Dengar Aggregator",
   "aggregator_listening_on": "Mendengarkan di {address}",
   "aggregator_machine_id": "ID Mesin",
   "aggregator_machines": "Mesin",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Harap hentikan yang berikut sebelum memperbarui: ",
   "node_update_restart_hint": "Ingat untuk memulai ulang aggregator dan miner setelah pembaruan.",
   "node_updates": "Pembaruan",
+
+  "node_wallet_rpc_port": "Port RPC Node/Dompet",
   "node_network_switched": "Jaringan dialihkan ke ",
   "node_network_change_stop_hint": "Hentikan miner, aggregator, dan node sebelum mengubah jaringan.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Dicabut pada blok",
   "rpc_host": "Host RPC",
   "rpc_port": "Port RPC",
+
+  "rpc_port_hint": "Biarkan kosong untuk menggunakan default jaringan.",
   "running": "Berjalan",
   "save": "Simpan",
   "save_apply": "Simpan & Terapkan",

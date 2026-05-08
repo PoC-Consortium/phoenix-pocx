@@ -23,6 +23,8 @@
   "aggregator_capacity": "Kapacita",
   "aggregator_capacity_estimate": "Odhad kapacity",
   "aggregator_error": "Chyba",
+
+  "aggregator_listen_port": "Naslouchací port agregátoru",
   "aggregator_listening_on": "Naslouchá na {address}",
   "aggregator_machine_id": "ID stroje",
   "aggregator_machines": "Stroje",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Před aktualizací prosím zastavte následující: ",
   "node_update_restart_hint": "Po aktualizaci nezapomeňte restartovat agregátor a miner.",
   "node_updates": "Aktualizace",
+
+  "node_wallet_rpc_port": "RPC port uzlu/peněženky",
   "node_network_switched": "Síť přepnuta na ",
   "node_network_change_stop_hint": "Před změnou sítě zastavte miner, agregátor a uzel.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Zruseno na bloku",
   "rpc_host": "RPC host",
   "rpc_port": "RPC port",
+
+  "rpc_port_hint": "Ponechte prázdné pro použití výchozí hodnoty sítě.",
   "running": "Běží",
   "save": "Ulozit",
   "save_apply": "Ulozit a pouzit",

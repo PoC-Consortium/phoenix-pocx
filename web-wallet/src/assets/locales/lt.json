@@ -23,6 +23,8 @@
   "aggregator_capacity": "Talpa",
   "aggregator_capacity_estimate": "Talpos įvertinimas",
   "aggregator_error": "Klaida",
+
+  "aggregator_listen_port": "Agregatoriaus klausymo prievadas",
   "aggregator_listening_on": "Klausoma {address}",
   "aggregator_machine_id": "Mašinos ID",
   "aggregator_machines": "Mašinos",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Prieš atnaujinant sustabdykite šiuos: ",
   "node_update_restart_hint": "Nepamirškite po atnaujinimo iš naujo paleisti agregatorių ir kasėją.",
   "node_updates": "Atnaujinimai",
+
+  "node_wallet_rpc_port": "Mazgo/piniginės RPC prievadas",
   "node_network_switched": "Tinklas perjungtas į ",
   "node_network_change_stop_hint": "Prieš keičiant tinklą sustabdykite kasėją, agregatorių ir mazgą.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Atsaukta bloke",
   "rpc_host": "RPC serveris",
   "rpc_port": "RPC prievadas",
+
+  "rpc_port_hint": "Palikite tuščią, kad būtų naudojama numatytoji tinklo reikšmė.",
   "running": "Veikia",
   "save": "Issaugoti",
   "save_apply": "Issaugoti ir taikyti",

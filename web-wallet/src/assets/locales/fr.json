@@ -23,6 +23,8 @@
   "aggregator_capacity": "Capacité",
   "aggregator_capacity_estimate": "Estimation de capacité",
   "aggregator_error": "Erreur",
+
+  "aggregator_listen_port": "Port d'écoute de l'agrégateur",
   "aggregator_listening_on": "Écoute sur {address}",
   "aggregator_machine_id": "ID de machine",
   "aggregator_machines": "Machines",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Veuillez arrêter les éléments suivants avant la mise à jour : ",
   "node_update_restart_hint": "N'oubliez pas de redémarrer l'agrégateur et le mineur après la mise à jour.",
   "node_updates": "Mises a jour",
+
+  "node_wallet_rpc_port": "Port RPC du nœud/portefeuille",
   "node_network_switched": "Réseau basculé vers ",
   "node_network_change_stop_hint": "Arrêtez le mineur, l'agrégateur et le nœud avant de changer de réseau.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Revoque au bloc",
   "rpc_host": "Hote RPC",
   "rpc_port": "Port RPC",
+
+  "rpc_port_hint": "Laissez vide pour utiliser la valeur par défaut du réseau.",
   "running": "En cours",
   "save": "Enregistrer",
   "save_apply": "Enregistrer et appliquer",

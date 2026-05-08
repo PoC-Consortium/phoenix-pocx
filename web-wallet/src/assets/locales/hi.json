@@ -23,6 +23,8 @@
   "aggregator_capacity": "क्षमता",
   "aggregator_capacity_estimate": "क्षमता अनुमान",
   "aggregator_error": "त्रुटि",
+
+  "aggregator_listen_port": "एग्रीगेटर लिसन पोर्ट",
   "aggregator_listening_on": "{address} पर सुन रहा है",
   "aggregator_machine_id": "मशीन ID",
   "aggregator_machines": "मशीनें",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "अपडेट करने से पहले कृपया निम्नलिखित को रोकें: ",
   "node_update_restart_hint": "अपडेट के बाद एग्रीगेटर और माइनर को पुनः आरंभ करना न भूलें।",
   "node_updates": "अपडेट",
+
+  "node_wallet_rpc_port": "नोड/वॉलेट RPC पोर्ट",
   "node_network_switched": "नेटवर्क बदला गया: ",
   "node_network_change_stop_hint": "नेटवर्क बदलने से पहले माइनर, एग्रीगेटर और नोड को रोकें।",
   "nonce": "नॉन्स",
@@ -553,6 +557,8 @@
   "revoked_at_block": "ब्लॉक पर रद्द हुआ",
   "rpc_host": "RPC होस्ट",
   "rpc_port": "RPC पोर्ट",
+
+  "rpc_port_hint": "नेटवर्क डिफ़ॉल्ट का उपयोग करने के लिए खाली छोड़ें।",
   "running": "चल रहा है",
   "save": "सहेजें",
   "save_apply": "सहेजें और लागू करें",

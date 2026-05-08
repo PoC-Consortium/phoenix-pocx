@@ -23,6 +23,8 @@
   "aggregator_capacity": "Χωρητικότητα",
   "aggregator_capacity_estimate": "Εκτίμηση χωρητικότητας",
   "aggregator_error": "Σφάλμα",
+
+  "aggregator_listen_port": "Θύρα ακρόασης συναθροιστή",
   "aggregator_listening_on": "Ακρόαση στο {address}",
   "aggregator_machine_id": "ID μηχανής",
   "aggregator_machines": "Μηχανές",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Παρακαλώ σταματήστε τα ακόλουθα πριν την ενημέρωση: ",
   "node_update_restart_hint": "Θυμηθείτε να επανεκκινήσετε τον aggregator και τον miner μετά την ενημέρωση.",
   "node_updates": "Ενημερώσεις",
+
+  "node_wallet_rpc_port": "Θύρα RPC κόμβου/πορτοφολιού",
   "node_network_switched": "Το δίκτυο άλλαξε σε ",
   "node_network_change_stop_hint": "Σταματήστε τον miner, τον aggregator και τον κόμβο πριν αλλάξετε δίκτυο.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Ανακλήθηκε στο block",
   "rpc_host": "RPC Host",
   "rpc_port": "Θύρα RPC",
+
+  "rpc_port_hint": "Αφήστε κενό για χρήση της προεπιλογής δικτύου.",
   "running": "Εκτελείται",
   "save": "Αποθήκευση",
   "save_apply": "Αποθήκευση & Εφαρμογή",

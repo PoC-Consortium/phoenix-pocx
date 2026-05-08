@@ -23,6 +23,8 @@
   "aggregator_capacity": "Kapasiteetti",
   "aggregator_capacity_estimate": "Kapasiteettiarvio",
   "aggregator_error": "Virhe",
+
+  "aggregator_listen_port": "Aggregaattorin kuunteluportti",
   "aggregator_listening_on": "Kuuntelee osoitteessa {address}",
   "aggregator_machine_id": "Koneen ID",
   "aggregator_machines": "Koneet",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Pysäytä seuraavat ennen päivitystä: ",
   "node_update_restart_hint": "Muista käynnistää aggregaattori ja louhija uudelleen päivityksen jälkeen.",
   "node_updates": "Paivitykset",
+
+  "node_wallet_rpc_port": "Solmun/lompakon RPC-portti",
   "node_network_switched": "Verkko vaihdettu: ",
   "node_network_change_stop_hint": "Pysäytä louhija, aggregaattori ja solmu ennen verkon vaihtamista.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Peruttu lohkossa",
   "rpc_host": "RPC-isanta",
   "rpc_port": "RPC-portti",
+
+  "rpc_port_hint": "Jätä tyhjäksi käyttääksesi verkon oletusarvoa.",
   "running": "Kaynnissa",
   "save": "Tallenna",
   "save_apply": "Tallenna ja kayta",

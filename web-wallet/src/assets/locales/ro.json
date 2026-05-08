@@ -23,6 +23,8 @@
   "aggregator_capacity": "Capacitate",
   "aggregator_capacity_estimate": "Estimare capacitate",
   "aggregator_error": "Eroare",
+
+  "aggregator_listen_port": "Port de ascultare al agregatorului",
   "aggregator_listening_on": "Ascultă pe {address}",
   "aggregator_machine_id": "ID mașină",
   "aggregator_machines": "Mașini",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Vă rugăm să opriți următoarele înainte de actualizare: ",
   "node_update_restart_hint": "Nu uitați să reporniți agregatorul și minerul după actualizare.",
   "node_updates": "Actualizări",
+
+  "node_wallet_rpc_port": "Port RPC nod/portofel",
   "node_network_switched": "Rețeaua a fost schimbată la ",
   "node_network_change_stop_hint": "Opriți minerul, agregatorul și nodul înainte de a schimba rețeaua.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Revocat la blocul",
   "rpc_host": "Host RPC",
   "rpc_port": "Port RPC",
+
+  "rpc_port_hint": "Lăsați gol pentru a folosi valoarea implicită a rețelei.",
   "running": "Rulează",
   "save": "Salvează",
   "save_apply": "Salvează și aplică",

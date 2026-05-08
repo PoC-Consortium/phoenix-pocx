@@ -23,6 +23,8 @@
   "aggregator_capacity": "Capaciteit",
   "aggregator_capacity_estimate": "Capaciteitsschatting",
   "aggregator_error": "Fout",
+
+  "aggregator_listen_port": "Aggregator Luisterpoort",
   "aggregator_listening_on": "Luistert op {address}",
   "aggregator_machine_id": "Machine ID",
   "aggregator_machines": "Machines",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Stop het volgende voordat u bijwerkt: ",
   "node_update_restart_hint": "Vergeet niet de aggregator en miner opnieuw te starten na de update.",
   "node_updates": "Updates",
+
+  "node_wallet_rpc_port": "Node/Wallet RPC Poort",
   "node_network_switched": "Netwerk overgeschakeld naar ",
   "node_network_change_stop_hint": "Stop de miner, aggregator en het knooppunt voordat u van netwerk wisselt.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Ingetrokken bij blok",
   "rpc_host": "RPC Host",
   "rpc_port": "RPC Poort",
+
+  "rpc_port_hint": "Laat leeg om de netwerkstandaard te gebruiken.",
   "running": "Actief",
   "save": "Opslaan",
   "save_apply": "Opslaan & Toepassen",
