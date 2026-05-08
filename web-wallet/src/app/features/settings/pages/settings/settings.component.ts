@@ -239,37 +239,51 @@ function withListenPort(listenAddress: string, port: number): string {
                       }
                     </div>
 
-                    <div class="config-section">
-                      <h3 class="section-title">{{ 'advanced' | i18n }}</h3>
-                      <div class="form-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                          <mat-label>{{ 'rpc_port' | i18n }}</mat-label>
-                          <input
-                            matInput
-                            type="number"
-                            [(ngModel)]="activeConfig.rpcPort"
-                            min="1"
-                            max="65535"
-                            [disabled]="isManagedNodeBusy()"
-                          />
-                        </mat-form-field>
-                        <mat-form-field appearance="outline" class="half-width">
-                          <mat-label>{{ 'aggregator_listen_port' | i18n }}</mat-label>
-                          <input
-                            matInput
-                            type="number"
-                            [(ngModel)]="aggregatorListenPort"
-                            min="1"
-                            max="65535"
-                            [disabled]="isManagedNodeBusy()"
-                          />
-                        </mat-form-field>
+                    <div class="config-section advanced-config-section">
+                      <div class="advanced-header">
+                        <h3 class="section-title">{{ 'setup_advanced_options' | i18n }}</h3>
+                        <button
+                          type="button"
+                          class="collapse-toggle"
+                          (click)="managedAdvancedOpen.update(v => !v)"
+                        >
+                          <span>{{
+                            managedAdvancedOpen() ? ('setup_hide' | i18n) : ('setup_show' | i18n)
+                          }}</span>
+                          <span>{{ managedAdvancedOpen() ? '&#9660;' : '&#9654;' }}</span>
+                        </button>
                       </div>
-                      @if (isManagedNodeBusy()) {
-                        <p class="hint-text">
-                          <mat-icon class="hint-icon">info</mat-icon>
-                          {{ 'node_network_change_stop_hint' | i18n }}
-                        </p>
+                      @if (managedAdvancedOpen()) {
+                        <div class="form-row">
+                          <mat-form-field appearance="outline" class="half-width">
+                            <mat-label>{{ 'node_wallet_rpc_port' | i18n }}</mat-label>
+                            <input
+                              matInput
+                              type="number"
+                              [(ngModel)]="activeConfig.rpcPort"
+                              min="1"
+                              max="65535"
+                              [disabled]="isManagedNodeBusy()"
+                            />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline" class="half-width">
+                            <mat-label>{{ 'aggregator_listen_port' | i18n }}</mat-label>
+                            <input
+                              matInput
+                              type="number"
+                              [(ngModel)]="aggregatorListenPort"
+                              min="1"
+                              max="65535"
+                              [disabled]="isManagedNodeBusy()"
+                            />
+                          </mat-form-field>
+                        </div>
+                        @if (isManagedNodeBusy()) {
+                          <p class="hint-text">
+                            <mat-icon class="hint-icon">info</mat-icon>
+                            {{ 'node_network_change_stop_hint' | i18n }}
+                          </p>
+                        }
                       }
                     </div>
 
@@ -920,6 +934,39 @@ function withListenPort(listenAddress: string, port: number): string {
         margin: 0 0 16px 0;
       }
 
+      .advanced-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+
+        .section-title {
+          margin-bottom: 0;
+        }
+
+        .collapse-toggle {
+          background: rgba(0, 0, 0, 0.06);
+          border: none;
+          color: rgba(0, 0, 0, 0.7);
+          padding: 3px 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+          display: flex;
+          gap: 4px;
+          align-items: center;
+          transition: background 0.2s;
+
+          &:hover {
+            background: rgba(0, 0, 0, 0.12);
+          }
+        }
+      }
+
+      .advanced-config-section .form-row {
+        margin-top: 8px;
+      }
+
       .vertical-radio-group {
         display: flex;
         flex-direction: column;
@@ -1517,6 +1564,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /** Aggregator listen port (managed mode advanced) — bound to a number-input. */
   aggregatorListenPort: number | null = null;
+
+  /** Whether the managed-mode Advanced section is expanded. */
+  readonly managedAdvancedOpen = signal(false);
 
   /** Returns the temp config for the currently selected mode */
   get activeConfig(): NodeConfig {

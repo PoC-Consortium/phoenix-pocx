@@ -90,23 +90,31 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
               <span>{{ 'node_setup_testnet_mode' | i18n }}</span>
             </label>
 
-            <details class="advanced-section">
-              <summary>{{ 'node_setup_advanced' | i18n }}</summary>
-              <div class="advanced-content">
-                <label class="port-field">
-                  <span class="port-label">{{ 'rpc_port' | i18n }}</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="65535"
-                    [value]="customRpcPort() ?? ''"
-                    (input)="onCustomRpcPortInput($event)"
-                    [placeholder]="getDefaultRpcPortForUi()"
-                  />
-                </label>
-                <p class="port-hint">{{ 'rpc_port_hint' | i18n }}</p>
+            <div class="advanced-section">
+              <div class="section-header">
+                <span class="section-title">{{ 'setup_advanced_options' | i18n }}</span>
+                <button class="collapse-toggle" type="button" (click)="toggleAdvanced()">
+                  <span>{{ advancedOpen() ? ('setup_hide' | i18n) : ('setup_show' | i18n) }}</span>
+                  <span>{{ advancedOpen() ? '&#9660;' : '&#9654;' }}</span>
+                </button>
               </div>
-            </details>
+              @if (advancedOpen()) {
+                <div class="section-content">
+                  <label class="port-field">
+                    <span class="port-label">{{ 'node_wallet_rpc_port' | i18n }}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="65535"
+                      [value]="customRpcPort() ?? ''"
+                      (input)="onCustomRpcPortInput($event)"
+                      [placeholder]="getDefaultRpcPortForUi()"
+                    />
+                  </label>
+                  <p class="port-hint">{{ 'rpc_port_hint' | i18n }}</p>
+                </div>
+              }
+            </div>
           </div>
 
           <div class="box-actions">
@@ -405,19 +413,49 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
       }
 
       .advanced-section {
-        margin-top: 12px;
+        margin-top: 16px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        border-radius: 6px;
+        overflow: hidden;
         font-size: 13px;
+      }
 
-        summary {
-          cursor: pointer;
-          color: rgba(0, 0, 0, 0.6);
-          padding: 4px 0;
-          user-select: none;
-        }
+      .advanced-section .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.04);
+      }
 
-        .advanced-content {
-          padding: 8px 0 0 16px;
-        }
+      .advanced-section .section-title {
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(0, 0, 0, 0.7);
+      }
+
+      .advanced-section .collapse-toggle {
+        background: rgba(0, 0, 0, 0.06);
+        border: none;
+        color: rgba(0, 0, 0, 0.7);
+        padding: 3px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        transition: background 0.2s;
+      }
+
+      .advanced-section .collapse-toggle:hover {
+        background: rgba(0, 0, 0, 0.12);
+      }
+
+      .advanced-section .section-content {
+        padding: 12px;
       }
 
       .port-field {
@@ -426,7 +464,7 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
         gap: 12px;
 
         .port-label {
-          min-width: 80px;
+          min-width: 140px;
           color: rgba(0, 0, 0, 0.6);
         }
 
@@ -445,7 +483,7 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
       }
 
       .port-hint {
-        margin: 6px 0 0 92px;
+        margin: 6px 0 0 152px;
         font-size: 12px;
         color: rgba(0, 0, 0, 0.5);
       }
@@ -721,6 +759,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   readonly selectedMode = signal<NodeMode>('managed');
   readonly testnetMode = signal(false);
   readonly customRpcPort = signal<number | null>(null);
+  readonly advancedOpen = signal(false);
   readonly releaseInfo = signal<ReleaseInfo | null>(null);
   readonly isFetchingRelease = signal(false);
   readonly platformArch = signal<string>('unknown');
@@ -846,6 +885,10 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
 
   toggleTestnetMode(): void {
     this.testnetMode.update(v => !v);
+  }
+
+  toggleAdvanced(): void {
+    this.advancedOpen.update(v => !v);
   }
 
   onCustomRpcPortInput(event: Event): void {
