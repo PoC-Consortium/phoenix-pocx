@@ -39,7 +39,11 @@ import {
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MiningService } from '../../../../mining/services';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
-import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
+import {
+  WalletManagerService,
+  WatchOnlyRescan,
+  rescanToTimestamp,
+} from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { NodeService, NodeMode } from '../../../../node';
 import { AggregatorService } from '../../../../aggregator/services/aggregator.service';
 
@@ -614,6 +618,45 @@ interface ConnectionTestResult {
                       />
                     </mat-form-field>
 
+                    <div class="wif-rescan-section">
+                      <p class="wif-rescan-label">{{ 'watch_only_rescan_label' | i18n }}</p>
+                      <mat-radio-group
+                        class="wif-rescan-group"
+                        [value]="wifRescanKind()"
+                        (change)="wifRescanKind.set($event.value)"
+                        [disabled]="isImportingWif()"
+                      >
+                        <mat-radio-button value="now">
+                          {{ 'watch_only_rescan_now' | i18n }}
+                        </mat-radio-button>
+                        <mat-radio-button value="date">
+                          {{ 'watch_only_rescan_date' | i18n }}
+                        </mat-radio-button>
+                        <mat-radio-button value="genesis">
+                          {{ 'watch_only_rescan_genesis' | i18n }}
+                        </mat-radio-button>
+                      </mat-radio-group>
+
+                      @if (wifRescanKind() === 'date') {
+                        <mat-form-field appearance="outline" class="wif-rescan-date-field">
+                          <mat-label>{{ 'watch_only_rescan_date_label' | i18n }}</mat-label>
+                          <input
+                            matInput
+                            type="date"
+                            [(ngModel)]="wifRescanDateInput"
+                            [disabled]="isImportingWif()"
+                          />
+                        </mat-form-field>
+                      }
+
+                      @if (wifRescanKind() === 'now') {
+                        <p class="wif-rescan-warning">
+                          <mat-icon>warning</mat-icon>
+                          {{ 'watch_only_rescan_warning_now' | i18n }}
+                        </p>
+                      }
+                    </div>
+
                     @if (wifError()) {
                       <div class="wif-error">
                         <mat-icon>error</mat-icon>
@@ -647,7 +690,7 @@ interface ConnectionTestResult {
                         mat-raised-button
                         color="warn"
                         (click)="importWif()"
-                        [disabled]="!wifPreview() || isImportingWif()"
+                        [disabled]="!wifPreview() || isImportingWif() || !canImportWif()"
                       >
                         @if (isImportingWif()) {
                           <mat-spinner diameter="18"></mat-spinner>
@@ -1144,6 +1187,42 @@ interface ConnectionTestResult {
         }
       }
 
+      .wif-rescan-section {
+        margin-top: -8px;
+      }
+
+      .wif-rescan-label {
+        font-weight: 500;
+        margin-bottom: 8px;
+      }
+
+      .wif-rescan-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .wif-rescan-date-field {
+        margin-top: 12px;
+        width: 240px;
+      }
+
+      .wif-rescan-warning {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        color: #f57c00;
+        font-size: 13px;
+        margin-top: 12px;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+      }
+
       .wif-actions {
         display: flex;
         gap: 12px;
@@ -1460,6 +1539,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   wifError = signal<string | null>(null);
   isValidatingWif = signal(false);
   isImportingWif = signal(false);
+  wifRescanKind = signal<'now' | 'date' | 'genesis'>('now');
+  wifRescanDateInput = '';
 
   // Independent temp configs for each mode (switching radio doesn't lose settings)
   managedTempConfig: NodeConfig = { ...defaultNodeConfig };
@@ -1544,6 +1625,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.wifLabel.set('');
     this.wifPreview.set(null);
     this.wifError.set(null);
+    this.wifRescanKind.set('now');
+    this.wifRescanDateInput = '';
   }
 
   goBack(): void {
@@ -1843,28 +1926,49 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  canImportWif(): boolean {
+    if (this.wifRescanKind() === 'date' && !this.wifRescanDateInput) return false;
+    return true;
+  }
+
+  private buildWifRescan(): WatchOnlyRescan | null {
+    const kind = this.wifRescanKind();
+    if (kind === 'now') return { kind: 'now' };
+    if (kind === 'genesis') return { kind: 'genesis' };
+    const date = new Date(this.wifRescanDateInput);
+    const timestamp = Math.floor(date.getTime() / 1000);
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+    return { kind: 'date', timestamp };
+  }
+
   async importWif(): Promise<void> {
     const preview = this.wifPreview();
     const walletName = this.walletManager.activeWallet;
 
     if (!preview || !walletName) return;
 
+    const rescan = this.buildWifRescan();
+    if (!rescan) return;
+    const timestamp = rescanToTimestamp(rescan);
+
     this.isImportingWif.set(true);
 
     try {
       const label = this.wifLabel().trim() || undefined;
 
-      // Use short timeout (5s) - if it times out, import likely succeeded but wallet is rescanning
+      // For 'now', use a short timeout (5s) — import is near-instant. For an actual rescan,
+      // let it run with the default timeout; treat it as fire-and-forget on the UI side.
+      const timeoutMs = rescan.kind === 'now' ? 5000 : undefined;
       const result = await this.walletRpc.importDescriptors(
         walletName,
         [
           {
             desc: preview.descriptor,
-            timestamp: 'now',
+            timestamp,
             label,
           },
         ],
-        5000
+        timeoutMs
       );
 
       if (result && result.length > 0 && result[0].success) {
