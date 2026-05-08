@@ -89,6 +89,24 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
               <input type="checkbox" [checked]="testnetMode()" (change)="toggleTestnetMode()" />
               <span>{{ 'node_setup_testnet_mode' | i18n }}</span>
             </label>
+
+            <details class="advanced-section">
+              <summary>{{ 'node_setup_advanced' | i18n }}</summary>
+              <div class="advanced-content">
+                <label class="port-field">
+                  <span class="port-label">{{ 'rpc_port' | i18n }}</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    [value]="customRpcPort() ?? ''"
+                    (input)="onCustomRpcPortInput($event)"
+                    [placeholder]="getDefaultRpcPortForUi()"
+                  />
+                </label>
+                <p class="port-hint">{{ 'rpc_port_hint' | i18n }}</p>
+              </div>
+            </details>
           </div>
 
           <div class="box-actions">
@@ -386,6 +404,52 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
         cursor: pointer;
       }
 
+      .advanced-section {
+        margin-top: 12px;
+        font-size: 13px;
+
+        summary {
+          cursor: pointer;
+          color: rgba(0, 0, 0, 0.6);
+          padding: 4px 0;
+          user-select: none;
+        }
+
+        .advanced-content {
+          padding: 8px 0 0 16px;
+        }
+      }
+
+      .port-field {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        .port-label {
+          min-width: 80px;
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        input {
+          width: 120px;
+          padding: 6px 8px;
+          border: 1px solid rgba(0, 0, 0, 0.2);
+          border-radius: 4px;
+          font-size: 13px;
+
+          &:focus {
+            outline: none;
+            border-color: #1976d2;
+          }
+        }
+      }
+
+      .port-hint {
+        margin: 6px 0 0 92px;
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.5);
+      }
+
       .mode-desc {
         font-size: 13px;
         color: rgba(0, 0, 0, 0.6);
@@ -656,6 +720,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   readonly currentStep = signal(0);
   readonly selectedMode = signal<NodeMode>('managed');
   readonly testnetMode = signal(false);
+  readonly customRpcPort = signal<number | null>(null);
   readonly releaseInfo = signal<ReleaseInfo | null>(null);
   readonly isFetchingRelease = signal(false);
   readonly platformArch = signal<string>('unknown');
@@ -783,9 +848,28 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
     this.testnetMode.update(v => !v);
   }
 
+  onCustomRpcPortInput(event: Event): void {
+    const raw = (event.target as HTMLInputElement).value.trim();
+    if (!raw) {
+      this.customRpcPort.set(null);
+      return;
+    }
+    const port = Number(raw);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      this.customRpcPort.set(null);
+      return;
+    }
+    this.customRpcPort.set(port);
+  }
+
+  getDefaultRpcPortForUi(): string {
+    const network = this.testnetMode() ? 'testnet' : 'mainnet';
+    return String(getDefaultRpcPort(network));
+  }
+
   async continueFromModeSelection(): Promise<void> {
     const network = this.testnetMode() ? 'testnet' : 'mainnet';
-    const rpcPort = getDefaultRpcPort(network);
+    const rpcPort = this.customRpcPort() ?? getDefaultRpcPort(network);
 
     // Sync network to NgRx store so RpcClientService uses the correct port
     this.store.dispatch(SettingsActions.setNetwork({ network }));
