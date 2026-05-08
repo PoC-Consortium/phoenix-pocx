@@ -122,6 +122,10 @@ impl NodeManager {
             super::config::Network::Mainnet => {}
         }
 
+        // Pin the RPC port — belt-and-braces alongside `rpcport=` in bitcoin.conf,
+        // and protects against a stale conf when the user changes the port in settings.
+        cmd.arg(format!("-rpcport={}", config.effective_rpc_port()));
+
         // Add custom args if any
         if !config.custom_args.is_empty() {
             for arg in config.custom_args.split_whitespace() {

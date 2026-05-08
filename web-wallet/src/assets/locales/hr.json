@@ -23,6 +23,8 @@
   "aggregator_capacity": "Kapacitet",
   "aggregator_capacity_estimate": "Procjena kapaciteta",
   "aggregator_error": "Greška",
+
+  "aggregator_listen_port": "Port za slušanje agregatora",
   "aggregator_listening_on": "Slušanje na {address}",
   "aggregator_machine_id": "ID stroja",
   "aggregator_machines": "Strojevi",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Molimo zaustavite sljedeće prije ažuriranja: ",
   "node_update_restart_hint": "Ne zaboravite ponovno pokrenuti agregator i rudar nakon ažuriranja.",
   "node_updates": "Azuriranja",
+
+  "node_wallet_rpc_port": "RPC port čvora/novčanika",
   "node_network_switched": "Mreža promijenjena na ",
   "node_network_change_stop_hint": "Zaustavite rudara, agregator i čvor prije promjene mreže.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Opozvano na bloku",
   "rpc_host": "RPC host",
   "rpc_port": "RPC port",
+
+  "rpc_port_hint": "Ostavite prazno za korištenje zadane vrijednosti mreže.",
   "running": "Pokrenuto",
   "save": "Spremi",
   "save_apply": "Spremi i primijeni",

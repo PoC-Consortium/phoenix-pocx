@@ -23,6 +23,8 @@
   "aggregator_capacity": "容量",
   "aggregator_capacity_estimate": "容量推定",
   "aggregator_error": "エラー",
+
+  "aggregator_listen_port": "アグリゲーターのリッスンポート",
   "aggregator_listening_on": "{address}でリッスン中",
   "aggregator_machine_id": "マシンID",
   "aggregator_machines": "マシン",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "更新前に以下を停止してください: ",
   "node_update_restart_hint": "更新後にアグリゲーターとマイナーを再起動することを忘れないでください。",
   "node_updates": "アップデート",
+
+  "node_wallet_rpc_port": "ノード/ウォレットRPCポート",
   "node_network_switched": "ネットワークが切り替わりました: ",
   "node_network_change_stop_hint": "ネットワークを変更する前に、マイナー、アグリゲーター、ノードを停止してください。",
   "nonce": "ノンス",
@@ -553,6 +557,8 @@
   "revoked_at_block": "取り消されたブロック",
   "rpc_host": "RPCホスト",
   "rpc_port": "RPCポート",
+
+  "rpc_port_hint": "ネットワークの既定値を使用する場合は空欄のままにしてください。",
   "running": "実行中",
   "save": "保存",
   "save_apply": "保存して適用",

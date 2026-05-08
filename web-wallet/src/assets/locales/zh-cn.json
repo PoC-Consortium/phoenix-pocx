@@ -23,6 +23,8 @@
   "aggregator_capacity": "容量",
   "aggregator_capacity_estimate": "容量估计",
   "aggregator_error": "错误",
+
+  "aggregator_listen_port": "聚合器监听端口",
   "aggregator_listening_on": "监听 {address}",
   "aggregator_machine_id": "机器 ID",
   "aggregator_machines": "机器",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "更新前请停止以下服务: ",
   "node_update_restart_hint": "更新后请记得重新启动聚合器和矿工。",
   "node_updates": "更新",
+
+  "node_wallet_rpc_port": "节点/钱包 RPC 端口",
   "node_network_switched": "网络已切换至 ",
   "node_network_change_stop_hint": "更改网络前请停止矿工、聚合器和节点。",
   "nonce": "随机数",
@@ -553,6 +557,8 @@
   "revoked_at_block": "撤销于区块",
   "rpc_host": "RPC 主机",
   "rpc_port": "RPC 端口",
+
+  "rpc_port_hint": "留空以使用网络默认值。",
   "running": "运行中",
   "save": "保存",
   "save_apply": "保存并应用",

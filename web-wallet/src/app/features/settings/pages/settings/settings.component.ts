@@ -46,6 +46,7 @@ import {
 } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { NodeService, NodeMode } from '../../../../node';
 import { AggregatorService } from '../../../../aggregator/services/aggregator.service';
+import { AggregatorConfig } from '../../../../aggregator/models/aggregator.models';
 
 interface ConnectionTestResult {
   success: boolean;
@@ -53,6 +54,21 @@ interface ConnectionTestResult {
   chain?: string;
   blocks?: number;
   error?: string;
+}
+
+/** Extract the port from an "addr:port" listen address. Returns null if unparseable. */
+function parseListenAddressPort(listenAddress: string): number | null {
+  const idx = listenAddress.lastIndexOf(':');
+  if (idx < 0) return null;
+  const port = Number(listenAddress.slice(idx + 1));
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+}
+
+/** Replace the port in an "addr:port" listen address. */
+function withListenPort(listenAddress: string, port: number): string {
+  const idx = listenAddress.lastIndexOf(':');
+  const host = idx >= 0 ? listenAddress.slice(0, idx) : '0.0.0.0';
+  return `${host}:${port}`;
 }
 
 /**
@@ -224,6 +240,54 @@ interface ConnectionTestResult {
                           <mat-icon class="hint-icon">info</mat-icon>
                           {{ 'node_network_change_stop_hint' | i18n }}
                         </p>
+                      }
+                    </div>
+
+                    <div class="config-section advanced-config-section">
+                      <div class="advanced-header">
+                        <h3 class="section-title">{{ 'setup_advanced_options' | i18n }}</h3>
+                        <button
+                          type="button"
+                          class="collapse-toggle"
+                          (click)="managedAdvancedOpen.update(v => !v)"
+                        >
+                          <span>{{
+                            managedAdvancedOpen() ? ('setup_hide' | i18n) : ('setup_show' | i18n)
+                          }}</span>
+                          <span>{{ managedAdvancedOpen() ? '&#9660;' : '&#9654;' }}</span>
+                        </button>
+                      </div>
+                      @if (managedAdvancedOpen()) {
+                        <div class="form-row">
+                          <mat-form-field appearance="outline" class="half-width">
+                            <mat-label>{{ 'node_wallet_rpc_port' | i18n }}</mat-label>
+                            <input
+                              matInput
+                              type="number"
+                              [(ngModel)]="activeConfig.rpcPort"
+                              min="1"
+                              max="65535"
+                              [disabled]="isManagedNodeBusy()"
+                            />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline" class="half-width">
+                            <mat-label>{{ 'aggregator_listen_port' | i18n }}</mat-label>
+                            <input
+                              matInput
+                              type="number"
+                              [(ngModel)]="aggregatorListenPort"
+                              min="1"
+                              max="65535"
+                              [disabled]="isManagedNodeBusy()"
+                            />
+                          </mat-form-field>
+                        </div>
+                        @if (isManagedNodeBusy()) {
+                          <p class="hint-text">
+                            <mat-icon class="hint-icon">info</mat-icon>
+                            {{ 'node_network_change_stop_hint' | i18n }}
+                          </p>
+                        }
                       }
                     </div>
 
@@ -913,6 +977,39 @@ interface ConnectionTestResult {
         margin: 0 0 16px 0;
       }
 
+      .advanced-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+
+        .section-title {
+          margin-bottom: 0;
+        }
+
+        .collapse-toggle {
+          background: rgba(0, 0, 0, 0.06);
+          border: none;
+          color: rgba(0, 0, 0, 0.7);
+          padding: 3px 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 11px;
+          display: flex;
+          gap: 4px;
+          align-items: center;
+          transition: background 0.2s;
+
+          &:hover {
+            background: rgba(0, 0, 0, 0.12);
+          }
+        }
+      }
+
+      .advanced-config-section .form-row {
+        margin-top: 8px;
+      }
+
       .vertical-radio-group {
         display: flex;
         flex-direction: column;
@@ -1546,9 +1643,25 @@ export class SettingsComponent implements OnInit, OnDestroy {
   managedTempConfig: NodeConfig = { ...defaultNodeConfig };
   externalTempConfig: NodeConfig = { ...defaultNodeConfig };
 
+  /** Aggregator listen port (managed mode advanced) — bound to a number-input. */
+  aggregatorListenPort: number | null = null;
+
+  /** Whether the managed-mode Advanced section is expanded. */
+  readonly managedAdvancedOpen = signal(false);
+
   /** Returns the temp config for the currently selected mode */
   get activeConfig(): NodeConfig {
     return this.nodeMode() === 'managed' ? this.managedTempConfig : this.externalTempConfig;
+  }
+
+  /** Disable port edits while node/miner/aggregator is running. */
+  isManagedNodeBusy(): boolean {
+    return (
+      this.nodeService.isRunning() ||
+      this.isStoppingNode() ||
+      this.miningService.minerRunning() ||
+      this.aggregatorService.isRunning()
+    );
   }
 
   // Notification settings (local copy for editing)
@@ -1578,16 +1691,22 @@ export class SettingsComponent implements OnInit, OnDestroy {
     await this.nodeService.initialize();
     this.nodeMode.set(this.nodeService.mode());
 
-    // Populate managed temp config: always localhost, cookie auth, network-default port
+    // Populate managed temp config: always localhost, cookie auth, persisted/default port
     const rustConfig = this.nodeService.config();
     const managedNetwork = rustConfig.network || 'testnet';
     const defaultDataDir = getDefaultDataDirectory('bitcoin-pocx', this.platform.platform);
     this.managedTempConfig = {
       ...defaultNodeConfig,
       network: managedNetwork,
-      rpcPort: getDefaultRpcPort(managedNetwork),
+      rpcPort: rustConfig.rpcPort || getDefaultRpcPort(managedNetwork),
       dataDirectory: defaultDataDir,
     };
+
+    // Seed aggregator listen port from persisted config (parsed off "host:port"),
+    // falling back to rpcPort + 7 — same auto-derive rule the mining wizard uses.
+    const aggCfg = this.aggregatorService.config();
+    const parsedAggPort = parseListenAddressPort(aggCfg.listenAddress);
+    this.aggregatorListenPort = parsedAggPort ?? this.managedTempConfig.rpcPort + 7;
 
     // Load external config from NgRx store (persisted external settings)
     this.store
@@ -1766,6 +1885,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
         await this.cookieAuth.refreshCredentials();
       } else {
         this.cookieAuth.setManualCredentials(config.username, config.password);
+      }
+
+      // 4b. Sync aggregator config in managed mode: keep upstream pointed at the
+      // local node's RPC port and persist any custom listen-port the user set.
+      if (mode === 'managed') {
+        await this.syncAggregatorPorts(config.rpcPort);
       }
 
       // 5. Handle managed node lifecycle
@@ -2208,6 +2333,27 @@ export class SettingsComponent implements OnInit, OnDestroy {
         else resolve(null);
       });
     });
+  }
+
+  /**
+   * Reconcile aggregator config with the (possibly updated) node RPC port and
+   * the user's chosen aggregator listen port. No-op if nothing changed.
+   */
+  private async syncAggregatorPorts(nodeRpcPort: number): Promise<void> {
+    const current = this.aggregatorService.config();
+    const desiredListenPort = this.aggregatorListenPort ?? nodeRpcPort + 7;
+    const desiredListenAddress = withListenPort(current.listenAddress, desiredListenPort);
+
+    if (current.upstreamRpcPort === nodeRpcPort && current.listenAddress === desiredListenAddress) {
+      return;
+    }
+
+    const next: AggregatorConfig = {
+      ...current,
+      upstreamRpcPort: nodeRpcPort,
+      listenAddress: desiredListenAddress,
+    };
+    await this.aggregatorService.saveConfig(next);
   }
 
   /**

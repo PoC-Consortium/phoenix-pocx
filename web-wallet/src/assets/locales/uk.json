@@ -23,6 +23,8 @@
   "aggregator_capacity": "Ємність",
   "aggregator_capacity_estimate": "Оцінка ємності",
   "aggregator_error": "Помилка",
+
+  "aggregator_listen_port": "Порт прослуховування агрегатора",
   "aggregator_listening_on": "Слухає на {address}",
   "aggregator_machine_id": "ID машини",
   "aggregator_machines": "Машини",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Будь ласка, зупиніть наступне перед оновленням: ",
   "node_update_restart_hint": "Не забудьте перезапустити агрегатор та майнер після оновлення.",
   "node_updates": "Оновлення",
+
+  "node_wallet_rpc_port": "RPC порт вузла/гаманця",
   "node_network_switched": "Мережу переключено на ",
   "node_network_change_stop_hint": "Зупиніть майнер, агрегатор та вузол перед зміною мережі.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Відкликано на блоці",
   "rpc_host": "RPC хост",
   "rpc_port": "RPC порт",
+
+  "rpc_port_hint": "Залиште порожнім, щоб використовувати типове значення мережі.",
   "running": "Працює",
   "save": "Зберегти",
   "save_apply": "Зберегти та застосувати",

@@ -301,6 +301,7 @@ impl NodeConfig {
         lines.push(section.to_string());
         lines.push("rpcbind=127.0.0.1".to_string());
         lines.push("rpcallowip=127.0.0.1".to_string());
+        lines.push(format!("rpcport={}", self.effective_rpc_port()));
 
         lines.join("\n")
     }

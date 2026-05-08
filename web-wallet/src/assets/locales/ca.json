@@ -23,6 +23,8 @@
   "aggregator_capacity": "Capacitat",
   "aggregator_capacity_estimate": "Estimació de capacitat",
   "aggregator_error": "Error",
+
+  "aggregator_listen_port": "Port d'escolta de l'agregador",
   "aggregator_listening_on": "Escoltant a {address}",
   "aggregator_machine_id": "ID de màquina",
   "aggregator_machines": "Màquines",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Si us plau, atureu el següent abans d'actualitzar: ",
   "node_update_restart_hint": "Recordeu reiniciar l'agregador i el miner després de l'actualització.",
   "node_updates": "Actualitzacions",
+
+  "node_wallet_rpc_port": "Port RPC de node/cartera",
   "node_network_switched": "Xarxa canviada a ",
   "node_network_change_stop_hint": "Atureu el miner, l'agregador i el node abans de canviar de xarxa.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Revocat al bloc",
   "rpc_host": "Host RPC",
   "rpc_port": "Port RPC",
+
+  "rpc_port_hint": "Deixa en blanc per fer servir el valor predeterminat de la xarxa.",
   "running": "En execucio",
   "save": "Desar",
   "save_apply": "Desar i Aplicar",

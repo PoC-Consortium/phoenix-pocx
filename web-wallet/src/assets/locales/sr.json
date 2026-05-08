@@ -23,6 +23,8 @@
   "aggregator_capacity": "Капацитет",
   "aggregator_capacity_estimate": "Процена капацитета",
   "aggregator_error": "Грешка",
+
+  "aggregator_listen_port": "Порт за слушање агрегатора",
   "aggregator_listening_on": "Слуша на {address}",
   "aggregator_machine_id": "ID машине",
   "aggregator_machines": "Машине",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Молимо зауставите следеће пре ажурирања: ",
   "node_update_restart_hint": "Не заборавите да поново покренете агрегатор и рудар након ажурирања.",
   "node_updates": "Ажурирања",
+
+  "node_wallet_rpc_port": "RPC порт чвора/новчаника",
   "node_network_switched": "Мрежа промењена на ",
   "node_network_change_stop_hint": "Зауставите рудар, агрегатор и чвор пре промене мреже.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Опозвано на блоку",
   "rpc_host": "RPC хост",
   "rpc_port": "RPC порт",
+
+  "rpc_port_hint": "Оставите празно да би се користила подразумевана вредност мреже.",
   "running": "Ради",
   "save": "Сачувај",
   "save_apply": "Сачувај и примени",

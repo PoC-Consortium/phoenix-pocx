@@ -23,6 +23,8 @@
   "aggregator_capacity": "Capacità",
   "aggregator_capacity_estimate": "Stima capacità",
   "aggregator_error": "Errore",
+
+  "aggregator_listen_port": "Porta di ascolto aggregatore",
   "aggregator_listening_on": "In ascolto su {address}",
   "aggregator_machine_id": "ID macchina",
   "aggregator_machines": "Macchine",
@@ -454,6 +456,8 @@
   "node_update_stop_services": "Si prega di arrestare quanto segue prima dell'aggiornamento: ",
   "node_update_restart_hint": "Ricordati di riavviare l'aggregatore e il miner dopo l'aggiornamento.",
   "node_updates": "Aggiornamenti",
+
+  "node_wallet_rpc_port": "Porta RPC nodo/portafoglio",
   "node_network_switched": "Rete cambiata in ",
   "node_network_change_stop_hint": "Arrestare il miner, l'aggregatore e il nodo prima di cambiare rete.",
   "nonce": "Nonce",
@@ -553,6 +557,8 @@
   "revoked_at_block": "Revocato al blocco",
   "rpc_host": "Host RPC",
   "rpc_port": "Porta RPC",
+
+  "rpc_port_hint": "Lascia vuoto per usare il valore predefinito della rete.",
   "running": "In esecuzione",
   "save": "Salva",
   "save_apply": "Salva e applica",
