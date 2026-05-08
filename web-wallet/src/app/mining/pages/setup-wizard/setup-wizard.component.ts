@@ -1011,14 +1011,14 @@ interface ChainModalData {
                   (ngModelChange)="updateChainModal('poolUrl', $event)"
                 >
                   <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
+                  <option value="https://btcx-pool.cryptoguru.org:443">
+                    CryptoGuru Mainnet (btcx-pool.cryptoguru.org)
+                  </option>
                   <option value="https://pool.bitcoin-pocx.org:443">
                     Nogrod Mainnet (pool.bitcoin-pocx.org)
                   </option>
                   <option value="https://pool.testnet.bitcoin-pocx.org:443">
                     Nogrod Testnet (pool.testnet.bitcoin-pocx.org)
-                  </option>
-                  <option value="https://btcx-pool.cryptoguru.org:443">
-                    CryptoGuru Mainnet (btcx-pool.cryptoguru.org)
                   </option>
                 </select>
               </div>
