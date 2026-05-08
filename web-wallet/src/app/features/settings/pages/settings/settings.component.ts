@@ -1625,8 +1625,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     // falling back to rpcPort + 7 — same auto-derive rule the mining wizard uses.
     const aggCfg = this.aggregatorService.config();
     const parsedAggPort = parseListenAddressPort(aggCfg.listenAddress);
-    this.aggregatorListenPort =
-      parsedAggPort ?? this.managedTempConfig.rpcPort + 7;
+    this.aggregatorListenPort = parsedAggPort ?? this.managedTempConfig.rpcPort + 7;
 
     // Load external config from NgRx store (persisted external settings)
     this.store
@@ -2238,14 +2237,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
    */
   private async syncAggregatorPorts(nodeRpcPort: number): Promise<void> {
     const current = this.aggregatorService.config();
-    const desiredListenPort =
-      this.aggregatorListenPort ?? nodeRpcPort + 7;
+    const desiredListenPort = this.aggregatorListenPort ?? nodeRpcPort + 7;
     const desiredListenAddress = withListenPort(current.listenAddress, desiredListenPort);
 
-    if (
-      current.upstreamRpcPort === nodeRpcPort &&
-      current.listenAddress === desiredListenAddress
-    ) {
+    if (current.upstreamRpcPort === nodeRpcPort && current.listenAddress === desiredListenAddress) {
       return;
     }
 
