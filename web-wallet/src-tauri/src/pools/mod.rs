@@ -40,3 +40,53 @@ pub const AUTHORITIES: &[DnsAuthority] = &[
         testnet_zone: "_pool._tcp.testnet.bitcoin-pocx.bootseed.net",
     },
 ];
+
+/// Return the static fallback pools for `network` as `PoolEntry`s.
+pub fn static_pools_for(network: NetworkScope) -> Vec<PoolEntry> {
+    STATIC_POOLS
+        .iter()
+        .filter(|p| p.network == network)
+        .map(|p| PoolEntry {
+            host: p.host.to_string(),
+            port: p.port,
+            url: format!("https://{}:{}", p.host, p.port),
+            name: p.name.to_string(),
+            priority: 1000,
+            weight: 100,
+            source: PoolSource::Static,
+            extras: Default::default(),
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn static_pools_for_mainnet_returns_two_pools() {
+        let pools = static_pools_for(NetworkScope::Mainnet);
+        assert_eq!(pools.len(), 2);
+        let hosts: Vec<&str> = pools.iter().map(|p| p.host.as_str()).collect();
+        assert!(hosts.contains(&"pool.bitcoin-pocx.org"));
+        assert!(hosts.contains(&"btcx-pool.cryptoguru.org"));
+    }
+
+    #[test]
+    fn static_pools_for_testnet_returns_one_pool() {
+        let pools = static_pools_for(NetworkScope::Testnet);
+        assert_eq!(pools.len(), 1);
+        assert_eq!(pools[0].host, "pool.testnet.bitcoin-pocx.org");
+    }
+
+    #[test]
+    fn static_pools_have_priority_1000_and_url_field() {
+        let pools = static_pools_for(NetworkScope::Mainnet);
+        for p in &pools {
+            assert_eq!(p.priority, 1000);
+            assert_eq!(p.weight, 100);
+            assert_eq!(p.url, format!("https://{}:{}", p.host, p.port));
+            assert!(matches!(p.source, PoolSource::Static));
+        }
+    }
+}
