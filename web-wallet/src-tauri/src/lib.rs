@@ -882,6 +882,8 @@ pub fn run() {
             // Update commands
             update::get_app_version,
             update::check_wallet_update,
+            // Pool discovery commands
+            pools::commands::list_pools,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
