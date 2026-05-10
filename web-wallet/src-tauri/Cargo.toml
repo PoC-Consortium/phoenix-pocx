@@ -63,6 +63,10 @@ tar = "0.4"
 # Async stream utilities for download progress
 futures-util = "0.3"
 
+# Pool discovery via DNS-SD
+hickory-resolver = { version = "0.24", default-features = false, features = ["system-config", "tokio-runtime"] }
+rand = "0.8"
+
 # HTTP client for GitHub API and downloads
 # Use rustls on Android (no OpenSSL cross-compilation needed), native-tls on desktop
 [target.'cfg(not(target_os = "android"))'.dependencies]
