@@ -1,6 +1,7 @@
 //! Pool discovery — DNS-SD (RFC 6763) + static fallback.
 
 pub mod commands;
+pub mod resolver;
 pub mod types;
 
 pub use types::{DnsAuthority, NetworkScope, PoolEntry, PoolSource, StaticPool};
