@@ -515,6 +515,7 @@
   "plotting_pending": "Plots Wachtend",
   "poc_info": "PoC Info",
   "pocx_proof": "PoCX Bewijs",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Adres Voorvertoning",
   "previous_block": "Vorige Blok",
   "previous_page": "Vorige pagina",

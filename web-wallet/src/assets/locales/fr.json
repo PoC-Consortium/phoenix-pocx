@@ -515,6 +515,7 @@
   "plotting_pending": "Plots en attente",
   "poc_info": "Info PoC",
   "pocx_proof": "Preuve PoCX",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Apercu de l'adresse",
   "previous_block": "Bloc precedent",
   "previous_page": "Page precedente",

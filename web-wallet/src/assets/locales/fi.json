@@ -515,6 +515,7 @@
   "plotting_pending": "Plotit odottavat",
   "poc_info": "PoC-tiedot",
   "pocx_proof": "PoCX-todiste",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Esikatsele osoite",
   "previous_block": "Edellinen lohko",
   "previous_page": "Edellinen sivu",

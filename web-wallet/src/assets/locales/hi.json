@@ -515,6 +515,7 @@
   "plotting_pending": "प्लॉट्स लंबित",
   "poc_info": "PoC जानकारी",
   "pocx_proof": "PoCX प्रमाण",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "पता पूर्वावलोकन करें",
   "previous_block": "पिछला ब्लॉक",
   "previous_page": "पिछला पृष्ठ",

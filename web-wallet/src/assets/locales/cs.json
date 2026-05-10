@@ -515,6 +515,7 @@
   "plotting_pending": "Ploty cekaji",
   "poc_info": "Info PoC",
   "pocx_proof": "Dukaz PoCX",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Nahled adresy",
   "previous_block": "Predchozi blok",
   "previous_page": "Predchozi stranka",

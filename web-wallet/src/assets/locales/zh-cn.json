@@ -515,6 +515,7 @@
   "plotting_pending": "绘图待处理",
   "poc_info": "PoC信息",
   "pocx_proof": "PoCX证明",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "预览地址",
   "previous_block": "上一个区块",
   "previous_page": "上一页",

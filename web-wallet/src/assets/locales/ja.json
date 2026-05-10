@@ -515,6 +515,7 @@
   "plotting_pending": "プロット保留中",
   "poc_info": "PoC情報",
   "pocx_proof": "PoCXプルーフ",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "アドレスをプレビュー",
   "previous_block": "前のブロック",
   "previous_page": "前のページ",

@@ -515,6 +515,7 @@
   "plotting_pending": "Ploty cakaju",
   "poc_info": "Info PoC",
   "pocx_proof": "Dokaz PoCX",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Nahladova adresa",
   "previous_block": "Predchadzajuci blok",
   "previous_page": "Predchadzajuca stranka",

@@ -515,6 +515,7 @@
   "plotting_pending": "Плоти в очікуванні",
   "poc_info": "Інформація PoC",
   "pocx_proof": "Доказ PoCX",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Попередній перегляд адреси",
   "previous_block": "Попередній блок",
   "previous_page": "Попередня сторінка",

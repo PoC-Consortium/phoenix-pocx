@@ -24,7 +24,13 @@ interface DnsFailure {
 @Injectable({ providedIn: 'root' })
 export class PoolsService {
   readonly pools = signal<Record<string, PoolEntry[]>>({});
-  readonly dnsFailed = signal<DnsFailure | null>(null);
+  readonly dnsFailed = signal<DnsFailure | null>(null, {
+    equal: (a, b) => {
+      if (a === b) return true;
+      if (a === null || b === null) return false;
+      return a.network === b.network && a.error === b.error;
+    },
+  });
 
   private unlistenUpdated?: UnlistenFn;
   private unlistenFailed?: UnlistenFn;

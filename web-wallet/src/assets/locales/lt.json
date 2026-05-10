@@ -515,6 +515,7 @@
   "plotting_pending": "Laukiantys braziai",
   "poc_info": "PoC info",
   "pocx_proof": "PoCX irodymas",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Perziureti adresa",
   "previous_block": "Ankstesnis blokas",
   "previous_page": "Ankstesnis puslapis",

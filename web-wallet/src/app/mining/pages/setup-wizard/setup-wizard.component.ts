@@ -2596,7 +2596,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       const failure = this.pools.dnsFailed();
       if (failure) {
         this.snackBar.open(
-          `Couldn't reach pool directory; showing built-in list. (${failure.error})`,
+          this.i18n.get('pools_dns_failed', { network: failure.network, error: failure.error }) ||
+            `Couldn't reach pool directory for ${failure.network}; showing built-in list. (${failure.error})`,
           this.i18n.get('dismiss') || 'Dismiss',
           { duration: 5000 },
         );

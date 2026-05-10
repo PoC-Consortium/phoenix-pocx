@@ -515,6 +515,7 @@
   "plotting_pending": "Plots σε αναμονή",
   "poc_info": "Πληροφορίες PoC",
   "pocx_proof": "Απόδειξη PoCX",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Προεπισκόπηση διεύθυνσης",
   "previous_block": "Προηγούμενο block",
   "previous_page": "Προηγούμενη σελίδα",

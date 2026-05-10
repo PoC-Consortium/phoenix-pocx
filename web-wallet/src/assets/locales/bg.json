@@ -515,6 +515,7 @@
   "plotting_pending": "Чакащи плотове",
   "poc_info": "PoC информация",
   "pocx_proof": "PoCX доказателство",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Преглед на адрес",
   "previous_block": "Предишен блок",
   "previous_page": "Предишна страница",

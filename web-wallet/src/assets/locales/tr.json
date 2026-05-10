@@ -515,6 +515,7 @@
   "plotting_pending": "Çizimler Beklemede",
   "poc_info": "PoC Bilgisi",
   "pocx_proof": "PoCX Kanıtı",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Adresi Önizle",
   "previous_block": "Önceki Blok",
   "previous_page": "Önceki sayfa",

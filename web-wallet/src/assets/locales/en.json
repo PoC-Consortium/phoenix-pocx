@@ -630,6 +630,7 @@
   "plot_address": "Plot Address",
   "poc_info": "PoC Info",
   "pocx_proof": "PoCX Proof",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "previous_block": "Previous Block",
   "previous_page": "Previous page",
   "previously_assigned_to": "Previously assigned to",

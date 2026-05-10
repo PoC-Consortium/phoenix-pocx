@@ -515,6 +515,7 @@
   "plotting_pending": "Plot Tertunda",
   "poc_info": "Info PoC",
   "pocx_proof": "Bukti PoCX",
+  "pools_dns_failed": "Couldn't reach pool directory for {network}; showing built-in list. ({error})",
   "preview_address": "Pratinjau Alamat",
   "previous_block": "Blok Sebelumnya",
   "previous_page": "Halaman sebelumnya",
