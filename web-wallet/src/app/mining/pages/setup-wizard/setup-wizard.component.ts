@@ -14,6 +14,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@ngrx/store';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MiningService } from '../../services';
+import { PoolsService, PoolEntry } from '../../services/pools.service';
 import { AggregatorService } from '../../../aggregator/services/aggregator.service';
 import { AggregatorConfig } from '../../../aggregator/models/aggregator.models';
 import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
@@ -1006,21 +1007,27 @@ interface ChainModalData {
             @if (chainModalData().mode === 'pool') {
               <div class="form-group" style="margin-bottom: 16px;">
                 <label>{{ 'setup_select_pool' | i18n }}</label>
-                <select
-                  [ngModel]="chainModalData().poolUrl"
-                  (ngModelChange)="updateChainModal('poolUrl', $event)"
-                >
-                  <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
-                  <option value="https://pool.bitcoin-pocx.org:443">
-                    Nogrod Mainnet (pool.bitcoin-pocx.org)
-                  </option>
-                  <option value="https://pool.testnet.bitcoin-pocx.org:443">
-                    Nogrod Testnet (pool.testnet.bitcoin-pocx.org)
-                  </option>
-                  <option value="https://btcx-pool.cryptoguru.org:443">
-                    CryptoGuru Mainnet (btcx-pool.cryptoguru.org)
-                  </option>
-                </select>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <select
+                    style="flex: 1;"
+                    [ngModel]="chainModalData().poolUrl"
+                    (ngModelChange)="updateChainModal('poolUrl', $event)"
+                  >
+                    <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
+                    @for (p of poolList(); track p.host + ':' + p.port) {
+                      <option [value]="p.url">{{ p.name }} ({{ p.host }})</option>
+                    }
+                  </select>
+                  <button
+                    type="button"
+                    class="edit-btn"
+                    [disabled]="poolsRefreshing()"
+                    (click)="onRefreshPools()"
+                    title="Refresh pool list from DNS"
+                  >
+                    &#x21bb;
+                  </button>
+                </div>
               </div>
               <ng-container *ngTemplateOutlet="authInputs"></ng-container>
             }
@@ -2561,6 +2568,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   readonly aggregatorService = inject(AggregatorService);
   private readonly nodeService = inject(NodeService);
+  private readonly pools = inject(PoolsService);
 
   // Wallet settings for solo mining (synced to mining config)
   private readonly walletRpcHost = toSignal(this.store.select(selectRpcHost), {
@@ -2657,6 +2665,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Chain modal
   readonly chainModalOpen = signal(false);
   readonly editingChain = signal<ChainConfig | null>(null);
+  readonly poolList = signal<PoolEntry[]>([]);
+  readonly poolsRefreshing = signal(false);
   readonly chainModalData = signal<ChainModalData>({
     mode: 'solo',
     chainName: '',
@@ -3097,6 +3107,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       aggregatorEnabled: this.aggregatorService.config().enabled,
     });
     this.chainModalOpen.set(true);
+    this.pools.list(this.walletNetwork()).then(p => this.poolList.set(p));
   }
 
   editChain(chain: ChainConfig): void {
@@ -3136,11 +3147,22 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         chain.chainType === 'solo' ? this.aggregatorService.config().enabled : false,
     });
     this.chainModalOpen.set(true);
+    this.pools.list(this.walletNetwork()).then(p => this.poolList.set(p));
   }
 
   closeChainModal(): void {
     this.chainModalOpen.set(false);
     this.editingChain.set(null);
+  }
+
+  async onRefreshPools(): Promise<void> {
+    this.poolsRefreshing.set(true);
+    try {
+      const fresh = await this.pools.refresh(this.walletNetwork());
+      this.poolList.set(fresh);
+    } finally {
+      this.poolsRefreshing.set(false);
+    }
   }
 
   setChainMode(mode: ChainMode): void {
@@ -3214,19 +3236,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         priority: editing?.priority ?? this.chainConfigs().length + 1,
       };
     } else if (data.mode === 'pool') {
-      // Match the known pool endpoints so the chain shows up with a
-      // friendly name. The testnet URL contains `pool.testnet.bitcoin-pocx.org`
-      // (not `pool.bitcoin-pocx.org`), so test for the testnet variant first.
-      let poolName: string;
-      if (data.poolUrl.includes('pool.testnet.bitcoin-pocx.org')) {
-        poolName = 'Nogrod Testnet';
-      } else if (data.poolUrl.includes('pool.bitcoin-pocx.org')) {
-        poolName = 'Nogrod Mainnet';
-      } else if (data.poolUrl.includes('btcx-pool.cryptoguru.org')) {
-        poolName = 'CryptoGuru Mainnet';
-      } else {
-        poolName = data.chainName || 'Pool';
-      }
+      // Look up friendly name from the dynamic pool list (DNS-SD + static).
+      const matched = this.poolList().find(p => data.poolUrl.startsWith(p.url));
+      const poolName = matched?.name ?? (data.chainName || 'Pool');
 
       // Parse pool URL to extract host and port
       const { transport, host, port } = this.parseUrl(data.poolUrl);
