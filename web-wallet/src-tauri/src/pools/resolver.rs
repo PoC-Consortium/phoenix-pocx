@@ -98,6 +98,131 @@ pub async fn resolve_pools(
     Err(last_err.unwrap_or(ResolveError::Empty))
 }
 
+use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+use hickory_resolver::TokioAsyncResolver;
+use std::sync::Arc;
+use tokio::time::timeout;
+
+const PER_AUTHORITY_BUDGET: Duration = Duration::from_secs(3);
+
+pub struct HickoryPoolResolver {
+    inner: Arc<TokioAsyncResolver>,
+}
+
+impl HickoryPoolResolver {
+    pub fn new() -> Result<Self, ResolveError> {
+        let inner = TokioAsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default());
+        Ok(Self { inner: Arc::new(inner) })
+    }
+
+    /// Try to use the system resolver; fall back to default (Cloudflare/Google) if not available.
+    pub fn from_system_or_default() -> Self {
+        match TokioAsyncResolver::tokio_from_system_conf() {
+            Ok(r) => Self { inner: Arc::new(r) },
+            Err(_) => Self {
+                inner: Arc::new(TokioAsyncResolver::tokio(
+                    ResolverConfig::default(),
+                    ResolverOpts::default(),
+                )),
+            },
+        }
+    }
+}
+
+#[async_trait]
+impl PoolResolver for HickoryPoolResolver {
+    async fn resolve_authority(
+        &self,
+        authority: &DnsAuthority,
+        network: NetworkScope,
+    ) -> Result<Vec<DiscoveredPool>, ResolveError> {
+        let zone = authority.zone_for(network);
+        let inner = self.inner.clone();
+        let auth_label = authority.label.to_string();
+
+        let work = async move {
+            // 1. PTR query at the service zone.
+            let ptr = inner
+                .lookup(zone, hickory_resolver::proto::rr::RecordType::PTR)
+                .await
+                .map_err(|e| ResolveError::Dns(e.to_string()))?;
+
+            let instance_names: Vec<String> = ptr
+                .iter()
+                .filter_map(|r| r.as_ptr().map(|p| p.to_utf8()))
+                .collect();
+
+            if instance_names.is_empty() {
+                return Err(ResolveError::Empty);
+            }
+
+            // 2. For each instance, parallel SRV + TXT.
+            let mut tasks = tokio::task::JoinSet::new();
+            for name in instance_names {
+                let inner = inner.clone();
+                let auth = auth_label.clone();
+                tasks.spawn(async move { resolve_instance(&inner, &name, &auth).await });
+            }
+
+            let mut results = Vec::new();
+            while let Some(joined) = tasks.join_next().await {
+                if let Ok(Ok(p)) = joined {
+                    results.push(p);
+                }
+            }
+
+            if results.is_empty() {
+                Err(ResolveError::Empty)
+            } else {
+                Ok(results)
+            }
+        };
+
+        match timeout(PER_AUTHORITY_BUDGET, work).await {
+            Ok(r) => r,
+            Err(_) => Err(ResolveError::Timeout(PER_AUTHORITY_BUDGET)),
+        }
+    }
+}
+
+async fn resolve_instance(
+    resolver: &TokioAsyncResolver,
+    name: &str,
+    authority_label: &str,
+) -> Result<DiscoveredPool, ResolveError> {
+    let (srv_res, txt_res) = tokio::join!(resolver.srv_lookup(name), resolver.txt_lookup(name));
+    let srv = srv_res
+        .map_err(|e| ResolveError::Dns(e.to_string()))?
+        .iter()
+        .next()
+        .cloned()
+        .ok_or(ResolveError::Empty)?;
+
+    let txt_strings: Vec<String> = txt_res
+        .map(|t| {
+            t.iter()
+                .flat_map(|rec| {
+                    rec.txt_data().iter().map(|bytes| {
+                        String::from_utf8_lossy(bytes).into_owned()
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let parsed = parse_txt(&txt_strings);
+
+    Ok(DiscoveredPool {
+        host: srv.target().to_utf8().trim_end_matches('.').to_string(),
+        port: srv.port(),
+        name: parsed.name,
+        url: parsed.url,
+        priority: srv.priority(),
+        weight: srv.weight(),
+        authority: authority_label.to_string(),
+        extras: parsed.extras,
+    })
+}
+
 /// Parsed DNS-SD TXT record: `name` (required for usable entry) + extras.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ParsedTxt {
