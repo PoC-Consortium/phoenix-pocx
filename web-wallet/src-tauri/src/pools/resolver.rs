@@ -15,6 +15,9 @@ pub struct ParsedTxt {
 /// Strings without `=` are discarded (per RFC 6763 §6.4 we MAY accept them as
 /// boolean flags; we don't use any so they're dropped). `name` and `url` are
 /// promoted to dedicated fields; everything else lives in `extras`.
+///
+/// Per RFC 6763 §6.4: duplicate keys keep the first occurrence; entries with
+/// empty keys are discarded.
 pub fn parse_txt(strings: &[String]) -> ParsedTxt {
     let mut out = ParsedTxt::default();
     for s in strings {
