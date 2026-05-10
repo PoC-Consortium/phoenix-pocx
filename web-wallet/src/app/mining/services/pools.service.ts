@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { CommandResult } from '../models/mining.models';
 
 export type PoolSource = { kind: 'static' } | { kind: 'discovered'; authority: string };
 
@@ -15,12 +16,6 @@ export interface PoolEntry {
   extras: Record<string, string>;
 }
 
-interface CommandResult<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
-
 interface DnsFailure {
   network: string;
   error: string;
@@ -33,32 +28,45 @@ export class PoolsService {
 
   private unlistenUpdated?: UnlistenFn;
   private unlistenFailed?: UnlistenFn;
+  private initPromise?: Promise<void>;
 
   async init(): Promise<void> {
-    if (this.unlistenUpdated) return;
-    this.unlistenUpdated = await listen<{ network: string; pools: PoolEntry[] }>(
-      'pools:updated',
-      (e) => {
+    return (this.initPromise ??= this.doInit());
+  }
+
+  private async doInit(): Promise<void> {
+    const [unlistenUpdated, unlistenFailed] = await Promise.all([
+      listen<{ network: string; pools: PoolEntry[] }>('pools:updated', (e) => {
         this.pools.update((cur) => ({ ...cur, [e.payload.network]: e.payload.pools }));
         this.dnsFailed.set(null);
-      },
-    );
-    this.unlistenFailed = await listen<DnsFailure>('pools:dns-failed', (e) => {
-      this.dnsFailed.set(e.payload);
-    });
+      }),
+      listen<DnsFailure>('pools:dns-failed', (e) => {
+        this.dnsFailed.set(e.payload);
+      }),
+    ]);
+    this.unlistenUpdated = unlistenUpdated;
+    this.unlistenFailed = unlistenFailed;
   }
 
   async list(network: string): Promise<PoolEntry[]> {
     await this.init();
     const result = await invoke<CommandResult<PoolEntry[]>>('list_pools', { network });
-    const pools = result.success && result.data ? result.data : [];
+    if (!result.success) {
+      this.dnsFailed.set({ network, error: result.error ?? 'unknown error' });
+      return this.pools()[network] ?? [];
+    }
+    const pools = result.data ?? [];
     this.pools.update((cur) => ({ ...cur, [network]: pools }));
     return pools;
   }
 
   async refresh(network: string): Promise<PoolEntry[]> {
     const result = await invoke<CommandResult<PoolEntry[]>>('refresh_pools', { network });
-    const pools = result.success && result.data ? result.data : [];
+    if (!result.success) {
+      this.dnsFailed.set({ network, error: result.error ?? 'unknown error' });
+      return this.pools()[network] ?? [];
+    }
+    const pools = result.data ?? [];
     this.pools.update((cur) => ({ ...cur, [network]: pools }));
     return pools;
   }
