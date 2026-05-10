@@ -25,6 +25,13 @@ struct PoolsUpdatedPayload {
     pools: Vec<PoolEntry>,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PoolsDnsFailedPayload {
+    network: String,
+    error: String,
+}
+
 /// Return cached pools immediately; spawn a background refresh that emits
 /// `pools:updated` when fresh data lands. If the cache is empty, the static
 /// fallback is returned synchronously so the UI is never blank.
@@ -48,7 +55,13 @@ pub async fn list_pools(app: AppHandle, network: String) -> CommandResult<Vec<Po
     tokio::spawn(async move {
         if let Err(e) = background_refresh(&app_for_bg, scope, &net_label).await {
             log::warn!("Pool DNS refresh failed: {}", e);
-            let _ = app_for_bg.emit("pools:dns-failed", net_label);
+            let _ = app_for_bg.emit(
+                "pools:dns-failed",
+                PoolsDnsFailedPayload {
+                    network: net_label,
+                    error: e,
+                },
+            );
         }
     });
 
@@ -78,7 +91,9 @@ async fn background_refresh(
         .map_err(|e| e.to_string())?;
     let merged = merge(scope, &discovered);
     let path = cache_path(app);
-    let _ = write_cache(&path, scope_str(scope), &merged);
+    if let Err(e) = write_cache(&path, scope_str(scope), &merged) {
+        log::warn!("pools_cache.json write failed: {}", e);
+    }
     let _ = app.emit(
         "pools:updated",
         PoolsUpdatedPayload {
