@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -2586,6 +2586,23 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   // Event listener cleanup
   private plotterEventUnlisteners: UnlistenFn[] = [];
+
+  constructor() {
+    // Surface pool DNS-discovery failures as a non-blocking snackbar so the
+    // user understands the dropdown is the built-in list rather than freshly
+    // discovered pools. Effect auto-cleans up with the component and only
+    // fires on transitions to a non-null DnsFailure value.
+    effect(() => {
+      const failure = this.pools.dnsFailed();
+      if (failure) {
+        this.snackBar.open(
+          `Couldn't reach pool directory; showing built-in list. (${failure.error})`,
+          this.i18n.get('dismiss') || 'Dismiss',
+          { duration: 5000 },
+        );
+      }
+    });
+  }
 
   // Step management
   readonly currentStep = signal(0);
