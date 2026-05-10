@@ -119,12 +119,18 @@ impl HickoryPoolResolver {
     pub fn from_system_or_default() -> Self {
         match TokioAsyncResolver::tokio_from_system_conf() {
             Ok(r) => Self { inner: Arc::new(r) },
-            Err(_) => Self {
-                inner: Arc::new(TokioAsyncResolver::tokio(
-                    ResolverConfig::default(),
-                    ResolverOpts::default(),
-                )),
-            },
+            Err(e) => {
+                log::warn!(
+                    "system DNS config unavailable for pool discovery, falling back to defaults: {}",
+                    e
+                );
+                Self {
+                    inner: Arc::new(TokioAsyncResolver::tokio(
+                        ResolverConfig::default(),
+                        ResolverOpts::default(),
+                    )),
+                }
+            }
         }
     }
 }
@@ -166,8 +172,17 @@ impl PoolResolver for HickoryPoolResolver {
 
             let mut results = Vec::new();
             while let Some(joined) = tasks.join_next().await {
-                if let Ok(Ok(p)) = joined {
-                    results.push(p);
+                match joined {
+                    Ok(Ok(p)) => results.push(p),
+                    Ok(Err(ResolveError::Empty)) => {
+                        // Instance had no SRV records — legitimate, drop silently.
+                    }
+                    Ok(Err(e)) => {
+                        log::debug!("pool instance lookup failed for authority {}: {}", auth_label, e);
+                    }
+                    Err(join_err) => {
+                        log::warn!("pool instance task panicked for authority {}: {}", auth_label, join_err);
+                    }
                 }
             }
 
