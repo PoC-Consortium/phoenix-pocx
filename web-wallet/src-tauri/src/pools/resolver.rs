@@ -1,6 +1,45 @@
 //! DNS-SD resolver for pool discovery.
 
 use std::collections::BTreeMap;
+use std::time::Duration;
+
+use async_trait::async_trait;
+use thiserror::Error;
+
+use crate::pools::{DnsAuthority, NetworkScope};
+
+/// One pool returned by the resolver, before merging with the static list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveredPool {
+    pub host: String,
+    pub port: u16,
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub priority: u16,
+    pub weight: u16,
+    pub authority: String,
+    pub extras: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Error)]
+pub enum ResolveError {
+    #[error("DNS lookup failed: {0}")]
+    Dns(String),
+    #[error("no usable records returned")]
+    Empty,
+    #[error("timeout after {0:?}")]
+    Timeout(Duration),
+}
+
+/// Abstraction over a DNS resolver so tests can inject canned responses.
+#[async_trait]
+pub trait PoolResolver: Send + Sync {
+    async fn resolve_authority(
+        &self,
+        authority: &DnsAuthority,
+        network: NetworkScope,
+    ) -> Result<Vec<DiscoveredPool>, ResolveError>;
+}
 
 /// Parsed DNS-SD TXT record: `name` (required for usable entry) + extras.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

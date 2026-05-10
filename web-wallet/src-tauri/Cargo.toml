@@ -66,6 +66,8 @@ futures-util = "0.3"
 # Pool discovery via DNS-SD
 hickory-resolver = { version = "0.24", default-features = false, features = ["system-config", "tokio-runtime"] }
 rand = "0.8"
+async-trait = "0.1"
+thiserror = "1"
 
 # HTTP client for GitHub API and downloads
 # Use rustls on Android (no OpenSSL cross-compilation needed), native-tls on desktop
