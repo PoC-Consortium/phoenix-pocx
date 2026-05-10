@@ -3107,7 +3107,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       aggregatorEnabled: this.aggregatorService.config().enabled,
     });
     this.chainModalOpen.set(true);
-    this.pools.list(this.walletNetwork()).then(p => this.poolList.set(p));
+    this.pools
+      .list(this.walletNetwork())
+      .then(p => this.poolList.set(p))
+      .catch(err => console.warn('[wizard] pools.list failed', err));
   }
 
   editChain(chain: ChainConfig): void {
@@ -3147,7 +3150,14 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         chain.chainType === 'solo' ? this.aggregatorService.config().enabled : false,
     });
     this.chainModalOpen.set(true);
-    this.pools.list(this.walletNetwork()).then(p => this.poolList.set(p));
+    // Only fetch the pool list when editing a pool chain — solo/custom chains
+    // don't render the dropdown, so the IPC (and any background DNS-SD) is wasted.
+    if (chain.chainType === 'pool') {
+      this.pools
+        .list(this.walletNetwork())
+        .then(p => this.poolList.set(p))
+        .catch(err => console.warn('[wizard] pools.list failed', err));
+    }
   }
 
   closeChainModal(): void {
@@ -3236,12 +3246,13 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         priority: editing?.priority ?? this.chainConfigs().length + 1,
       };
     } else if (data.mode === 'pool') {
-      // Look up friendly name from the dynamic pool list (DNS-SD + static).
-      const matched = this.poolList().find(p => data.poolUrl.startsWith(p.url));
-      const poolName = matched?.name ?? (data.chainName || 'Pool');
-
-      // Parse pool URL to extract host and port
+      // Parse pool URL to extract host and port (also reused as a friendly-name fallback).
       const { transport, host, port } = this.parseUrl(data.poolUrl);
+
+      // Look up friendly name from the dynamic pool list (DNS-SD + static).
+      // Fall back to the user-supplied chain name, then the host, then a generic label.
+      const matched = this.poolList().find(p => data.poolUrl.startsWith(p.url));
+      const poolName = matched?.name ?? (data.chainName?.trim() || host || 'Pool');
 
       chain = {
         id,
