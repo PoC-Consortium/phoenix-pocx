@@ -20,10 +20,19 @@ pub fn read_cache(path: &Path, network: &str) -> Vec<PoolEntry> {
     let Ok(bytes) = std::fs::read(path) else {
         return Vec::new();
     };
-    let Ok(parsed): Result<CacheFile, _> = serde_json::from_slice(&bytes) else {
-        return Vec::new();
+    let parsed: CacheFile = match serde_json::from_slice(&bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!("pools_cache.json failed to parse; treating as empty: {}", e);
+            return Vec::new();
+        }
     };
     if parsed.version != SCHEMA_VERSION {
+        log::info!(
+            "pools_cache.json version {} != expected {}; treating as empty",
+            parsed.version,
+            SCHEMA_VERSION
+        );
         return Vec::new();
     }
     parsed
@@ -35,10 +44,19 @@ pub fn read_cache(path: &Path, network: &str) -> Vec<PoolEntry> {
 
 pub fn write_cache(path: &Path, network: &str, pools: &[PoolEntry]) -> std::io::Result<()> {
     let mut cur = match std::fs::read(path) {
-        Ok(b) => serde_json::from_slice::<CacheFile>(&b).unwrap_or(CacheFile {
-            version: SCHEMA_VERSION,
-            by_network: HashMap::new(),
-        }),
+        Ok(b) => match serde_json::from_slice::<CacheFile>(&b) {
+            Ok(c) => c,
+            Err(e) => {
+                log::warn!(
+                    "pools_cache.json was corrupt; overwriting fresh ({}). Other-network entries may be lost.",
+                    e
+                );
+                CacheFile {
+                    version: SCHEMA_VERSION,
+                    by_network: HashMap::new(),
+                }
+            }
+        },
         Err(_) => CacheFile {
             version: SCHEMA_VERSION,
             by_network: HashMap::new(),
@@ -50,7 +68,9 @@ pub fn write_cache(path: &Path, network: &str, pools: &[PoolEntry]) -> std::io::
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, bytes)
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, path)
 }
 
 #[cfg(test)]
