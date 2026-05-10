@@ -21,7 +21,7 @@ pub struct DiscoveredPool {
     pub extras: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum ResolveError {
     #[error("DNS lookup failed: {0}")]
     Dns(String),
@@ -39,6 +39,63 @@ pub trait PoolResolver: Send + Sync {
         authority: &DnsAuthority,
         network: NetworkScope,
     ) -> Result<Vec<DiscoveredPool>, ResolveError>;
+}
+
+use crate::pools::AUTHORITIES;
+use rand::seq::SliceRandom;
+
+/// Resolve pools for `network` against the configured authorities.
+///
+/// Tries authorities in a randomized order (deterministic in tests via
+/// `order_seed`). On the first error/empty response, falls through to the
+/// next authority. Returns the first non-empty result; if all fail, returns
+/// the most informative error seen (`Dns`/`Timeout` preferred over `Empty`).
+///
+/// `order_seed` is normally empty (production uses `rand::thread_rng()`).
+/// Tests pass `&[0]` to force "try AUTHORITIES[0] first" or `&[1]` for the
+/// reverse — anything else falls back to RNG.
+pub async fn resolve_pools(
+    resolver: &dyn PoolResolver,
+    network: NetworkScope,
+    order_seed: &[usize],
+) -> Result<Vec<DiscoveredPool>, ResolveError> {
+    let order = if order_seed.is_empty() {
+        let mut idxs: Vec<usize> = (0..AUTHORITIES.len()).collect();
+        idxs.shuffle(&mut rand::thread_rng());
+        idxs
+    } else {
+        let first = order_seed[0] % AUTHORITIES.len();
+        let mut idxs = vec![first];
+        for i in 0..AUTHORITIES.len() {
+            if i != first {
+                idxs.push(i);
+            }
+        }
+        idxs
+    };
+
+    let mut last_err: Option<ResolveError> = None;
+    for idx in order {
+        let auth = &AUTHORITIES[idx];
+        match resolver.resolve_authority(auth, network).await {
+            Ok(v) if !v.is_empty() => return Ok(v),
+            Ok(_) => {
+                // Empty response — only record if we have nothing better.
+                if last_err.is_none() {
+                    last_err = Some(ResolveError::Empty);
+                }
+            }
+            Err(e) => {
+                // Always prefer a real error (Dns/Timeout) over a prior Empty.
+                match (&last_err, &e) {
+                    (None, _) => last_err = Some(e),
+                    (Some(ResolveError::Empty), _) => last_err = Some(e),
+                    _ => {} // already have an informative error; keep it.
+                }
+            }
+        }
+    }
+    Err(last_err.unwrap_or(ResolveError::Empty))
 }
 
 /// Parsed DNS-SD TXT record: `name` (required for usable entry) + extras.
@@ -144,5 +201,140 @@ mod tests {
         let strings = vec!["url=https://x.example/api?a=b&c=d".to_string()];
         let parsed = parse_txt(&strings);
         assert_eq!(parsed.url.as_deref(), Some("https://x.example/api?a=b&c=d"));
+    }
+}
+
+#[cfg(test)]
+mod resolve_tests {
+    use super::*;
+    use crate::pools::AUTHORITIES;
+    use async_trait::async_trait;
+    use std::sync::Mutex;
+
+    /// Test resolver: per-authority canned response, records call order.
+    struct FakeResolver {
+        responses: std::collections::HashMap<&'static str, Result<Vec<DiscoveredPool>, ResolveError>>,
+        calls: Mutex<Vec<&'static str>>,
+    }
+
+    #[async_trait]
+    impl PoolResolver for FakeResolver {
+        async fn resolve_authority(
+            &self,
+            authority: &DnsAuthority,
+            _: NetworkScope,
+        ) -> Result<Vec<DiscoveredPool>, ResolveError> {
+            self.calls.lock().unwrap().push(authority.label);
+            self.responses
+                .get(authority.label)
+                .cloned()
+                .unwrap_or(Err(ResolveError::Empty))
+        }
+    }
+
+    fn pool(host: &str, name: &str, prio: u16, auth: &str) -> DiscoveredPool {
+        DiscoveredPool {
+            host: host.into(),
+            port: 443,
+            name: Some(name.into()),
+            url: None,
+            priority: prio,
+            weight: 100,
+            authority: auth.into(),
+            extras: BTreeMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn returns_first_authority_when_it_responds() {
+        let mut responses = std::collections::HashMap::new();
+        responses.insert(
+            "bitcoin-pocx.org",
+            Ok(vec![pool("a", "A", 10, "bitcoin-pocx.org")]),
+        );
+        responses.insert(
+            "bitcoin-pocx.bootseed.net",
+            Ok(vec![pool("b", "B", 10, "bitcoin-pocx.bootseed.net")]),
+        );
+        let fake = FakeResolver {
+            responses,
+            calls: Mutex::new(Vec::new()),
+        };
+        let result = resolve_pools(&fake, NetworkScope::Mainnet, &[0]).await.unwrap();
+        // order_seed=[0] -> first try AUTHORITIES[0] = bitcoin-pocx.org
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].authority, "bitcoin-pocx.org");
+        assert_eq!(fake.calls.lock().unwrap().as_slice(), &["bitcoin-pocx.org"]);
+    }
+
+    #[tokio::test]
+    async fn falls_back_when_first_returns_empty() {
+        let mut responses = std::collections::HashMap::new();
+        responses.insert("bitcoin-pocx.org", Err(ResolveError::Empty));
+        responses.insert(
+            "bitcoin-pocx.bootseed.net",
+            Ok(vec![pool("b", "B", 10, "bitcoin-pocx.bootseed.net")]),
+        );
+        let fake = FakeResolver {
+            responses,
+            calls: Mutex::new(Vec::new()),
+        };
+        let result = resolve_pools(&fake, NetworkScope::Mainnet, &[0]).await.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].authority, "bitcoin-pocx.bootseed.net");
+        assert_eq!(
+            fake.calls.lock().unwrap().as_slice(),
+            &["bitcoin-pocx.org", "bitcoin-pocx.bootseed.net"]
+        );
+    }
+
+    #[tokio::test]
+    async fn returns_error_when_both_fail() {
+        let mut responses = std::collections::HashMap::new();
+        responses.insert("bitcoin-pocx.org", Err(ResolveError::Empty));
+        responses.insert("bitcoin-pocx.bootseed.net", Err(ResolveError::Empty));
+        let fake = FakeResolver {
+            responses,
+            calls: Mutex::new(Vec::new()),
+        };
+        let err = resolve_pools(&fake, NetworkScope::Mainnet, &[1])
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ResolveError::Empty));
+        // order_seed=[1] -> first try AUTHORITIES[1] = bootseed, then org
+        assert_eq!(
+            fake.calls.lock().unwrap().as_slice(),
+            &["bitcoin-pocx.bootseed.net", "bitcoin-pocx.org"]
+        );
+    }
+
+    #[tokio::test]
+    async fn preserves_dns_error_over_empty_when_both_fail() {
+        let mut responses = std::collections::HashMap::new();
+        responses.insert(
+            "bitcoin-pocx.org",
+            Err(ResolveError::Dns("connection refused".into())),
+        );
+        responses.insert("bitcoin-pocx.bootseed.net", Err(ResolveError::Empty));
+        let fake = FakeResolver {
+            responses,
+            calls: Mutex::new(Vec::new()),
+        };
+        let err = resolve_pools(&fake, NetworkScope::Mainnet, &[0])
+            .await
+            .unwrap_err();
+        // The Dns error from the first authority should be preserved as the
+        // most-informative failure, not overwritten by the later Empty.
+        match err {
+            ResolveError::Dns(msg) => assert!(msg.contains("connection refused")),
+            other => panic!("expected Dns error, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn const_authorities_listed_in_expected_order() {
+        // The tests above depend on this order; pin it.
+        assert_eq!(AUTHORITIES[0].label, "bitcoin-pocx.org");
+        assert_eq!(AUTHORITIES[1].label, "bitcoin-pocx.bootseed.net");
     }
 }
