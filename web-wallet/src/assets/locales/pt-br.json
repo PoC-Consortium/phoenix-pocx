@@ -1,4 +1,10 @@
 {
+  "abandon_tx": "Abandon Transaction",
+  "abandon_tx_confirm_body": "Mark this transaction as abandoned in your wallet. Its inputs become spendable again so you can send a replacement.",
+  "abandon_tx_confirm_title": "Abandon Transaction?",
+  "abandon_tx_error": "Failed to abandon transaction",
+  "abandon_tx_mempool_hint": "Only works once the transaction is no longer in the mempool (typically after it has been conflicted or evicted). The network may still see and confirm this transaction until then.",
+  "abandon_tx_success": "Transaction abandoned",
   "account": "Conta",
   "account_id": "ID da conta",
   "actions": "Ações",
