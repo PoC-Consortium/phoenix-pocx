@@ -129,11 +129,7 @@ type OutputReference =
                     </button>
                   }
                   @if (canAbandon()) {
-                    <button
-                      mat-stroked-button
-                      class="abandon-tx-btn"
-                      (click)="openAbandonDialog()"
-                    >
+                    <button mat-stroked-button class="abandon-tx-btn" (click)="openAbandonDialog()">
                       <mat-icon>delete_forever</mat-icon>
                       {{ 'abandon_tx' | i18n }}
                     </button>
@@ -1178,9 +1174,7 @@ export class TransactionDetailComponent implements OnInit {
   canAbandon(): boolean {
     const transaction = this.tx();
     if (!transaction) return false;
-    return (
-      transaction.wallet.confirmations === 0 && transaction.wallet.category === 'send'
-    );
+    return transaction.wallet.confirmations === 0 && transaction.wallet.category === 'send';
   }
 
   async openBumpFeeDialog(): Promise<void> {
