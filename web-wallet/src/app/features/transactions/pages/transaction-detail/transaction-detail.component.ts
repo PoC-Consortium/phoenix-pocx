@@ -29,6 +29,11 @@ import {
   FeeBumpDialogData,
   FeeBumpDialogResult,
 } from '../../components/fee-bump-dialog/fee-bump-dialog.component';
+import {
+  AbandonTxDialogComponent,
+  AbandonTxDialogData,
+  AbandonTxDialogResult,
+} from '../../components/abandon-tx-dialog/abandon-tx-dialog.component';
 
 interface FullTransaction {
   wallet: WalletTransaction & { hex?: string };
@@ -121,6 +126,12 @@ type OutputReference =
                     <button mat-stroked-button class="bump-fee-btn" (click)="openBumpFeeDialog()">
                       <mat-icon>speed</mat-icon>
                       {{ 'bump_fee' | i18n }}
+                    </button>
+                  }
+                  @if (canAbandon()) {
+                    <button mat-stroked-button class="abandon-tx-btn" (click)="openAbandonDialog()">
+                      <mat-icon>delete_forever</mat-icon>
+                      {{ 'abandon_tx' | i18n }}
                     </button>
                   }
                 </div>
@@ -498,6 +509,25 @@ type OutputReference =
 
               &:hover {
                 background: rgba(25, 118, 210, 0.08);
+              }
+            }
+
+            .abandon-tx-btn {
+              height: 32px;
+              padding: 0 12px;
+              font-size: 12px;
+              border-color: #e65100;
+              color: #e65100;
+
+              mat-icon {
+                font-size: 16px;
+                width: 16px;
+                height: 16px;
+                margin-right: 4px;
+              }
+
+              &:hover {
+                background: rgba(230, 81, 0, 0.08);
               }
             }
           }
@@ -1141,6 +1171,12 @@ export class TransactionDetailComponent implements OnInit {
     );
   }
 
+  canAbandon(): boolean {
+    const transaction = this.tx();
+    if (!transaction) return false;
+    return transaction.wallet.confirmations === 0 && transaction.wallet.category === 'send';
+  }
+
   async openBumpFeeDialog(): Promise<void> {
     const transaction = this.tx();
     if (!transaction) return;
@@ -1188,6 +1224,43 @@ export class TransactionDetailComponent implements OnInit {
       this.loadTransaction(result.txid);
     } catch (error) {
       const message = error instanceof Error ? error.message : this.i18n.get('bump_fee_error');
+      this.notification.error(message);
+    }
+  }
+
+  async openAbandonDialog(): Promise<void> {
+    const transaction = this.tx();
+    if (!transaction) return;
+
+    const dialogRef = this.dialog.open(AbandonTxDialogComponent, {
+      width: '500px',
+      data: {
+        txid: transaction.wallet.txid,
+        amount: Math.abs(transaction.wallet.amount),
+        address: transaction.wallet.address,
+      } as AbandonTxDialogData,
+    });
+
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as
+      | AbandonTxDialogResult
+      | undefined;
+    if (result?.confirmed) {
+      await this.executeAbandon(transaction.wallet.txid);
+    }
+  }
+
+  private async executeAbandon(txid: string): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName) return;
+
+    try {
+      await this.walletRpc.abandonTransaction(walletName, txid);
+      this.notification.success(this.i18n.get('abandon_tx_success'));
+      this.walletService.refresh();
+      // Re-load to reflect the now-abandoned state
+      this.loadTransaction(txid);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : this.i18n.get('abandon_tx_error');
       this.notification.error(message);
     }
   }

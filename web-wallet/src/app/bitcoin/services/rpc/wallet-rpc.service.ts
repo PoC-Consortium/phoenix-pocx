@@ -439,6 +439,16 @@ export class WalletRpcService {
   }
 
   /**
+   * Mark an in-wallet transaction as abandoned.
+   * Frees its inputs for reuse. Only succeeds when the transaction is no longer
+   * in the mempool (e.g. conflicted or evicted). Core returns an error otherwise,
+   * which callers should surface verbatim.
+   */
+  async abandonTransaction(walletName: string, txid: string): Promise<void> {
+    await this.rpc.call('abandontransaction', [txid], walletName);
+  }
+
+  /**
    * Bump the fee of a pending RBF-enabled transaction using PSBT
    * Use this for encrypted wallets that require signing
    */

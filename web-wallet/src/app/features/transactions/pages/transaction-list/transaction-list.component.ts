@@ -35,6 +35,11 @@ import {
   FeeBumpDialogData,
   FeeBumpDialogResult,
 } from '../../components/fee-bump-dialog/fee-bump-dialog.component';
+import {
+  AbandonTxDialogComponent,
+  AbandonTxDialogData,
+  AbandonTxDialogResult,
+} from '../../components/abandon-tx-dialog/abandon-tx-dialog.component';
 
 type TransactionFilter = 'all' | 'send' | 'receive' | 'immature' | 'generate';
 
@@ -294,6 +299,15 @@ type TransactionFilter = 'all' | 'send' | 'receive' | 'immature' | 'generate';
                             <button mat-menu-item (click)="openBumpFeeDialog(tx)">
                               <mat-icon>speed</mat-icon>
                               <span>{{ 'bump_fee' | i18n }}</span>
+                            </button>
+                          }
+                          @if (tx.confirmations === 0 && tx.category === 'send') {
+                            @if (tx.bip125_replaceable !== 'yes') {
+                              <mat-divider></mat-divider>
+                            }
+                            <button mat-menu-item (click)="openAbandonDialog(tx)">
+                              <mat-icon>delete_forever</mat-icon>
+                              <span>{{ 'abandon_tx' | i18n }}</span>
                             </button>
                           }
                         </mat-menu>
@@ -1153,6 +1167,39 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       this.walletService.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : this.i18n.get('bump_fee_error');
+      this.notification.error(message);
+    }
+  }
+
+  async openAbandonDialog(tx: WalletTransaction): Promise<void> {
+    const dialogRef = this.dialog.open(AbandonTxDialogComponent, {
+      width: '500px',
+      data: {
+        txid: tx.txid,
+        amount: Math.abs(tx.amount),
+        address: tx.address,
+      } as AbandonTxDialogData,
+    });
+
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as
+      | AbandonTxDialogResult
+      | undefined;
+    if (result?.confirmed) {
+      await this.executeAbandon(tx.txid);
+    }
+  }
+
+  private async executeAbandon(txid: string): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName) return;
+
+    try {
+      await this.walletRpc.abandonTransaction(walletName, txid);
+      this.notification.success(this.i18n.get('abandon_tx_success'));
+      this.loadTransactions();
+      this.walletService.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : this.i18n.get('abandon_tx_error');
       this.notification.error(message);
     }
   }
