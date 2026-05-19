@@ -1219,6 +1219,14 @@ export class DashboardComponent implements AfterViewInit {
 
   // Transaction methods
   getTransactionType(tx: WalletTransaction): string {
+    // PoCX virtual types take precedence over `send` when the node provides them.
+    // Absent on unpatched nodes — falls through to the category switch.
+    if (tx.pocx_type === 'assignment') {
+      return this.i18n.get('tx_type_assignment');
+    }
+    if (tx.pocx_type === 'revocation') {
+      return this.i18n.get('tx_type_revocation');
+    }
     switch (tx.category) {
       case 'receive':
         return this.i18n.get('tx_type_receive');

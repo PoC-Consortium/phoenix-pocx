@@ -1,7 +1,9 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { Location } from '@angular/common';
+import { Store } from '@ngrx/store';
 import { firstValueFrom } from 'rxjs';
 import { ActivatedRoute, RouterModule } from '@angular/router';
+import { invoke } from '@tauri-apps/api/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -34,6 +36,30 @@ import {
   AbandonTxDialogData,
   AbandonTxDialogResult,
 } from '../../components/abandon-tx-dialog/abandon-tx-dialog.component';
+import { selectNetwork } from '../../../../store/settings';
+import {
+  parseAssignmentScript,
+  parseRevocationScript,
+  getForgingAssignmentDelay,
+  getForgingRevocationDelay,
+} from '../../../../bitcoin/utils/pocx-op-return';
+
+interface CommandResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+interface PocxAssignmentDetails {
+  plotAddress: string;
+  forgingAddress: string;
+  activationHeight: number | null;
+}
+
+interface PocxRevocationDetails {
+  plotAddress: string;
+  effectiveHeight: number | null;
+}
 
 interface FullTransaction {
   wallet: WalletTransaction & { hex?: string };
@@ -179,6 +205,56 @@ type OutputReference =
                 }
               </div>
             </div>
+
+            <!-- PoCX Assignment Details -->
+            @if (pocxAssignment(); as a) {
+              <div class="details-card">
+                <h3 class="section-title">{{ 'assignment_details' | i18n }}</h3>
+                <div class="detail-grid">
+                  <div class="detail-item full-width">
+                    <span class="label">{{ 'plot_address' | i18n }}</span>
+                    <app-hash-ref [value]="a.plotAddress" kind="address" [truncate]="false" />
+                  </div>
+                  <div class="detail-item full-width">
+                    <span class="label">{{ 'forging_address' | i18n }}</span>
+                    <app-hash-ref [value]="a.forgingAddress" kind="address" [truncate]="false" />
+                  </div>
+                  <div class="detail-item">
+                    <span class="label">{{ 'activation_height' | i18n }}</span>
+                    <span class="value">
+                      @if (a.activationHeight !== null) {
+                        {{ a.activationHeight }}
+                      } @else {
+                        {{ 'pending_confirmation' | i18n }}
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <!-- PoCX Revocation Details -->
+            @if (pocxRevocation(); as r) {
+              <div class="details-card">
+                <h3 class="section-title">{{ 'revocation_details' | i18n }}</h3>
+                <div class="detail-grid">
+                  <div class="detail-item full-width">
+                    <span class="label">{{ 'plot_address' | i18n }}</span>
+                    <app-hash-ref [value]="r.plotAddress" kind="address" [truncate]="false" />
+                  </div>
+                  <div class="detail-item">
+                    <span class="label">{{ 'effective_height' | i18n }}</span>
+                    <span class="value">
+                      @if (r.effectiveHeight !== null) {
+                        {{ r.effectiveHeight }}
+                      } @else {
+                        {{ 'pending_confirmation' | i18n }}
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+            }
 
             <!-- Inputs and Outputs -->
             @if (tx()!.raw) {
@@ -934,6 +1010,7 @@ type OutputReference =
 export class TransactionDetailComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
+  private readonly store = inject(Store);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
@@ -950,6 +1027,8 @@ export class TransactionDetailComponent implements OnInit {
   totalInput = signal(0);
   totalOutput = signal(0);
   feeRate = signal(0);
+  pocxAssignment = signal<PocxAssignmentDetails | null>(null);
+  pocxRevocation = signal<PocxRevocationDetails | null>(null);
 
   ngOnInit(): void {
     const txid = this.route.snapshot.paramMap.get('txid');
@@ -998,6 +1077,7 @@ export class TransactionDetailComponent implements OnInit {
 
       this.tx.set({ wallet: walletTx, raw: rawTx });
       this.computeValues();
+      await this.detectPocxMarkers(walletTx, rawTx);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load transaction';
       this.error.set(message);
@@ -1056,6 +1136,79 @@ export class TransactionDetailComponent implements OnInit {
         }
       }
     }
+  }
+
+  /**
+   * Scan vouts for assignment / revocation OP_RETURN markers and resolve the
+   * 20-byte plot/forge hashes to bech32 (PoCX HRP). Computes the activation
+   * (or revocation-effective) height from the confirmed blockheight plus the
+   * per-network consensus delay. Falls back to a hex hash if the bech32
+   * conversion errors out so the user still sees the underlying payload.
+   */
+  private async detectPocxMarkers(
+    walletTx: WalletTransaction & { hex?: string },
+    rawTx: Transaction | null
+  ): Promise<void> {
+    this.pocxAssignment.set(null);
+    this.pocxRevocation.set(null);
+
+    if (!rawTx?.vout) return;
+
+    let assignment: { plotHashHex: string; forgeHashHex: string } | null = null;
+    let revocation: { plotHashHex: string } | null = null;
+    for (const vout of rawTx.vout) {
+      const hex = vout.scriptPubKey?.hex;
+      const parsedA = parseAssignmentScript(hex);
+      if (parsedA) {
+        assignment = parsedA;
+        break;
+      }
+      const parsedR = parseRevocationScript(hex);
+      if (parsedR) {
+        revocation = parsedR;
+        break;
+      }
+    }
+
+    if (!assignment && !revocation) return;
+
+    const network = await firstValueFrom(this.store.select(selectNetwork));
+    const toBech32 = (hex: string) => this.hexToBech32(hex, network);
+
+    if (assignment) {
+      const [plot, forge] = await Promise.all([
+        toBech32(assignment.plotHashHex),
+        toBech32(assignment.forgeHashHex),
+      ]);
+      this.pocxAssignment.set({
+        plotAddress: plot,
+        forgingAddress: forge,
+        activationHeight: walletTx.blockheight
+          ? walletTx.blockheight + getForgingAssignmentDelay(network)
+          : null,
+      });
+    } else if (revocation) {
+      const plot = await toBech32(revocation.plotHashHex);
+      this.pocxRevocation.set({
+        plotAddress: plot,
+        effectiveHeight: walletTx.blockheight
+          ? walletTx.blockheight + getForgingRevocationDelay(network)
+          : null,
+      });
+    }
+  }
+
+  private async hexToBech32(payloadHex: string, network: string): Promise<string> {
+    try {
+      const result = await invoke<CommandResult<string>>('hex_to_bech32', {
+        payloadHex,
+        network,
+      });
+      if (result.success && result.data) return result.data;
+    } catch (e) {
+      console.warn('hex_to_bech32 failed; falling back to hex:', e);
+    }
+    return payloadHex;
   }
 
   private computeValues(): void {

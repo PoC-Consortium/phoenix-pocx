@@ -91,6 +91,10 @@ export interface WalletTransaction {
   abandoned?: boolean;
   comment?: string;
   to?: string;
+  // PoCX-specific marker emitted by patched Bitcoin Core when the tx carries an
+  // assignment/revocation OP_RETURN. Absent on unpatched nodes — readers must
+  // fall back to `category`.
+  pocx_type?: 'assignment' | 'revocation';
 }
 
 /**

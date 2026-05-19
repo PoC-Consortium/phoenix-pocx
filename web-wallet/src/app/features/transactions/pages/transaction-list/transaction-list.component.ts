@@ -41,7 +41,14 @@ import {
   AbandonTxDialogResult,
 } from '../../components/abandon-tx-dialog/abandon-tx-dialog.component';
 
-type TransactionFilter = 'all' | 'send' | 'receive' | 'immature' | 'generate';
+type TransactionFilter =
+  | 'all'
+  | 'send'
+  | 'receive'
+  | 'immature'
+  | 'generate'
+  | 'assignment'
+  | 'revocation';
 
 /**
  * TransactionListComponent displays all wallet transactions with filtering.
@@ -907,6 +914,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     { value: 'receive', label: 'receive' },
     { value: 'immature', label: 'immature' },
     { value: 'generate', label: 'generate' },
+    { value: 'assignment', label: 'tx_type_assignment' },
+    { value: 'revocation', label: 'tx_type_revocation' },
   ];
 
   filteredTransactions = computed(() => {
@@ -915,15 +924,21 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     const filter = this.activeFilter();
     const query = this.searchQuery.toLowerCase().trim();
 
-    // Apply type filter
+    // Apply type filter. Assignment/revocation are virtual types overlaid on
+    // `send`; when filtering by `send`, exclude rows that carry a pocx_type so
+    // the three filters partition the underlying send rows cleanly.
     if (filter === 'send') {
-      txs = txs.filter(tx => tx.category === 'send');
+      txs = txs.filter(tx => tx.category === 'send' && !tx.pocx_type);
     } else if (filter === 'receive') {
       txs = txs.filter(tx => tx.category === 'receive');
     } else if (filter === 'immature') {
       txs = txs.filter(tx => tx.category === 'immature');
     } else if (filter === 'generate') {
       txs = txs.filter(tx => tx.category === 'generate');
+    } else if (filter === 'assignment') {
+      txs = txs.filter(tx => tx.pocx_type === 'assignment');
+    } else if (filter === 'revocation') {
+      txs = txs.filter(tx => tx.pocx_type === 'revocation');
     }
 
     // Apply search filter
@@ -1047,6 +1062,14 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   // Transaction display methods
   getTransactionType(tx: WalletTransaction): string {
+    // PoCX virtual types take precedence over `send` when the node provides them.
+    // Absent on unpatched nodes — falls through to the category switch.
+    if (tx.pocx_type === 'assignment') {
+      return this.i18n.get('tx_type_assignment');
+    }
+    if (tx.pocx_type === 'revocation') {
+      return this.i18n.get('tx_type_revocation');
+    }
     switch (tx.category) {
       case 'receive':
         return this.i18n.get('tx_type_receive');
