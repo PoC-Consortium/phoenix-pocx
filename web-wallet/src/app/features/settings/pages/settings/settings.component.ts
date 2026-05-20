@@ -64,6 +64,49 @@ function parseListenAddressPort(listenAddress: string): number | null {
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
 }
 
+interface CustomArgRow {
+  key: string;
+  value: string;
+}
+
+/** Keys the wallet manages itself — emitted by us in bitcoin.conf or on the CLI.
+ * Anything the user enters here would either be overridden or break wallet plumbing. */
+const RESERVED_NODE_ARG_KEYS: ReadonlySet<string> = new Set([
+  'rpcport',
+  'rpcbind',
+  'rpcallowip',
+  'server',
+  'datadir',
+  'testnet',
+  'regtest',
+  'chain',
+]);
+
+function normalizeArgKey(raw: string): string {
+  return raw.trim().replace(/^-+/, '').toLowerCase();
+}
+
+function parseCustomArgsString(raw: string): CustomArgRow[] {
+  if (!raw) return [];
+  return raw
+    .split(/\s+/)
+    .filter(token => token.length > 0)
+    .map(token => {
+      const stripped = token.replace(/^-+/, '');
+      const eqIdx = stripped.indexOf('=');
+      if (eqIdx < 0) return { key: stripped, value: '' };
+      return { key: stripped.slice(0, eqIdx), value: stripped.slice(eqIdx + 1) };
+    });
+}
+
+function serializeCustomArgRows(rows: CustomArgRow[]): string {
+  return rows
+    .map(r => ({ key: r.key.trim().replace(/^-+/, ''), value: r.value }))
+    .filter(r => r.key.length > 0)
+    .map(r => (r.value === '' ? `-${r.key}` : `-${r.key}=${r.value}`))
+    .join(' ');
+}
+
 /** Replace the port in an "addr:port" listen address. */
 function withListenPort(listenAddress: string, port: number): string {
   const idx = listenAddress.lastIndexOf(':');
@@ -288,6 +331,85 @@ function withListenPort(listenAddress: string, port: number): string {
                             {{ 'node_network_change_stop_hint' | i18n }}
                           </p>
                         }
+
+                        <div class="custom-args-section">
+                          <h4 class="custom-args-title">
+                            {{ 'node_custom_args_title' | i18n }}
+                          </h4>
+                          <p class="custom-args-hint">
+                            {{ 'node_custom_args_hint' | i18n }}
+                          </p>
+
+                          @if (customArgRows().length === 0) {
+                            <p class="custom-args-empty">
+                              {{ 'node_custom_args_empty' | i18n }}
+                            </p>
+                          } @else {
+                            @for (row of customArgRows(); track $index) {
+                              <div class="custom-arg-row">
+                                <mat-form-field appearance="outline" class="arg-key">
+                                  <mat-label>{{ 'node_custom_arg_key' | i18n }}</mat-label>
+                                  <input
+                                    matInput
+                                    [ngModel]="row.key"
+                                    (ngModelChange)="updateCustomArgKey($index, $event)"
+                                    [disabled]="isManagedNodeBusy()"
+                                  />
+                                  @if (isReservedArgKey(row.key)) {
+                                    <mat-icon
+                                      matSuffix
+                                      class="reserved-warn-icon"
+                                      [matTooltip]="reservedKeyWarning(row.key)"
+                                      >warning</mat-icon
+                                    >
+                                  }
+                                </mat-form-field>
+                                <mat-form-field appearance="outline" class="arg-value">
+                                  <mat-label>{{ 'node_custom_arg_value' | i18n }}</mat-label>
+                                  <input
+                                    matInput
+                                    [ngModel]="row.value"
+                                    (ngModelChange)="updateCustomArgValue($index, $event)"
+                                    [placeholder]="'node_custom_arg_value_placeholder' | i18n"
+                                    [disabled]="isManagedNodeBusy()"
+                                  />
+                                </mat-form-field>
+                                <button
+                                  mat-icon-button
+                                  type="button"
+                                  class="arg-remove-btn"
+                                  (click)="removeCustomArgRow($index)"
+                                  [disabled]="isManagedNodeBusy()"
+                                  [matTooltip]="'node_custom_arg_remove' | i18n"
+                                >
+                                  <mat-icon>close</mat-icon>
+                                </button>
+                              </div>
+                              @if (isReservedArgKey(row.key)) {
+                                <p class="reserved-key-warning">
+                                  <mat-icon class="hint-icon">warning</mat-icon>
+                                  {{ reservedKeyWarning(row.key) }}
+                                </p>
+                              }
+                            }
+                          }
+
+                          <button
+                            mat-stroked-button
+                            type="button"
+                            class="add-arg-btn"
+                            (click)="addCustomArgRow()"
+                            [disabled]="isManagedNodeBusy()"
+                          >
+                            <mat-icon>add</mat-icon>
+                            {{ 'node_custom_arg_add' | i18n }}
+                          </button>
+
+                          <p class="hint-text custom-args-restart-hint">
+                            <mat-icon class="hint-icon">info</mat-icon>
+                            {{ 'node_custom_args_restart_hint' | i18n }}
+                          </p>
+                        </div>
                       }
                     </div>
 
@@ -1010,6 +1132,71 @@ function withListenPort(listenAddress: string, port: number): string {
         margin-top: 8px;
       }
 
+      .custom-args-section {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .custom-args-title {
+        font-size: 13px;
+        font-weight: 500;
+        margin: 0 0 4px 0;
+        color: rgba(0, 0, 0, 0.75);
+      }
+
+      .custom-args-hint {
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.55);
+        margin: 0 0 12px 0;
+      }
+
+      .custom-args-empty {
+        font-size: 12px;
+        color: rgba(0, 0, 0, 0.45);
+        font-style: italic;
+        margin: 8px 0 12px 0;
+      }
+
+      .custom-arg-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      }
+
+      .custom-arg-row .arg-key {
+        flex: 0 0 200px;
+      }
+
+      .custom-arg-row .arg-value {
+        flex: 1;
+      }
+
+      .custom-arg-row .arg-remove-btn {
+        margin-top: 6px;
+      }
+
+      .reserved-key-warning {
+        margin: -4px 0 8px 0;
+        font-size: 12px;
+        color: #b26100;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .reserved-warn-icon {
+        color: #b26100;
+      }
+
+      .add-arg-btn {
+        margin-top: 4px;
+      }
+
+      .custom-args-restart-hint {
+        margin-top: 12px;
+      }
+
       .vertical-radio-group {
         display: flex;
         flex-direction: column;
@@ -1649,9 +1836,38 @@ export class SettingsComponent implements OnInit, OnDestroy {
   /** Whether the managed-mode Advanced section is expanded. */
   readonly managedAdvancedOpen = signal(false);
 
+  /** Editable rows for managed-mode custom bitcoind args. Serialized to/from
+   * the rust-side `customArgs` whitespace-separated string on save/load. */
+  readonly customArgRows = signal<CustomArgRow[]>([]);
+
   /** Returns the temp config for the currently selected mode */
   get activeConfig(): NodeConfig {
     return this.nodeMode() === 'managed' ? this.managedTempConfig : this.externalTempConfig;
+  }
+
+  addCustomArgRow(): void {
+    this.customArgRows.update(rows => [...rows, { key: '', value: '' }]);
+  }
+
+  removeCustomArgRow(index: number): void {
+    this.customArgRows.update(rows => rows.filter((_, i) => i !== index));
+  }
+
+  updateCustomArgKey(index: number, key: string): void {
+    this.customArgRows.update(rows => rows.map((r, i) => (i === index ? { ...r, key } : r)));
+  }
+
+  updateCustomArgValue(index: number, value: string): void {
+    this.customArgRows.update(rows => rows.map((r, i) => (i === index ? { ...r, value } : r)));
+  }
+
+  isReservedArgKey(key: string): boolean {
+    const normalized = normalizeArgKey(key);
+    return normalized.length > 0 && RESERVED_NODE_ARG_KEYS.has(normalized);
+  }
+
+  reservedKeyWarning(key: string): string {
+    return this.i18n.get('node_custom_args_reserved', { key: normalizeArgKey(key) });
   }
 
   /** Disable port edits while node/miner/aggregator is running. */
@@ -1707,6 +1923,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     const aggCfg = this.aggregatorService.config();
     const parsedAggPort = parseListenAddressPort(aggCfg.listenAddress);
     this.aggregatorListenPort = parsedAggPort ?? this.managedTempConfig.rpcPort + 7;
+
+    this.customArgRows.set(parseCustomArgsString(rustConfig.customArgs ?? ''));
 
     // Load external config from NgRx store (persisted external settings)
     this.store
@@ -1868,6 +2086,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
       // 3. Sync to Rust-side NodeConfig (used by miner/aggregator)
       const rustConfig = this.nodeService.config();
+      // Reserved keys are dropped at serialize time too — keep wallet-managed
+      // values authoritative even if the user leaves a row visible.
+      const filteredArgRows = this.customArgRows().filter(r => !this.isReservedArgKey(r.key));
       await this.nodeService.saveConfig({
         ...rustConfig,
         mode,
@@ -1878,6 +2099,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         authMethod: config.authMethod === 'credentials' ? 'userpass' : 'cookie',
         rpcUser: config.username,
         rpcPassword: config.password,
+        customArgs: serializeCustomArgRows(filteredArgRows),
       });
 
       // 4. Apply credentials
