@@ -370,9 +370,7 @@ function withListenPort(listenAddress: string, port: number): string {
                                     matInput
                                     [ngModel]="row.value"
                                     (ngModelChange)="updateCustomArgValue($index, $event)"
-                                    [placeholder]="
-                                      'node_custom_arg_value_placeholder' | i18n
-                                    "
+                                    [placeholder]="'node_custom_arg_value_placeholder' | i18n"
                                     [disabled]="isManagedNodeBusy()"
                                   />
                                 </mat-form-field>
@@ -2090,9 +2088,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       const rustConfig = this.nodeService.config();
       // Reserved keys are dropped at serialize time too — keep wallet-managed
       // values authoritative even if the user leaves a row visible.
-      const filteredArgRows = this.customArgRows().filter(
-        r => !this.isReservedArgKey(r.key),
-      );
+      const filteredArgRows = this.customArgRows().filter(r => !this.isReservedArgKey(r.key));
       await this.nodeService.saveConfig({
         ...rustConfig,
         mode,
