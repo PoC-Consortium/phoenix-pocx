@@ -3214,22 +3214,21 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         priority: editing?.priority ?? this.chainConfigs().length + 1,
       };
     } else if (data.mode === 'pool') {
-      // Match the known pool endpoints so the chain shows up with a
-      // friendly name. The testnet URL contains `pool.testnet.bitcoin-pocx.org`
-      // (not `pool.bitcoin-pocx.org`), so test for the testnet variant first.
+      // Parse pool URL to extract host and port
+      const { transport, host, port } = this.parseUrl(data.poolUrl);
+
+      // Match known pool hosts (exact equality, not substring) so the chain
+      // shows up with a friendly name.
       let poolName: string;
-      if (data.poolUrl.includes('pool.testnet.bitcoin-pocx.org')) {
+      if (host === 'pool.testnet.bitcoin-pocx.org') {
         poolName = 'Nogrod Testnet';
-      } else if (data.poolUrl.includes('pool.bitcoin-pocx.org')) {
+      } else if (host === 'pool.bitcoin-pocx.org') {
         poolName = 'Nogrod Mainnet';
-      } else if (data.poolUrl.includes('btcx-pool.cryptoguru.org')) {
+      } else if (host === 'btcx-pool.cryptoguru.org') {
         poolName = 'CryptoGuru Mainnet';
       } else {
         poolName = data.chainName || 'Pool';
       }
-
-      // Parse pool URL to extract host and port
-      const { transport, host, port } = this.parseUrl(data.poolUrl);
 
       chain = {
         id,

@@ -38,6 +38,11 @@ jobs:
         with:
           languages: javascript-typescript
           queries: security-and-quality
+          # Skip generated build artifacts — the quality query suite flags
+          # minified/tree-shaken output with rules that don't apply to source.
+          paths-ignore: |
+            web-wallet/dist
+            web-wallet/node_modules
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
