@@ -723,6 +723,19 @@ function withListenPort(listenAddress: string, port: number): string {
                       </mat-slide-toggle>
                     </div>
                   </div>
+
+                  <!-- System Notifications -->
+                  <div class="notification-group">
+                    <h3 class="section-title">{{ 'system_notifications' | i18n }}</h3>
+                    <div class="notification-item">
+                      <mat-slide-toggle
+                        [(ngModel)]="notifications.clockDriftWarning"
+                        (change)="onNotificationChange()"
+                      >
+                        {{ 'clock_drift_warning' | i18n }}
+                      </mat-slide-toggle>
+                    </div>
+                  </div>
                 }
               </div>
             </div>
@@ -1890,6 +1903,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     nodeConnected: false,
     nodeDisconnected: true,
     syncComplete: true,
+    clockDriftWarning: true,
   };
 
   // Debug & Logs state

@@ -17,6 +17,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDialog } from '@angular/material/dialog';
 import { Subject, takeUntil } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService, LANGUAGES, Language } from '../../core/i18n';
@@ -30,6 +31,8 @@ import { selectNetwork } from '../../store/settings/settings.selectors';
 import { Network } from '../../store/settings/settings.state';
 import { NodeService } from '../../node';
 import { MiningService } from '../../mining/services';
+import { ClockDriftService } from '../../core/services/clock-drift.service';
+import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-dialog/clock-drift-dialog.component';
 
 /**
  * Shared toolbar component matching original Phoenix wallet design.
@@ -122,6 +125,23 @@ import { MiningService } from '../../mining/services';
                     miningService.plotterUIState() === 'stopping'
                   "
                   >storage</mat-icon
+                >
+              </div>
+            }
+
+            <!-- Clock-drift Indicator (visible when monitoring is enabled) -->
+            @if (clockDrift.enabled()) {
+              <div
+                class="status-indicator clock-drift-indicator"
+                [class.clickable]="true"
+                [matTooltip]="clockDriftTooltip()"
+                (click)="openClockDriftDialog()"
+              >
+                <mat-icon
+                  [class.clock-ok]="clockDrift.status() === 'ok'"
+                  [class.clock-warning]="clockDrift.status() === 'warning'"
+                  [class.clock-critical]="clockDrift.status() === 'critical'"
+                  >schedule</mat-icon
                 >
               </div>
             }
@@ -479,10 +499,23 @@ import { MiningService } from '../../mining/services';
             color: #4caf50;
           }
 
-          &.wallet-status-unlocked {
+          &.wallet-status-unlocked,
+          &.clock-warning {
             color: #ff9800;
           }
+
+          &.clock-ok {
+            color: #4caf50;
+          }
+
+          &.clock-critical {
+            color: #e53935;
+          }
         }
+      }
+
+      .clock-drift-indicator.clickable {
+        cursor: pointer;
       }
 
       /* Responsive */
@@ -538,9 +571,11 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   private readonly rpcClient = inject(RpcClientService);
   private readonly walletUnlock = inject(WalletUnlockService);
+  private readonly dialog = inject(MatDialog);
   readonly i18n = inject(I18nService);
   readonly nodeService = inject(NodeService);
   readonly miningService = inject(MiningService);
+  readonly clockDrift = inject(ClockDriftService);
   private readonly destroy$ = new Subject<void>();
 
   // Inputs
@@ -565,6 +600,23 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   );
   readonly hasEncryptedWalletsLoaded = computed(() => this.encryptedWallets().length > 0);
   readonly anyWalletUnlocked = computed(() => this.unlockedEncryptedWallets().length > 0);
+
+  readonly clockDriftTooltip = computed(() => {
+    // Re-evaluate when language changes
+    this.i18n.translations();
+    const status = this.clockDrift.status();
+    const offset = this.clockDrift.offsetMs();
+    if (status === 'unknown' || offset === null) {
+      return this.i18n.get('clock_drift_tooltip_unknown');
+    }
+    const absSec = Math.abs(offset) / 1000;
+    const value = absSec < 1 ? `${Math.round(Math.abs(offset))} ms` : `${absSec.toFixed(1)} s`;
+    const direction =
+      offset > 0
+        ? this.i18n.get('clock_drift_direction_ahead')
+        : this.i18n.get('clock_drift_direction_behind');
+    return this.i18n.get('clock_drift_tooltip', { value, direction });
+  });
 
   // Loading tracking
   loadingWallets = new Set<string>();
@@ -733,5 +785,12 @@ export class ToolbarComponent implements OnInit, OnDestroy {
     // Clear active wallet and navigate to wallet selection
     this.walletManager.setActiveWallet(null);
     this.router.navigate(['/auth']);
+  }
+
+  openClockDriftDialog(): void {
+    this.dialog.open(ClockDriftDialogComponent, {
+      width: '480px',
+      autoFocus: false,
+    });
   }
 }

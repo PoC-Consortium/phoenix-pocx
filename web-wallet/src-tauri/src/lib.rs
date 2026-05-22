@@ -22,6 +22,9 @@ pub mod node;
 // Update checking module
 pub mod update;
 
+// Clock-drift / NTP module
+pub mod time;
+
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// Include database migrations for the mining database
@@ -879,6 +882,8 @@ pub fn run() {
             // Update commands
             update::get_app_version,
             update::check_wallet_update,
+            // Clock-drift command
+            time::commands::check_clock_drift,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
