@@ -52,6 +52,8 @@ export interface NotificationSettings {
   nodeConnected: boolean;
   nodeDisconnected: boolean;
   syncComplete: boolean;
+  // System notifications
+  clockDriftWarning: boolean;
 }
 
 /**
@@ -128,6 +130,7 @@ export const defaultNotificationSettings: NotificationSettings = {
   nodeConnected: false,
   nodeDisconnected: true,
   syncComplete: true,
+  clockDriftWarning: true,
 };
 
 /**

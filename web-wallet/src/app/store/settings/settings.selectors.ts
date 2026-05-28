@@ -42,6 +42,11 @@ export const selectNotificationsEnabled = createSelector(
   notifications => notifications.enabled
 );
 
+export const selectClockDriftWarning = createSelector(
+  selectNotifications,
+  notifications => notifications.enabled && notifications.clockDriftWarning
+);
+
 // ============================================================
 // Display
 // ============================================================

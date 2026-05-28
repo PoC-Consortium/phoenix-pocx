@@ -8,6 +8,7 @@ import { ElectronService } from './core/services/electron.service';
 import { AppModeService } from './core/services/app-mode.service';
 import { PlatformService } from './core/services/platform.service';
 import { AppUpdateService } from './core/services/app-update.service';
+import { ClockDriftService } from './core/services/clock-drift.service';
 import { CookieAuthService } from './core/auth/cookie-auth.service';
 import { MiningService } from './mining/services';
 import { NodeService } from './node';
@@ -80,6 +81,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly appModeService = inject(AppModeService);
   private readonly platformService = inject(PlatformService);
   private readonly appUpdateService = inject(AppUpdateService);
+  private readonly clockDriftService = inject(ClockDriftService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly dialog = inject(MatDialog);
   private readonly miningService = inject(MiningService);
@@ -130,6 +132,9 @@ export class AppComponent implements OnInit, OnDestroy {
     // Initialize update checking service
     this.appUpdateService.initialize();
 
+    // Initialize clock-drift polling (silent NTP checks every hour)
+    this.clockDriftService.initialize();
+
     // Subscribe to menu:check-update events to show update dialog (works even when logged out)
     this.updateDialogSubscription = this.appUpdateService.showUpdateDialog$.subscribe(() => {
       this.showUpdateDialog();
@@ -157,6 +162,8 @@ export class AppComponent implements OnInit, OnDestroy {
       this.updateDialogSubscription.unsubscribe();
       this.updateDialogSubscription = null;
     }
+
+    this.clockDriftService.destroy();
   }
 
   /**
