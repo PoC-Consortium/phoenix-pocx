@@ -10,8 +10,4 @@ export {
   CLOCK_DRIFT_WARNING_MS,
   CLOCK_DRIFT_CRITICAL_MS,
 } from './clock-drift.service';
-export type {
-  ClockDriftReport,
-  ClockDriftStatus,
-  NtpSample,
-} from './clock-drift.service';
+export type { ClockDriftReport, ClockDriftStatus, NtpSample } from './clock-drift.service';

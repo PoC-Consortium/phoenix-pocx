@@ -90,11 +90,7 @@ import {
       </mat-dialog-content>
 
       <mat-dialog-actions align="end">
-        <button
-          mat-button
-          (click)="onCheckNow()"
-          [disabled]="service.checking()"
-        >
+        <button mat-button (click)="onCheckNow()" [disabled]="service.checking()">
           @if (service.checking()) {
             <mat-spinner diameter="18"></mat-spinner>
           } @else {
