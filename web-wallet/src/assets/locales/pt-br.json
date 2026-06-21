@@ -666,6 +666,8 @@
   "setup_async_write": "Gravação assíncrona em disco",
   "setup_max": "Máx:",
   "setup_memory_escalation": "Fator de escalação de memória",
+  "setup_plot_file_size": "Tamanho do arquivo de plot (GiB)",
+  "setup_plot_file_size_hint": "Tamanho de cada arquivo de plot em GiB. Padrão 1024 (1 TiB).",
   "setup_mining_direct_io": "Usar I/O direto para mineração",
   "setup_mining_setup": "Configuração de mineração",
   "setup_mining_threads": "Threads de mineração:",

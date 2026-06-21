@@ -666,6 +666,8 @@
   "setup_async_write": "Asinchroninis disko rašymas",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Atminties eskalavimo koeficientas",
+  "setup_plot_file_size": "Plot failo dydis (GiB)",
+  "setup_plot_file_size_hint": "Kiekvieno plot failo dydis GiB. Numatytasis 1024 (1 TiB).",
   "setup_mining_direct_io": "Naudoti tiesiogini I/O kasybai",
   "setup_mining_setup": "Kasybos nustatymai",
   "setup_mining_threads": "Kasybos gijos:",

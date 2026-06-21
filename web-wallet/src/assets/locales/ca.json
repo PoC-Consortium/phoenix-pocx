@@ -666,6 +666,8 @@
   "setup_async_write": "Escriptures de disc asíncrones",
   "setup_max": "Màx:",
   "setup_memory_escalation": "Factor d'escalada de memòria",
+  "setup_plot_file_size": "Mida del fitxer de plot (GiB)",
+  "setup_plot_file_size_hint": "Mida de cada fitxer de plot en GiB. Per defecte 1024 (1 TiB).",
   "setup_mining_direct_io": "Utilitzar E/S directa per a la mineria",
   "setup_mining_setup": "Configuració de mineria",
   "setup_mining_threads": "Fils de mineria:",

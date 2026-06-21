@@ -158,6 +158,7 @@ export interface MiningConfig {
   asyncWrite?: boolean; // Async disk writes (v2 plotter, default true)
   lowPriority?: boolean;
   parallelDrives?: number; // Number of drives to plot simultaneously (default 1)
+  plotFileSizeGib?: number; // Per-plot-file size in GiB (1 warp = 1 GiB); default 1024 (1 TiB)
   hddWakeupSeconds: number;
   // Note: plotPlan has been removed - plan is now runtime-only in PlotterState
   simulationMode?: boolean; // Dev only: run plotter in benchmark mode (no disk writes)

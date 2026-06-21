@@ -8,10 +8,13 @@ import {
   PlotPlanStats,
 } from '../models';
 
-const BATCH_SIZE = 1024; // 1024 warps = 1 TiB
+// Default per-file size when none is configured: 1024 warps = 1 TiB.
+// 1 warp = 1 GiB, so the batch size (in warps) equals the configured GiB.
+const DEFAULT_BATCH_SIZE = 1024;
 
 interface PlotConfig {
   parallelDrives: number;
+  plotFileSizeGib?: number; // Per-file size in GiB (1 warp = 1 GiB); default 1024 (1 TiB)
 }
 
 interface DriveState {
@@ -32,6 +35,13 @@ export class PlotPlanService {
     const plan: PlotPlanItem[] = [];
     const finishedDrives: string[] = [];
     let batchId = 0;
+
+    // Per-file plot size in warps (1 warp = 1 GiB). Falls back to the legacy
+    // 1 TiB default when unset or invalid so existing configs are unaffected.
+    const batchSize =
+      config.plotFileSizeGib && config.plotFileSizeGib > 0
+        ? Math.floor(config.plotFileSizeGib)
+        : DEFAULT_BATCH_SIZE;
 
     // Build drive state from DriveInfo + DriveConfig
     const driveStates: DriveState[] = drives.map(drive => {
@@ -69,8 +79,8 @@ export class PlotPlanService {
       const resumeTasks = drive.incompleteFiles;
       const toPlot = drive.allocatedGib - drive.completeSizeGib;
       const newPlots = Math.max(0, toPlot - drive.incompleteSizeGib);
-      const plotBatches = Math.floor(newPlots / BATCH_SIZE);
-      const remainderWarps = Math.round(newPlots % BATCH_SIZE);
+      const plotBatches = Math.floor(newPlots / batchSize);
+      const remainderWarps = Math.round(newPlots % batchSize);
       const hasRemainder = remainderWarps > 0;
       const totalTasks = resumeTasks + plotBatches + (hasRemainder ? 1 : 0);
 
@@ -181,8 +191,8 @@ export class PlotPlanService {
       const newPlots = Math.max(0, toPlot - drive.incompleteSizeGib);
 
       if (newPlots > 0) {
-        const fullBatches = Math.floor(newPlots / BATCH_SIZE);
-        const remainderWarps = Math.round(newPlots % BATCH_SIZE);
+        const fullBatches = Math.floor(newPlots / batchSize);
+        const remainderWarps = Math.round(newPlots % batchSize);
         driveWork.push({
           path: drive.path,
           fullBatches,
@@ -208,7 +218,7 @@ export class PlotPlanService {
       for (let i = 0; i < work.fullBatches; i++) {
         items.push({
           path: work.path,
-          warps: BATCH_SIZE,
+          warps: batchSize,
           isRemainder: false,
           driveRemainingTasks: totalItems - i,
         });
@@ -383,6 +393,7 @@ export class PlotPlanService {
         allocated: c.allocatedGib,
       })),
       parallelDrives: config.parallelDrives,
+      plotFileSizeGib: config.plotFileSizeGib ?? DEFAULT_BATCH_SIZE,
     };
     // Simple hash: JSON stringify and sum char codes
     const json = JSON.stringify(data);

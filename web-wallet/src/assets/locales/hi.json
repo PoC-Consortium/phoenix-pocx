@@ -666,6 +666,8 @@
   "setup_async_write": "एसिंक्रोनस डिस्क राइट",
   "setup_max": "अधिकतम:",
   "setup_memory_escalation": "मेमोरी एस्केलेशन फैक्टर",
+  "setup_plot_file_size": "प्लॉट फ़ाइल आकार (GiB)",
+  "setup_plot_file_size_hint": "प्रत्येक प्लॉट फ़ाइल का आकार GiB में। डिफ़ॉल्ट 1024 (1 TiB)।",
   "setup_mining_direct_io": "माइनिंग के लिए डायरेक्ट I/O उपयोग करें",
   "setup_mining_setup": "माइनिंग सेटअप",
   "setup_mining_threads": "माइनिंग थ्रेड्स:",

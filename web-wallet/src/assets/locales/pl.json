@@ -666,6 +666,8 @@
   "setup_async_write": "Asynchroniczny zapis na dysku",
   "setup_max": "Max:",
   "setup_memory_escalation": "Wspolczynnik eskalacji pamieci",
+  "setup_plot_file_size": "Rozmiar pliku plot (GiB)",
+  "setup_plot_file_size_hint": "Rozmiar każdego pliku plot w GiB. Domyślnie 1024 (1 TiB).",
   "setup_mining_direct_io": "Uzyj Direct I/O do gornictwa",
   "setup_mining_setup": "Konfiguracja gornictwa",
   "setup_mining_threads": "Watki gornictwa:",

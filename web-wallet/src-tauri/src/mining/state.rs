@@ -152,7 +152,9 @@ pub enum PlotPlanItem {
         #[serde(rename = "batchId")]
         batch_id: u32,
     },
-    /// Create new plot file (1024 warps = 1 TiB, or remainder)
+    /// Create new plot file. `warps` is the per-file size (1 warp = 1 GiB),
+    /// derived from the user-configured `plot_file_size_gib` (default 1024 =
+    /// 1 TiB), or a smaller remainder for the leftover tail.
     Plot {
         path: String,
         warps: u64,
@@ -207,6 +209,8 @@ pub struct MiningConfig {
     pub low_priority: bool,
     #[serde(default = "default_parallel_drives")]
     pub parallel_drives: u32, // Number of drives to plot simultaneously (default 1)
+    #[serde(default = "default_plot_file_size_gib")]
+    pub plot_file_size_gib: u64, // Per-plot-file size in GiB (1 warp = 1 GiB), default 1024 (1 TiB)
     pub hdd_wakeup_seconds: i64,
     #[serde(default)]
     pub simulation_mode: bool, // Dev only: run plotter in benchmark mode (no disk writes)
@@ -263,6 +267,10 @@ fn default_parallel_drives() -> u32 {
     1
 }
 
+fn default_plot_file_size_gib() -> u64 {
+    1024 // 1024 GiB = 1 TiB (preserves the legacy fixed file size)
+}
+
 fn default_poll_interval() -> u64 {
     1000
 }
@@ -305,6 +313,7 @@ impl Default for MiningConfig {
             async_write: default_async_write(),
             low_priority: false,
             parallel_drives: 1,
+            plot_file_size_gib: default_plot_file_size_gib(),
             hdd_wakeup_seconds: 30,
             simulation_mode: false,
             auto_start: false,

@@ -666,6 +666,8 @@
   "setup_async_write": "Asynkroninen levykirjoitus",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Muistin eskaloitumiskerroin",
+  "setup_plot_file_size": "Plot-tiedoston koko (GiB)",
+  "setup_plot_file_size_hint": "Kunkin plot-tiedoston koko GiB:nä. Oletus 1024 (1 TiB).",
   "setup_mining_direct_io": "Kayta suoraa I/O:ta louhintaan",
   "setup_mining_setup": "Louhinnan asetukset",
   "setup_mining_threads": "Louhintasaikeet:",
