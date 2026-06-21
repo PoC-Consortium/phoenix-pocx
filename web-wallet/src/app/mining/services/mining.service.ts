@@ -2227,6 +2227,28 @@ export class MiningService {
       'miner:scan-status',
       async event => {
         if (event.payload.status === 'finished') {
+          // Mark this chain's scan as complete. scanProgress is a single shared
+          // object tracking only the actively-scanning chain, and progress is
+          // accumulated from warpsDelta events that may not sum to exactly
+          // totalWarps (leaving e.g. 99.x%, which rounds to "100" while still
+          // < 100). For every chain but the last in a round, the next chain's
+          // scan-started resets it; the last chain has no follow-up scan until
+          // the next block, so without this it stays stuck showing "Scanning
+          // 100%". Force progress to 100 so the dashboard's (progress < 100)
+          // guard flips it back to "Ready".
+          this._minerState.update(s =>
+            s.scanProgress.chain === event.payload.chain
+              ? {
+                  ...s,
+                  scanProgress: {
+                    ...s.scanProgress,
+                    scannedWarps: s.scanProgress.totalWarps,
+                    progress: 100,
+                  },
+                }
+              : s
+          );
+
           // Fetch bounded deadline list from backend (720/chain cap enforced there)
           const deadlines = await this.fetchRecentDeadlines();
           this._minerState.update(s => ({ ...s, recentDeadlines: deadlines }));
