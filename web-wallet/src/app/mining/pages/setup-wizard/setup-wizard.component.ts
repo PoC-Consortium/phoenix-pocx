@@ -41,6 +41,10 @@ import {
   PlotterHashingProgressEvent,
   PlotterCompleteEvent,
   PlotterErrorEvent,
+  PoolAddress,
+  PredefinedPool,
+  PREDEFINED_POOLS,
+  predefinedPoolUrl,
 } from '../../models';
 
 type ChainMode = 'solo' | 'pool' | 'custom';
@@ -52,6 +56,9 @@ interface ChainModalData {
   chainName: string;
   // Pool mode
   poolUrl: string;
+  // Labelled pool forging addresses (pool mode); seeded from the registry on
+  // selection and editable by the user.
+  poolAddresses: PoolAddress[];
   // Custom mode
   customUrl: string;
   customMode: 'solo' | 'pool';
@@ -1008,20 +1015,61 @@ interface ChainModalData {
                 <label>{{ 'setup_select_pool' | i18n }}</label>
                 <select
                   [ngModel]="chainModalData().poolUrl"
-                  (ngModelChange)="updateChainModal('poolUrl', $event)"
+                  (ngModelChange)="onPoolUrlChange($event)"
                 >
                   <option value="">{{ 'setup_select_pool_placeholder' | i18n }}</option>
-                  <option value="https://btcx-pool.cryptoguru.org:443">
-                    CryptoGuru Mainnet (btcx-pool.cryptoguru.org)
-                  </option>
-                  <option value="https://pool.bitcoin-pocx.org:443">
-                    Nogrod Mainnet (pool.bitcoin-pocx.org)
-                  </option>
-                  <option value="https://pool.testnet.bitcoin-pocx.org:443">
-                    Nogrod Testnet (pool.testnet.bitcoin-pocx.org)
-                  </option>
+                  @for (pool of predefinedPools; track pool.id) {
+                    <option [value]="poolOptionValue(pool)">
+                      {{ pool.name }} ({{ pool.rpcHost }})
+                    </option>
+                  }
                 </select>
               </div>
+
+              <!-- Pool forging addresses -->
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label>{{ 'setup_pool_addresses' | i18n }}</label>
+                <div class="field-hint" style="margin-bottom: 8px;">
+                  {{ 'setup_pool_addresses_hint' | i18n }}
+                </div>
+                @for (pa of chainModalData().poolAddresses; track $index) {
+                  <div
+                    class="pool-address-row"
+                    style="display: flex; gap: 8px; margin-bottom: 8px;"
+                  >
+                    <input
+                      type="text"
+                      style="flex: 1;"
+                      [ngModel]="pa.label"
+                      (ngModelChange)="updatePoolAddressRow($index, 'label', $event)"
+                      [placeholder]="'setup_pool_address_label_placeholder' | i18n"
+                    />
+                    <input
+                      type="text"
+                      style="flex: 2;"
+                      [ngModel]="pa.address"
+                      (ngModelChange)="updatePoolAddressRow($index, 'address', $event)"
+                      [class.input-invalid]="poolAddressRowError(pa.address)"
+                      placeholder="pocx1q..."
+                    />
+                    <button
+                      type="button"
+                      class="icon-button"
+                      (click)="removePoolAddressRow($index)"
+                      [attr.aria-label]="'setup_remove' | i18n"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  @if (poolAddressRowError(pa.address); as err) {
+                    <div class="error-hint" style="margin: -4px 0 8px;">{{ err | i18n }}</div>
+                  }
+                }
+                <button type="button" class="secondary-button" (click)="addPoolAddressRow()">
+                  + {{ 'setup_pool_address_add' | i18n }}
+                </button>
+              </div>
+
               <ng-container *ngTemplateOutlet="authInputs"></ng-container>
             }
 
@@ -2657,10 +2705,13 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Chain modal
   readonly chainModalOpen = signal(false);
   readonly editingChain = signal<ChainConfig | null>(null);
+  // Built-in pools offered in the pool dropdown.
+  readonly predefinedPools = PREDEFINED_POOLS;
   readonly chainModalData = signal<ChainModalData>({
     mode: 'solo',
     chainName: '',
     poolUrl: '',
+    poolAddresses: [],
     customUrl: '',
     customMode: 'solo',
     customBlockTime: 120,
@@ -3087,6 +3138,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       mode: defaultMode,
       chainName: '',
       poolUrl: '',
+      poolAddresses: [],
       customUrl: '',
       customMode: 'solo',
       customBlockTime: 120,
@@ -3125,6 +3177,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       mode: chain.chainType,
       chainName: chain.name,
       poolUrl: chain.chainType === 'pool' ? chainUrl : '',
+      poolAddresses: (chain.poolAddresses ?? []).map(a => ({ ...a })),
       customUrl: chain.chainType === 'custom' ? chainUrl : '',
       customMode: chain.mode,
       customBlockTime: chain.blockTimeSeconds || 120,
@@ -3149,6 +3202,58 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   updateChainModal(field: string, value: unknown): void {
     this.chainModalData.update(d => ({ ...d, [field]: value }));
+  }
+
+  /** Dropdown <option> value for a predefined pool. */
+  poolOptionValue(pool: PredefinedPool): string {
+    return predefinedPoolUrl(pool);
+  }
+
+  /** Find a predefined pool by its endpoint URL (exact host + port match). */
+  private findPredefinedPoolByUrl(url: string): PredefinedPool | undefined {
+    const { host, port } = this.parseUrl(url);
+    return this.predefinedPools.find(p => p.rpcHost === host && p.rpcPort === port);
+  }
+
+  /**
+   * Pool dropdown changed. Store the URL and, when a known pool is picked, seed
+   * its published forging addresses (replacing any previously-seeded list).
+   */
+  onPoolUrlChange(url: string): void {
+    const known = this.findPredefinedPoolByUrl(url);
+    this.chainModalData.update(d => ({
+      ...d,
+      poolUrl: url,
+      poolAddresses: known ? known.poolAddresses.map(a => ({ ...a })) : d.poolAddresses,
+    }));
+  }
+
+  addPoolAddressRow(): void {
+    this.chainModalData.update(d => ({
+      ...d,
+      poolAddresses: [...d.poolAddresses, { label: '', address: '' }],
+    }));
+  }
+
+  updatePoolAddressRow(index: number, field: keyof PoolAddress, value: string): void {
+    this.chainModalData.update(d => ({
+      ...d,
+      poolAddresses: d.poolAddresses.map((a, i) => (i === index ? { ...a, [field]: value } : a)),
+    }));
+  }
+
+  removePoolAddressRow(index: number): void {
+    this.chainModalData.update(d => ({
+      ...d,
+      poolAddresses: d.poolAddresses.filter((_, i) => i !== index),
+    }));
+  }
+
+  /** i18n error key for a pool-address row, or null when empty/valid. */
+  poolAddressRowError(address: string): string | null {
+    if (!address.trim()) return null;
+    const result = validatePocxAddress(address);
+    return result.kind === 'valid' ? null : 'invalid_address';
   }
 
   saveChain(): void {
@@ -3217,18 +3322,14 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       // Parse pool URL to extract host and port
       const { transport, host, port } = this.parseUrl(data.poolUrl);
 
-      // Match known pool hosts (exact equality, not substring) so the chain
-      // shows up with a friendly name.
-      let poolName: string;
-      if (host === 'pool.testnet.bitcoin-pocx.org') {
-        poolName = 'Nogrod Testnet';
-      } else if (host === 'pool.bitcoin-pocx.org') {
-        poolName = 'Nogrod Mainnet';
-      } else if (host === 'btcx-pool.cryptoguru.org') {
-        poolName = 'CryptoGuru Mainnet';
-      } else {
-        poolName = data.chainName || 'Pool';
-      }
+      // Match a known pool from the registry (exact host+port) for a friendly name.
+      const known = this.findPredefinedPoolByUrl(data.poolUrl);
+      const poolName = known?.name || data.chainName || 'Pool';
+
+      // Persist the user-edited forging addresses (drop blank rows).
+      const poolAddresses = data.poolAddresses
+        .map(a => ({ label: a.label.trim(), address: a.address.trim() }))
+        .filter(a => a.address.length > 0);
 
       chain = {
         id,
@@ -3238,10 +3339,11 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         rpcHost: host,
         rpcPort: port,
         rpcAuth: buildRpcAuth(),
-        blockTimeSeconds: 120,
+        blockTimeSeconds: known?.blockTimeSeconds ?? 120,
         mode: 'pool',
         enabled: true,
         priority: editing?.priority ?? this.chainConfigs().length + 1,
+        poolAddresses,
       };
     } else {
       // Custom mode - parse URL and set auth

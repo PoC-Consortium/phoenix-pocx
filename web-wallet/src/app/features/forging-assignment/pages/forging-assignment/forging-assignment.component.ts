@@ -35,8 +35,16 @@ import {
   AssignmentStatus,
   AssignmentState,
 } from '../../../../bitcoin/services/rpc/mining-rpc.service';
+import { MiningService } from '../../../../mining/services/mining.service';
 
 type OperationMode = 'create' | 'revoke' | 'check';
+
+/** A configured pool's forging address, surfaced in the forging-address dropdown. */
+interface PoolAddressOption {
+  poolName: string;
+  label: string;
+  address: string;
+}
 
 interface FeeOption {
   label: string;
@@ -173,13 +181,24 @@ interface WalletAddress {
                 <div class="field-group">
                   <label class="field-label">{{ 'forging_address' | i18n }}</label>
                   <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'enter_forging_address' | i18n }}</mat-label>
+                    <mat-label>{{ 'select_or_enter_forging_address' | i18n }}</mat-label>
                     <input
                       matInput
+                      [matAutocomplete]="forgingAuto"
                       [(ngModel)]="forgingAddress"
                       (ngModelChange)="onForgingAddressChange()"
-                      placeholder="tb1q... / bc1q..."
+                      placeholder="pocx1q... / tb1q... / bc1q..."
                     />
+                    <mat-autocomplete #forgingAuto="matAutocomplete">
+                      @for (opt of poolAddressOptions(); track opt.address) {
+                        <mat-option [value]="opt.address">
+                          <span class="address-option">
+                            <span class="address-label">{{ opt.label || opt.poolName }}</span>
+                            <span class="address-text">{{ opt.address }}</span>
+                          </span>
+                        </mat-option>
+                      }
+                    </mat-autocomplete>
                     @if (isForgingAddressValid()) {
                       <mat-icon
                         matSuffix
@@ -1194,8 +1213,26 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly blockchainState = inject(BlockchainStateService);
   private readonly miningRpc = inject(MiningRpcService);
+  private readonly miningService = inject(MiningService);
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(Store);
+
+  /**
+   * Forging addresses from configured pool chains, offered as a dropdown on the
+   * forging-address field. Free-text entry remains available.
+   */
+  readonly poolAddressOptions = computed<PoolAddressOption[]>(() => {
+    const chains = this.miningService.config()?.chains ?? [];
+    const options: PoolAddressOption[] = [];
+    for (const chain of chains) {
+      for (const pa of chain.poolAddresses ?? []) {
+        if (pa.address) {
+          options.push({ poolName: chain.name, label: pa.label, address: pa.address });
+        }
+      }
+    }
+    return options;
+  });
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
   private readonly destroy$ = new Subject<void>();
 
