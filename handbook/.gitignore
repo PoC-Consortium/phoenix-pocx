@@ -1,0 +1,4 @@
+# Working assets — original captures and retakes, not used by the build.
+# Only images/processed/ ships with the handbook.
+images/raw/
+images/retakes/

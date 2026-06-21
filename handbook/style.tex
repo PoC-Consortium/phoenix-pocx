@@ -1,0 +1,22 @@
+% Phoenix PoCX Handbook — LaTeX header includes
+% Loaded by Pandoc via metadata.yaml (include-in-header)
+
+\usepackage{fancyhdr}
+
+% Default page style: chapter title in header (left), page number in footer (centre)
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\nouppercase{\leftmark}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Chapter opening pages use \pagestyle{plain} by default — keep page numbers visible there too
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyfoot[C]{\thepage}%
+  \renewcommand{\headrulewidth}{0pt}%
+}
+
+% Slightly more breathing room in tables
+\renewcommand{\arraystretch}{1.2}

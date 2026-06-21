@@ -2,6 +2,8 @@
 
 A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 
+> 📖 **User Handbook** — A complete user guide is available as a PDF: [**handbook.pdf**](handbook.pdf).
+
 ## Features
 
 - Create and import HD wallets (BIP39/BIP84)
@@ -78,6 +80,8 @@ phoenix-pocx/
 │   │   ├── Cargo.toml       # Rust dependencies
 │   │   └── tauri.conf.json  # Tauri configuration
 │   └── package.json
+├── handbook/                # User handbook source (Markdown)
+├── handbook.pdf             # Built user handbook
 ├── CLAUDE.md                # Developer documentation
 └── README.md
 ```
