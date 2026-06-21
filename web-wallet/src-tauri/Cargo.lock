@@ -746,11 +746,11 @@ dependencies = [
 
 [[package]]
 name = "cl3"
-version = "0.11.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5689467d49ac867f779cf6637a66695ed6190bbc810ba13efb0d6366c281edad"
+checksum = "8ad5f4170f520224684c5c6e86e8d5474c2a10696e553b1db8389970cd82ece7"
 dependencies = [
- "dlopen2 0.7.0",
+ "dlopen2",
  "libc",
  "opencl-sys",
  "thiserror 2.0.18",
@@ -1314,18 +1314,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "dlopen2"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e1297103d2bbaea85724fcee6294c2d50b1081f9ad47d0f6f6f61eda65315a6"
-dependencies = [
- "dlopen2_derive",
- "libc",
- "once_cell",
- "winapi",
 ]
 
 [[package]]
@@ -3516,18 +3504,18 @@ dependencies = [
 
 [[package]]
 name = "opencl-sys"
-version = "0.4.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ff82626c25901923bc3474911e5ca9b32593279323f90cc0eff5eb81cd39baa"
+checksum = "9bd005f352b2f05acd01d04122448e84f8bc66bdae49045927841bc63de62123"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "opencl3"
-version = "0.10.0"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e762dc8e0b7535d1dd9912aa9c76f3749193b0dfd726eddc70d65b3bca416c7a"
+checksum = "ecb3473c4f01afd0eea3ee5b31649fec47dbc23353a63e1b916aa67cd810fb73"
 dependencies = [
  "cl3",
  "libc",
@@ -3881,9 +3869,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_address"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9efd34855bc245e79801a0b440c4b780d4ffdde7913fe61a3974037fb56df9e3"
+checksum = "fe676e7559332d03568a17ba707e72dac5a9508679a410cd4173ffb365fb3870"
 dependencies = [
  "bech32",
  "bs58",
@@ -3891,9 +3879,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_aggregator"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db764a91b9720a16382cb4f527889db26aaf00c6c5d60cc16f5347aa64298187"
+checksum = "6d739c3eb39bed9efeb0d5e2e959e5b69a6bfea6416b2ff40576dfb8b0591610"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3919,9 +3907,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_hashlib"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c293a820e79455ea60e3b7c1643e32f4e34a74a35fdf1de31a788879d2d4c5c"
+checksum = "c4d7603ee7b23ae8587bddd25c11c616dde4fd7b15bcf703e9bd70f6ebc94c35"
 dependencies = [
  "hex",
  "page_size",
@@ -3929,9 +3917,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_miner"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b10101c31c79546b4d792db3b746781c204c95408f4393fd3bc2d9e3c25b01f1"
+checksum = "7de2ce2bae3908a0d5f9444116ee9acdd241e66483dbc64d62008be650474b88"
 dependencies = [
  "bytesize",
  "cfg-if",
@@ -3965,9 +3953,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotfile"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95848f4b1ed25e4e613926254413d41548052ea81ca697a6211bddc40ea3a885"
+checksum = "764b981c972c48a59e7f2ea17d810868e1ab414963fe15b73725f97151af5372"
 dependencies = [
  "cfg-if",
  "filetime",
@@ -3983,9 +3971,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotter_v2"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a76d49e1eb6d1b00da44944332724c148c14f2e61c1f9ccec7c0c1767dc04fcc"
+checksum = "41539a190964f227261a1cf6245e7713de4391f8d731bd753b2401fab098e8b2"
 dependencies = [
  "cfg-if",
  "clap",
@@ -4007,9 +3995,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_protocol"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c444a16f647c97aec49901e52759e058c360be792967cbba229f9f3f921061a0"
+checksum = "b18ef849f0ad12323413c41a95eebbab0b86d86f83b6a85d58134e6dd62ee9ff"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -5659,7 +5647,7 @@ dependencies = [
  "crossbeam-channel",
  "dbus",
  "dispatch2",
- "dlopen2 0.8.2",
+ "dlopen2",
  "dpi",
  "gdkwayland-sys",
  "gdkx11-sys",

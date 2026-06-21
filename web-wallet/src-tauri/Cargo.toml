@@ -46,10 +46,10 @@ num_cpus = "1.16"
 tokio = { version = "1", features = ["full"] }
 
 # PoCX mining libraries
-pocx_miner = "1.0.3"
-pocx_plotter_v2 = { version = "1.0.3", features = ["opencl"] }
-pocx_address = "1.0.3"
-pocx_aggregator = "1.0.3"
+pocx_miner = "1.0.4"
+pocx_plotter_v2 = { version = "1.0.4", features = ["opencl"] }
+pocx_address = "1.0.4"
+pocx_aggregator = "1.0.4"
 
 
 # SHA256 hashing for node binary verification
