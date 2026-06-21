@@ -667,6 +667,8 @@
   "setup_async_write": "Asenkron Disk Yazımı",
   "setup_max": "Maks:",
   "setup_memory_escalation": "Bellek Artış Faktörü",
+  "setup_plot_file_size": "Plot Dosya Boyutu (GiB)",
+  "setup_plot_file_size_hint": "Her plot dosyasının boyutu (GiB). Varsayılan 1024 (1 TiB).",
   "setup_mining_direct_io": "Madencilik için Doğrudan G/Ç kullan",
   "setup_mining_setup": "Madencilik Kurulumu",
   "setup_mining_threads": "Madencilik İş Parçacıkları:",

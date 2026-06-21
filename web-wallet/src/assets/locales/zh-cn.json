@@ -667,6 +667,8 @@
   "setup_async_write": "异步磁盘写入",
   "setup_max": "最大：",
   "setup_memory_escalation": "内存递增系数",
+  "setup_plot_file_size": "绘图文件大小 (GiB)",
+  "setup_plot_file_size_hint": "每个绘图文件的大小（GiB）。默认 1024（1 TiB）。",
   "setup_mining_direct_io": "挖矿使用直接 I/O",
   "setup_mining_setup": "挖矿设置",
   "setup_mining_threads": "挖矿线程：",

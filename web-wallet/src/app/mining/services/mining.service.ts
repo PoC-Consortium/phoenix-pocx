@@ -1732,6 +1732,7 @@ export class MiningService {
     // Generate plan using the service
     const plan = this.plotPlanService.generatePlan(driveInfos, config.drives, {
       parallelDrives: config.parallelDrives ?? 1,
+      plotFileSizeGib: config.plotFileSizeGib ?? 1024,
     });
 
     // Check if there's any work to do

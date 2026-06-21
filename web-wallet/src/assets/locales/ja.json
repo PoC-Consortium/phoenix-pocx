@@ -667,6 +667,8 @@
   "setup_async_write": "非同期ディスク書き込み",
   "setup_max": "最大:",
   "setup_memory_escalation": "メモリエスカレーション係数",
+  "setup_plot_file_size": "プロットファイルサイズ (GiB)",
+  "setup_plot_file_size_hint": "各プロットファイルのサイズ（GiB）。デフォルト 1024（1 TiB）。",
   "setup_mining_direct_io": "マイニングにダイレクトI/Oを使用",
   "setup_mining_setup": "マイニングセットアップ",
   "setup_mining_threads": "マイニングスレッド:",

@@ -667,6 +667,8 @@
   "setup_async_write": "Асинхронен запис на диска",
   "setup_max": "Макс:",
   "setup_memory_escalation": "Фактор на ескалация на паметта",
+  "setup_plot_file_size": "Размер на плот файл (GiB)",
+  "setup_plot_file_size_hint": "Размер на всеки плот файл в GiB. По подразбиране 1024 (1 TiB).",
   "setup_mining_direct_io": "Използвай директен I/O за добив",
   "setup_mining_setup": "Настройка на добив",
   "setup_mining_threads": "Нишки за добив:",

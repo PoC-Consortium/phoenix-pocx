@@ -616,6 +616,19 @@ interface ChainModalData {
                     class="escalation-input"
                   />
                 </div>
+                <div class="form-group escalation-group">
+                  <label>{{ 'setup_plot_file_size' | i18n }}</label>
+                  <input
+                    type="number"
+                    [ngModel]="plotFileSizeGib()"
+                    (ngModelChange)="onPlotFileSizeChange($event)"
+                    [min]="MIN_PLOT_FILE_SIZE_GIB"
+                    [max]="MAX_PLOT_FILE_SIZE_GIB"
+                    step="1"
+                    class="escalation-input"
+                    [title]="'setup_plot_file_size_hint' | i18n"
+                  />
+                </div>
                 <div class="form-group">
                   <label>{{ 'setup_pow_scaling' | i18n }}</label>
                   <select
@@ -2695,6 +2708,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Step 3: Drives config
   readonly driveConfigs = signal<DriveConfig[]>([]);
   readonly parallelDrives = signal(1); // Number of drives to plot simultaneously
+  readonly plotFileSizeGib = signal(1024); // Per-plot-file size in GiB (1 warp = 1 GiB)
+  readonly MIN_PLOT_FILE_SIZE_GIB = 8; // Smallest practical file; avoids excessive file counts
+  readonly MAX_PLOT_FILE_SIZE_GIB = 16384; // 16 TiB cap; large drives can hold bigger files
   readonly hddWakeup = signal(30);
   readonly miningDirectIo = signal(true);
   readonly systemDriveMaxPercent = signal(80);
@@ -3068,6 +3084,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         }
         if (config.parallelDrives) {
           this.parallelDrives.set(config.parallelDrives);
+        }
+        if (config.plotFileSizeGib) {
+          this.onPlotFileSizeChange(config.plotFileSizeGib);
         }
         if (config.compressionLevel !== undefined) {
           this.compressionLevel.set(config.compressionLevel.toString());
@@ -3547,6 +3566,16 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     this.escalation.set(Math.max(1, value));
   }
 
+  onPlotFileSizeChange(value: number): void {
+    // Clamp to sane bounds; 1 warp = 1 GiB so the value maps directly to warps.
+    const gib = Math.floor(Number(value) || this.MIN_PLOT_FILE_SIZE_GIB);
+    const clamped = Math.min(
+      this.MAX_PLOT_FILE_SIZE_GIB,
+      Math.max(this.MIN_PLOT_FILE_SIZE_GIB, gib)
+    );
+    this.plotFileSizeGib.set(clamped);
+  }
+
   async onCustomAddressChange(address: string): Promise<void> {
     this.customPlottingAddress.set(address);
 
@@ -4006,6 +4035,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         asyncWrite: this.asyncWrite(),
         lowPriority: this.lowPriority(),
         parallelDrives: this.parallelDrives(),
+        plotFileSizeGib: this.plotFileSizeGib(),
         hddWakeupSeconds: this.hddWakeup(),
         // Miner advanced settings
         pollInterval: this.pollInterval(),

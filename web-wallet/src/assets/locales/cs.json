@@ -667,6 +667,8 @@
   "setup_async_write": "Asynchronní zápis na disk",
   "setup_max": "Max:",
   "setup_memory_escalation": "Faktor eskalace pameti",
+  "setup_plot_file_size": "Velikost plot souboru (GiB)",
+  "setup_plot_file_size_hint": "Velikost každého plot souboru v GiB. Výchozí 1024 (1 TiB).",
   "setup_mining_direct_io": "Pouzit primo I/O pro tezbu",
   "setup_mining_setup": "Nastaveni tezby",
   "setup_mining_threads": "Vlakna tezby:",

@@ -428,6 +428,8 @@
   "setup_available_ram": "Available RAM",
   "setup_drives_in_parallel": "Drives to Plot in Parallel",
   "setup_memory_escalation": "Memory Escalation Factor",
+  "setup_plot_file_size": "Plot File Size (GiB)",
+  "setup_plot_file_size_hint": "Size of each plot file in GiB. Default 1024 (1 TiB).",
   "setup_pow_scaling": "PoW Scaling",
   "setup_pow_x1": "X1: Years 0–4 (recommended)",
   "setup_pow_x2": "X2: Years 0–12",

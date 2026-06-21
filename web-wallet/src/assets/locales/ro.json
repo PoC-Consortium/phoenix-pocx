@@ -667,6 +667,8 @@
   "setup_async_write": "Scrieri asincrone pe disc",
   "setup_max": "Max:",
   "setup_memory_escalation": "Factor de escaladare memorie",
+  "setup_plot_file_size": "Dimensiune fișier plot (GiB)",
+  "setup_plot_file_size_hint": "Dimensiunea fiecărui fișier plot în GiB. Implicit 1024 (1 TiB).",
   "setup_mining_direct_io": "Folosește I/O direct pentru minerit",
   "setup_mining_setup": "Configurare minerit",
   "setup_mining_threads": "Fire de execuție minerit:",

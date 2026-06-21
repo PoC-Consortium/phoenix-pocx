@@ -667,6 +667,8 @@
   "setup_async_write": "Écritures disque asynchrones",
   "setup_max": "Max :",
   "setup_memory_escalation": "Facteur d'escalade memoire",
+  "setup_plot_file_size": "Taille du fichier de plot (GiB)",
+  "setup_plot_file_size_hint": "Taille de chaque fichier de plot en GiB. Par defaut 1024 (1 TiB).",
   "setup_mining_direct_io": "Utiliser les E/S directes pour le minage",
   "setup_mining_setup": "Configuration du minage",
   "setup_mining_threads": "Threads de minage :",
