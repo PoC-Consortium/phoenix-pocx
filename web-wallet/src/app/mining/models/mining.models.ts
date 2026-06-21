@@ -114,6 +114,16 @@ export type RpcAuth =
  */
 export type ChainType = 'solo' | 'pool' | 'custom';
 
+/**
+ * A labelled pool forging address. Miners create a forging assignment to one of
+ * these addresses to mine for the pool. Stored on the (pool) ChainConfig so the
+ * Forging Assignment page can offer them in a dropdown.
+ */
+export interface PoolAddress {
+  label: string;
+  address: string;
+}
+
 export interface ChainConfig {
   id: string;
   name: string;
@@ -126,7 +136,103 @@ export interface ChainConfig {
   mode: SubmissionMode;
   enabled: boolean;
   priority: number;
+  /**
+   * Labelled forging addresses for this pool (pool chains only). Seeded from the
+   * predefined pool registry when a known pool is added, and editable by the user.
+   */
+  poolAddresses?: PoolAddress[];
 }
+
+/**
+ * A built-in pool the user can pick from the setup wizard's pool dropdown.
+ * Carries the connection endpoint and the pool's published forging address(es)
+ * so they can be seeded onto the ChainConfig when the pool is added.
+ */
+export interface PredefinedPool {
+  /** Stable identifier (also used as the dropdown <option> value). */
+  id: string;
+  /** Friendly display name shown in the dropdown and used as the chain name. */
+  name: string;
+  rpcTransport: RpcTransport;
+  rpcHost: string;
+  rpcPort: number;
+  network: 'mainnet' | 'testnet';
+  blockTimeSeconds: number;
+  /** Pool's published forging address(es) miners assign to. */
+  poolAddresses: PoolAddress[];
+}
+
+/** Full endpoint URL (transport://host:port) for a predefined pool. */
+export function predefinedPoolUrl(pool: PredefinedPool): string {
+  return `${pool.rpcTransport}://${pool.rpcHost}:${pool.rpcPort}`;
+}
+
+/**
+ * Built-in pools offered in the setup wizard. Forging addresses are taken from
+ * each pool's public info page. All use HTTPS:443 and 120s block time, no RPC auth.
+ */
+export const PREDEFINED_POOLS: PredefinedPool[] = [
+  {
+    id: 'cryptoguru-mainnet',
+    name: 'CryptoGuru Mainnet',
+    rpcTransport: 'https',
+    rpcHost: 'btcx-pool.cryptoguru.org',
+    rpcPort: 443,
+    network: 'mainnet',
+    blockTimeSeconds: 120,
+    poolAddresses: [
+      { label: 'CryptoGuru Mainnet', address: 'pocx1qrp00l665mrl94cuhlwngyvua0q3xsvayg8e6zn' },
+    ],
+  },
+  {
+    id: 'nogrod-mainnet',
+    name: 'Nogrod Mainnet',
+    rpcTransport: 'https',
+    rpcHost: 'pool.bitcoin-pocx.org',
+    rpcPort: 443,
+    network: 'mainnet',
+    blockTimeSeconds: 120,
+    poolAddresses: [
+      { label: 'Nogrod Mainnet', address: 'pocx1qp00ljf5sy0kdk4h8x5n4erzdshkzj4cdmvjpsv' },
+    ],
+  },
+  {
+    id: 'nogrod-testnet',
+    name: 'Nogrod Testnet',
+    rpcTransport: 'https',
+    rpcHost: 'pool.testnet.bitcoin-pocx.org',
+    rpcPort: 443,
+    network: 'testnet',
+    blockTimeSeconds: 120,
+    poolAddresses: [
+      { label: 'Nogrod Testnet', address: 'pocx1qp00ljf5sy0kdk4h8x5n4erzdshkzj4cdrhq76k' },
+    ],
+  },
+  {
+    id: 'bitxpool-mainnet',
+    name: 'BitXPool Mainnet',
+    rpcTransport: 'https',
+    rpcHost: 'pocxpool.bitxpool.com',
+    rpcPort: 443,
+    network: 'mainnet',
+    blockTimeSeconds: 120,
+    poolAddresses: [
+      { label: 'BitXPool Mainnet', address: 'pocx1qgnlrzpluccezkngptzn7t6gwutgvcjkx3yduk0' },
+    ],
+  },
+  {
+    id: 'mosaicpool-mainnet',
+    name: 'Mosaic Pool Mainnet',
+    rpcTransport: 'https',
+    rpcHost: 'mosaicpool.eu',
+    rpcPort: 443,
+    network: 'mainnet',
+    blockTimeSeconds: 120,
+    poolAddresses: [
+      { label: 'Mosaic Pool Mainnet', address: 'pocx1qp0cxp00l5fyfkml3lp6dkxar6hpgq26smjrdm4' },
+    ],
+  },
+];
 
 export interface DriveConfig {
   path: string;

@@ -79,6 +79,14 @@ pub enum ChainType {
     Custom,
 }
 
+/// A labelled pool forging address that miners assign to.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PoolAddress {
+    pub label: String,
+    pub address: String,
+}
+
 /// Chain configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,6 +102,10 @@ pub struct ChainConfig {
     pub mode: SubmissionMode,
     pub enabled: bool,
     pub priority: u32,
+    /// Labelled forging addresses for this pool (pool chains only).
+    /// Defaulted so existing persisted configs deserialize without migration.
+    #[serde(default)]
+    pub pool_addresses: Vec<PoolAddress>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
