@@ -38,6 +38,7 @@ import {
 } from '../../../../store/settings/settings.state';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MiningService } from '../../../../mining/services';
+import { ChainConfig } from '../../../../mining/models';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import {
   WalletManagerService,
@@ -2142,6 +2143,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
       // local node's RPC port and persist any custom listen-port the user set.
       if (mode === 'managed') {
         await this.syncAggregatorPorts(config.rpcPort);
+        // 4c. Re-point the solo chain at the (possibly changed) aggregator listen
+        // port or node RPC port, so the miner connects to the right one.
+        await this.syncSoloChainPort();
       }
 
       // 5. Handle managed node lifecycle
@@ -2605,6 +2609,58 @@ export class SettingsComponent implements OnInit, OnDestroy {
       listenAddress: desiredListenAddress,
     };
     await this.aggregatorService.saveConfig(next);
+  }
+
+  /**
+   * Keep the solo chain's connection target in sync with the current node RPC
+   * port and aggregator listen port.
+   *
+   * The miner reads the persisted chain config: when the aggregator is enabled
+   * it must point at 127.0.0.1:<aggregator listen port>, otherwise directly at
+   * the node's RPC host/port. Changing either port in settings only updated the
+   * aggregator/node config, leaving the stored solo chain pointing at the old
+   * port — so the miner kept connecting to the wrong one until the chain was
+   * manually re-saved. Recompute it here (mirroring the setup wizard's saveChain)
+   * before restarting mining services.
+   */
+  private async syncSoloChainPort(): Promise<void> {
+    const soloChain = this.miningService.config()?.chains?.find(c => c.chainType === 'solo');
+    if (!soloChain) return;
+
+    const nodeConfig = this.nodeService.config();
+    const nodeRpcHost = nodeConfig.rpcHost || '127.0.0.1';
+    const nodeRpcPort = nodeConfig.rpcPort || (nodeConfig.network === 'mainnet' ? 8332 : 18332);
+    const aggregatorEnabled = this.aggregatorService.config().enabled;
+
+    let rpcHost: string;
+    let rpcPort: number;
+    let rpcAuth: ChainConfig['rpcAuth'];
+
+    if (aggregatorEnabled) {
+      // Miner connects to the local aggregator (no auth) on its listen port.
+      rpcHost = '127.0.0.1';
+      rpcPort =
+        parseListenAddressPort(this.aggregatorService.config().listenAddress) ?? nodeRpcPort + 7;
+      rpcAuth = { type: 'none' };
+    } else {
+      // Direct solo: miner connects straight to the node with its auth.
+      rpcHost = nodeRpcHost;
+      rpcPort = nodeRpcPort;
+      rpcAuth =
+        nodeConfig.authMethod === 'userpass' && nodeConfig.rpcUser
+          ? { type: 'user_pass', username: nodeConfig.rpcUser, password: nodeConfig.rpcPassword }
+          : { type: 'cookie' };
+    }
+
+    if (
+      soloChain.rpcHost === rpcHost &&
+      soloChain.rpcPort === rpcPort &&
+      soloChain.rpcAuth.type === rpcAuth.type
+    ) {
+      return; // Already correct — avoid a redundant config write/refresh.
+    }
+
+    await this.miningService.updateChain({ ...soloChain, rpcHost, rpcPort, rpcAuth });
   }
 
   /**
