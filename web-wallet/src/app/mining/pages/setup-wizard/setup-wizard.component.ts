@@ -1132,7 +1132,7 @@ interface ChainModalData {
           <div class="modal-footer">
             <button class="btn btn-ghost" (click)="closeChainModal()">{{ 'cancel' | i18n }}</button>
             <button class="btn btn-primary" (click)="saveChain()">
-              {{ editingChain() ? ('setup_save' | i18n) : ('setup_add' | i18n) }}
+              {{ editingChain() ? ('setup_apply' | i18n) : ('setup_add' | i18n) }}
             </button>
           </div>
         </div>
@@ -3165,7 +3165,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       authUsername: '',
       authPassword: '',
       authCookiePath: '',
-      aggregatorEnabled: this.aggregatorService.config().enabled,
+      // Reflect any staged (unsaved) toggle from this session, falling back to
+      // the persisted value. The wizard only writes to the backend on Save & Close.
+      aggregatorEnabled:
+        this.pendingAggregatorConfig()?.enabled ?? this.aggregatorService.config().enabled,
     });
     this.chainModalOpen.set(true);
   }
@@ -3204,8 +3207,13 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       authUsername,
       authPassword,
       authCookiePath,
+      // Prefer the staged (unsaved) toggle from this session over the persisted
+      // value, so re-opening Edit reflects a change made via Apply but not yet
+      // committed by Save & Close.
       aggregatorEnabled:
-        chain.chainType === 'solo' ? this.aggregatorService.config().enabled : false,
+        chain.chainType === 'solo'
+          ? (this.pendingAggregatorConfig()?.enabled ?? this.aggregatorService.config().enabled)
+          : false,
     });
     this.chainModalOpen.set(true);
   }

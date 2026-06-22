@@ -65,18 +65,18 @@ pub async fn start_aggregator(
             Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
         };
 
-        if inner.status
-            == (AggregatorStatus::Running {
-                listen_address: String::new(),
-            })
-        {
-            // Check more precisely
-            if matches!(inner.status, AggregatorStatus::Running { .. }) {
-                return Ok(CommandResult::err("Aggregator is already running"));
-            }
-        }
-
-        if matches!(inner.status, AggregatorStatus::Running { .. }) {
+        // Reject if a start is already in flight (Starting) or active (Running).
+        // The aggregator only flips to Running from the on_started callback once
+        // its listener binds, so checking Running alone left a window where a
+        // second concurrent call could pass and spawn a duplicate aggregator.
+        // Checking the status and claiming Starting under the same lock makes
+        // startup atomic.
+        if matches!(
+            inner.status,
+            AggregatorStatus::Starting
+                | AggregatorStatus::Running { .. }
+                | AggregatorStatus::Stopping
+        ) {
             return Ok(CommandResult::err("Aggregator is already running"));
         }
 
@@ -193,7 +193,9 @@ pub async fn start_aggregator(
         if let Ok(mut inner) = state_clone.lock() {
             if matches!(
                 inner.status,
-                AggregatorStatus::Running { .. } | AggregatorStatus::Starting
+                AggregatorStatus::Running { .. }
+                    | AggregatorStatus::Starting
+                    | AggregatorStatus::Stopping
             ) {
                 inner.status = AggregatorStatus::Stopped;
             }
@@ -214,9 +216,16 @@ pub async fn stop_aggregator(
 
     pocx_aggregator::request_stop();
 
-    // Update state immediately
+    // Enter Stopping (not Stopped) so a restart is blocked until the aggregator
+    // task actually exits and flips the status to Stopped itself. Setting Stopped
+    // here immediately, combined with start_aggregator clearing the stop request,
+    // let a quick stop→start cancel the old aggregator's pending stop and spawn a
+    // second (ghost) instance. Guard against Stopped so we don't get stuck in
+    // Stopping when nothing was running.
     if let Ok(mut inner) = state.lock() {
-        inner.status = AggregatorStatus::Stopped;
+        if !matches!(inner.status, AggregatorStatus::Stopped) {
+            inner.status = AggregatorStatus::Stopping;
+        }
     }
 
     Ok(CommandResult::ok(()))

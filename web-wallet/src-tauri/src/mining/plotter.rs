@@ -142,6 +142,20 @@ impl PlotterRuntime {
         log::debug!("[PLOTTER] is_running: {} → {}", old, running);
     }
 
+    /// Atomically transition from not-running to running. Returns true if the
+    /// caller claimed the slot, false if a plot was already running.
+    ///
+    /// This is the single guard that makes plotter startup atomic: a separate
+    /// `is_running()` check followed by `set_running(true)` left a window where
+    /// two concurrent starts could both pass the check and both spawn a plotter.
+    /// Callers that claim the slot must `set_running(false)` if they then fail
+    /// before the background task takes ownership.
+    pub fn try_start(&self) -> bool {
+        self.is_running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+
     // ========================================================================
     // Stop type
     // ========================================================================
@@ -365,8 +379,8 @@ pub async fn execute_plot_batch<R: Runtime>(
     mining_state: SharedMiningState,
     plotter_runtime: SharedPlotterRuntime,
 ) -> Result<PlotExecutionResult, String> {
-    // Check if already running
-    if plotter_runtime.is_running() {
+    // Atomically claim the running slot so two concurrent calls can't both spawn.
+    if !plotter_runtime.try_start() {
         log::warn!("Plotter is already running, rejecting batch request");
         return Err("Plotter is already running".to_string());
     }
@@ -374,8 +388,10 @@ pub async fn execute_plot_batch<R: Runtime>(
     // Clear any previous stop request
     plotter_runtime.clear_stop();
 
-    // Validate address
+    // Validate address. From here on we own the running flag, so any early
+    // failure before the background task is spawned must release it.
     if config.plotting_address.is_empty() {
+        plotter_runtime.set_running(false);
         return Err("No plotting address configured".to_string());
     }
 
@@ -424,11 +440,18 @@ pub async fn execute_plot_batch<R: Runtime>(
     }
 
     if outputs.is_empty() {
+        plotter_runtime.set_running(false);
         return Err("No plot items in batch".to_string());
     }
 
     // Build the plotter task with all outputs and per-path seeds
-    let task = build_plotter_task_batch(&config.plotting_address, &outputs, config, &seeds)?;
+    let task = match build_plotter_task_batch(&config.plotting_address, &outputs, config, &seeds) {
+        Ok(t) => t,
+        Err(e) => {
+            plotter_runtime.set_running(false);
+            return Err(e);
+        }
+    };
 
     // Calculate total warps
     let total_warps: u64 = outputs.iter().map(|o| o.warps).sum();
@@ -452,8 +475,7 @@ pub async fn execute_plot_batch<R: Runtime>(
     // Register callback for progress events
     TauriPlotterCallback::register(app_handle.clone());
 
-    // Mark as running
-    plotter_runtime.set_running(true);
+    // Running flag was already claimed atomically via try_start() above.
 
     log::info!(
         "Starting plotter: {} outputs, {} GiB",
@@ -777,8 +799,18 @@ async fn execute_plot_internal<R: Runtime>(
     plotter_runtime: SharedPlotterRuntime,
     resume_seed: Option<[u8; 32]>,
 ) -> Result<PlotExecutionResult, String> {
+    // Atomically claim the running slot so two concurrent calls can't both spawn.
+    if !plotter_runtime.try_start() {
+        log::warn!("Plotter is already running, rejecting request");
+        return Err("Plotter is already running".to_string());
+    }
+
+    // From here on we own the running flag, so any early failure before the
+    // background task is spawned must release it.
+
     // Validate address
     if config.plotting_address.is_empty() {
+        plotter_runtime.set_running(false);
         return Err("No plotting address configured".to_string());
     }
 
@@ -793,7 +825,10 @@ async fn execute_plot_internal<R: Runtime>(
 
     let task = match builder_result {
         Ok(t) => t,
-        Err(e) => return Err(format!("Failed to build plotter task: {}", e)),
+        Err(e) => {
+            plotter_runtime.set_running(false);
+            return Err(format!("Failed to build plotter task: {}", e));
+        }
     };
 
     // Update plotting status
@@ -810,15 +845,13 @@ async fn execute_plot_internal<R: Runtime>(
     // Register callback for progress events
     TauriPlotterCallback::register(app_handle.clone());
 
-    // Mark as running
-    plotter_runtime.set_running(true);
+    // Running flag was already claimed atomically via try_start() above.
 
     log::info!(
         "[EXEC] Starting plotter execution for {} warps at {}",
         warps,
         drive_path
     );
-    log::info!("[EXEC] is_running set to TRUE");
 
     // Clone values for the background task
     let mining_state_clone = mining_state.clone();

@@ -6,7 +6,7 @@
   "build": {
     "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run start",
-    "devUrl": "http://localhost:4200",
+    "devUrl": "http://127.0.0.1:4200",
     "frontendDist": "../dist/web-wallet/browser"
   },
   "app": {

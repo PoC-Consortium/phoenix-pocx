@@ -410,15 +410,12 @@ pub async fn start_mining(
     state: State<'_, SharedMiningState>,
     node_state: State<'_, crate::node::SharedNodeState>,
 ) -> Result<CommandResult<()>, ()> {
-    // Clear any previous stop request
-    pocx_miner::clear_stop_request();
-
-    // Register miner callback to emit events to frontend (with state for deadline persistence)
-    super::callback::TauriMinerCallback::register(app_handle, state.inner().clone());
-
-    // Get config and validate
+    // Atomically claim the start: check status and flip it to Starting under a
+    // single lock. Doing the check and the set in two separate lock scopes let two
+    // concurrent start_mining calls both observe Stopped and both spawn a miner
+    // (a "ghost" second instance). Holding the lock across both makes it atomic.
     let config = {
-        let state_guard = match state.lock() {
+        let mut state_guard = match state.lock() {
             Ok(guard) => guard,
             Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
         };
@@ -435,13 +432,15 @@ pub async fn start_mining(
             return Ok(CommandResult::err("No drives configured"));
         }
 
+        // Claim the slot before releasing the lock so no concurrent call can pass.
+        state_guard.mining_status = MiningStatus::Starting;
         state_guard.config.clone()
     };
 
-    // Update state to starting
-    if let Ok(mut state_guard) = state.lock() {
-        state_guard.mining_status = MiningStatus::Starting;
-    }
+    // We now own the start. Clear any previous stop request and register the
+    // callback that emits events to the frontend (and persists deadlines).
+    pocx_miner::clear_stop_request();
+    super::callback::TauriMinerCallback::register(app_handle, state.inner().clone());
 
     // Get current node config to override solo chain settings at startup.
     // This ensures chain configs always reflect the active node (managed or external)
@@ -667,9 +666,16 @@ pub async fn stop_mining(state: State<'_, SharedMiningState>) -> Result<CommandR
     // Request miner to stop
     pocx_miner::request_stop();
 
-    // Update state immediately (miner will also update when it stops)
+    // Enter Stopping (not Stopped) so a restart is blocked until the miner task
+    // actually exits and flips the status to Stopped itself. Setting Stopped here
+    // immediately, combined with start_mining clearing the stop request, let a
+    // quick stop→start cancel the old miner's pending stop and spawn a second
+    // (ghost) instance. Guard against Stopped so we don't get stuck in Stopping
+    // when nothing was running.
     if let Ok(mut state_guard) = state.lock() {
-        state_guard.mining_status = MiningStatus::Stopped;
+        if state_guard.mining_status != MiningStatus::Stopped {
+            state_guard.mining_status = MiningStatus::Stopping;
+        }
     }
 
     Ok(CommandResult::ok(()))

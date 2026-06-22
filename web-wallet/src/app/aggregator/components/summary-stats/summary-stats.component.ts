@@ -21,10 +21,16 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
             class="btn btn-icon"
             [class.btn-stop]="isRunning()"
             [class.btn-start]="!isRunning()"
-            [disabled]="isLoading()"
+            [disabled]="isLoading() || isStopping()"
             (click)="isRunning() ? stopClicked.emit() : startClicked.emit()"
           >
-            <span class="btn-label">{{ isRunning() ? ('stop' | i18n) : ('start' | i18n) }}</span>
+            <span class="btn-label">{{
+              isStopping()
+                ? ('aggregator_stopping' | i18n)
+                : isRunning()
+                  ? ('stop' | i18n)
+                  : ('start' | i18n)
+            }}</span>
             <span class="btn-icon-glyph">{{ isRunning() ? '■' : '▶' }}</span>
           </button>
         </div>
@@ -318,6 +324,8 @@ export class SummaryStatsComponent {
   startClicked = output<void>();
   stopClicked = output<void>();
 
+  isStopping = computed(() => this.status().type === 'stopping');
+
   hasBest = computed(() => {
     const s = this.stats();
     return s?.currentBlockBest?.bestPocTime != null;
@@ -341,6 +349,7 @@ export class SummaryStatsComponent {
       case 'running':
         return 'active';
       case 'starting':
+      case 'stopping':
         return 'starting';
       case 'error':
         return 'error';
@@ -356,6 +365,8 @@ export class SummaryStatsComponent {
         return this.i18n.get('aggregator_running');
       case 'starting':
         return this.i18n.get('aggregator_starting');
+      case 'stopping':
+        return this.i18n.get('aggregator_stopping');
       case 'error':
         return this.i18n.get('aggregator_error');
       default:

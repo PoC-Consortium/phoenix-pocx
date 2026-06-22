@@ -18,6 +18,7 @@ export type AggregatorStatus =
   | { type: 'stopped' }
   | { type: 'starting' }
   | { type: 'running'; listenAddress: string }
+  | { type: 'stopping' }
   | { type: 'error'; message: string };
 
 /**

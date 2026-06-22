@@ -65,13 +65,18 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
                 class="btn btn-icon"
                 [class.btn-stop]="isRunning()"
                 [class.btn-start]="!isRunning()"
+                [disabled]="miningService.minerStopping()"
                 (click)="toggleMining()"
                 [title]="
                   isRunning() ? ('mining_stop_mining' | i18n) : ('mining_start_mining' | i18n)
                 "
               >
                 <span class="btn-label">{{
-                  isRunning() ? ('mining_stop' | i18n) : ('mining_start' | i18n)
+                  miningService.minerStopping()
+                    ? ('mining_stopping' | i18n)
+                    : isRunning()
+                      ? ('mining_stop' | i18n)
+                      : ('mining_start' | i18n)
                 }}</span>
                 <span class="btn-icon-glyph">{{ isRunning() ? '■' : '▶' }}</span>
               </button>
@@ -2340,6 +2345,9 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
 
   async toggleMining(): Promise<void> {
     if (this.isToggling()) return;
+    // Ignore clicks while the miner is still winding down — starting again now
+    // would be rejected by the backend until the previous instance has exited.
+    if (this.miningService.minerStopping()) return;
     this.isToggling.set(true);
     try {
       if (this.isRunning()) {

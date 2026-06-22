@@ -117,6 +117,7 @@ export class MiningService {
   // Miner runtime state
   private readonly _minerState = signal<MinerRuntimeState>({
     running: false,
+    stopping: false,
     chains: [],
     totalWarps: 0,
     capacityTib: 0,
@@ -171,6 +172,7 @@ export class MiningService {
   // Miner state computed values
   readonly minerState = this._minerState.asReadonly();
   readonly minerRunning = computed(() => this._minerState().running);
+  readonly minerStopping = computed(() => this._minerState().stopping);
   readonly minerCapacityTib = computed(() => this._minerState().capacityTib);
   readonly minerQueue = computed(() => this._minerState().queue);
   readonly minerCurrentBlock = computed(() => this._minerState().currentBlock);
@@ -2043,8 +2045,9 @@ export class MiningService {
         throw new Error(result.error || 'Failed to start miner');
       }
 
-      // Set running immediately; event handler will update with chain info
-      this._minerState.update(s => ({ ...s, running: true }));
+      // Set running immediately; event handler will update with chain info.
+      // Clear any lingering stopping flag from a prior stop.
+      this._minerState.update(s => ({ ...s, running: true, stopping: false }));
 
       // Start Android foreground service to keep app alive when backgrounded
       await this.startForegroundService('mining');
@@ -2066,8 +2069,10 @@ export class MiningService {
         throw new Error(result.error || 'Failed to stop miner');
       }
 
-      // Set stopped immediately; event handler will also update
-      this._minerState.update(s => ({ ...s, running: false }));
+      // Enter "stopping": keep running true so the UI doesn't offer a restart
+      // (which the backend rejects until the miner task truly exits). The
+      // miner:stopped event clears both flags when the miner is actually gone.
+      this._minerState.update(s => ({ ...s, stopping: true }));
 
       // Stop Android foreground service if plotting is also not running
       await this.stopForegroundService();
@@ -2322,6 +2327,7 @@ export class MiningService {
       this._minerState.update(s => ({
         ...s,
         running: false,
+        stopping: false,
         queue: [],
       }));
       // Don't cleanup listeners - they stay active permanently
@@ -2358,6 +2364,7 @@ export class MiningService {
   resetMinerState(): void {
     this._minerState.set({
       running: false,
+      stopping: false,
       chains: [],
       totalWarps: 0,
       capacityTib: 0,

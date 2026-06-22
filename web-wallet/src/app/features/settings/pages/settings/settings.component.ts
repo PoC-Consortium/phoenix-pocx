@@ -38,6 +38,7 @@ import {
 } from '../../../../store/settings/settings.state';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MiningService } from '../../../../mining/services';
+import { ChainConfig } from '../../../../mining/models';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import {
   WalletManagerService,
@@ -321,14 +322,20 @@ function withListenPort(listenAddress: string, port: number): string {
                               [(ngModel)]="aggregatorListenPort"
                               min="1"
                               max="65535"
-                              [disabled]="isManagedNodeBusy()"
+                              [disabled]="isAggregatorPortBusy()"
                             />
                           </mat-form-field>
                         </div>
                         @if (isManagedNodeBusy()) {
                           <p class="hint-text">
                             <mat-icon class="hint-icon">info</mat-icon>
-                            {{ 'node_network_change_stop_hint' | i18n }}
+                            {{ 'node_rpc_port_change_stop_hint' | i18n }}
+                          </p>
+                        }
+                        @if (isAggregatorPortBusy()) {
+                          <p class="hint-text">
+                            <mat-icon class="hint-icon">info</mat-icon>
+                            {{ 'aggregator_port_change_stop_hint' | i18n }}
                           </p>
                         }
 
@@ -1883,7 +1890,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return this.i18n.get('node_custom_args_reserved', { key: normalizeArgKey(key) });
   }
 
-  /** Disable port edits while node/miner/aggregator is running. */
+  /** Disable the Node/Wallet RPC port edit while node/miner/aggregator is running. */
   isManagedNodeBusy(): boolean {
     return (
       this.nodeService.isRunning() ||
@@ -1891,6 +1898,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.miningService.minerRunning() ||
       this.aggregatorService.isRunning()
     );
+  }
+
+  /**
+   * Disable the Aggregator Listen Port edit while the miner or aggregator is
+   * running. Unlike the RPC port, a running node does not block this edit — the
+   * node does not depend on the aggregator's listen port.
+   */
+  isAggregatorPortBusy(): boolean {
+    return this.miningService.minerRunning() || this.aggregatorService.isRunning();
   }
 
   // Notification settings (local copy for editing)
@@ -2127,6 +2143,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
       // local node's RPC port and persist any custom listen-port the user set.
       if (mode === 'managed') {
         await this.syncAggregatorPorts(config.rpcPort);
+        // 4c. Re-point the solo chain at the (possibly changed) aggregator listen
+        // port or node RPC port, so the miner connects to the right one.
+        await this.syncSoloChainPort();
       }
 
       // 5. Handle managed node lifecycle
@@ -2590,6 +2609,58 @@ export class SettingsComponent implements OnInit, OnDestroy {
       listenAddress: desiredListenAddress,
     };
     await this.aggregatorService.saveConfig(next);
+  }
+
+  /**
+   * Keep the solo chain's connection target in sync with the current node RPC
+   * port and aggregator listen port.
+   *
+   * The miner reads the persisted chain config: when the aggregator is enabled
+   * it must point at 127.0.0.1:<aggregator listen port>, otherwise directly at
+   * the node's RPC host/port. Changing either port in settings only updated the
+   * aggregator/node config, leaving the stored solo chain pointing at the old
+   * port — so the miner kept connecting to the wrong one until the chain was
+   * manually re-saved. Recompute it here (mirroring the setup wizard's saveChain)
+   * before restarting mining services.
+   */
+  private async syncSoloChainPort(): Promise<void> {
+    const soloChain = this.miningService.config()?.chains?.find(c => c.chainType === 'solo');
+    if (!soloChain) return;
+
+    const nodeConfig = this.nodeService.config();
+    const nodeRpcHost = nodeConfig.rpcHost || '127.0.0.1';
+    const nodeRpcPort = nodeConfig.rpcPort || (nodeConfig.network === 'mainnet' ? 8332 : 18332);
+    const aggregatorEnabled = this.aggregatorService.config().enabled;
+
+    let rpcHost: string;
+    let rpcPort: number;
+    let rpcAuth: ChainConfig['rpcAuth'];
+
+    if (aggregatorEnabled) {
+      // Miner connects to the local aggregator (no auth) on its listen port.
+      rpcHost = '127.0.0.1';
+      rpcPort =
+        parseListenAddressPort(this.aggregatorService.config().listenAddress) ?? nodeRpcPort + 7;
+      rpcAuth = { type: 'none' };
+    } else {
+      // Direct solo: miner connects straight to the node with its auth.
+      rpcHost = nodeRpcHost;
+      rpcPort = nodeRpcPort;
+      rpcAuth =
+        nodeConfig.authMethod === 'userpass' && nodeConfig.rpcUser
+          ? { type: 'user_pass', username: nodeConfig.rpcUser, password: nodeConfig.rpcPassword }
+          : { type: 'cookie' };
+    }
+
+    if (
+      soloChain.rpcHost === rpcHost &&
+      soloChain.rpcPort === rpcPort &&
+      soloChain.rpcAuth.type === rpcAuth.type
+    ) {
+      return; // Already correct — avoid a redundant config write/refresh.
+    }
+
+    await this.miningService.updateChain({ ...soloChain, rpcHost, rpcPort, rpcAuth });
   }
 
   /**

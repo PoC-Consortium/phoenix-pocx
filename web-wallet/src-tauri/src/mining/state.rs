@@ -21,6 +21,10 @@ pub enum MiningStatus {
         progress: f64,
     },
     Idle,
+    /// Stop has been requested but the miner task has not exited yet. The task
+    /// flips this to `Stopped` when it actually ends. Starting is rejected while
+    /// in this state, so a stop-then-quick-start can't spawn a second instance.
+    Stopping,
     Error(String),
 }
 
