@@ -586,6 +586,8 @@
   "node_custom_args_reserved": "\"{key}\" is managed by the wallet and will be ignored on save.",
   "node_network_switched": "Network switched to ",
   "node_network_change_stop_hint": "Stop the miner, aggregator, and node before changing network.",
+  "node_rpc_port_change_stop_hint": "Stop the miner, aggregator, and node before changing the Node/Wallet RPC port.",
+  "aggregator_port_change_stop_hint": "Stop the miner and aggregator before changing the Aggregator Listen Port.",
   "node_setup_title": "Node Setup",
   "node_setup_testnet_mode": "Testnet mode (for testing and development)",
   "node_setup_intro_text": "How would you like to connect to the Bitcoin-PoCX network?",

@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "RPC port uzlu/peněženky",
   "node_network_switched": "Síť přepnuta na ",
   "node_network_change_stop_hint": "Před změnou sítě zastavte miner, agregátor a uzel.",
+  "node_rpc_port_change_stop_hint": "Před změnou RPC portu uzlu/peněženky zastavte miner, agregátor a uzel.",
+  "aggregator_port_change_stop_hint": "Před změnou portu agregátoru zastavte miner a agregátor.",
   "nonce": "Nonce",
   "not_loaded": "Nenacteno",
   "notes_optional": "Poznamky (volitelne)",

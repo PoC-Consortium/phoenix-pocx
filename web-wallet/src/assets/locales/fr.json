@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Port RPC du nœud/portefeuille",
   "node_network_switched": "Réseau basculé vers ",
   "node_network_change_stop_hint": "Arrêtez le mineur, l'agrégateur et le nœud avant de changer de réseau.",
+  "node_rpc_port_change_stop_hint": "Arrêtez le mineur, l'agrégateur et le nœud avant de changer le port RPC du nœud/portefeuille.",
+  "aggregator_port_change_stop_hint": "Arrêtez le mineur et l'agrégateur avant de changer le port de l'agrégateur.",
   "nonce": "Nonce",
   "not_loaded": "Non charge",
   "notes_optional": "Notes (optionnel)",

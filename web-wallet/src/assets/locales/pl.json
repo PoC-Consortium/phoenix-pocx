@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Port RPC węzła/portfela",
   "node_network_switched": "Sieć przełączona na ",
   "node_network_change_stop_hint": "Zatrzymaj miner, agregator i węzeł przed zmianą sieci.",
+  "node_rpc_port_change_stop_hint": "Zatrzymaj miner, agregator i węzeł przed zmianą portu RPC węzła/portfela.",
+  "aggregator_port_change_stop_hint": "Zatrzymaj miner i agregator przed zmianą portu agregatora.",
   "nonce": "Nonce",
   "not_loaded": "Nie zaladowany",
   "notes_optional": "Notatki (opcjonalnie)",

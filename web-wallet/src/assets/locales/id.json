@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Port RPC Node/Dompet",
   "node_network_switched": "Jaringan dialihkan ke ",
   "node_network_change_stop_hint": "Hentikan miner, aggregator, dan node sebelum mengubah jaringan.",
+  "node_rpc_port_change_stop_hint": "Hentikan miner, aggregator, dan node sebelum mengubah port RPC node/dompet.",
+  "aggregator_port_change_stop_hint": "Hentikan miner dan aggregator sebelum mengubah port aggregator.",
   "nonce": "Nonce",
   "not_loaded": "Tidak Dimuat",
   "notes_optional": "Catatan (opsional)",

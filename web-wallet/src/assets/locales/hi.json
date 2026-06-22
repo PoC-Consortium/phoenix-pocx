@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "नोड/वॉलेट RPC पोर्ट",
   "node_network_switched": "नेटवर्क बदला गया: ",
   "node_network_change_stop_hint": "नेटवर्क बदलने से पहले माइनर, एग्रीगेटर और नोड को रोकें।",
+  "node_rpc_port_change_stop_hint": "नोड/वॉलेट RPC पोर्ट बदलने से पहले माइनर, एग्रीगेटर और नोड को रोकें।",
+  "aggregator_port_change_stop_hint": "एग्रीगेटर पोर्ट बदलने से पहले माइनर और एग्रीगेटर को रोकें।",
   "nonce": "नॉन्स",
   "not_loaded": "लोड नहीं",
   "notes_optional": "नोट्स (वैकल्पिक)",

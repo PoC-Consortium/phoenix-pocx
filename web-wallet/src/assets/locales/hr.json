@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "RPC port čvora/novčanika",
   "node_network_switched": "Mreža promijenjena na ",
   "node_network_change_stop_hint": "Zaustavite rudara, agregator i čvor prije promjene mreže.",
+  "node_rpc_port_change_stop_hint": "Zaustavite rudara, agregator i čvor prije promjene RPC porta čvora/novčanika.",
+  "aggregator_port_change_stop_hint": "Zaustavite rudara i agregator prije promjene porta agregatora.",
   "nonce": "Nonce",
   "not_loaded": "Nije ucitano",
   "notes_optional": "Biljeske (neobavezno)",

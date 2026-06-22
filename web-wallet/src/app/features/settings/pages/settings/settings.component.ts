@@ -321,14 +321,20 @@ function withListenPort(listenAddress: string, port: number): string {
                               [(ngModel)]="aggregatorListenPort"
                               min="1"
                               max="65535"
-                              [disabled]="isManagedNodeBusy()"
+                              [disabled]="isAggregatorPortBusy()"
                             />
                           </mat-form-field>
                         </div>
                         @if (isManagedNodeBusy()) {
                           <p class="hint-text">
                             <mat-icon class="hint-icon">info</mat-icon>
-                            {{ 'node_network_change_stop_hint' | i18n }}
+                            {{ 'node_rpc_port_change_stop_hint' | i18n }}
+                          </p>
+                        }
+                        @if (isAggregatorPortBusy()) {
+                          <p class="hint-text">
+                            <mat-icon class="hint-icon">info</mat-icon>
+                            {{ 'aggregator_port_change_stop_hint' | i18n }}
                           </p>
                         }
 
@@ -1883,7 +1889,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return this.i18n.get('node_custom_args_reserved', { key: normalizeArgKey(key) });
   }
 
-  /** Disable port edits while node/miner/aggregator is running. */
+  /** Disable the Node/Wallet RPC port edit while node/miner/aggregator is running. */
   isManagedNodeBusy(): boolean {
     return (
       this.nodeService.isRunning() ||
@@ -1891,6 +1897,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.miningService.minerRunning() ||
       this.aggregatorService.isRunning()
     );
+  }
+
+  /**
+   * Disable the Aggregator Listen Port edit while the miner or aggregator is
+   * running. Unlike the RPC port, a running node does not block this edit — the
+   * node does not depend on the aggregator's listen port.
+   */
+  isAggregatorPortBusy(): boolean {
+    return this.miningService.minerRunning() || this.aggregatorService.isRunning();
   }
 
   // Notification settings (local copy for editing)

@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Solmun/lompakon RPC-portti",
   "node_network_switched": "Verkko vaihdettu: ",
   "node_network_change_stop_hint": "Pysäytä louhija, aggregaattori ja solmu ennen verkon vaihtamista.",
+  "node_rpc_port_change_stop_hint": "Pysäytä louhija, aggregaattori ja solmu ennen solmun/lompakon RPC-portin vaihtamista.",
+  "aggregator_port_change_stop_hint": "Pysäytä louhija ja aggregaattori ennen aggregaattorin portin vaihtamista.",
   "nonce": "Nonce",
   "not_loaded": "Ei ladattu",
   "notes_optional": "Muistiinpanot (valinnainen)",

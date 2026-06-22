@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Port RPC nod/portofel",
   "node_network_switched": "Rețeaua a fost schimbată la ",
   "node_network_change_stop_hint": "Opriți minerul, agregatorul și nodul înainte de a schimba rețeaua.",
+  "node_rpc_port_change_stop_hint": "Opriți minerul, agregatorul și nodul înainte de a schimba portul RPC al nodului/portofelului.",
+  "aggregator_port_change_stop_hint": "Opriți minerul și agregatorul înainte de a schimba portul agregatorului.",
   "nonce": "Nonce",
   "not_loaded": "Neîncărcat",
   "notes_optional": "Note (opțional)",

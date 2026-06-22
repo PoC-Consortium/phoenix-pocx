@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "节点/钱包 RPC 端口",
   "node_network_switched": "网络已切换至 ",
   "node_network_change_stop_hint": "更改网络前请停止矿工、聚合器和节点。",
+  "node_rpc_port_change_stop_hint": "更改节点/钱包 RPC 端口前请停止矿工、聚合器和节点。",
+  "aggregator_port_change_stop_hint": "更改聚合器端口前请停止矿工和聚合器。",
   "nonce": "随机数",
   "not_loaded": "未加载",
   "notes_optional": "备注（可选）",

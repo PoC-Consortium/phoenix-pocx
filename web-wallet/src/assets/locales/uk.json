@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "RPC порт вузла/гаманця",
   "node_network_switched": "Мережу переключено на ",
   "node_network_change_stop_hint": "Зупиніть майнер, агрегатор та вузол перед зміною мережі.",
+  "node_rpc_port_change_stop_hint": "Зупиніть майнер, агрегатор та вузол перед зміною RPC-порту вузла/гаманця.",
+  "aggregator_port_change_stop_hint": "Зупиніть майнер та агрегатор перед зміною порту агрегатора.",
   "nonce": "Nonce",
   "not_loaded": "Не завантажено",
   "notes_optional": "Нотатки (необов'язково)",

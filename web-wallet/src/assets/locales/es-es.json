@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Puerto RPC de nodo/cartera",
   "node_network_switched": "Red cambiada a ",
   "node_network_change_stop_hint": "Detenga el minero, el agregador y el nodo antes de cambiar de red.",
+  "node_rpc_port_change_stop_hint": "Detenga el minero, el agregador y el nodo antes de cambiar el puerto RPC del nodo/monedero.",
+  "aggregator_port_change_stop_hint": "Detenga el minero y el agregador antes de cambiar el puerto del agregador.",
   "nonce": "Nonce",
   "not_loaded": "No cargada",
   "notes_optional": "Notas (opcional)",

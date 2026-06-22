@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "RPC порт чвора/новчаника",
   "node_network_switched": "Мрежа промењена на ",
   "node_network_change_stop_hint": "Зауставите рудар, агрегатор и чвор пре промене мреже.",
+  "node_rpc_port_change_stop_hint": "Зауставите рудар, агрегатор и чвор пре промене RPC порта чвора/новчаника.",
+  "aggregator_port_change_stop_hint": "Зауставите рудар и агрегатор пре промене порта агрегатора.",
   "nonce": "Nonce",
   "not_loaded": "Није учитано",
   "notes_optional": "Белешке (опционо)",

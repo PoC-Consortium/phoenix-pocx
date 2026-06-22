@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Node/Wallet RPC Poort",
   "node_network_switched": "Netwerk overgeschakeld naar ",
   "node_network_change_stop_hint": "Stop de miner, aggregator en het knooppunt voordat u van netwerk wisselt.",
+  "node_rpc_port_change_stop_hint": "Stop de miner, aggregator en het knooppunt voordat u de node-/wallet-RPC-poort wijzigt.",
+  "aggregator_port_change_stop_hint": "Stop de miner en aggregator voordat u de aggregatorpoort wijzigt.",
   "nonce": "Nonce",
   "not_loaded": "Niet Geladen",
   "notes_optional": "Notities (optioneel)",

@@ -497,6 +497,8 @@
   "node_wallet_rpc_port": "Mazgo/piniginės RPC prievadas",
   "node_network_switched": "Tinklas perjungtas į ",
   "node_network_change_stop_hint": "Prieš keičiant tinklą sustabdykite kasėją, agregatorių ir mazgą.",
+  "node_rpc_port_change_stop_hint": "Prieš keičiant mazgo/piniginės RPC prievadą sustabdykite kasėją, agregatorių ir mazgą.",
+  "aggregator_port_change_stop_hint": "Prieš keičiant agregatoriaus prievadą sustabdykite kasėją ir agregatorių.",
   "nonce": "Nonce",
   "not_loaded": "Neikelta",
   "notes_optional": "Pastabos (neprivaloma)",
