@@ -619,6 +619,7 @@
   "settings": "Ayarlar",
   "settings_saved": "Ayarlar başarıyla kaydedildi",
   "setup_add": "Ekle",
+  "setup_apply": "Uygula",
   "setup_add_chain": "+ Zincir Ekle",
   "setup_add_chain_title": "Zincir Ekle",
   "setup_add_folder_hint": "Plot dizinleri eklemek için \"+ Klasör Ekle\"ye tıklayın",

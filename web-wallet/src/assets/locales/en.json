@@ -499,6 +499,7 @@
   "setup_password": "Password",
   "setup_save": "Save",
   "setup_add": "Add",
+  "setup_apply": "Apply",
   "setup_storage_permission_required": "This app needs \"All files access\" permission to detect and read plot files. Tap OK to open Settings and enable it for Phoenix.",
   "plan_plotting_plan": "Plotting Plan",
   "plan_tasks": "Tasks",

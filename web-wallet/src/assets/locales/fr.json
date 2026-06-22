@@ -619,6 +619,7 @@
   "settings": "Parametres",
   "settings_saved": "Parametres enregistres avec succes",
   "setup_add": "Ajouter",
+  "setup_apply": "Appliquer",
   "setup_add_chain": "+ Ajouter une chaine",
   "setup_add_chain_title": "Ajouter une chaine",
   "setup_add_folder_hint": "Cliquez sur \"+ Ajouter des dossiers\" pour ajouter des repertoires de plot",

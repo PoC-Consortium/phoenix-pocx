@@ -619,6 +619,7 @@
   "settings": "设置",
   "settings_saved": "设置保存成功",
   "setup_add": "添加",
+  "setup_apply": "应用",
   "setup_add_chain": "+ 添加链",
   "setup_add_chain_title": "添加链",
   "setup_add_folder_hint": "点击 \"+ 添加文件夹\" 添加绘图目录",

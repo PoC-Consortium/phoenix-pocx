@@ -619,6 +619,7 @@
   "settings": "Настройки",
   "settings_saved": "Настройки успешно сохранены",
   "setup_add": "Добавить",
+  "setup_apply": "Применить",
   "setup_add_chain": "+ Добавить цепь",
   "setup_add_chain_title": "Добавить цепь",
   "setup_add_folder_hint": "Нажмите \"+ Добавить папку\" для добавления каталогов плотов",

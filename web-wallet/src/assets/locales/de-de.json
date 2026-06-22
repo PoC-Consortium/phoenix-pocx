@@ -619,6 +619,7 @@
   "settings": "Einstellungen",
   "settings_saved": "Einstellungen erfolgreich gespeichert",
   "setup_add": "Hinzufuegen",
+  "setup_apply": "Uebernehmen",
   "setup_add_chain": "+ Kette hinzufuegen",
   "setup_add_chain_title": "Kette hinzufuegen",
   "setup_add_folder_hint": "Klicke auf \"+ Ordner hinzufuegen\", um Plot-Verzeichnisse hinzuzufuegen",

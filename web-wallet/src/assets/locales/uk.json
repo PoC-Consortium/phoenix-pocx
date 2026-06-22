@@ -619,6 +619,7 @@
   "settings": "Налаштування",
   "settings_saved": "Налаштування успішно збережено",
   "setup_add": "Додати",
+  "setup_apply": "Застосувати",
   "setup_add_chain": "+ Додати ланцюг",
   "setup_add_chain_title": "Додати ланцюг",
   "setup_add_folder_hint": "Натисніть \"+ Додати папку\", щоб додати каталоги плотів",

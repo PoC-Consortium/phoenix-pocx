@@ -619,6 +619,7 @@
   "settings": "Impostazioni",
   "settings_saved": "Impostazioni salvate con successo",
   "setup_add": "Aggiungi",
+  "setup_apply": "Applica",
   "setup_add_chain": "+ Aggiungi catena",
   "setup_add_chain_title": "Aggiungi catena",
   "setup_add_folder_hint": "Clicca \"+ Aggiungi cartella\" per aggiungere directory plot",

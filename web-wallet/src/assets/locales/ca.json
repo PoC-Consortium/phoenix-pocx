@@ -619,6 +619,7 @@
   "settings": "Configuració",
   "settings_saved": "Configuració desada amb èxit",
   "setup_add": "Afegir",
+  "setup_apply": "Aplica",
   "setup_add_chain": "+ Afegir cadena",
   "setup_add_chain_title": "Afegir cadena",
   "setup_add_folder_hint": "Feu clic a \"+ Afegir carpeta\" per afegir directoris de plot",

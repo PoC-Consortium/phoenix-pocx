@@ -619,6 +619,7 @@
   "settings": "Настройки",
   "settings_saved": "Настройките са запазени успешно",
   "setup_add": "Добави",
+  "setup_apply": "Приложи",
   "setup_add_chain": "+ Добави верига",
   "setup_add_chain_title": "Добави верига",
   "setup_add_folder_hint": "Кликнете \"+ Добави папка\", за да добавите директории за плотове",

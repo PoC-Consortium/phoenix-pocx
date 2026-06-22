@@ -619,6 +619,7 @@
   "settings": "Nastavenia",
   "settings_saved": "Nastavenia uspesne ulozene",
   "setup_add": "Pridat",
+  "setup_apply": "Použiť",
   "setup_add_chain": "+ Pridat retazec",
   "setup_add_chain_title": "Pridat retazec",
   "setup_add_folder_hint": "Kliknite \"+ Pridat zlozku\" pre pridanie adresarov plotov",

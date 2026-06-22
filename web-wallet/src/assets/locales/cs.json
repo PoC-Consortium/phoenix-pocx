@@ -619,6 +619,7 @@
   "settings": "Nastaveni",
   "settings_saved": "Nastaveni uspesne ulozeno",
   "setup_add": "Pridat",
+  "setup_apply": "Použít",
   "setup_add_chain": "+ Pridat retezec",
   "setup_add_chain_title": "Pridat retezec",
   "setup_add_folder_hint": "Kliknete na \"+ Pridat slozky\" pro pridani adresaru plotu",

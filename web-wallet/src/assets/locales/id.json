@@ -619,6 +619,7 @@
   "settings": "Pengaturan",
   "settings_saved": "Pengaturan berhasil disimpan",
   "setup_add": "Tambah",
+  "setup_apply": "Terapkan",
   "setup_add_chain": "+ Tambah Rantai",
   "setup_add_chain_title": "Tambah Rantai",
   "setup_add_folder_hint": "Klik \"+ Tambah Folder\" untuk menambahkan direktori plot",

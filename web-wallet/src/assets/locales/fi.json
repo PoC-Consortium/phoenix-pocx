@@ -619,6 +619,7 @@
   "settings": "Asetukset",
   "settings_saved": "Asetukset tallennettu onnistuneesti",
   "setup_add": "Lisaa",
+  "setup_apply": "Käytä",
   "setup_add_chain": "+ Lisaa ketju",
   "setup_add_chain_title": "Lisaa ketju",
   "setup_add_folder_hint": "Napsauta \"+ Lisaa kansio\" lisataksesi plot-hakemistoja",

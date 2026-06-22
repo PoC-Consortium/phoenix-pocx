@@ -619,6 +619,7 @@
   "settings": "Configuración",
   "settings_saved": "Configuración gardada con éxito",
   "setup_add": "Engadir",
+  "setup_apply": "Aplicar",
   "setup_add_chain": "+ Engadir cadea",
   "setup_add_chain_title": "Engadir cadea",
   "setup_add_folder_hint": "Fai clic en \"+ Engadir cartafol\" para engadir directorios de trazado",

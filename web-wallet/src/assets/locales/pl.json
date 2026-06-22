@@ -619,6 +619,7 @@
   "settings": "Ustawienia",
   "settings_saved": "Ustawienia zapisane pomyslnie",
   "setup_add": "Dodaj",
+  "setup_apply": "Zastosuj",
   "setup_add_chain": "+ Dodaj lancuch",
   "setup_add_chain_title": "Dodaj lancuch",
   "setup_add_folder_hint": "Kliknij \"+ Dodaj folder\" aby dodac katalogi plotow",

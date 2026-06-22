@@ -619,6 +619,7 @@
   "settings": "Setări",
   "settings_saved": "Setările au fost salvate cu succes",
   "setup_add": "Adaugă",
+  "setup_apply": "Aplică",
   "setup_add_chain": "+ Adaugă lanț",
   "setup_add_chain_title": "Adaugă lanț",
   "setup_add_folder_hint": "Click pe \"+ Adaugă folder\" pentru a adăuga directoare plot",

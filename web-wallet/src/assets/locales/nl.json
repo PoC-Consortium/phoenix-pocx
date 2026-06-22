@@ -619,6 +619,7 @@
   "settings": "Instellingen",
   "settings_saved": "Instellingen succesvol opgeslagen",
   "setup_add": "Toevoegen",
+  "setup_apply": "Toepassen",
   "setup_add_chain": "+ Keten Toevoegen",
   "setup_add_chain_title": "Keten Toevoegen",
   "setup_add_folder_hint": "Klik op \"+ Map Toevoegen\" om plot mappen toe te voegen",

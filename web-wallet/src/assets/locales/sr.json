@@ -619,6 +619,7 @@
   "settings": "Подешавања",
   "settings_saved": "Подешавања су успешно сачувана",
   "setup_add": "Додај",
+  "setup_apply": "Примени",
   "setup_add_chain": "+ Додај ланац",
   "setup_add_chain_title": "Додај ланац",
   "setup_add_folder_hint": "Кликните \"+ Додај фасциклу\" да додате директоријуме плотова",

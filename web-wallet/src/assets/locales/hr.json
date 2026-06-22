@@ -619,6 +619,7 @@
   "settings": "Postavke",
   "settings_saved": "Postavke uspjesno spremljene",
   "setup_add": "Dodaj",
+  "setup_apply": "Primijeni",
   "setup_add_chain": "+ Dodaj lanac",
   "setup_add_chain_title": "Dodaj lanac",
   "setup_add_folder_hint": "Kliknite \"+ Dodaj mapu\" za dodavanje direktorija plotova",
