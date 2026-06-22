@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "हाल की गतिविधि",
   "aggregator_running": "चल रहा है",
   "aggregator_starting": "शुरू हो रहा है...",
+  "aggregator_stopping": "रोका जा रहा है...",
   "aggregator_stats_accounts": "{accounts} खाते",
   "aggregator_stats_machines": "{machines} मशीनें",
   "aggregator_status": "एग्रीगेटर स्थिति",

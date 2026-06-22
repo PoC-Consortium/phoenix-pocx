@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Πρόσφατη δραστηριότητα",
   "aggregator_running": "Εκτελείται",
   "aggregator_starting": "Εκκίνηση...",
+  "aggregator_stopping": "Διακοπή...",
   "aggregator_stats_accounts": "{accounts} λογαριασμοί",
   "aggregator_stats_machines": "{machines} μηχανές",
   "aggregator_status": "Κατάσταση Aggregator",

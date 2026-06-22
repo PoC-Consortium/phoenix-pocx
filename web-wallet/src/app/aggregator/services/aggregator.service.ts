@@ -58,6 +58,7 @@ export class AggregatorService {
 
   readonly isRunning = computed(() => this._status().type === 'running');
   readonly isStopped = computed(() => this._status().type === 'stopped');
+  readonly isStopping = computed(() => this._status().type === 'stopping');
 
   constructor() {
     // Subscribe to network changes
@@ -319,7 +320,10 @@ export class AggregatorService {
         this.addActivityLog('error', result.error || 'Failed to stop');
         return false;
       }
-      this._status.set({ type: 'stopped' });
+      // Enter "stopping" rather than "stopped" so the UI doesn't offer a restart
+      // (which the backend rejects until the task exits). The aggregator:stopped
+      // event flips it to "stopped" once the aggregator is actually gone.
+      this._status.set({ type: 'stopping' });
       return true;
     } catch (e) {
       this._error.set(`Failed to stop: ${e}`);

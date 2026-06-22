@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Naujausia veikla",
   "aggregator_running": "Veikia",
   "aggregator_starting": "Paleidžiama...",
+  "aggregator_stopping": "Stabdoma...",
   "aggregator_stats_accounts": "{accounts} paskyrų",
   "aggregator_stats_machines": "{machines} mašinų",
   "aggregator_status": "Agregatoriaus būsena",

@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Son Aktivite",
   "aggregator_running": "Çalışıyor",
   "aggregator_starting": "Başlatılıyor...",
+  "aggregator_stopping": "Durduruluyor...",
   "aggregator_stats_accounts": "{accounts} hesap",
   "aggregator_stats_machines": "{machines} makine",
   "aggregator_status": "Toplayıcı Durumu",

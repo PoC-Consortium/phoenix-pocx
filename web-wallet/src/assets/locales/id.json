@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Aktivitas Terbaru",
   "aggregator_running": "Berjalan",
   "aggregator_starting": "Memulai...",
+  "aggregator_stopping": "Menghentikan...",
   "aggregator_stats_accounts": "{accounts} akun",
   "aggregator_stats_machines": "{machines} mesin",
   "aggregator_status": "Status Aggregator",

@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Recente Activiteit",
   "aggregator_running": "Actief",
   "aggregator_starting": "Starten...",
+  "aggregator_stopping": "Stoppen...",
   "aggregator_stats_accounts": "{accounts} accounts",
   "aggregator_stats_machines": "{machines} machines",
   "aggregator_status": "Aggregator Status",

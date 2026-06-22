@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Viimeaikainen toiminta",
   "aggregator_running": "Käynnissä",
   "aggregator_starting": "Käynnistyy...",
+  "aggregator_stopping": "Pysäytetään...",
   "aggregator_stats_accounts": "{accounts} tiliä",
   "aggregator_stats_machines": "{machines} konetta",
   "aggregator_status": "Aggregaattorin tila",

@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Скорошна активност",
   "aggregator_running": "Работи",
   "aggregator_starting": "Стартиране...",
+  "aggregator_stopping": "Спиране...",
   "aggregator_stats_accounts": "{accounts} акаунти",
   "aggregator_stats_machines": "{machines} машини",
   "aggregator_status": "Статус на агрегатора",

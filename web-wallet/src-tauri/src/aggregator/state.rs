@@ -53,6 +53,10 @@ pub enum AggregatorStatus {
         #[serde(rename = "listenAddress")]
         listen_address: String,
     },
+    /// Stop requested but the aggregator task has not exited yet. The task flips
+    /// this to Stopped when it ends. Starting is rejected while in this state so
+    /// a stop-then-quick-start can't spawn a second instance.
+    Stopping,
     Error {
         message: String,
     },

@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Activitate recentă",
   "aggregator_running": "Rulează",
   "aggregator_starting": "Pornire...",
+  "aggregator_stopping": "Se oprește...",
   "aggregator_stats_accounts": "{accounts} conturi",
   "aggregator_stats_machines": "{machines} mașini",
   "aggregator_status": "Status agregator",

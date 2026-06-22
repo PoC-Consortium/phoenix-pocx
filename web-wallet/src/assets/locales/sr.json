@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Недавна активност",
   "aggregator_running": "Ради",
   "aggregator_starting": "Покретање...",
+  "aggregator_stopping": "Заустављање...",
   "aggregator_stats_accounts": "{accounts} налога",
   "aggregator_stats_machines": "{machines} машина",
   "aggregator_status": "Статус агрегатора",

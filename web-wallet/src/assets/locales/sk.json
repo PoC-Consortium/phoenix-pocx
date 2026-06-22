@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Nedávna aktivita",
   "aggregator_running": "Beží",
   "aggregator_starting": "Spúšťanie...",
+  "aggregator_stopping": "Zastavovanie...",
   "aggregator_stats_accounts": "{accounts} účtov",
   "aggregator_stats_machines": "{machines} strojov",
   "aggregator_status": "Stav agregátora",

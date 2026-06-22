@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Nedavna aktivnost",
   "aggregator_running": "Pokrenut",
   "aggregator_starting": "Pokretanje...",
+  "aggregator_stopping": "Zaustavljanje...",
   "aggregator_stats_accounts": "{accounts} računa",
   "aggregator_stats_machines": "{machines} strojeva",
   "aggregator_status": "Status agregatora",

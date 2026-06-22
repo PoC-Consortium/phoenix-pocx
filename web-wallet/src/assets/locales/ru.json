@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Недавняя активность",
   "aggregator_running": "Работает",
   "aggregator_starting": "Запуск...",
+  "aggregator_stopping": "Остановка...",
   "aggregator_stats_accounts": "{accounts} аккаунтов",
   "aggregator_stats_machines": "{machines} машин",
   "aggregator_status": "Статус агрегатора",

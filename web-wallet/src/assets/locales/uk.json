@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Недавня активність",
   "aggregator_running": "Працює",
   "aggregator_starting": "Запуск...",
+  "aggregator_stopping": "Зупинка...",
   "aggregator_stats_accounts": "{accounts} акаунтів",
   "aggregator_stats_machines": "{machines} машин",
   "aggregator_status": "Статус агрегатора",

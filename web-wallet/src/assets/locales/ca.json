@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Activitat recent",
   "aggregator_running": "En execució",
   "aggregator_starting": "Iniciant...",
+  "aggregator_stopping": "Aturant...",
   "aggregator_stats_accounts": "{accounts} comptes",
   "aggregator_stats_machines": "{machines} màquines",
   "aggregator_status": "Estat de l'agregador",

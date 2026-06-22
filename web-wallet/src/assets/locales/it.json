@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "Attività recente",
   "aggregator_running": "In esecuzione",
   "aggregator_starting": "Avvio...",
+  "aggregator_stopping": "Arresto...",
   "aggregator_stats_accounts": "{accounts} account",
   "aggregator_stats_machines": "{machines} macchine",
   "aggregator_status": "Stato aggregatore",

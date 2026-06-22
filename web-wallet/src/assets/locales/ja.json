@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "最近のアクティビティ",
   "aggregator_running": "実行中",
   "aggregator_starting": "起動中...",
+  "aggregator_stopping": "停止中...",
   "aggregator_stats_accounts": "{accounts}アカウント",
   "aggregator_stats_machines": "{machines}マシン",
   "aggregator_status": "アグリゲーターステータス",

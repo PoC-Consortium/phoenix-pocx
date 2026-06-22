@@ -48,6 +48,7 @@
   "aggregator_recent_activity": "近期活动",
   "aggregator_running": "运行中",
   "aggregator_starting": "启动中...",
+  "aggregator_stopping": "正在停止...",
   "aggregator_stats_accounts": "{accounts} 个账户",
   "aggregator_stats_machines": "{machines} 台机器",
   "aggregator_status": "聚合器状态",
