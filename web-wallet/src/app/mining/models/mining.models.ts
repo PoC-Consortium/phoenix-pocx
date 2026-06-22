@@ -295,6 +295,7 @@ export type MiningStatus =
   | { type: 'starting' }
   | { type: 'scanning'; chainName: string; height: number; progress: number }
   | { type: 'idle' }
+  | { type: 'stopping' }
   | { type: 'error'; message: string };
 
 export type PlottingStatus =
@@ -618,6 +619,9 @@ export interface MinerLogEvent {
 /** Current miner state */
 export interface MinerRuntimeState {
   running: boolean;
+  /** Stop requested but the miner task has not exited yet. Keeps the UI from
+   * offering a restart (which the backend rejects) until the miner is gone. */
+  stopping: boolean;
   chains: string[];
   totalWarps: number;
   capacityTib: number;

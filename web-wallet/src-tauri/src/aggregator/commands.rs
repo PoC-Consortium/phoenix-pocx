@@ -65,18 +65,16 @@ pub async fn start_aggregator(
             Err(e) => return Ok(CommandResult::err(format!("Failed to lock state: {}", e))),
         };
 
-        if inner.status
-            == (AggregatorStatus::Running {
-                listen_address: String::new(),
-            })
-        {
-            // Check more precisely
-            if matches!(inner.status, AggregatorStatus::Running { .. }) {
-                return Ok(CommandResult::err("Aggregator is already running"));
-            }
-        }
-
-        if matches!(inner.status, AggregatorStatus::Running { .. }) {
+        // Reject if a start is already in flight (Starting) or active (Running).
+        // The aggregator only flips to Running from the on_started callback once
+        // its listener binds, so checking Running alone left a window where a
+        // second concurrent call could pass and spawn a duplicate aggregator.
+        // Checking the status and claiming Starting under the same lock makes
+        // startup atomic.
+        if matches!(
+            inner.status,
+            AggregatorStatus::Starting | AggregatorStatus::Running { .. }
+        ) {
             return Ok(CommandResult::err("Aggregator is already running"));
         }
 
