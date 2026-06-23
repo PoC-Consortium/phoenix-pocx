@@ -43,7 +43,7 @@ The modal asks three things in sequence: the chain name, the mode, and the mode-
 **Mode.** Three radio buttons:
 
 - **Solo.** Mine via the local Bitcoin-PoCX Core node Phoenix is already connected to. No URL or credentials required; everything stays in-process.
-- **Pool.** Mine into a pool you select from a built-in list of known pools (the list is curated by the project; you do not type a URL yourself).
+- **Pool.** Mine into a pool you select from a built-in list of known pools (the list is curated by the project; you do not type a URL yourself). Picking a known pool also fills in that pool's published *forging addresses* for you — see *Pool forging addresses* below.
 - **Custom.** Mine into a URL you supply. Used for private pools, development nodes, or relays. You also specify whether the endpoint runs in *solo* or *pool* mode and what block time to assume.
 
 **Connection and authentication.** Pool and custom modes show an *authentication* section with three options:
@@ -55,6 +55,12 @@ The modal asks three things in sequence: the chain name, the mode, and the mode-
 | **Cookie**  | The endpoint accepts a cookie file path you supply.                                           |
 
 Solo mode also exposes a small **Aggregator** toggle in the modal. Enable it here if this Phoenix instance is going to be the aggregator for a multi-machine farm (Chapter 24); leave it off otherwise.
+
+**Pool forging addresses** (pool mode). Below the pool selector, the modal shows a list of the pool's **forging addresses** — the addresses your miners assign to in order to mine for that pool (Chapter 19). When you pick a known pool, Phoenix seeds this list from the pool's published address(es); you can edit them, or click **+ Add address** to add your own, each with a free-text label. Addresses are validated as you type, and blank rows are dropped when you save. These saved addresses are what later appear in the dropdown on the **Forging Assignment** screen (Chapter 19), so you do not have to paste the pool's address by hand every time.
+
+![The pool chain modal: the pool selector and the seeded list of pool forging addresses.](images/processed/ch15-pool-addresses.png){width=60%}
+
+**Saving the modal.** The footer button reads **Add** when you are creating a new chain and **Apply** when you are editing an existing one; **Cancel** discards the modal. Applying a change stages it in the wizard — it is written to disk when you **Save & close** the wizard itself.
 
 > **Tip** — A typical first setup has exactly one chain: a solo chain against your local Bitcoin-PoCX Core. Pool mining usually requires an on-chain forging assignment to the pool's forging address before submissions are accepted, which is a Chapter 19 concern. Set the solo chain up first, get mining working, and revisit pool configuration once you understand how assignments work.
 
@@ -140,6 +146,7 @@ The collapsible block in step 2 is the densest part of the wizard. Most of it is
 |--------------------------|-------------------------------------------------------------------------------------------|
 | **Drives in parallel**   | How many drives the plotter writes to simultaneously. Match this to your plotting device's throughput versus per-drive write speed: a GPU that plots at ~600 MiB/s can keep four drives busy at ~150 MiB/s each, so *drives in parallel = 4* saturates it. Set it too low and the device idles; too high and each drive starves. 2–4 is a reasonable range for most rigs; pushing higher only pays off when the plotting device is fast enough to feed them all. |
 | **Memory escalation**    | A multiplier on the per-drive plotter cache budget — **use as much of your RAM as you can spare.** A larger cache lets the plotter accumulate bigger contiguous chunks before flushing, which turns plotting into longer linear writes to the HDD and raises write throughput. Aim for **5 or higher** if your RAM supports it. Use the live memory-estimation box above as your guide: push the value up until the estimated total is close to your available RAM, leaving roughly **1–2 GiB free for the operating system**. Going past that — so the estimate exceeds available RAM — risks swapping, which is far slower than the plotting speed you were trying to gain. |
+| **Plot file size (GiB)** | The size of each individual plot file, in GiB (1 warp = 1 GiB). Default is `1024` — a 1 TiB file. Phoenix splits each drive's allocation into files of this size, plus a smaller remainder file. Smaller files mean more files per drive (and more resume points); larger files mean fewer, bigger ones. The accepted range is 8 GiB to 16384 GiB (16 TiB). Leave it at the default unless your filesystem or workflow has a specific reason to prefer a different file size. |
 | **PoW scaling level**    | The X-level the plotter writes — `X1` through `X6`. Higher levels embed exponentially more proof-of-work per warp, in line with the network's halving schedule (whitepaper §6). The wizard defaults to the network's current minimum; you can pre-plot one level higher to avoid an immediate upgrade after the next halving. |
 | **Direct I/O (plotter)** | Bypasses the OS file cache when writing plot files. Faster on large workloads; can interfere with cache-aware backup tools (which you should not be using on plot drives anyway). |
 | **Async write**          | Issues plotter writes asynchronously to overlap I/O with compute. The default on the v2 plotter. |

@@ -18,6 +18,13 @@ From the `handbook/` directory:
 
 The output is written to `../handbook.pdf` (the repository root). The first build under MiKTeX takes longer because it downloads several LaTeX packages on demand.
 
+## Source revision
+
+The handbook documents a specific build of the wallet. The commit it is
+currently based on — and the procedure for updating it against a newer build —
+is recorded in [`BASED-ON.md`](BASED-ON.md). Update that file whenever you sync
+the handbook to a new wallet revision.
+
 ## Project layout
 
     phoenix-pocx-handbook/

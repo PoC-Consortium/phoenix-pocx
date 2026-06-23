@@ -18,6 +18,8 @@ A plan is made of three kinds of task:
 
 The plan is ordered so that resumable `.tmp` files are dealt with sensibly, fresh plotting follows, and each completed drive is added to the miner as it becomes ready.
 
+> **Note** — Each **Plot** task produces one plot *file*. The size of those files is the **Plot file size** set in the wizard's step-2 advanced options (Chapter 15) — 1 TiB by default. A drive's allocation is split into as many full-size files as fit, plus a smaller remainder file for whatever is left over. This is also the unit a *soft stop* completes before pausing (see *Stopping plotting* below).
+
 > **Tip** — You can inspect the full plan before or during plotting. The Mining Dashboard's plotter area includes a **plan viewer** that lists every task with its drive, size, and status. It is the most direct way to answer "what is Phoenix about to do, and in what order?"
 
 ## Where plotting is controlled

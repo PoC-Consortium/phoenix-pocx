@@ -6,7 +6,7 @@ You can reach it from two places: the **gear** icon in the toolbar and the **Set
 
 The screen is organised into four tabs. This chapter walks through each one in turn.
 
-![Settings â€” the Node Configuration tab in managed mode.](images/processed/ch12-settings-managed.png){width=98%}
+![Settings â€” the Node Configuration tab in managed mode.](images/processed/ch12-settings-managed.png){width=55%}
 
 ## Tab 1 — Node Configuration
 
@@ -50,6 +50,18 @@ If no node binary is installed yet (because you previously chose external mode, 
 | **Aggregator listen port** | The port the optional aggregator listens on when enabled (Chapter 24). Defaults to `8080`. |
 
 Override either only if another program already uses the default.
+
+> **Note** — A running service locks the port that depends on it, and a small hint appears explaining why. The **Wallet RPC port** cannot be edited while the node, miner, or aggregator is running. The **Aggregator listen port** is stricter only about the parts that use it — it is locked while the miner or aggregator is running, but a running node alone does not block it. Stop the relevant services first, change the port, then start them again.
+
+**Custom bitcoind arguments.** Also inside Advanced options is an editor for extra command-line arguments passed to the managed `bitcoind` when it starts — for tuning the node beyond what the rest of the panel exposes (for example `dbcache`, `proxy`, or `maxconnections`).
+
+- Each argument is a **Key** and an optional **Value** row; click **Add argument** to add one and **Remove** to delete it. When none are set, the editor shows *"No custom arguments set."*
+- Write option names **without the leading dash** — `dbcache`, not `-dbcache`.
+- For **flag-only** options that take no value, leave the value empty (the field hints *"(empty = flag only)"*).
+- A handful of keys are **managed by the wallet** (the ports, network, data directory, and similar that Phoenix sets itself). If you enter one of those, Phoenix flags it as reserved and ignores it on save, so your custom argument can never fight the wallet's own configuration.
+- Changes take effect on the next node start — **restart the node to apply them** (the editor reminds you).
+
+> **Warning** — These arguments are passed straight to Bitcoin-PoCX Core. A wrong or conflicting option can stop the node from starting. Change this only if you understand the `bitcoind` option you are setting; when in doubt, leave it empty.
 
 **Node updates.** A small section near the bottom of the panel.
 
@@ -111,6 +123,12 @@ The list is split into two groups.
 | **Node connected**      | Phoenix establishes (or re-establishes) its RPC connection to Core.                    |
 | **Node disconnected**   | Phoenix loses its RPC connection to Core.                                              |
 | **Sync complete**       | The node finishes its initial blockchain sync or catches back up after being behind.   |
+
+### System notifications
+
+| Toggle                          | Fires when…                                                                            |
+|---------------------------------|----------------------------------------------------------------------------------------|
+| **Warn when system clock drifts** | Your system clock drifts far enough from network time to threaten forging. This also drives the toolbar's clock-drift indicator (Chapter 6) and the **System Clock Drift** dialog (Chapter 20). On by default — a drifting clock silently breaks mining, so the warning is worth keeping. |
 
 A master toggle near the top of the tab disables every notification at once if you want a quiet session without losing the per-event configuration.
 
