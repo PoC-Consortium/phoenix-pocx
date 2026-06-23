@@ -616,19 +616,6 @@ interface ChainModalData {
                     class="escalation-input"
                   />
                 </div>
-                <div class="form-group escalation-group">
-                  <label>{{ 'setup_plot_file_size' | i18n }}</label>
-                  <input
-                    type="number"
-                    [ngModel]="plotFileSizeGib()"
-                    (ngModelChange)="onPlotFileSizeChange($event)"
-                    [min]="MIN_PLOT_FILE_SIZE_GIB"
-                    [max]="MAX_PLOT_FILE_SIZE_GIB"
-                    step="1"
-                    class="escalation-input"
-                    [title]="'setup_plot_file_size_hint' | i18n"
-                  />
-                </div>
                 <div class="form-group">
                   <label>{{ 'setup_pow_scaling' | i18n }}</label>
                   <select
@@ -899,6 +886,18 @@ interface ChainModalData {
                     [ngModel]="hddWakeup()"
                     (ngModelChange)="hddWakeup.set($event)"
                     min="0"
+                  />
+                </div>
+                <div class="form-group">
+                  <label>{{ 'setup_plot_file_size' | i18n }}</label>
+                  <input
+                    type="number"
+                    [ngModel]="plotFileSizeGib()"
+                    (ngModelChange)="onPlotFileSizeChange($event)"
+                    [min]="MIN_PLOT_FILE_SIZE_GIB"
+                    [max]="MAX_PLOT_FILE_SIZE_GIB"
+                    step="1"
+                    [title]="'setup_plot_file_size_hint' | i18n"
                   />
                 </div>
               </div>
