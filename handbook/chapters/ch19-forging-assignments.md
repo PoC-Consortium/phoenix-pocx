@@ -49,11 +49,12 @@ Open **Forging Assignment** from the sidebar's *Mining* group. The screen shows 
 
 The **Create assignment** tab needs two addresses.
 
+<!-- TODO screenshot retake: ch19-create-assignment.png — the Forging Address field is now labelled "Forging Address / Pool Address" and is a select-or-enter with an autocomplete dropdown. -->
 ![The Create assignment tab: plot address, forging address, and fee.](images/processed/ch19-create-assignment.png){width=60%}
 
 **Plot address.** A *select-or-enter* field: pick one of your wallet's addresses from the dropdown, or paste an address manually. This is the address embedded in the plots whose forging you want to delegate — usually the plotting address you set in the mining wizard (Chapter 15).
 
-**Forging address.** The address you are delegating forging authority *to*. For pool mining, this is the pool's forging address (from the pool's information page). For a cold/hot split, this is the address of the hot wallet on your mining machine. Phoenix enforces one rule here: the forging address must be **different** from the plot address — assigning an address to itself is meaningless and is rejected.
+**Forging Address / Pool Address.** The address you are delegating forging authority *to*. This is also a *select-or-enter* field: as you focus it, an autocomplete dropdown offers the **pool forging addresses you configured in the mining wizard** (Chapter 15), each shown with its label and pool name — so for pool mining you can pick the pool's address directly instead of pasting it. You can still type or paste any address by hand. For pool mining, this is the pool's forging address (from the pool's information page, or seeded into the wizard when you selected a known pool). For a cold/hot split, this is the address of the hot wallet on your mining machine. Phoenix enforces one rule here: the forging address must be **different** from the plot address — assigning an address to itself is meaningless and is rejected.
 
 When both are filled, click **Create assignment**. Phoenix builds the `OP_RETURN` transaction, asks Bitcoin-PoCX Core to sign it with the plot owner's key (you will be prompted for the wallet password if the wallet is encrypted), and broadcasts it — exactly like an ordinary send, with the same fee-selection controls. Once the transaction confirms, the assignment enters its **Assigning** state and the ~30-block activation clock starts.
 

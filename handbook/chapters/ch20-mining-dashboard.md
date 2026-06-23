@@ -28,7 +28,7 @@ The **Mining Status** card carries the control.
 - A **Start** / **Stop** button toggles the miner.
 - An **Auto-start** checkbox makes the miner start automatically whenever Phoenix launches (after the node is ready).
 
-To begin mining, click **Start**. The miner connects to your configured chains, loads your plot capacity, and begins responding to new blocks. To stop, click **Stop** — mining halts immediately; there is no batch to finish as there is with the plotter.
+To begin mining, click **Start**. The miner connects to your configured chains, loads your plot capacity, and begins responding to new blocks. To stop, click **Stop** — there is no batch to finish as there is with the plotter, but the miner briefly shows a *Stopping* state while its scan task winds down before it reports *Stopped*. During that moment the Start control is unavailable; it returns once the miner has fully stopped.
 
 > **Tip** — **Auto-start** is what you want for an unattended rig: after a reboot, power restoration, or a Phoenix update, the miner comes back by itself once Bitcoin-PoCX Core is ready. Leave it on for any machine whose job is to mine. The one thing auto-start *cannot* do is unlock an encrypted wallet — see the clock and wallet section below.
 
@@ -42,6 +42,7 @@ The status text and dot reflect what the miner is doing:
 | *Starting*   | The miner is connecting to chains and loading capacity.                                         |
 | *Scanning*   | A new block arrived; the miner is reading its plots to find a deadline. A progress bar shows how far through the scan it is. |
 | *Idle*       | The miner is running and has finished scanning the current block; it is waiting for the next one. |
+| *Stopping*   | You clicked Stop; the miner's scan task is winding down. It transitions to *Stopped* once it has fully exited. |
 | *Error*      | Something is wrong — the message names the problem.                                              |
 
 Most of a healthy miner's life is spent flipping between *Scanning* (briefly, when a block arrives) and *Idle* (waiting for the next block). On Bitcoin-PoCX's ~120-second block interval, you will see a short scan every couple of minutes.
@@ -130,7 +131,25 @@ The dashboard packs a lot of numbers; here is how to read them as a single answe
 
 Because Bitcoin-PoCX enforces a **15-second** timestamp tolerance (Chapters 3 and 14), a drifting system clock is one of the most insidious mining problems: the miner appears to run normally, scans complete, deadlines are found — but blocks you forge are rejected by peers as "too far in the future" or "too far in the past," and you quietly earn nothing.
 
-If your miner seems healthy on the dashboard but never successfully forges over a long period, **suspect the clock**. Confirm your operating system's network time synchronisation (NTP) is enabled and that a power-saving profile is not suspending it. A correctly synchronised clock is a prerequisite for mining, not an optional nicety.
+To make this visible before it costs you blocks, Phoenix monitors your clock against network time and surfaces it as the **clock-drift indicator** — the small clock (`schedule`) icon in the toolbar (Chapter 6). It colours itself by severity:
+
+| Indicator | Meaning                                                                                  |
+|-----------|------------------------------------------------------------------------------------------|
+| **Green** | *System clock is in sync.* Drift is comfortably within the safe threshold.                |
+| **Amber** | *Drift is approaching the safe threshold.* Still forging, but worth fixing now.           |
+| **Red**   | *Drift exceeds the safe threshold — PoCX forging will fail.* Blocks you forge are being rejected. |
+
+Clicking the indicator opens the **System Clock Drift** dialog, which gives you the detail behind the colour:
+
+![The System Clock Drift dialog: offset against NTP, with a Check Now button.](images/processed/ch20-clock-drift.png){width=55%}
+
+- **Offset** — how far your clock is ahead of or behind network time, and the warning/critical thresholds it is measured against (*"Warning at ±Ns · forging fails above ±Ns"*).
+- **Local time** and **NTP time** side by side, the **server** queried, the round-trip time (**RTT**), and how many **sources** agreed.
+- **Last checked**, and a **Check Now** button to re-query immediately.
+
+The indicator and dialog only appear when clock-drift monitoring is enabled — the *Warn when system clock drifts* toggle in Settings → Notifications (Chapter 12), which is on by default.
+
+If your miner seems healthy on the dashboard but never successfully forges over a long period, **suspect the clock** — and check this indicator first. Confirm your operating system's network time synchronisation (NTP) is enabled and that a power-saving profile is not suspending it. A correctly synchronised clock is a prerequisite for mining, not an optional nicety.
 
 ### The locked-wallet-after-restart trap
 

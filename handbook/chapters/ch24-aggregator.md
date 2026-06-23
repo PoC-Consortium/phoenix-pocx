@@ -83,7 +83,7 @@ Either way, the aggregator does not care what software submitted a solution — 
 
 The aggregator dashboard is your window onto the whole farm. Its panels:
 
-**Status.** Whether the aggregator is *Offline*, *Starting*, or *Running*, with a **Start** / **Stop** control. While offline, it shows *"Press Start to begin accepting submissions."*
+**Status.** Whether the aggregator is *Offline*, *Starting*, *Running*, or *Stopping*, with a **Start** / **Stop** control. *Stopping* is the brief state after you click Stop, while the listener winds down before it reports *Offline*; the Start control returns once it has fully stopped. While offline, it shows *"Press Start to begin accepting submissions."*
 
 **Summary stats.** Headline figures for the farm: how many **machines** and **accounts** are reporting, the current **block height**, total **capacity** across all contributors, the **network capacity** for comparison, and uptime.
 

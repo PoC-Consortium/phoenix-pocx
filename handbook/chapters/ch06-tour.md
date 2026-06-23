@@ -117,8 +117,9 @@ A row of small icons that turn solid (active) when something is running. They ap
 | **Miner**         | `hardware`  | The miner is running and scanning plots. Visible only after you have configured mining (Chapter 15).         |
 | **Plotter**       | `storage`   | The plotter has work to do. Solid means actively plotting; outlined means a plan exists but is paused.       |
 | **Wallet lock**   | `lock` / `lock_open` | Visible only when at least one encrypted wallet is loaded. The icon shows whether any wallet is currently unlocked for spending. |
+| **Clock drift**   | `schedule`  | A small clock that colours green / amber / red according to how far your system clock has drifted from network time. Visible only when clock-drift monitoring is enabled (Chapter 12). Click it to open the **System Clock Drift** dialog (Chapter 20). |
 
-Hovering over any of these icons reveals a tooltip with the current state in words. They are the fastest way to confirm at a glance that the things you expect to be running really are.
+Hovering over any of these icons reveals a tooltip with the current state in words — the clock indicator's tooltip reads, for example, *"Clock is 0.4s ahead of NTP."* They are the fastest way to confirm at a glance that the things you expect to be running really are.
 
 ### Wallet selector
 

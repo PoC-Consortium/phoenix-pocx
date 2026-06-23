@@ -23,7 +23,7 @@ The filter bar below the header narrows what appears in the table. All filters c
 | Filter   | What it does                                                                                                              |
 |----------|---------------------------------------------------------------------------------------------------------------------------|
 | **Search**  | Free-text match against transaction IDs and addresses. Useful when you remember part of a txid or recipient.            |
-| **Type**    | Restrict by category: *All*, *Send*, *Receive*, *Immature*, *Generate*. The mining-specific categories are explained below. |
+| **Type**    | Restrict by category: *All*, *Send*, *Receive*, *Immature*, *Generate*, *Assignment*, *Revoke*. The mining-specific categories are explained below. |
 | **From**    | Hide transactions older than the selected date.                                                                          |
 | **To**      | Hide transactions newer than the selected date.                                                                          |
 | **Reset**   | Clear all filters in one click.                                                                                          |
@@ -37,6 +37,13 @@ Two of the type-filter options exist because Bitcoin-PoCX miners receive rewards
 
 If you have never mined with this wallet, both filters will return empty lists.
 
+Two more types appear once you use forging assignments (Chapter 19):
+
+- **Assignment** — a transaction that delegated forging authority from one of your plot addresses to a forging address.
+- **Revoke** — a transaction that reclaimed forging authority back to the plot owner.
+
+Phoenix recognises these from their on-chain `OP_RETURN` marker and labels them as their own types rather than as ordinary sends, so you can pick them out of the history at a glance.
+
 ## The transactions table
 
 The table has seven columns. Reading left to right:
@@ -44,7 +51,7 @@ The table has seven columns. Reading left to right:
 | Column              | What you see                                                                                  |
 |---------------------|-----------------------------------------------------------------------------------------------|
 | **Date**            | Two-line stack: the date on top, the time below, in your local timezone.                      |
-| **Type**            | A small badge: *Send*, *Receive*, *Generate* (mined), or *Immature* (mining reward not yet spendable). |
+| **Type**            | A small badge: *Send*, *Receive*, *Generate* (mined), *Immature* (mining reward not yet spendable), or — for forging-assignment transactions (Chapter 19) — *Assignment* / *Revoke*. |
 | **Amount**          | Signed amount, in BTCX. Sends are shown as a debit, receives as a credit, fees deducted from sends. |
 | **Account**         | The wallet account label (if any) and the address involved in the transaction.                |
 | **Status**          | Confirmation status. See *Confirmation states* below.                                         |
@@ -119,6 +126,15 @@ Below the summary, two side-by-side panels list every **input** and **output** o
 
 The arrow between the two panels visualises that inputs are consumed and outputs are created. Total input minus total output equals the fee paid to the miner.
 
+### Assignment and revocation details
+
+When the transaction you opened is a forging **Assignment** or **Revoke** (Chapter 19), the detail page adds a dedicated panel above the inputs and outputs, decoded from the transaction's `OP_RETURN`:
+
+- **Assignment Details** — the **plot address** whose forging is delegated, the **forging address** it is delegated to, and the **activation height** at which the assignment takes effect. Until the transaction confirms, the height reads *Pending Confirmation*.
+- **Revocation Details** — the **plot address** being reclaimed and the **effective height** at which authority returns to the owner, again showing *Pending Confirmation* while unconfirmed.
+
+These are the same figures the Forging Assignment screen's *Check status* tab reports (Chapter 19); the transaction detail page is simply where you see them for a specific assignment or revocation transaction in your history.
+
 > **Tip** — A small *change* output back to your own wallet is normal and expected. Bitcoin-style transactions almost never spend exactly the amount of an existing UTXO — the difference returns to a fresh address you control. Phoenix's balance accounting handles this transparently; the inputs/outputs view shows it explicitly.
 
 ## Bumping a stuck transaction (RBF)
@@ -153,8 +169,6 @@ Below the priority buttons, a small summary block highlights the **fee increase*
 When you click **Confirm**, Phoenix calls Bitcoin-PoCX Core's `bumpfee` RPC. Core constructs the replacement transaction, signs it with your wallet's keys, and broadcasts it. A success notification displays the new transaction's ID; the original transaction's row in the list is replaced by the new one (or marked superseded, depending on your view), and the new fee figure now reflects what you just paid.
 
 If even the bumped transaction will not confirm — fees may have spiked further while you were watching — you can bump again with a higher rate, or wait for mempool conditions to settle. Chapter 26 covers the deeper troubleshooting cases.
-
-> **Note** — The workflow described in the next section is **planned for a future release** and is not yet available in the wallet. The text below describes the intended behaviour so this handbook is ready when the feature ships. Until then, the only ways out of a stuck *non-RBF* transaction are to wait for it to be evicted from the mempools, or — if the transaction was sent with RBF enabled — to use the bump-fee workflow above.
 
 ## Abandoning a stuck transaction
 
