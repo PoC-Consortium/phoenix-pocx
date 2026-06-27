@@ -127,6 +127,46 @@ pub fn detect_gpus() -> Vec<GpuInfo> {
         .collect()
 }
 
+/// Helper to read and parse /proc/meminfo on Android to bypass cgroup/container memory limits.
+/// Returns (total_memory_mb, available_memory_mb) if successful.
+#[cfg(target_os = "android")]
+fn get_android_memory() -> Option<(u64, u64)> {
+    let contents = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let mut total_kb = None;
+    let mut available_kb = None;
+    let mut free_kb = None;
+    let mut buffers_kb = None;
+    let mut cached_kb = None;
+
+    for line in contents.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            let key = parts[0].trim_end_matches(':');
+            if let Ok(val) = parts[1].parse::<u64>() {
+                match key {
+                    "MemTotal" => total_kb = Some(val),
+                    "MemAvailable" => available_kb = Some(val),
+                    "MemFree" => free_kb = Some(val),
+                    "Buffers" => buffers_kb = Some(val),
+                    "Cached" => cached_kb = Some(val),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let total_mb = total_kb.map(|kb| kb / 1024)?;
+    let available_mb = if let Some(avail) = available_kb {
+        avail / 1024
+    } else if let (Some(free), Some(buf), Some(cache)) = (free_kb, buffers_kb, cached_kb) {
+        (free + buf + cache) / 1024
+    } else {
+        total_mb * 2 / 3 // Fallback: estimate available as 2/3 of total
+    };
+
+    Some((total_mb, available_mb))
+}
+
 /// Detect all system devices
 pub fn detect_devices() -> DeviceInfo {
     let mut sys = System::new_all();
@@ -135,10 +175,24 @@ pub fn detect_devices() -> DeviceInfo {
     let cpu = detect_cpu();
     let gpus = detect_gpus();
 
+    #[cfg(target_os = "android")]
+    let (total_memory_mb, available_memory_mb) = get_android_memory().unwrap_or_else(|| {
+        (
+            sys.total_memory() / 1024 / 1024,
+            sys.available_memory() / 1024 / 1024,
+        )
+    });
+
+    #[cfg(not(target_os = "android"))]
+    let (total_memory_mb, available_memory_mb) = (
+        sys.total_memory() / 1024 / 1024,
+        sys.available_memory() / 1024 / 1024,
+    );
+
     DeviceInfo {
         cpu,
         gpus,
-        total_memory_mb: sys.total_memory() / 1024 / 1024,
-        available_memory_mb: sys.available_memory() / 1024 / 1024,
+        total_memory_mb,
+        available_memory_mb,
     }
 }
