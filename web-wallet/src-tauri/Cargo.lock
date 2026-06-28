@@ -3869,9 +3869,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_address"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe676e7559332d03568a17ba707e72dac5a9508679a410cd4173ffb365fb3870"
+checksum = "ea7c217832dc955d406c63eeaa06ea7b6b26c8d7132e70f973a8e28942725f8b"
 dependencies = [
  "bech32",
  "bs58",
@@ -3879,9 +3879,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_aggregator"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d739c3eb39bed9efeb0d5e2e959e5b69a6bfea6416b2ff40576dfb8b0591610"
+checksum = "1b93c6cd63a7b920786e0bb44899617006524ef46ed5f28abec237a0fd27e579"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -3907,9 +3907,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_hashlib"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4d7603ee7b23ae8587bddd25c11c616dde4fd7b15bcf703e9bd70f6ebc94c35"
+checksum = "97338a844879ef11e7540aad3c1bfdc4e1d4d4f6dea1616b660668a28f7698ee"
 dependencies = [
  "hex",
  "page_size",
@@ -3917,9 +3917,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_miner"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7de2ce2bae3908a0d5f9444116ee9acdd241e66483dbc64d62008be650474b88"
+checksum = "6f464d9e39596bef2b938a3484a0f9492ea3b348d474ee8f29232b33b5d1c952"
 dependencies = [
  "bytesize",
  "cfg-if",
@@ -3953,9 +3953,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotfile"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "764b981c972c48a59e7f2ea17d810868e1ab414963fe15b73725f97151af5372"
+checksum = "1fe8cf58a99ff65293078b932a50138b06f2702c9de81602a90b515236af0363"
 dependencies = [
  "cfg-if",
  "filetime",
@@ -3971,9 +3971,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_plotter_v2"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41539a190964f227261a1cf6245e7713de4391f8d731bd753b2401fab098e8b2"
+checksum = "60e0b4c159c8a14933bce3150cabfd113d40dc52d11f0e93ff34399bb3a95007"
 dependencies = [
  "cfg-if",
  "clap",
@@ -3995,9 +3995,9 @@ dependencies = [
 
 [[package]]
 name = "pocx_protocol"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b18ef849f0ad12323413c41a95eebbab0b86d86f83b6a85d58134e6dd62ee9ff"
+checksum = "5523183e371a42cd10a4b72ab7541a332107c7eebd8ed4ad270e3bb56687dda9"
 dependencies = [
  "async-trait",
  "base64 0.22.1",

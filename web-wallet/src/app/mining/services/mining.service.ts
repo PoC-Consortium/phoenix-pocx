@@ -1004,6 +1004,7 @@ export class MiningService {
         gpus: [],
         totalMemoryMb: 0,
         availableMemoryMb: 0,
+        freeSwapMb: 0,
       }
     );
   }

@@ -579,18 +579,22 @@ interface ChainModalData {
                   </div>
                   <div class="memory-row memory-total">
                     <span class="memory-label">{{ 'setup_total' | i18n }}</span>
-                    <span class="memory-value"
+                    <span
+                      class="memory-value"
+                      [class.warning]="totalEstimatedMemoryGib() > effectiveMemoryBudgetGib()"
                       >~{{ totalEstimatedMemoryGib() | number: '1.0-0' }} GiB</span
                     >
                   </div>
                   <div class="memory-row memory-available">
                     <span class="memory-label">{{ 'setup_available_ram' | i18n }}</span>
-                    <span
-                      class="memory-value"
-                      [class.warning]="totalEstimatedMemoryGib() > systemMemoryGib()"
-                      >{{ systemMemoryGib() }} GiB</span
-                    >
+                    <span class="memory-value">{{ systemMemoryGib() }} GiB</span>
                   </div>
+                  @if (appMode.isMobile() && availableSwapGib() > 0) {
+                    <div class="memory-row memory-available">
+                      <span class="memory-label">{{ 'setup_available_swap' | i18n }}</span>
+                      <span class="memory-value">+{{ availableSwapGib() }} GiB</span>
+                    </div>
+                  }
                 </div>
               </div>
 
@@ -2017,6 +2021,11 @@ interface ChainModalData {
         color: rgb(0, 35, 65);
       }
 
+      /* Requirement exceeds the available budget (RAM + swap on Android) */
+      .memory-total .memory-value.warning {
+        color: #d32f2f;
+      }
+
       .memory-available {
         color: #666666;
         font-size: 12px;
@@ -2024,10 +2033,6 @@ interface ChainModalData {
 
       .memory-available .memory-value {
         font-weight: 500;
-      }
-
-      .memory-available .memory-value.warning {
-        color: #d32f2f;
       }
 
       .checkbox-row.standalone {
@@ -2663,7 +2668,19 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Device info
   readonly cpuInfo = signal<CpuInfo | null>(null);
   readonly gpus = signal<GpuInfo[]>([]);
-  readonly systemMemoryGib = signal(0); // Available system RAM
+  // Raw memory figures from device detection (MiB)
+  readonly availableMemoryMb = signal(0);
+  // Free swap counted toward the budget on Android only (zram / memory-extension),
+  // mirroring the plotter's swap-aware host-memory gate. Zero on desktop.
+  readonly availableSwapMb = signal(0);
+
+  readonly systemMemoryGib = computed(() => Math.floor(this.availableMemoryMb() / 1024)); // Available system RAM
+  readonly availableSwapGib = computed(() => Math.floor(this.availableSwapMb() / 1024));
+  // Total memory the plotter can draw on; the warning compares against this so the
+  // wizard's assessment matches what the plotter gate will actually allow.
+  readonly effectiveMemoryBudgetGib = computed(() =>
+    Math.floor((this.availableMemoryMb() + this.availableSwapMb()) / 1024)
+  );
 
   // Derive display drives from service cache based on driveConfigs
   // Includes unavailable drives (configured but removed) so users can delete them
@@ -3017,7 +3034,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
       this.cpuInfo.set(deviceInfo.cpu);
       this.gpus.set(deviceInfo.gpus);
-      this.systemMemoryGib.set(Math.floor(deviceInfo.availableMemoryMb / 1024));
+      this.availableMemoryMb.set(deviceInfo.availableMemoryMb);
+      // Only Android counts swap, matching the plotter's #[cfg(target_os = "android")] gate.
+      this.availableSwapMb.set(this.appMode.isMobile() ? deviceInfo.freeSwapMb : 0);
       // Don't pre-populate availableDrives - user must add folders manually
 
       if (deviceInfo.cpu) {

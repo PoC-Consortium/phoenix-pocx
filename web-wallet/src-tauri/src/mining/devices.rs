@@ -38,6 +38,10 @@ pub struct DeviceInfo {
     pub gpus: Vec<GpuInfo>,
     pub total_memory_mb: u64,
     pub available_memory_mb: u64,
+    /// Free swap (zram / vendor memory-extension on Android). On Android this is
+    /// added to the available-memory budget to mirror the plotter's swap-aware
+    /// host-memory gate; ignored on desktop where swap is typically disk-backed.
+    pub free_swap_mb: u64,
 }
 
 /// Detect CPU features
@@ -140,5 +144,6 @@ pub fn detect_devices() -> DeviceInfo {
         gpus,
         total_memory_mb: sys.total_memory() / 1024 / 1024,
         available_memory_mb: sys.available_memory() / 1024 / 1024,
+        free_swap_mb: sys.free_swap() / 1024 / 1024,
     }
 }

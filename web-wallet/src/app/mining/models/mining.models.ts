@@ -32,6 +32,8 @@ export interface DeviceInfo {
   gpus: GpuInfo[];
   totalMemoryMb: number;
   availableMemoryMb: number;
+  /** Free swap (zram / vendor memory-extension); added to the budget on Android. */
+  freeSwapMb: number;
 }
 
 // ============================================================================
