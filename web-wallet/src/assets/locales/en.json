@@ -427,6 +427,7 @@
   "setup_gpu_cache": "GPU Cache",
   "setup_total": "Total",
   "setup_available_ram": "Available RAM",
+  "setup_available_swap": "Available Swap",
   "setup_drives_in_parallel": "Drives to Plot in Parallel",
   "setup_memory_escalation": "Memory Escalation Factor",
   "setup_plot_file_size": "Plot File Size (GiB)",
