@@ -1,0 +1,282 @@
+import { Injectable, inject } from '@angular/core';
+import { WalletRpcService } from '../../../bitcoin/services/rpc/wallet-rpc.service';
+import type { DecodedPsbt, PsbtAnalysis } from '../../../bitcoin/services/rpc/wallet-rpc.service';
+import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
+import type {
+  FeeWarning,
+  PsbtDocument,
+  PsbtDraft,
+  PsbtInputView,
+  PsbtOutputView,
+  PsbtStatus,
+} from '../psbt.models';
+
+const DRAFTS_STORAGE_KEY = 'psbt_drafts_v1';
+
+/** Binary .psbt files start with the magic bytes "psbt\xff" */
+const PSBT_MAGIC = [0x70, 0x73, 0x62, 0x74, 0xff];
+
+/**
+ * PsbtService digests raw PSBTs into view models and persists drafts.
+ *
+ * All heavy lifting is delegated to Bitcoin Core via decodepsbt/analyzepsbt —
+ * this service only orchestrates the calls and classifies outputs
+ * (external / mine / change) against the active wallet.
+ */
+@Injectable({ providedIn: 'root' })
+export class PsbtService {
+  private readonly walletRpc = inject(WalletRpcService);
+  private readonly walletManager = inject(WalletManagerService);
+
+  // ============================================================
+  // Document building
+  // ============================================================
+
+  /**
+   * Decode and analyze a PSBT into the digested form the UI renders.
+   * Output ownership is classified against the active wallet when one is
+   * loaded; classification failures degrade to 'external'.
+   */
+  async buildDocument(base64: string): Promise<PsbtDocument> {
+    const psbt = base64.trim();
+    const [decoded, analysis] = await Promise.all([
+      this.walletRpc.decodePsbt(psbt),
+      this.walletRpc.analyzePsbt(psbt),
+    ]);
+
+    const inputs = this.buildInputs(decoded, analysis);
+    const outputs = await this.buildOutputs(decoded);
+
+    const sendingTotal = outputs
+      .filter(o => o.kind === 'external' || o.kind === 'mine')
+      .reduce((sum, o) => sum + o.amount, 0);
+    const changeTotal = outputs
+      .filter(o => o.kind === 'change')
+      .reduce((sum, o) => sum + o.amount, 0);
+
+    const allUtxosKnown = inputs.every(i => i.hasUtxo);
+    const totalInput = allUtxosKnown
+      ? inputs.reduce((sum, i) => sum + (i.amount ?? 0), 0)
+      : undefined;
+
+    const fee = decoded.fee ?? analysis.fee;
+    const vsize = analysis.estimated_vsize ?? decoded.tx.vsize;
+    // estimated_feerate is BTC/kvB → sat/vB
+    let feeRate = analysis.estimated_feerate
+      ? (analysis.estimated_feerate * 1e8) / 1000
+      : undefined;
+    if (feeRate === undefined && fee !== undefined && vsize) {
+      feeRate = (fee * 1e8) / vsize;
+    }
+
+    return {
+      base64: psbt,
+      sizeBytes: this.base64ByteLength(psbt),
+      unsignedTxid: decoded.tx.txid,
+      status: this.deriveStatus(inputs, analysis),
+      nextRole: analysis.next,
+      inputs,
+      outputs,
+      signedInputs: inputs.filter(i => i.isFinal || i.sigCount > 0).length,
+      fee,
+      feeRate,
+      vsize,
+      sendingTotal,
+      changeTotal,
+      totalInput,
+    };
+  }
+
+  private buildInputs(decoded: DecodedPsbt, analysis: PsbtAnalysis): PsbtInputView[] {
+    return decoded.tx.vin.map((vin, index) => {
+      const psbtIn = decoded.inputs[index] ?? {};
+      const inAnalysis = analysis.inputs?.[index];
+      const isFinal =
+        inAnalysis?.is_final ??
+        (psbtIn.final_scriptwitness !== undefined || psbtIn.final_scriptSig !== undefined);
+      return {
+        index,
+        txid: vin.txid,
+        vout: vin.vout,
+        address: psbtIn.witness_utxo?.scriptPubKey?.address,
+        amount: psbtIn.witness_utxo?.amount,
+        scriptType: psbtIn.witness_utxo?.scriptPubKey?.type,
+        sigCount: Object.keys(psbtIn.partial_signatures ?? {}).length,
+        missingSigs: inAnalysis?.missing?.signatures?.length ?? 0,
+        isFinal,
+        hasUtxo:
+          inAnalysis?.has_utxo ??
+          (psbtIn.witness_utxo !== undefined || psbtIn.non_witness_utxo !== undefined),
+      };
+    });
+  }
+
+  private async buildOutputs(decoded: DecodedPsbt): Promise<PsbtOutputView[]> {
+    const walletName = this.walletManager.activeWallet;
+    return Promise.all(
+      decoded.tx.vout.map(async (vout, index): Promise<PsbtOutputView> => {
+        const address = vout.scriptPubKey.address;
+        if (vout.scriptPubKey.type === 'nulldata') {
+          return { index, amount: vout.value, kind: 'data' };
+        }
+        let kind: PsbtOutputView['kind'] = 'external';
+        if (address && walletName) {
+          try {
+            const info = await this.walletRpc.getAddressInfo(walletName, address);
+            if (info.ismine) kind = info.ischange ? 'change' : 'mine';
+          } catch {
+            // Not classifiable (e.g. foreign network address) — treat as external
+          }
+        }
+        return { index, address, amount: vout.value, kind };
+      })
+    );
+  }
+
+  private deriveStatus(inputs: PsbtInputView[], analysis: PsbtAnalysis): PsbtStatus {
+    if (inputs.length > 0 && inputs.every(i => i.isFinal)) return 'finalized';
+    if (analysis.next === 'finalizer' || analysis.next === 'extractor') return 'ready';
+    if (inputs.some(i => i.sigCount > 0 || i.isFinal)) return 'partial';
+    return 'unsigned';
+  }
+
+  /**
+   * Fee sanity check before broadcast (issue #70 security notes).
+   * Warns when the fee exceeds 1% of the sent value or 500 sat/vB.
+   */
+  checkFee(doc: PsbtDocument): FeeWarning | null {
+    if (doc.fee === undefined || doc.sendingTotal <= 0) return null;
+    const feePercent = (doc.fee / doc.sendingTotal) * 100;
+    if (feePercent >= 1 || (doc.feeRate !== undefined && doc.feeRate >= 500)) {
+      return { feePercent, feeRate: doc.feeRate };
+    }
+    return null;
+  }
+
+  // ============================================================
+  // Draft persistence (localStorage, per network)
+  // ============================================================
+
+  listDrafts(network: string): PsbtDraft[] {
+    return this.readDrafts()
+      .filter(d => d.network === network)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  getDraft(id: string): PsbtDraft | undefined {
+    return this.readDrafts().find(d => d.id === id);
+  }
+
+  saveDraft(draft: PsbtDraft): void {
+    const drafts = this.readDrafts().filter(d => d.id !== draft.id);
+    drafts.push(draft);
+    this.writeDrafts(drafts);
+  }
+
+  deleteDraft(id: string): void {
+    this.writeDrafts(this.readDrafts().filter(d => d.id !== id));
+  }
+
+  createDraft(network: string, psbt: string, doc: PsbtDocument, name?: string): PsbtDraft {
+    const now = Date.now();
+    return {
+      id: crypto.randomUUID(),
+      name: name || `PSBT ${new Date(now).toLocaleDateString()}`,
+      network,
+      psbt,
+      status: doc.status,
+      amountLabel: `${doc.sendingTotal.toFixed(8)} BTCX`,
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  private readDrafts(): PsbtDraft[] {
+    try {
+      const raw = localStorage.getItem(DRAFTS_STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as PsbtDraft[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private writeDrafts(drafts: PsbtDraft[]): void {
+    try {
+      localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
+    } catch {
+      // Storage full/unavailable — drafts are a convenience, not critical
+    }
+  }
+
+  // ============================================================
+  // Encoding & file helpers
+  // ============================================================
+
+  /** Rough base64 → byte length (ignores padding subtleties by design) */
+  base64ByteLength(base64: string): number {
+    const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+    return Math.floor((base64.length * 3) / 4) - padding;
+  }
+
+  /** Quick shape check so we can fail fast before hitting the node */
+  looksLikeBase64Psbt(text: string): boolean {
+    const trimmed = text.trim();
+    // "psbt\xff" base64-encodes to "cHNidP"
+    return trimmed.startsWith('cHNidP') && /^[A-Za-z0-9+/=\s]+$/.test(trimmed);
+  }
+
+  /**
+   * Read a user-supplied file into PSBT Base64.
+   * Accepts binary .psbt files (magic "psbt\xff") and text files that
+   * already contain Base64.
+   */
+  async readPsbtFile(file: File): Promise<string> {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const isBinary =
+      bytes.length >= PSBT_MAGIC.length && PSBT_MAGIC.every((b, i) => bytes[i] === b);
+    if (isBinary) {
+      return this.bytesToBase64(bytes);
+    }
+    const text = new TextDecoder().decode(bytes).trim();
+    if (this.looksLikeBase64Psbt(text)) {
+      return text.replace(/\s+/g, '');
+    }
+    throw new Error('not_a_psbt_file');
+  }
+
+  /** Download the PSBT as a standard binary .psbt file */
+  savePsbtFile(name: string, base64: string): void {
+    const bytes = this.base64ToBytes(base64);
+    this.downloadBlob(new Blob([bytes], { type: 'application/octet-stream' }), `${name}.psbt`);
+  }
+
+  /** Download the final raw transaction hex as a text file */
+  saveHexFile(name: string, hex: string): void {
+    this.downloadBlob(new Blob([hex], { type: 'text/plain' }), `${name}.txn`);
+  }
+
+  private bytesToBase64(bytes: Uint8Array): string {
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+  }
+
+  private base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
+    const binary = atob(base64.replace(/\s+/g, ''));
+    const bytes = new Uint8Array(new ArrayBuffer(binary.length));
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  private downloadBlob(blob: Blob, filename: string): void {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+}

@@ -452,6 +452,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
         titleKey: 'transactions',
         items: [
           { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },
+          { path: '/transactions/psbt', icon: 'edit_document', labelKey: 'psbt_title' },
           { path: '/send', icon: 'send', labelKey: 'send' },
           { path: '/receive', icon: 'call_received', labelKey: 'receive' },
           { path: '/contacts', icon: 'contacts', labelKey: 'contacts' },
