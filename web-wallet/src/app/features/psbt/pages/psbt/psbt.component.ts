@@ -153,7 +153,13 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 </div>
               } @else {
                 @for (draft of drafts(); track draft.id) {
-                  <div class="draft-row" (click)="openDraft(draft)" (keydown.enter)="openDraft(draft)" tabindex="0" role="button">
+                  <div
+                    class="draft-row"
+                    (click)="openDraft(draft)"
+                    (keydown.enter)="openDraft(draft)"
+                    tabindex="0"
+                    role="button"
+                  >
                     <span class="badge" [class]="draft.status">
                       <mat-icon>{{ statusIcon(draft.status) }}</mat-icon>
                       {{ 'psbt_status_' + draft.status | i18n }}
@@ -315,17 +321,24 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     @if (input.isFinal || (input.sigCount > 0 && input.missingSigs === 0)) {
                       <mat-icon
                         class="ok"
-                        [matTooltip]="(input.isFinal ? 'psbt_input_final' : 'psbt_input_signed') | i18n"
+                        [matTooltip]="
+                          (input.isFinal ? 'psbt_input_final' : 'psbt_input_signed') | i18n
+                        "
                         >check_circle</mat-icon
                       >
                     } @else if (input.sigCount > 0) {
                       <span
                         class="sig-count"
-                        [matTooltip]="'psbt_input_partial' | i18n: { signed: input.sigCount, missing: input.missingSigs }"
+                        [matTooltip]="
+                          'psbt_input_partial'
+                            | i18n: { signed: input.sigCount, missing: input.missingSigs }
+                        "
                         >{{ input.sigCount }}<mat-icon>draw</mat-icon></span
                       >
                     } @else {
-                      <mat-icon class="wait" [matTooltip]="'psbt_input_unsigned' | i18n">pending</mat-icon>
+                      <mat-icon class="wait" [matTooltip]="'psbt_input_unsigned' | i18n"
+                        >pending</mat-icon
+                      >
                     }
                   </span>
                 </div>
@@ -429,8 +442,10 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                   <span
                     class="tooltip-host"
                     [matTooltip]="
-                      (document.status !== 'unsigned' ? 'psbt_join_needs_unsigned' : 'psbt_join_tooltip')
-                        | i18n
+                      (document.status !== 'unsigned'
+                        ? 'psbt_join_needs_unsigned'
+                        : 'psbt_join_tooltip'
+                      ) | i18n
                     "
                   >
                     <button
@@ -452,7 +467,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 </div>
               </div>
             </div>
-
           } @else {
             <!-- Broadcast target -->
             <div class="card">
@@ -479,7 +493,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 </div>
               </div>
             </div>
-
           }
 
           <!-- Error -->
@@ -489,7 +502,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               <span>{{ docError() }}</span>
             </div>
           }
-
         }
 
         <!-- Wizard navigation footer (mirrors mining/node setup wizards) -->
@@ -1559,7 +1571,12 @@ export class PsbtComponent implements OnInit {
   }
 
   /** Lifecycle steps shown in the wizard-style indicator */
-  readonly steps = ['psbt_step_create', 'psbt_step_sign', 'psbt_step_finalize', 'psbt_step_broadcast'];
+  readonly steps = [
+    'psbt_step_create',
+    'psbt_step_sign',
+    'psbt_step_finalize',
+    'psbt_step_broadcast',
+  ];
 
   /** Index of the furthest lifecycle step reached; 4 = everything done (broadcast) */
   readonly currentStep = computed(() => {

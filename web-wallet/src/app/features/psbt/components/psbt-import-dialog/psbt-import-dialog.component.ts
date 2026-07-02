@@ -59,13 +59,7 @@ export interface PsbtImportDialogData {
         <mat-icon>upload_file</mat-icon>
         {{ 'psbt_open_file' | i18n }}
       </button>
-      <input
-        #fileInput
-        type="file"
-        accept=".psbt,.txt"
-        hidden
-        (change)="onFileSelected($event)"
-      />
+      <input #fileInput type="file" accept=".psbt,.txt" hidden (change)="onFileSelected($event)" />
       @if (fileName()) {
         <div class="file-name mono">{{ fileName() }}</div>
       }

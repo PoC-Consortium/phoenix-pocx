@@ -147,8 +147,8 @@ const UTXO_PAGE_SIZE = 10;
                   <div class="utxo-main">
                     <div class="utxo-addr mono">{{ utxo.address }}</div>
                     <div class="utxo-meta mono">
-                      {{ utxo.txid }}:{{ utxo.vout }} ·
-                      {{ utxo.confirmations }} {{ 'psbt_confirmations' | i18n }}
+                      {{ utxo.txid }}:{{ utxo.vout }} · {{ utxo.confirmations }}
+                      {{ 'psbt_confirmations' | i18n }}
                     </div>
                   </div>
                   <div class="utxo-amount mono">{{ utxo.amount | number: '1.8-8' }}</div>
@@ -424,7 +424,9 @@ const UTXO_PAGE_SIZE = 10;
                 @if (chip.custom) {
                   <span><mat-icon class="tune-icon">tune</mat-icon></span>
                 } @else {
-                  <span>{{ chip.rate !== null ? (chip.rate | number: '1.0-1') + ' sat/vB' : '--' }}</span>
+                  <span>{{
+                    chip.rate !== null ? (chip.rate | number: '1.0-1') + ' sat/vB' : '--'
+                  }}</span>
                 }
               </button>
             }
@@ -472,9 +474,7 @@ const UTXO_PAGE_SIZE = 10;
           <div class="summary-grid">
             <div class="summary-row">
               <span class="summary-label">{{ 'psbt_sending' | i18n }}:</span>
-              <span class="summary-value mono"
-                >{{ sendingTotal() | number: '1.8-8' }} BTCX</span
-              >
+              <span class="summary-value mono">{{ sendingTotal() | number: '1.8-8' }} BTCX</span>
             </div>
             <div class="summary-row">
               <span class="summary-label">{{ 'estimated_fee' | i18n }}:</span>
@@ -1426,9 +1426,7 @@ export class PsbtComposeComponent implements OnInit {
     this.manualCoins() ? this.selectedTotal() : this.walletService.balance()
   );
 
-  sendingTotal = computed(() =>
-    this.outputs().reduce((sum, o) => sum + (o.amount ?? 0), 0)
-  );
+  sendingTotal = computed(() => this.outputs().reduce((sum, o) => sum + (o.amount ?? 0), 0));
 
   /**
    * Rough fee estimate for the summary: rate × estimated vsize
@@ -1583,9 +1581,7 @@ export class PsbtComposeComponent implements OnInit {
       this.outputPage.set(this.lastOutputPage());
     }
     if (invalid > 0) {
-      this.notification.warning(
-        this.i18n.get('psbt_import_list_invalid', { count: invalid })
-      );
+      this.notification.warning(this.i18n.get('psbt_import_list_invalid', { count: invalid }));
     }
   }
 
@@ -1814,5 +1810,4 @@ export class PsbtComposeComponent implements OnInit {
       this.creating.set(false);
     }
   }
-
 }
