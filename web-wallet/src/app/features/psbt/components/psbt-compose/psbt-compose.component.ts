@@ -306,12 +306,6 @@ const UTXO_PAGE_SIZE = 10;
               <mat-icon>playlist_add</mat-icon>
               {{ 'psbt_import_list' | i18n }}
             </button>
-            @if (!showData()) {
-              <button mat-stroked-button class="add-button" (click)="showData.set(true)">
-                <mat-icon>data_object</mat-icon>
-                {{ 'psbt_add_data' | i18n }}
-              </button>
-            }
           </div>
 
           @if (showListImport()) {
@@ -341,33 +335,6 @@ const UTXO_PAGE_SIZE = 10;
                   {{ 'psbt_import_list_apply' | i18n }}
                 </button>
               </div>
-            </div>
-          }
-
-          @if (showData()) {
-            <div class="output-row data-row">
-              <mat-form-field appearance="outline" class="addr-field">
-                <mat-label>{{ 'psbt_data_hex' | i18n }}</mat-label>
-                <input
-                  matInput
-                  [(ngModel)]="dataHex"
-                  autocomplete="off"
-                  spellcheck="false"
-                  class="mono"
-                  placeholder="deadbeef"
-                />
-                @if (dataHex && dataHexError()) {
-                  <mat-hint class="error-hint">{{ dataHexError() }}</mat-hint>
-                }
-              </mat-form-field>
-              <button
-                mat-stroked-button
-                class="square-button"
-                (click)="showData.set(false); dataHex = ''"
-                [matTooltip]="'psbt_remove_output' | i18n"
-              >
-                <mat-icon>close</mat-icon>
-              </button>
             </div>
           }
 
@@ -411,6 +378,31 @@ const UTXO_PAGE_SIZE = 10;
                 }
               </mat-menu>
             </div>
+          }
+
+          <div class="change-row">
+            <div class="option-info">
+              <span class="option-label">{{ 'psbt_include_data' | i18n }}</span>
+              <span class="option-hint">{{ 'psbt_include_data_hint' | i18n }}</span>
+            </div>
+            <mat-slide-toggle [checked]="showData()" (change)="onDataToggle($event.checked)">
+            </mat-slide-toggle>
+          </div>
+          @if (showData()) {
+            <mat-form-field appearance="outline" class="data-field">
+              <mat-label>{{ 'psbt_data_hex' | i18n }}</mat-label>
+              <input
+                matInput
+                [(ngModel)]="dataHex"
+                autocomplete="off"
+                spellcheck="false"
+                class="mono"
+                placeholder="deadbeef"
+              />
+              @if (dataHex && dataHexError()) {
+                <mat-hint class="error-hint">{{ dataHexError() }}</mat-hint>
+              }
+            </mat-form-field>
           }
         </div>
 
@@ -878,8 +870,9 @@ const UTXO_PAGE_SIZE = 10;
         }
       }
 
-      .data-row {
-        margin-top: 12px;
+      .data-field {
+        width: 100%;
+        margin-top: 8px;
       }
 
       .subtract-note {
@@ -1502,6 +1495,11 @@ export class PsbtComposeComponent implements OnInit {
 
   selectContact(contact: Contact): void {
     this.updateOutput(this.contactTargetIndex, 'address', contact.address);
+  }
+
+  onDataToggle(checked: boolean): void {
+    this.showData.set(checked);
+    if (!checked) this.dataHex = '';
   }
 
   onAutoChangeToggle(checked: boolean): void {
