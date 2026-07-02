@@ -480,28 +480,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               </div>
             </div>
 
-            <!-- Final hex -->
-            @if (finalHex(); as hex) {
-              <div class="card">
-                <div class="card-pad">
-                  <div class="card-head no-pad">
-                    <h3 class="section-title">{{ 'psbt_final_tx' | i18n }}</h3>
-                    <span class="section-aside mono">hex · {{ hex.length / 2 }} bytes</span>
-                  </div>
-                  <div class="raw-box mono">{{ hex }}</div>
-                  <div class="actions">
-                    <button mat-stroked-button (click)="copyHex()">
-                      <mat-icon>content_copy</mat-icon>
-                      {{ 'psbt_copy_hex' | i18n }}
-                    </button>
-                    <button mat-stroked-button (click)="saveHexFile()">
-                      <mat-icon>download</mat-icon>
-                      {{ 'psbt_save_file' | i18n }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            }
           }
 
           <!-- Error -->
@@ -529,14 +507,26 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               <mat-icon>save</mat-icon>
               {{ 'psbt_save_draft' | i18n }}
             </button>
-            <button mat-stroked-button (click)="copyBase64()">
-              <mat-icon>content_copy</mat-icon>
-              {{ 'psbt_copy_base64' | i18n }}
-            </button>
-            <button mat-stroked-button (click)="savePsbtFile()">
-              <mat-icon>download</mat-icon>
-              {{ 'psbt_save_file' | i18n }}
-            </button>
+            @if (showBroadcastSection(document)) {
+              <!-- Finalized: the raw hex is the artifact worth exporting -->
+              <button mat-stroked-button (click)="copyHex()">
+                <mat-icon>content_copy</mat-icon>
+                {{ 'psbt_copy_hex' | i18n }}
+              </button>
+              <button mat-stroked-button (click)="saveHexFile()">
+                <mat-icon>download</mat-icon>
+                {{ 'psbt_save_file' | i18n }}
+              </button>
+            } @else {
+              <button mat-stroked-button (click)="copyBase64()">
+                <mat-icon>content_copy</mat-icon>
+                {{ 'psbt_copy_base64' | i18n }}
+              </button>
+              <button mat-stroked-button (click)="savePsbtFile()">
+                <mat-icon>download</mat-icon>
+                {{ 'psbt_save_file' | i18n }}
+              </button>
+            }
             <span class="spacer"></span>
             @if (showBroadcastSection(document)) {
               <button
@@ -1269,19 +1259,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         border-radius: 8px;
         padding: 1px 6px;
         margin-left: 6px;
-      }
-
-      // ============ Raw box ============
-      .raw-box {
-        background: #0f2033;
-        border-radius: 6px;
-        padding: 12px 14px;
-        font-size: 11.5px;
-        color: #8fb8e0;
-        word-break: break-all;
-        max-height: 96px;
-        overflow-y: auto;
-        line-height: 1.5;
       }
 
       // ============ Broadcast target ============

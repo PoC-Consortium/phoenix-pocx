@@ -952,7 +952,6 @@
   "psbt_target_local": "Local node (managed)",
   "psbt_target_local_hint": "bitcoind on this machine",
   "psbt_target_electrum_hint": "Broadcast through a remote server — no local node required",
-  "psbt_final_tx": "Final transaction",
   "psbt_edit_signed_title": "Edit transaction",
   "psbt_edit_signed_message": "Editing recreates the transaction, so the signatures collected so far will be discarded. Copies you already exported are not affected.",
   "psbt_edit_signed_confirm": "Edit & discard signatures",
