@@ -789,6 +789,15 @@ export class WalletRpcService {
     return this.rpc.call<string>('combinepsbt', [psbts]);
   }
 
+  /**
+   * Join distinct PSBTs (different inputs/outputs) into one transaction
+   * (joinpsbts) — collaborative spends / CoinJoin construction.
+   * Only meaningful before any signatures exist.
+   */
+  async joinPsbts(psbts: string[]): Promise<string> {
+    return this.rpc.call<string>('joinpsbts', [psbts]);
+  }
+
   // ============================================================
   // Rescan & Backup
   // ============================================================

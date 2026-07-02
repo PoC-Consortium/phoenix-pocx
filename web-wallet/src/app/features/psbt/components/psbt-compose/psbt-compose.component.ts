@@ -1496,11 +1496,12 @@ export class PsbtComposeComponent implements OnInit {
 
   /**
    * Populate the form from an existing PSBT so a draft or import can be
-   * edited: recipient outputs, OP_RETURN payload, locktime, and the original
-   * inputs preselected via manual coin control. Change is dropped — the
-   * wallet recreates it on the next create.
+   * edited: recipient outputs, OP_RETURN payload, locktime, and — unless the
+   * draft was composed with automatic selection — the original inputs
+   * preselected via manual coin control. Change is dropped; the wallet
+   * recreates it on the next create.
    */
-  async prefill(document: PsbtDocument): Promise<void> {
+  async prefill(document: PsbtDocument, autoCoins = false): Promise<void> {
     const recipients: ComposeOutput[] = document.outputs
       .filter(o => (o.kind === 'external' || o.kind === 'mine') && o.address)
       .map(o => ({ address: o.address as string, amount: o.amount }));
@@ -1517,6 +1518,11 @@ export class PsbtComposeComponent implements OnInit {
     this.useLocktime.set(document.locktime > 0);
     this.locktime = document.locktime > 0 ? document.locktime : null;
 
+    if (autoCoins) {
+      this.manualCoins.set(false);
+      this.selectedOutpoints.set(new Set());
+      return;
+    }
     // Preselect the transaction's inputs via manual coin control
     this.manualCoins.set(true);
     await this.loadUtxos();

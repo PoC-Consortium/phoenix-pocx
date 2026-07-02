@@ -88,6 +88,8 @@ export interface PsbtDraft {
   status: PsbtStatus;
   /** Short human summary for the draft list, e.g. "1.2500 BTCX" */
   amountLabel?: string;
+  /** Coin selection mode used when composing — restored when editing */
+  autoCoins?: boolean;
   createdAt: number;
   updatedAt: number;
 }

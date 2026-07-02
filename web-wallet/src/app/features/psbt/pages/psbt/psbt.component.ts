@@ -210,20 +210,13 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     </h2>
                   }
                   <div class="doc-meta mono">
-                    psbt · {{ document.sizeBytes }} bytes ·
-                    {{ 'psbt_unsigned_txid' | i18n }} {{ shortId(document.unsignedTxid) }}
+                    txid {{ shortId(document.unsignedTxid) }} · {{ document.sizeBytes }} bytes
                   </div>
                 </div>
                 <span class="badge" [class]="document.status">
                   <mat-icon>{{ statusIcon(document.status) }}</mat-icon>
                   {{ statusLabel(document) }}
                 </span>
-              </div>
-
-              <!-- Guidance -->
-              <div class="guide">
-                <mat-icon>{{ document.status === 'finalized' ? 'task_alt' : 'info' }}</mat-icon>
-                <div>{{ guidance(document) }}</div>
               </div>
             </div>
 
@@ -265,6 +258,12 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             </div>
           </div>
 
+          <!-- Guidance -->
+          <div class="guide standalone">
+            <mat-icon>{{ document.status === 'finalized' ? 'task_alt' : 'info' }}</mat-icon>
+            <div>{{ guidance(document) }}</div>
+          </div>
+
           <!-- Fee warning -->
           @if (feeWarning(); as warning) {
             <div class="warn-banner">
@@ -276,9 +275,8 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             </div>
           }
 
-          <!-- Inputs / outputs (hidden on the focused broadcast view; Back shows them) -->
-          @if (!showBroadcastSection(document)) {
-            <div class="io-grid">
+          <!-- Inputs / outputs -->
+          <div class="io-grid">
             <div class="card io-card">
               <div class="card-head">
                 <h3 class="section-title">{{ 'psbt_inputs' | i18n }}</h3>
@@ -388,8 +386,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 </div>
               }
             </div>
-            </div>
-          }
+          </div>
 
           @if (!showBroadcastSection(document)) {
             <!-- Signatures & actions -->
@@ -415,6 +412,17 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                   <button mat-stroked-button [disabled]="combining()" (click)="combine()">
                     <mat-icon>call_merge</mat-icon>
                     {{ 'psbt_combine' | i18n }}
+                  </button>
+                  <button
+                    mat-stroked-button
+                    [disabled]="joining() || document.status !== 'unsigned'"
+                    [matTooltip]="
+                      document.status !== 'unsigned' ? ('psbt_join_needs_unsigned' | i18n) : ''
+                    "
+                    (click)="join()"
+                  >
+                    <mat-icon>merge_type</mat-icon>
+                    {{ 'psbt_join' | i18n }}
                   </button>
                   <button
                     mat-stroked-button
@@ -1003,6 +1011,10 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         background: #f5f7fa;
         border-radius: 6px;
         padding: 10px 14px;
+
+        &.standalone {
+          margin-bottom: 16px;
+        }
         font-size: 13px;
         color: rgb(0, 35, 65);
         display: flex;
@@ -1545,6 +1557,7 @@ export class PsbtComponent implements OnInit {
   readonly loadingDoc = signal(false);
   readonly signing = signal(false);
   readonly combining = signal(false);
+  readonly joining = signal(false);
   readonly finalizing = signal(false);
   readonly broadcasting = signal(false);
   readonly docError = signal<string | null>(null);
@@ -1663,7 +1676,7 @@ export class PsbtComponent implements OnInit {
         if (!confirmed) return;
       }
       if (this.docOrigin() !== 'compose') {
-        await this.composeForm?.prefill(document);
+        await this.composeForm?.prefill(document, this.draft()?.autoCoins ?? false);
       }
       this.view.set('compose');
       return;
@@ -1682,18 +1695,11 @@ export class PsbtComponent implements OnInit {
   readonly draftName = computed(() => this.draft()?.name ?? this.i18n.get('psbt_untitled'));
 
   /**
-   * Compose and the sign/finalize views get the wide layout (side-by-side
-   * inputs/outputs, 4-across stats); start and the focused broadcast view
-   * stay narrow.
+   * Compose and the whole document view (incl. broadcast, which keeps the
+   * inputs/outputs visible for a final review) use the wide layout; only
+   * the start page and the success screen stay narrow.
    */
-  readonly wideLayout = computed(() => {
-    if (this.view() === 'compose') return true;
-    const document = this.doc();
-    if (this.view() === 'doc' && document) {
-      return !this.showBroadcastSection(document);
-    }
-    return false;
-  });
+  readonly wideLayout = computed(() => this.view() === 'compose' || this.view() === 'doc');
   readonly feeWarning = computed(() => {
     const document = this.doc();
     return document ? this.psbtService.checkFee(document) : null;
@@ -1723,6 +1729,13 @@ export class PsbtComponent implements OnInit {
   async onComposed(event: { psbt: string; fee: number }): Promise<void> {
     this.docOrigin.set('compose');
     await this.loadDocument(event.psbt, true);
+    // Remember the coin-selection mode so editing later restores it
+    const draft = this.draft();
+    if (draft) {
+      const updated = { ...draft, autoCoins: !(this.composeForm?.manualCoins() ?? false) };
+      this.draft.set(updated);
+      this.psbtService.saveDraft(updated);
+    }
   }
 
   async importPsbt(): Promise<void> {
@@ -1847,6 +1860,41 @@ export class PsbtComponent implements OnInit {
       this.docError.set(error instanceof Error ? error.message : String(error));
     } finally {
       this.signing.set(false);
+    }
+  }
+
+  /**
+   * Join a distinct part-transaction (different inputs/outputs) into this one —
+   * collaborative spend / CoinJoin construction. Both sides must be unsigned:
+   * with SIGHASH_ALL, joining after signing would invalidate every signature.
+   */
+  async join(): Promise<void> {
+    const document = this.doc();
+    if (!document || this.joining()) return;
+
+    const dialogRef = this.dialog.open(PsbtImportDialogComponent, {
+      width: '520px',
+      data: { titleKey: 'psbt_join' },
+    });
+    const other: string | undefined = await firstValueFrom(dialogRef.afterClosed());
+    if (!other) return;
+
+    this.joining.set(true);
+    this.docError.set(null);
+    try {
+      const otherDoc = await this.psbtService.buildDocument(other);
+      if (document.status !== 'unsigned' || otherDoc.status !== 'unsigned') {
+        this.docError.set(this.i18n.get('psbt_join_signed'));
+        return;
+      }
+      const joined = await this.walletRpc.joinPsbts([document.base64, other]);
+      this.doc.set(await this.psbtService.buildDocument(joined));
+      this.syncDraft();
+      this.notification.success(this.i18n.get('psbt_joined'));
+    } catch (error) {
+      this.docError.set(error instanceof Error ? error.message : String(error));
+    } finally {
+      this.joining.set(false);
     }
   }
 
