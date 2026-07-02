@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -59,6 +60,7 @@ const UTXO_PAGE_SIZE = 10;
     MatFormFieldModule,
     MatInputModule,
     MatMenuModule,
+    MatAutocompleteModule,
     MatSlideToggleModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
@@ -375,34 +377,24 @@ const UTXO_PAGE_SIZE = 10;
             </mat-slide-toggle>
           </div>
           @if (!autoChange()) {
-            <div class="field-row">
-              <mat-form-field appearance="outline" class="grow-field change-field">
-                <mat-label>{{ 'psbt_change_address' | i18n }}</mat-label>
-                <input
-                  matInput
-                  [(ngModel)]="changeAddress"
-                  autocomplete="off"
-                  spellcheck="false"
-                  class="mono"
-                />
-              </mat-form-field>
-              <button
-                mat-stroked-button
-                class="square-button change-pick-button"
-                [matMenuTriggerFor]="changeAddrMenu"
-                [disabled]="receiveAddresses().length === 0"
-                [matTooltip]="'psbt_pick_change_address' | i18n"
-              >
-                <mat-icon>format_list_bulleted</mat-icon>
-              </button>
-              <mat-menu #changeAddrMenu="matMenu">
+            <mat-form-field appearance="outline" class="data-field">
+              <mat-label>{{ 'psbt_change_address' | i18n }}</mat-label>
+              <input
+                matInput
+                [matAutocomplete]="changeAuto"
+                [(ngModel)]="changeAddress"
+                autocomplete="off"
+                spellcheck="false"
+                class="mono"
+              />
+              <mat-autocomplete #changeAuto="matAutocomplete">
                 @for (address of receiveAddresses(); track address) {
-                  <button mat-menu-item (click)="changeAddress = address">
+                  <mat-option [value]="address">
                     <span class="mono change-addr-item">{{ address }}</span>
-                  </button>
+                  </mat-option>
                 }
-              </mat-menu>
-            </div>
+              </mat-autocomplete>
+            </mat-form-field>
           }
         </div>
 

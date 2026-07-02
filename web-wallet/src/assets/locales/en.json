@@ -993,7 +993,6 @@
   "psbt_change_auto": "Change returns to a fresh address from this wallet",
   "psbt_change_auto_hint": "Recommended — turn off to enter a custom change address",
   "psbt_change_address": "Change address",
-  "psbt_pick_change_address": "Pick one of this wallet's receive addresses",
   "psbt_import_list": "Import list",
   "psbt_import_list_hint": "One recipient per line: address, amount",
   "psbt_import_list_apply": "Add to outputs",
