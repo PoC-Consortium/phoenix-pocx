@@ -175,18 +175,6 @@ export function predefinedPoolUrl(pool: PredefinedPool): string {
  */
 export const PREDEFINED_POOLS: PredefinedPool[] = [
   {
-    id: 'cryptoguru-mainnet',
-    name: 'CryptoGuru Mainnet',
-    rpcTransport: 'https',
-    rpcHost: 'btcx-pool.cryptoguru.org',
-    rpcPort: 443,
-    network: 'mainnet',
-    blockTimeSeconds: 120,
-    poolAddresses: [
-      { label: 'CryptoGuru Mainnet', address: 'pocx1qrp00l665mrl94cuhlwngyvua0q3xsvayg8e6zn' },
-    ],
-  },
-  {
     id: 'nogrod-mainnet',
     name: 'Nogrod Mainnet',
     rpcTransport: 'https',
@@ -196,6 +184,18 @@ export const PREDEFINED_POOLS: PredefinedPool[] = [
     blockTimeSeconds: 120,
     poolAddresses: [
       { label: 'Nogrod Mainnet', address: 'pocx1qp00ljf5sy0kdk4h8x5n4erzdshkzj4cdmvjpsv' },
+    ],
+  },
+  {
+    id: 'cryptoguru-mainnet',
+    name: 'CryptoGuru Mainnet',
+    rpcTransport: 'https',
+    rpcHost: 'btcx-pool.cryptoguru.org',
+    rpcPort: 443,
+    network: 'mainnet',
+    blockTimeSeconds: 120,
+    poolAddresses: [
+      { label: 'CryptoGuru Mainnet', address: 'pocx1qrp00l665mrl94cuhlwngyvua0q3xsvayg8e6zn' },
     ],
   },
   {
