@@ -70,77 +70,75 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
           <button mat-icon-button class="back-button" (click)="goBack()">
             <mat-icon>arrow_back</mat-icon>
           </button>
-          <div>
-            <h1>{{ 'psbt_title' | i18n }}</h1>
-            <div class="header-sub">{{ 'psbt_subtitle' | i18n }}</div>
-          </div>
-        </div>
-        <div class="header-right">
-          @if (walletName()) {
-            <div class="header-chip">
-              <span class="chip-label">{{ 'psbt_wallet' | i18n }}</span>
-              <span class="chip-value">{{ walletName() }}</span>
-            </div>
-          }
+          <h1>{{ 'psbt_title' | i18n }}</h1>
         </div>
       </div>
 
       <div class="content">
         <!-- ================= START ================= -->
         @if (view() === 'start') {
-          <div class="doors">
-            <div class="door" (click)="view.set('compose')" (keydown.enter)="view.set('compose')" tabindex="0" role="button">
-              <div class="door-icon"><mat-icon>edit_note</mat-icon></div>
-              <h3>{{ 'psbt_door_compose' | i18n }}</h3>
-              <p>{{ 'psbt_door_compose_hint' | i18n }}</p>
-              <div class="door-ways">
-                <span class="way"><mat-icon>tune</mat-icon>{{ 'psbt_way_coin_control' | i18n }}</span>
-                <span class="way"><mat-icon>call_split</mat-icon>{{ 'psbt_way_outputs' | i18n }}</span>
-                <span class="way"><mat-icon>data_object</mat-icon>OP_RETURN</span>
-              </div>
-            </div>
-            <div class="door" (click)="importPsbt()" (keydown.enter)="importPsbt()" tabindex="0" role="button">
-              <div class="door-icon"><mat-icon>file_open</mat-icon></div>
-              <h3>{{ 'psbt_door_import' | i18n }}</h3>
-              <p>{{ 'psbt_door_import_hint' | i18n }}</p>
-              <div class="door-ways">
-                <span class="way"><mat-icon>content_paste</mat-icon>{{ 'psbt_way_paste' | i18n }}</span>
-                <span class="way"><mat-icon>upload_file</mat-icon>{{ 'psbt_way_file' | i18n }}</span>
-              </div>
-            </div>
-          </div>
-
-          @if (drafts().length > 0) {
-            <div class="card drafts-card">
-              <div class="card-head">
-                <h3 class="section-title">{{ 'psbt_in_progress' | i18n }}</h3>
-                <span class="section-aside">{{ 'psbt_saved_locally' | i18n }}</span>
-              </div>
-              @for (draft of drafts(); track draft.id) {
-                <div class="draft-row" (click)="openDraft(draft)" (keydown.enter)="openDraft(draft)" tabindex="0" role="button">
-                  <span class="badge" [class]="draft.status">
-                    <mat-icon>{{ statusIcon(draft.status) }}</mat-icon>
-                    {{ 'psbt_status_' + draft.status | i18n }}
-                  </span>
-                  <div class="draft-body">
-                    <div class="draft-name">{{ draft.name }}</div>
-                    <div class="draft-meta">
-                      {{ draft.amountLabel }} · {{ draft.updatedAt | date: 'short' }}
-                    </div>
-                  </div>
-                  <button
-                    mat-icon-button
-                    class="draft-delete"
-                    (click)="$event.stopPropagation(); deleteDraft(draft)"
-                    [matTooltip]="'psbt_delete_draft' | i18n"
-                  >
-                    <mat-icon>delete_outline</mat-icon>
-                  </button>
-                  <mat-icon class="draft-chevron">chevron_right</mat-icon>
+          <div class="start-column">
+            <div class="card options-card">
+              <div
+                class="mode-option"
+                (click)="view.set('compose')"
+                (keydown.enter)="view.set('compose')"
+                tabindex="0"
+                role="button"
+              >
+                <mat-icon class="mode-icon">edit_note</mat-icon>
+                <div class="mode-details">
+                  <div class="mode-title">{{ 'psbt_door_compose' | i18n }}</div>
+                  <div class="mode-desc">{{ 'psbt_door_compose_hint' | i18n }}</div>
                 </div>
-              }
+              </div>
+              <div
+                class="mode-option"
+                (click)="importPsbt()"
+                (keydown.enter)="importPsbt()"
+                tabindex="0"
+                role="button"
+              >
+                <mat-icon class="mode-icon">file_open</mat-icon>
+                <div class="mode-details">
+                  <div class="mode-title">{{ 'psbt_door_import' | i18n }}</div>
+                  <div class="mode-desc">{{ 'psbt_door_import_hint' | i18n }}</div>
+                </div>
+              </div>
             </div>
-          }
+
+            @if (drafts().length > 0) {
+              <div class="card drafts-card">
+                <div class="card-head">
+                  <h3 class="section-title">{{ 'psbt_in_progress' | i18n }}</h3>
+                  <span class="section-aside">{{ 'psbt_saved_locally' | i18n }}</span>
+                </div>
+                @for (draft of drafts(); track draft.id) {
+                  <div class="draft-row" (click)="openDraft(draft)" (keydown.enter)="openDraft(draft)" tabindex="0" role="button">
+                    <span class="badge" [class]="draft.status">
+                      <mat-icon>{{ statusIcon(draft.status) }}</mat-icon>
+                      {{ 'psbt_status_' + draft.status | i18n }}
+                    </span>
+                    <div class="draft-body">
+                      <div class="draft-name">{{ draft.name }}</div>
+                      <div class="draft-meta">
+                        {{ draft.amountLabel }} · {{ draft.updatedAt | date: 'short' }}
+                      </div>
+                    </div>
+                    <button
+                      mat-icon-button
+                      class="draft-delete"
+                      (click)="$event.stopPropagation(); deleteDraft(draft)"
+                      [matTooltip]="'psbt_delete_draft' | i18n"
+                    >
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                    <mat-icon class="draft-chevron">chevron_right</mat-icon>
+                  </div>
+                }
+              </div>
+            }
+          </div>
         }
 
         <!-- ================= COMPOSE ================= -->
@@ -571,37 +569,12 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             font-size: 24px;
           }
 
-          .header-sub {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.7);
-          }
-
           .back-button {
             color: rgba(255, 255, 255, 0.9);
 
             &:hover {
               background: rgba(255, 255, 255, 0.1);
             }
-          }
-        }
-
-        .header-chip {
-          background: rgba(255, 255, 255, 0.1);
-          padding: 8px 16px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-
-          .chip-label {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.7);
-          }
-
-          .chip-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: white;
           }
         }
       }
@@ -658,77 +631,63 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         letter-spacing: -0.3px;
       }
 
-      // ============ Doors (start state) ============
-      .doors {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 16px;
+      // ============ Start (mode chooser, mirrors node-setup wizard) ============
+      .start-column {
+        max-width: 600px;
+        margin: 0 auto;
       }
 
-      .door {
-        background: #ffffff;
+      .options-card {
+        padding: 16px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .mode-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 16px;
+        border: 1px solid rgba(0, 0, 0, 0.12);
         border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        padding: 26px 24px;
         cursor: pointer;
-        border: 2px solid transparent;
+        transition: all 0.2s;
 
         &:hover,
         &:focus-visible {
           border-color: #1976d2;
-        }
+          background: rgba(33, 150, 243, 0.08);
 
-        .door-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 8px;
-          background: rgba(25, 118, 210, 0.1);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 14px;
-
-          mat-icon {
+          .mode-icon {
             color: #1976d2;
           }
         }
 
-        h3 {
-          font-size: 16px;
-          color: rgb(0, 35, 65);
-          margin: 0 0 6px;
+        .mode-icon {
+          color: rgba(0, 0, 0, 0.54);
+          font-size: 28px;
+          width: 28px;
+          height: 28px;
+          margin-top: 2px;
+          flex-shrink: 0;
         }
 
-        p {
-          margin: 0 0 14px;
-          font-size: 12.5px;
-          color: #6b7787;
+        .mode-details {
+          flex: 1;
         }
 
-        .door-ways {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
+        .mode-title {
+          font-weight: 500;
+          font-size: 15px;
+          color: rgba(0, 0, 0, 0.87);
+          margin-bottom: 4px;
         }
 
-        .way {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 11.5px;
-          font-weight: 600;
-          color: rgb(0, 35, 65);
-          background: #f5f7fa;
-          border-radius: 6px;
-          padding: 5px 10px;
-
-          mat-icon {
-            font-size: 15px;
-            width: 15px;
-            height: 15px;
-            color: #6b7787;
-          }
+        .mode-desc {
+          font-size: 13px;
+          color: rgba(0, 0, 0, 0.6);
+          line-height: 1.4;
         }
       }
 
@@ -1289,7 +1248,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       // ============ Dark theme ============
       :host-context(.dark-theme) {
         .card,
-        .door,
         .success-card {
           background: #424242;
         }
@@ -1306,7 +1264,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         .section-title,
         .doc-id h2,
         .draft-name,
-        .door h3,
+        .mode-title,
         .io-addr,
         .io-amount,
         .stat-value,
@@ -1316,9 +1274,16 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
           color: #ffffff !important;
         }
 
-        .way {
-          background: #333;
-          color: #fff;
+        .mode-option {
+          border-color: #555;
+
+          .mode-icon {
+            color: rgba(255, 255, 255, 0.54);
+          }
+
+          .mode-desc {
+            color: rgba(255, 255, 255, 0.6);
+          }
         }
 
         .guide {
@@ -1350,7 +1315,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
 
       // ============ Responsive ============
       @media (max-width: 900px) {
-        .doors,
         .io-grid {
           grid-template-columns: 1fr;
         }
@@ -1363,10 +1327,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       @media (max-width: 600px) {
         .content {
           padding: 16px;
-        }
-
-        .header .header-chip {
-          display: none;
         }
 
         .actions button {
@@ -1414,7 +1374,6 @@ export class PsbtComponent implements OnInit {
   readonly renaming = signal(false);
   renameValue = '';
 
-  readonly walletName = computed(() => this.walletManager.activeWallet ?? '');
   readonly draftName = computed(() => this.draft()?.name ?? this.i18n.get('psbt_untitled'));
   readonly feeWarning = computed(() => {
     const document = this.doc();
