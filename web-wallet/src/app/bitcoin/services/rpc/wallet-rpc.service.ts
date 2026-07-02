@@ -141,6 +141,93 @@ export interface ImportResult {
 }
 
 /**
+ * Result of walletcreatefundedpsbt
+ */
+export interface FundedPsbtResult {
+  psbt: string;
+  fee: number;
+  changepos: number;
+}
+
+/**
+ * Decoded PSBT structure (decodepsbt) — subset of fields the wallet uses.
+ */
+export interface DecodedPsbt {
+  tx: {
+    txid: string;
+    hash: string;
+    version: number;
+    size: number;
+    vsize: number;
+    weight: number;
+    locktime: number;
+    vin: Array<{
+      txid: string;
+      vout: number;
+      sequence: number;
+    }>;
+    vout: Array<{
+      value: number;
+      n: number;
+      scriptPubKey: {
+        asm: string;
+        hex: string;
+        type: string;
+        address?: string;
+      };
+    }>;
+  };
+  /** Total fee — present only when all input UTXOs are known */
+  fee?: number;
+  inputs: Array<{
+    witness_utxo?: {
+      amount: number;
+      scriptPubKey: { asm: string; hex: string; type: string; address?: string };
+    };
+    non_witness_utxo?: { txid: string };
+    partial_signatures?: Record<string, string>;
+    final_scriptSig?: { asm: string; hex: string };
+    final_scriptwitness?: string[];
+    witness_script?: { asm: string; hex: string; type: string };
+    redeem_script?: { asm: string; hex: string; type: string };
+    sighash?: string;
+    bip32_derivs?: Array<{ pubkey: string; master_fingerprint: string; path: string }>;
+  }>;
+  outputs: Array<{
+    bip32_derivs?: Array<{ pubkey: string; master_fingerprint: string; path: string }>;
+  }>;
+}
+
+/**
+ * Per-input analysis from analyzepsbt
+ */
+export interface PsbtInputAnalysis {
+  has_utxo: boolean;
+  is_final: boolean;
+  next?: string;
+  missing?: {
+    pubkeys?: string[];
+    signatures?: string[];
+    redeemscript?: string;
+    witnessscript?: string;
+  };
+}
+
+/**
+ * Result of analyzepsbt
+ */
+export interface PsbtAnalysis {
+  inputs?: PsbtInputAnalysis[];
+  estimated_vsize?: number;
+  /** BTC/kvB */
+  estimated_feerate?: number;
+  fee?: number;
+  /** Role of the next actor: updater | signer | finalizer | extractor */
+  next: string;
+  error?: string;
+}
+
+/**
  * WalletRpcService handles all wallet-related RPC calls.
  *
  * This service provides typed methods for:
@@ -655,8 +742,60 @@ export class WalletRpcService {
   /**
    * Decode a PSBT
    */
-  async decodePsbt(psbt: string): Promise<unknown> {
-    return this.rpc.call('decodepsbt', [psbt]);
+  async decodePsbt(psbt: string): Promise<DecodedPsbt> {
+    return this.rpc.call<DecodedPsbt>('decodepsbt', [psbt]);
+  }
+
+  /**
+   * Create and fund a PSBT with this wallet (walletcreatefundedpsbt).
+   * With empty inputs and add_inputs the wallet selects coins automatically;
+   * pass explicit inputs plus add_inputs=false for manual coin control.
+   */
+  async walletCreateFundedPsbt(
+    walletName: string,
+    inputs: Array<{ txid: string; vout: number; sequence?: number }>,
+    outputs: Array<Record<string, number | string>>,
+    locktime = 0,
+    options?: {
+      add_inputs?: boolean;
+      changeAddress?: string;
+      includeWatching?: boolean;
+      lockUnspents?: boolean;
+      fee_rate?: number; // sat/vB
+      subtractFeeFromOutputs?: number[];
+      replaceable?: boolean;
+      conf_target?: number;
+    },
+    bip32derivs = true
+  ): Promise<FundedPsbtResult> {
+    return this.rpc.call<FundedPsbtResult>(
+      'walletcreatefundedpsbt',
+      [inputs, outputs, locktime, options ?? {}, bip32derivs],
+      walletName
+    );
+  }
+
+  /**
+   * Analyze a PSBT (analyzepsbt) — signature completeness, fee, next role
+   */
+  async analyzePsbt(psbt: string): Promise<PsbtAnalysis> {
+    return this.rpc.call<PsbtAnalysis>('analyzepsbt', [psbt]);
+  }
+
+  /**
+   * Combine multiple PSBTs for the same transaction into one (combinepsbt)
+   */
+  async combinePsbt(psbts: string[]): Promise<string> {
+    return this.rpc.call<string>('combinepsbt', [psbts]);
+  }
+
+  /**
+   * Join distinct PSBTs (different inputs/outputs) into one transaction
+   * (joinpsbts) — collaborative spends / CoinJoin construction.
+   * Only meaningful before any signatures exist.
+   */
+  async joinPsbts(psbts: string[]): Promise<string> {
+    return this.rpc.call<string>('joinpsbts', [psbts]);
   }
 
   // ============================================================

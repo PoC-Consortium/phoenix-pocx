@@ -147,4 +147,8 @@ jobs:
         run: cargo install cargo-audit
 
       - name: Run cargo audit
-        run: cargo audit --ignore RUSTSEC-2023-0071
+        # RUSTSEC-2026-0194/0195: quick-xml DoS advisories, pulled in via
+        # tauri -> plist 1.9.0 (latest); plist only parses our own bundle
+        # metadata, not attacker-controlled XML. Drop the ignores once a
+        # plist release depends on quick-xml >= 0.41.
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195

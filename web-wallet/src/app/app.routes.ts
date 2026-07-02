@@ -124,6 +124,11 @@ export const routes: Routes = [
           import('./features/transactions/transactions.routes').then(m => m.TRANSACTIONS_ROUTES),
       },
       {
+        path: 'psbt',
+        loadComponent: () =>
+          import('./features/psbt/pages/psbt/psbt.component').then(m => m.PsbtComponent),
+      },
+      {
         path: 'contacts',
         loadChildren: () =>
           import('./features/contacts/contacts.routes').then(m => m.CONTACTS_ROUTES),

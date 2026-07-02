@@ -279,6 +279,35 @@ export class BlockchainRpcService {
   }
 
   /**
+   * Broadcast a raw transaction to the network
+   * @param hexstring - Fully signed transaction hex
+   * @param maxfeerate - Reject if fee rate exceeds this (BTC/kvB); 0 disables the check
+   * @returns Transaction ID
+   */
+  async sendRawTransaction(hexstring: string, maxfeerate?: number): Promise<string> {
+    const params: unknown[] = [hexstring];
+    if (maxfeerate !== undefined) params.push(maxfeerate);
+    return this.rpc.call<string>('sendrawtransaction', params);
+  }
+
+  /**
+   * Test whether raw transactions would be accepted by the mempool
+   * without broadcasting them
+   */
+  async testMempoolAccept(rawtxs: string[]): Promise<
+    Array<{
+      txid: string;
+      wtxid?: string;
+      allowed: boolean;
+      vsize?: number;
+      fees?: { base: number };
+      'reject-reason'?: string;
+    }>
+  > {
+    return this.rpc.call('testmempoolaccept', [rawtxs]);
+  }
+
+  /**
    * Get network information
    */
   async getNetworkInfo(): Promise<NetworkInfo> {
