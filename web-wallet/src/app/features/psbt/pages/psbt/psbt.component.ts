@@ -289,7 +289,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                   }
                 </span>
               </div>
-              @for (input of document.inputs; track input.index) {
+              @for (input of pagedInputs(); track input.index) {
                 <div class="io-row">
                   <span class="io-index mono">#{{ input.index }}</span>
                   <div class="io-body">
@@ -325,6 +325,27 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                   </span>
                 </div>
               }
+              @if (document.inputs.length > ioPageSize) {
+                <div class="io-pager">
+                  <button
+                    mat-icon-button
+                    [disabled]="inputPage() === 0"
+                    (click)="inputPage.set(inputPage() - 1)"
+                  >
+                    <mat-icon>chevron_left</mat-icon>
+                  </button>
+                  <span class="pager-range mono">{{
+                    ioRangeLabel(inputPage(), document.inputs.length)
+                  }}</span>
+                  <button
+                    mat-icon-button
+                    [disabled]="(inputPage() + 1) * ioPageSize >= document.inputs.length"
+                    (click)="inputPage.set(inputPage() + 1)"
+                  >
+                    <mat-icon>chevron_right</mat-icon>
+                  </button>
+                </div>
+              }
             </div>
 
             <div class="card io-card">
@@ -332,7 +353,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 <h3 class="section-title">{{ 'psbt_outputs' | i18n }}</h3>
                 <span class="section-aside">{{ document.outputs.length }}</span>
               </div>
-              @for (out of document.outputs; track out.index) {
+              @for (out of pagedOutputs(); track out.index) {
                 <div class="io-row">
                   <span class="io-index mono">#{{ out.index }}</span>
                   <div class="io-body">
@@ -343,6 +364,27 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     <div class="io-meta">{{ outputHint(out) }}</div>
                   </div>
                   <span class="io-amount mono">{{ out.amount | number: '1.8-8' }}</span>
+                </div>
+              }
+              @if (document.outputs.length > ioPageSize) {
+                <div class="io-pager">
+                  <button
+                    mat-icon-button
+                    [disabled]="outputPage() === 0"
+                    (click)="outputPage.set(outputPage() - 1)"
+                  >
+                    <mat-icon>chevron_left</mat-icon>
+                  </button>
+                  <span class="pager-range mono">{{
+                    ioRangeLabel(outputPage(), document.outputs.length)
+                  }}</span>
+                  <button
+                    mat-icon-button
+                    [disabled]="(outputPage() + 1) * ioPageSize >= document.outputs.length"
+                    (click)="outputPage.set(outputPage() + 1)"
+                  >
+                    <mat-icon>chevron_right</mat-icon>
+                  </button>
                 </div>
               }
             </div>
@@ -1071,6 +1113,28 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
+      .io-pager {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        padding: 4px 12px 8px;
+        border-top: 1px solid #e6ebf1;
+
+        .pager-range {
+          font-size: 11px;
+          color: #6b7787;
+        }
+
+        button {
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+      }
+
       .tag {
         display: inline-flex;
         align-items: center;
@@ -1466,6 +1530,30 @@ export class PsbtComponent implements OnInit {
   readonly renaming = signal(false);
   renameValue = '';
 
+  readonly ioPageSize = 10;
+  readonly inputPage = signal(0);
+  readonly outputPage = signal(0);
+
+  readonly pagedInputs = computed(() => {
+    const document = this.doc();
+    if (!document) return [];
+    const start = this.inputPage() * this.ioPageSize;
+    return document.inputs.slice(start, start + this.ioPageSize);
+  });
+
+  readonly pagedOutputs = computed(() => {
+    const document = this.doc();
+    if (!document) return [];
+    const start = this.outputPage() * this.ioPageSize;
+    return document.outputs.slice(start, start + this.ioPageSize);
+  });
+
+  ioRangeLabel(page: number, total: number): string {
+    const start = page * this.ioPageSize + 1;
+    const end = Math.min(total, start + this.ioPageSize - 1);
+    return `${start}–${end} / ${total}`;
+  }
+
   /** Lifecycle steps shown in the wizard-style indicator */
   readonly steps = ['psbt_step_create', 'psbt_step_sign', 'psbt_step_finalize', 'psbt_step_broadcast'];
 
@@ -1606,6 +1694,8 @@ export class PsbtComponent implements OnInit {
     this.loadingDoc.set(true);
     this.docError.set(null);
     this.docSection.set(null);
+    this.inputPage.set(0);
+    this.outputPage.set(0);
     try {
       const document = await this.psbtService.buildDocument(base64);
       this.doc.set(document);
@@ -1667,8 +1757,13 @@ export class PsbtComponent implements OnInit {
     this.signing.set(true);
     this.docError.set(null);
     try {
+      const info = await this.walletRpc.getWalletInfo(walletName);
+      if (info.private_keys_enabled === false) {
+        this.docError.set(this.i18n.get('psbt_watch_only_cannot_sign'));
+        return;
+      }
       if (!(await this.ensureWalletUnlocked(walletName))) return;
-      const before = document.base64;
+      const signedBefore = document.signedInputs;
       // finalize=false keeps sealing an explicit, separate step
       const result = await this.walletRpc.walletProcessPsbt(
         walletName,
@@ -1678,19 +1773,20 @@ export class PsbtComponent implements OnInit {
         true,
         false
       );
-      if (result.psbt === before) {
-        // Nothing changed: either everything signable is already signed,
-        // or the missing keys live elsewhere
-        const key =
-          document.status === 'ready' || result.complete
-            ? 'psbt_already_signed'
-            : 'psbt_no_sigs_added';
-        this.notification.info(this.i18n.get(key));
-        return;
-      }
-      this.doc.set(await this.psbtService.buildDocument(result.psbt));
+      // walletprocesspsbt also acts as an updater (adds derivation/UTXO
+      // data), so a changed string does NOT prove a signature was added —
+      // compare actual signature counts instead.
+      const updated = await this.psbtService.buildDocument(result.psbt);
+      this.doc.set(updated);
       this.syncDraft();
-      this.notification.success(this.i18n.get('psbt_signed'));
+      if (updated.signedInputs > signedBefore || result.complete) {
+        this.notification.success(this.i18n.get('psbt_signed'));
+      } else if (document.status === 'ready') {
+        this.notification.info(this.i18n.get('psbt_already_signed'));
+      } else {
+        console.debug('PSBT sign added no signatures', { result, updated });
+        this.notification.warning(this.i18n.get('psbt_no_sigs_added'));
+      }
     } catch (error) {
       this.docError.set(error instanceof Error ? error.message : String(error));
     } finally {

@@ -154,71 +154,78 @@ const UTXO_PAGE_SIZE = 10;
           </div>
 
           @for (out of outputs(); track $index) {
-            <div class="output-row">
-              <mat-form-field appearance="outline" class="addr-field">
-                <mat-label>{{ 'psbt_recipient_address' | i18n }}</mat-label>
-                <input
-                  matInput
-                  [ngModel]="out.address"
-                  (ngModelChange)="updateOutput($index, 'address', $event)"
-                  autocomplete="off"
-                  spellcheck="false"
-                  class="mono"
-                />
-                @if (out.address && addressError($index)) {
-                  <mat-icon matSuffix class="invalid-icon" [matTooltip]="addressError($index)!"
-                    >error</mat-icon
-                  >
-                } @else if (out.address) {
-                  <mat-icon matSuffix class="valid-icon">check_circle</mat-icon>
-                }
-              </mat-form-field>
-              <button
-                mat-stroked-button
-                class="square-button"
-                [matMenuTriggerFor]="contactsMenu"
-                [disabled]="contacts().length === 0"
-                [matTooltip]="'select_contact' | i18n"
-                (click)="contactTargetIndex = $index"
-              >
-                <mat-icon>contacts</mat-icon>
-              </button>
-              <mat-form-field appearance="outline" class="amount-field">
-                <mat-label>{{ 'amount' | i18n }}</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  step="0.00000001"
-                  min="0"
-                  [ngModel]="out.amount"
-                  (ngModelChange)="updateOutput($index, 'amount', $event)"
-                  autocomplete="off"
-                />
-              </mat-form-field>
-              <button
-                mat-stroked-button
-                class="square-button"
-                (click)="setMaxAmount($index)"
-                [matTooltip]="'use_all_funds' | i18n"
-              >
-                <mat-icon>all_inclusive</mat-icon>
-              </button>
-              <button
-                mat-stroked-button
-                class="square-button"
-                (click)="removeOutput($index)"
-                [disabled]="outputs().length === 1"
-                [matTooltip]="'psbt_remove_output' | i18n"
-              >
-                <mat-icon>close</mat-icon>
-              </button>
-            </div>
-            @if (subtractFeeIndex() === $index) {
-              <div class="subtract-note">
-                <mat-icon>info</mat-icon>
-                {{ 'psbt_subtract_fee_note' | i18n }}
+            <div class="output-group">
+              <!-- Address line: field + contacts + remove (matches send page) -->
+              <div class="field-row">
+                <mat-form-field appearance="outline" class="grow-field">
+                  <mat-label>{{ 'psbt_recipient_address' | i18n }}</mat-label>
+                  <input
+                    matInput
+                    [ngModel]="out.address"
+                    (ngModelChange)="updateOutput($index, 'address', $event)"
+                    autocomplete="off"
+                    spellcheck="false"
+                    class="mono"
+                  />
+                  @if (out.address && addressError($index)) {
+                    <mat-icon matSuffix class="invalid-icon" [matTooltip]="addressError($index)!"
+                      >error</mat-icon
+                    >
+                  } @else if (out.address) {
+                    <mat-icon matSuffix class="valid-icon">check_circle</mat-icon>
+                  }
+                </mat-form-field>
+                <button
+                  mat-stroked-button
+                  class="square-button"
+                  [matMenuTriggerFor]="contactsMenu"
+                  [disabled]="contacts().length === 0"
+                  [matTooltip]="'select_contact' | i18n"
+                  (click)="contactTargetIndex = $index"
+                >
+                  <mat-icon>contacts</mat-icon>
+                </button>
+                <button
+                  mat-stroked-button
+                  class="square-button"
+                  (click)="removeOutput($index)"
+                  [disabled]="outputs().length === 1"
+                  [matTooltip]="'psbt_remove_output' | i18n"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
               </div>
-            }
+              <!-- Amount line: field + Max (matches send page) -->
+              <div class="field-row">
+                <mat-form-field appearance="outline" class="grow-field">
+                  <mat-label>{{ 'amount' | i18n }} (BTCX)</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    step="0.00000001"
+                    min="0"
+                    [ngModel]="out.amount"
+                    (ngModelChange)="updateOutput($index, 'amount', $event)"
+                    autocomplete="off"
+                  />
+                </mat-form-field>
+                <button
+                  mat-stroked-button
+                  class="max-button"
+                  (click)="setMaxAmount($index)"
+                  [matTooltip]="'use_all_funds' | i18n"
+                >
+                  <mat-icon>all_inclusive</mat-icon>
+                  {{ 'max_button' | i18n }}
+                </button>
+              </div>
+              @if (subtractFeeIndex() === $index) {
+                <div class="subtract-note">
+                  <mat-icon>info</mat-icon>
+                  {{ 'psbt_subtract_fee_note' | i18n }}
+                </div>
+              }
+            </div>
           }
 
           <mat-menu #contactsMenu="matMenu">
@@ -238,6 +245,10 @@ const UTXO_PAGE_SIZE = 10;
               <mat-icon>add_circle_outline</mat-icon>
               {{ 'psbt_add_output' | i18n }}
             </button>
+            <button mat-button color="primary" (click)="showListImport.set(!showListImport())">
+              <mat-icon>playlist_add</mat-icon>
+              {{ 'psbt_import_list' | i18n }}
+            </button>
             @if (!showData()) {
               <button mat-button color="primary" (click)="showData.set(true)">
                 <mat-icon>data_object</mat-icon>
@@ -245,6 +256,36 @@ const UTXO_PAGE_SIZE = 10;
               </button>
             }
           </div>
+
+          @if (showListImport()) {
+            <div class="list-import">
+              <mat-form-field appearance="outline" class="grow-field">
+                <mat-label>{{ 'psbt_import_list_hint' | i18n }}</mat-label>
+                <textarea
+                  matInput
+                  rows="5"
+                  [(ngModel)]="listImportText"
+                  spellcheck="false"
+                  class="mono"
+                  placeholder="pocx1q…, 0.50000000"
+                ></textarea>
+              </mat-form-field>
+              <div class="list-import-actions">
+                <button mat-stroked-button (click)="showListImport.set(false)">
+                  {{ 'cancel' | i18n }}
+                </button>
+                <button
+                  mat-raised-button
+                  color="primary"
+                  [disabled]="!listImportText.trim()"
+                  (click)="applyListImport()"
+                >
+                  <mat-icon>playlist_add_check</mat-icon>
+                  {{ 'psbt_import_list_apply' | i18n }}
+                </button>
+              </div>
+            </div>
+          }
 
           @if (showData()) {
             <div class="output-row data-row">
@@ -278,20 +319,41 @@ const UTXO_PAGE_SIZE = 10;
               <span class="option-label">{{ 'psbt_change_auto' | i18n }}</span>
               <span class="option-hint">{{ 'psbt_change_auto_hint' | i18n }}</span>
             </div>
-            <mat-slide-toggle [checked]="autoChange()" (change)="autoChange.set($event.checked)">
+            <mat-slide-toggle
+              [checked]="autoChange()"
+              (change)="onAutoChangeToggle($event.checked)"
+            >
             </mat-slide-toggle>
           </div>
           @if (!autoChange()) {
-            <mat-form-field appearance="outline" class="change-field">
-              <mat-label>{{ 'psbt_change_address' | i18n }}</mat-label>
-              <input
-                matInput
-                [(ngModel)]="changeAddress"
-                autocomplete="off"
-                spellcheck="false"
-                class="mono"
-              />
-            </mat-form-field>
+            <div class="field-row">
+              <mat-form-field appearance="outline" class="grow-field change-field">
+                <mat-label>{{ 'psbt_change_address' | i18n }}</mat-label>
+                <input
+                  matInput
+                  [(ngModel)]="changeAddress"
+                  autocomplete="off"
+                  spellcheck="false"
+                  class="mono"
+                />
+              </mat-form-field>
+              <button
+                mat-stroked-button
+                class="square-button change-pick-button"
+                [matMenuTriggerFor]="changeAddrMenu"
+                [disabled]="receiveAddresses().length === 0"
+                [matTooltip]="'psbt_pick_change_address' | i18n"
+              >
+                <mat-icon>format_list_bulleted</mat-icon>
+              </button>
+              <mat-menu #changeAddrMenu="matMenu">
+                @for (address of receiveAddresses(); track address) {
+                  <button mat-menu-item (click)="changeAddress = address">
+                    <span class="mono change-addr-item">{{ address }}</span>
+                  </button>
+                }
+              </mat-menu>
+            </div>
           }
         </div>
 
@@ -636,7 +698,80 @@ const UTXO_PAGE_SIZE = 10;
         padding: 4px 0;
       }
 
-      // Output rows
+      // Output groups — address line + amount line, send-page alignment
+      .output-group {
+        &:not(:first-of-type) {
+          border-top: 1px solid #f0f0f0;
+          padding-top: 12px;
+          margin-top: 4px;
+        }
+      }
+
+      .field-row {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        margin-bottom: 8px;
+
+        .grow-field {
+          flex: 1;
+          min-width: 0;
+        }
+      }
+
+      .max-button {
+        height: 40px;
+        min-width: 70px;
+        color: #666;
+        border-color: rgba(0, 0, 0, 0.12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        flex-shrink: 0;
+
+        mat-icon {
+          margin-right: 4px;
+          font-size: 16px;
+          height: 16px;
+          width: 16px;
+        }
+
+        &:hover {
+          background: rgba(0, 0, 0, 0.04);
+          border-color: rgba(0, 0, 0, 0.38);
+          color: #333;
+        }
+      }
+
+      .list-import {
+        margin-top: 8px;
+
+        .grow-field {
+          width: 100%;
+        }
+
+        textarea {
+          font-family: 'Roboto Mono', monospace;
+          font-size: 12px;
+        }
+
+        .list-import-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          margin-top: 4px;
+        }
+      }
+
+      .change-addr-item {
+        font-size: 12px;
+        max-width: 420px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+      }
+
       .output-row {
         display: flex;
         gap: 6px;
@@ -645,11 +780,6 @@ const UTXO_PAGE_SIZE = 10;
         .addr-field {
           flex: 1;
           min-width: 0;
-        }
-
-        .amount-field {
-          width: 150px;
-          flex-shrink: 0;
         }
       }
 
@@ -1121,6 +1251,10 @@ export class PsbtComposeComponent implements OnInit {
 
   autoChange = signal(true);
   changeAddress = '';
+  receiveAddresses = signal<string[]>([]);
+
+  showListImport = signal(false);
+  listImportText = '';
 
   rbf = signal(true);
   useLocktime = signal(false);
@@ -1178,6 +1312,10 @@ export class PsbtComposeComponent implements OnInit {
   });
 
   estimatedChange = computed<number | null>(() => {
+    // With automatic selection the node picks the coins, so the change is
+    // unknown until the PSBT is created — showing balance minus total here
+    // would be misleading
+    if (!this.manualCoins()) return null;
     const fee = this.estimatedFee();
     if (fee === null) return null;
     const change = this.availableFunds() - this.totalWithFee();
@@ -1215,6 +1353,63 @@ export class PsbtComposeComponent implements OnInit {
 
   selectContact(contact: Contact): void {
     this.updateOutput(this.contactTargetIndex, 'address', contact.address);
+  }
+
+  onAutoChangeToggle(checked: boolean): void {
+    this.autoChange.set(checked);
+    if (!checked && this.receiveAddresses().length === 0) {
+      this.loadReceiveAddresses();
+    }
+  }
+
+  /** Wallet's known receive addresses for the custom-change picker */
+  async loadReceiveAddresses(): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName) return;
+    try {
+      const byLabel = await this.walletRpc.getAddressesByLabel(walletName, '');
+      const addresses = Object.entries(byLabel)
+        .filter(([, info]) => info.purpose === 'receive')
+        .map(([address]) => address);
+      this.receiveAddresses.set(addresses.slice(-20).reverse());
+    } catch {
+      // No addresses under the default label yet
+      this.receiveAddresses.set([]);
+    }
+  }
+
+  /**
+   * Bulk-add outputs from pasted text — one per line, "address, amount"
+   * (comma, semicolon, tab or space separated).
+   */
+  applyListImport(): void {
+    const lines = this.listImportText.split(/\r?\n/);
+    const parsed: ComposeOutput[] = [];
+    let invalid = 0;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const parts = trimmed.split(/[\s,;]+/).filter(Boolean);
+      const amount = parts.length >= 2 ? Number(parts[1]) : NaN;
+      if (parts.length >= 2 && parts[0] && Number.isFinite(amount) && amount > 0) {
+        parsed.push({ address: parts[0], amount });
+      } else {
+        invalid++;
+      }
+    }
+    if (parsed.length > 0) {
+      // Drop pristine empty rows, keep rows the user already filled
+      const kept = this.outputs().filter(o => o.address.trim() || o.amount !== null);
+      this.outputs.set([...kept, ...parsed]);
+      this.subtractFeeIndex.set(null);
+      this.showListImport.set(false);
+      this.listImportText = '';
+    }
+    if (invalid > 0) {
+      this.notification.warning(
+        this.i18n.get('psbt_import_list_invalid', { count: invalid })
+      );
+    }
   }
 
   setManualCoins(manual: boolean): void {
