@@ -1086,31 +1086,40 @@ const UTXO_PAGE_SIZE = 10;
         letter-spacing: -0.3px;
       }
 
-      // Compact form fields (match send page)
-      ::ng-deep {
-        .mat-mdc-form-field-subscript-wrapper {
-          min-height: 0;
-          height: auto;
-        }
+      // Compact form fields (match send page) — must be scoped under
+      // .form-section: a bare global selector loses the specificity race
+      // against Material's own density rules and never applies
+      .form-section {
+        ::ng-deep {
+          .mat-mdc-form-field-subscript-wrapper {
+            min-height: 0;
+            height: auto;
+          }
 
-        .mat-mdc-text-field-wrapper {
-          padding: 0 12px;
-        }
+          .mat-mdc-form-field-hint-wrapper,
+          .mat-mdc-form-field-error-wrapper {
+            padding: 0 12px;
+          }
 
-        .mat-mdc-form-field-infix {
-          min-height: 40px;
-          padding-top: 8px;
-          padding-bottom: 8px;
-        }
+          .mat-mdc-text-field-wrapper {
+            padding: 0 12px;
+          }
 
-        .mdc-floating-label {
-          top: 50% !important;
-          transform: translateY(-50%) !important;
-        }
+          .mat-mdc-form-field-infix {
+            min-height: 40px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+          }
 
-        .mdc-floating-label--float-above {
-          top: 0 !important;
-          transform: translateY(-34%) scale(0.75) !important;
+          .mdc-floating-label {
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+          }
+
+          .mdc-floating-label--float-above {
+            top: 0 !important;
+            transform: translateY(-34%) scale(0.75) !important;
+          }
         }
       }
 
