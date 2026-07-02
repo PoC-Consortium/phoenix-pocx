@@ -740,21 +740,21 @@ const UTXO_PAGE_SIZE = 10;
           min-width: 0;
 
           input {
-            font-size: 11px;
-            letter-spacing: -0.5px;
+            font-size: 12px;
+            letter-spacing: -0.4px;
           }
         }
 
         .amount-field {
-          width: 150px;
+          width: 130px;
           flex-shrink: 0;
         }
       }
 
       .square-button {
-        height: 40px;
-        width: 40px;
-        min-width: 40px;
+        height: 36px;
+        width: 36px;
+        min-width: 36px;
         padding: 0;
         border-color: rgba(0, 0, 0, 0.12);
         flex-shrink: 0;
@@ -1111,9 +1111,9 @@ const UTXO_PAGE_SIZE = 10;
           }
 
           .mat-mdc-form-field-infix {
-            min-height: 40px;
-            padding-top: 8px;
-            padding-bottom: 8px;
+            min-height: 36px;
+            padding-top: 6px;
+            padding-bottom: 6px;
           }
 
           .mdc-floating-label {
