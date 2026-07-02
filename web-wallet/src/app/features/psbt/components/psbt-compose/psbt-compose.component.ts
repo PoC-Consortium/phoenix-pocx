@@ -444,7 +444,8 @@ const UTXO_PAGE_SIZE = 10;
         display: block;
       }
 
-      // Narrow single-column layout, matching the send page card
+      // Single-column layout, full width of the page container
+      // (shared with the start and review steps)
       .compose-wrap {
         display: flex;
         justify-content: center;
@@ -454,7 +455,6 @@ const UTXO_PAGE_SIZE = 10;
         background: #ffffff;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        max-width: 600px;
         width: 100%;
         padding: 16px 20px;
       }

@@ -81,20 +81,27 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             @if (i > 0) {
               <div class="step-line" [class.complete]="currentStep() >= i"></div>
             }
-            <div class="step">
+            <div
+              class="step"
+              [class.clickable]="canClickStep(i)"
+              (click)="onStepClick(i)"
+              (keydown.enter)="onStepClick(i)"
+              [attr.tabindex]="canClickStep(i) ? 0 : null"
+              [attr.role]="canClickStep(i) ? 'button' : null"
+            >
               <div
                 class="step-circle"
-                [class.active]="currentStep() === i"
-                [class.complete]="currentStep() > i"
+                [class.active]="viewedStep() === i"
+                [class.complete]="currentStep() > i && viewedStep() !== i"
                 [class.inactive]="currentStep() < i"
               >
-                @if (currentStep() > i) {
+                @if (currentStep() > i && viewedStep() !== i) {
                   &#10003;
                 } @else {
                   {{ i + 1 }}
                 }
               </div>
-              <span class="step-label" [class.active]="currentStep() === i"
+              <span class="step-label" [class.active]="viewedStep() === i"
                 >{{ step | i18n }}{{ i === 1 ? signProgress() : '' }}</span
               >
             </div>
@@ -343,7 +350,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             </div>
           </div>
 
-          @if (document.status !== 'finalized') {
+          @if (!showBroadcastSection(document)) {
             <!-- Signatures & actions -->
             <div class="card">
               <div class="card-pad">
@@ -631,8 +638,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
 
       // ============ Start (mode chooser, mirrors node-setup wizard) ============
       .start-column {
-        max-width: 600px;
-        margin: 0 auto;
+        width: 100%;
       }
 
       .options-card {
@@ -831,8 +837,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       .step-indicator {
         display: flex;
         align-items: center;
-        margin: 0 auto 16px;
-        max-width: 600px;
+        margin: 0 0 16px;
         padding: 12px 16px;
         background: #ffffff;
         border-radius: 6px;
@@ -844,6 +849,22 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         display: flex;
         align-items: center;
         gap: 6px;
+        border-radius: 6px;
+        padding: 2px 6px;
+        margin: -2px -6px;
+
+        &.clickable {
+          cursor: pointer;
+
+          &:hover,
+          &:focus-visible {
+            background: rgba(25, 118, 210, 0.08);
+
+            .step-label {
+              color: #1976d2;
+            }
+          }
+        }
       }
 
       .step-circle {
@@ -1429,7 +1450,7 @@ export class PsbtComponent implements OnInit {
   /** Lifecycle steps shown in the wizard-style indicator */
   readonly steps = ['psbt_step_create', 'psbt_step_sign', 'psbt_step_finalize', 'psbt_step_broadcast'];
 
-  /** Index of the active lifecycle step; 4 = everything done (broadcast) */
+  /** Index of the furthest lifecycle step reached; 4 = everything done (broadcast) */
   readonly currentStep = computed(() => {
     if (this.view() === 'success') return 4;
     const document = this.doc();
@@ -1445,6 +1466,52 @@ export class PsbtComponent implements OnInit {
     }
     return 0;
   });
+
+  /**
+   * Section override for the document view: on a finalized PSBT the user can
+   * click back to the Sign step to see signatures & export again.
+   */
+  readonly docSection = signal<'sign' | 'broadcast' | null>(null);
+
+  /** The step the user is currently looking at (can trail currentStep) */
+  readonly viewedStep = computed(() => {
+    if (this.view() === 'success') return 4;
+    const document = this.doc();
+    if (this.view() === 'doc' && document) {
+      if (document.status === 'finalized') {
+        return this.docSection() === 'sign' ? 1 : 3;
+      }
+      return document.status === 'ready' ? 2 : 1;
+    }
+    return 0;
+  });
+
+  showBroadcastSection(document: PsbtDocument): boolean {
+    return document.status === 'finalized' && this.docSection() !== 'sign';
+  }
+
+  canClickStep(index: number): boolean {
+    if (this.view() !== 'doc' || !this.doc()) return false;
+    if (index === 0) return true;
+    const document = this.doc()!;
+    if (document.status === 'finalized') {
+      if (index === 1 || index === 2) return this.docSection() !== 'sign';
+      if (index === 3) return this.docSection() === 'sign';
+    }
+    return false;
+  }
+
+  onStepClick(index: number): void {
+    if (!this.canClickStep(index)) return;
+    if (index === 0) {
+      this.docSection.set(null);
+      this.view.set('start');
+      this.refreshDrafts();
+      return;
+    }
+    // Only reachable on a finalized document: toggle sign vs broadcast section
+    this.docSection.set(index === 3 ? null : 'sign');
+  }
 
   /** " 1/2" suffix on the Sign step while a document is open */
   readonly signProgress = computed(() => {
@@ -1504,6 +1571,7 @@ export class PsbtComponent implements OnInit {
   private async loadDocument(base64: string, createDraft: boolean): Promise<void> {
     this.loadingDoc.set(true);
     this.docError.set(null);
+    this.docSection.set(null);
     try {
       const document = await this.psbtService.buildDocument(base64);
       this.doc.set(document);
@@ -1624,6 +1692,7 @@ export class PsbtComponent implements OnInit {
         return;
       }
       this.finalHex.set(extracted.hex);
+      this.docSection.set(null);
       this.doc.set(await this.psbtService.buildDocument(result.psbt));
       this.syncDraft();
       this.notification.success(this.i18n.get('psbt_finalized_ok'));
@@ -1761,6 +1830,7 @@ export class PsbtComponent implements OnInit {
   reset(): void {
     this.doc.set(null);
     this.draft.set(null);
+    this.docSection.set(null);
     this.finalHex.set(null);
     this.broadcastTxid.set('');
     this.docError.set(null);
