@@ -90,6 +90,43 @@ const UTXO_PAGE_SIZE = 10;
             } @else if (utxos().length === 0) {
               <div class="empty-hint">{{ 'psbt_no_utxos' | i18n }}</div>
             } @else {
+              <!-- Filter: address/txid text + amount threshold -->
+              <div class="filter-row">
+                <mat-form-field appearance="outline" class="grow-field">
+                  <mat-label>{{ 'psbt_filter_address' | i18n }}</mat-label>
+                  <input
+                    matInput
+                    [ngModel]="utxoFilterText()"
+                    (ngModelChange)="setUtxoFilterText($event)"
+                    spellcheck="false"
+                    class="mono"
+                  />
+                  <mat-icon matSuffix class="search-icon">search</mat-icon>
+                </mat-form-field>
+                <button
+                  mat-stroked-button
+                  class="square-button op-button"
+                  (click)="toggleSizeOp()"
+                  [matTooltip]="'psbt_filter_size_toggle' | i18n"
+                >
+                  {{ sizeOp() === 'gt' ? '&gt;' : '&lt;' }}
+                </button>
+                <mat-form-field appearance="outline" class="size-field">
+                  <mat-label>{{ 'amount' | i18n }}</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    min="0"
+                    step="0.00000001"
+                    [ngModel]="sizeValue()"
+                    (ngModelChange)="setSizeValue($event)"
+                    autocomplete="off"
+                  />
+                </mat-form-field>
+              </div>
+              @if (filteredUtxos().length === 0) {
+                <div class="empty-hint">{{ 'psbt_filter_no_match' | i18n }}</div>
+              }
               @for (utxo of pagedUtxos(); track utxo.txid + utxo.vout) {
                 <div
                   class="utxo-row"
@@ -107,8 +144,8 @@ const UTXO_PAGE_SIZE = 10;
                   </div>
                   <div class="utxo-main">
                     <div class="utxo-addr mono">{{ utxo.address }}</div>
-                    <div class="utxo-meta">
-                      {{ shortTxid(utxo.txid) }}:{{ utxo.vout }} ·
+                    <div class="utxo-meta mono">
+                      {{ utxo.txid }}:{{ utxo.vout }} ·
                       {{ utxo.confirmations }} {{ 'psbt_confirmations' | i18n }}
                     </div>
                   </div>
@@ -132,7 +169,7 @@ const UTXO_PAGE_SIZE = 10;
                   <span class="pager-range mono">{{ utxoRangeLabel() }}</span>
                   <button
                     mat-icon-button
-                    [disabled]="(utxoPage() + 1) * pageSize >= utxos().length"
+                    [disabled]="(utxoPage() + 1) * pageSize >= filteredUtxos().length"
                     (click)="utxoPage.set(utxoPage() + 1)"
                   >
                     <mat-icon>chevron_right</mat-icon>
@@ -635,12 +672,48 @@ const UTXO_PAGE_SIZE = 10;
         .utxo-meta {
           font-size: 10.5px;
           color: #6b7787;
+          word-break: break-all;
         }
 
         .utxo-amount {
           font-size: 12px;
           font-weight: 600;
           color: rgb(0, 35, 65);
+        }
+      }
+
+      .filter-row {
+        display: flex;
+        gap: 6px;
+        align-items: flex-start;
+        margin-bottom: 8px;
+
+        .grow-field {
+          flex: 1;
+          min-width: 0;
+
+          input {
+            font-size: 12px;
+          }
+        }
+
+        .size-field {
+          width: 170px;
+          flex-shrink: 0;
+        }
+
+        .search-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: #9aa7b5;
+        }
+
+        .op-button {
+          font-family: 'Roboto Mono', monospace;
+          font-size: 15px;
+          font-weight: 600;
+          color: #1976d2;
         }
       }
 
@@ -1229,6 +1302,10 @@ export class PsbtComposeComponent implements OnInit {
   loadingUtxos = signal(false);
   selectedOutpoints = signal<Set<string>>(new Set());
 
+  utxoFilterText = signal('');
+  sizeOp = signal<'gt' | 'lt'>('gt');
+  sizeValue = signal<number | null>(null);
+
   outputs = signal<ComposeOutput[]>([{ address: '', amount: null }]);
   /** Output index the fee is subtracted from (set via Max), or null = fee on top */
   subtractFeeIndex = signal<number | null>(null);
@@ -1264,10 +1341,44 @@ export class PsbtComposeComponent implements OnInit {
   /** Bumped on fee selection/edit so computed summaries recalculate */
   private readonly feeVersion = signal(0);
 
+  filteredUtxos = computed(() => {
+    const text = this.utxoFilterText().trim().toLowerCase();
+    const value = this.sizeValue();
+    const op = this.sizeOp();
+    return this.utxos().filter(utxo => {
+      if (
+        text &&
+        !utxo.address.toLowerCase().includes(text) &&
+        !utxo.txid.toLowerCase().includes(text)
+      ) {
+        return false;
+      }
+      if (value !== null && value > 0) {
+        if (op === 'gt' ? utxo.amount <= value : utxo.amount >= value) return false;
+      }
+      return true;
+    });
+  });
+
   pagedUtxos = computed(() => {
     const start = this.utxoPage() * UTXO_PAGE_SIZE;
-    return this.utxos().slice(start, start + UTXO_PAGE_SIZE);
+    return this.filteredUtxos().slice(start, start + UTXO_PAGE_SIZE);
   });
+
+  setUtxoFilterText(value: string): void {
+    this.utxoFilterText.set(value);
+    this.utxoPage.set(0);
+  }
+
+  toggleSizeOp(): void {
+    this.sizeOp.set(this.sizeOp() === 'gt' ? 'lt' : 'gt');
+    this.utxoPage.set(0);
+  }
+
+  setSizeValue(value: number | null): void {
+    this.sizeValue.set(value);
+    this.utxoPage.set(0);
+  }
 
   selectedTotal = computed(() => {
     const selected = this.selectedOutpoints();
@@ -1426,7 +1537,8 @@ export class PsbtComposeComponent implements OnInit {
   }
 
   utxoRangeLabel(): string {
-    const total = this.utxos().length;
+    const total = this.filteredUtxos().length;
+    if (total === 0) return `0 / 0`;
     const start = this.utxoPage() * UTXO_PAGE_SIZE + 1;
     const end = Math.min(total, start + UTXO_PAGE_SIZE - 1);
     return `${start}–${end} / ${total}`;
@@ -1618,7 +1730,4 @@ export class PsbtComposeComponent implements OnInit {
     }
   }
 
-  shortTxid(txid: string): string {
-    return `${txid.slice(0, 8)}…`;
-  }
 }
