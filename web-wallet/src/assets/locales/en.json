@@ -900,7 +900,7 @@
   "psbt_status_unsigned": "Unsigned",
   "psbt_status_partial": "Partially signed",
   "psbt_status_partial_n": "{signed} of {total} signed",
-  "psbt_status_ready": "Ready to finalize",
+  "psbt_status_ready": "Signed",
   "psbt_status_finalized": "Finalized",
   "psbt_back": "Back",
   "psbt_next": "Next",
