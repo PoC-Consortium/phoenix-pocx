@@ -30,7 +30,6 @@ import { PsbtService } from '../../services/psbt.service';
 import type { PsbtDocument, PsbtDraft, PsbtOutputView } from '../../psbt.models';
 import { PsbtComposeComponent } from '../../components/psbt-compose/psbt-compose.component';
 import { PsbtImportDialogComponent } from '../../components/psbt-import-dialog/psbt-import-dialog.component';
-import { PsbtQrDialogComponent } from '../../components/psbt-qr-dialog/psbt-qr-dialog.component';
 
 type PsbtView = 'start' | 'compose' | 'doc' | 'success';
 
@@ -388,11 +387,11 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
           </div>
 
           @if (!showBroadcastSection(document)) {
-            <!-- Signatures & actions -->
+            <!-- Actions: sign / combine / join -->
             <div class="card">
               <div class="card-pad">
                 <div class="card-head no-pad">
-                  <h3 class="section-title">{{ 'psbt_signatures' | i18n }}</h3>
+                  <h3 class="section-title">{{ 'psbt_actions' | i18n }}</h3>
                 </div>
                 <div class="actions">
                   <button
@@ -412,54 +411,32 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     <mat-icon>call_merge</mat-icon>
                     {{ 'psbt_combine' | i18n }}
                   </button>
-                  <button
-                    mat-stroked-button
-                    [disabled]="joining() || document.status !== 'unsigned'"
+                  <span
+                    class="tooltip-host"
                     [matTooltip]="
                       document.status !== 'unsigned' ? ('psbt_join_needs_unsigned' | i18n) : ''
                     "
-                    (click)="join()"
                   >
-                    <mat-icon>merge_type</mat-icon>
-                    {{ 'psbt_join' | i18n }}
-                  </button>
-                  <button
-                    mat-stroked-button
-                    disabled
-                    [matTooltip]="'psbt_coming_soon' | i18n"
-                  >
-                    <mat-icon>usb</mat-icon>
-                    {{ 'psbt_sign_with_device' | i18n }}
-                    <span class="soon-pill">{{ 'psbt_soon' | i18n }}</span>
-                  </button>
+                    <button
+                      mat-stroked-button
+                      [disabled]="joining() || document.status !== 'unsigned'"
+                      (click)="join()"
+                    >
+                      <mat-icon>merge_type</mat-icon>
+                      {{ 'psbt_join' | i18n }}
+                    </button>
+                  </span>
+                  <span class="tooltip-host" [matTooltip]="'psbt_coming_soon' | i18n">
+                    <button mat-stroked-button disabled>
+                      <mat-icon>usb</mat-icon>
+                      {{ 'psbt_sign_with_device' | i18n }}
+                      <span class="soon-pill">{{ 'psbt_soon' | i18n }}</span>
+                    </button>
+                  </span>
                 </div>
               </div>
             </div>
 
-            <!-- Share / export -->
-            <div class="card">
-              <div class="card-pad">
-                <div class="card-head no-pad">
-                  <h3 class="section-title">{{ 'psbt_share' | i18n }}</h3>
-                  <span class="section-aside mono">Base64 · {{ document.sizeBytes }} bytes</span>
-                </div>
-                <div class="raw-box mono">{{ document.base64 }}</div>
-                <div class="actions">
-                  <button mat-stroked-button (click)="copyBase64()">
-                    <mat-icon>content_copy</mat-icon>
-                    {{ 'psbt_copy_base64' | i18n }}
-                  </button>
-                  <button mat-stroked-button (click)="savePsbtFile()">
-                    <mat-icon>download</mat-icon>
-                    {{ 'psbt_save_file' | i18n }}
-                  </button>
-                  <button mat-stroked-button (click)="showQr()">
-                    <mat-icon>qr_code_2</mat-icon>
-                    {{ 'psbt_show_qr' | i18n }}
-                  </button>
-                </div>
-              </div>
-            </div>
           } @else {
             <!-- Broadcast target -->
             <div class="card">
@@ -536,6 +513,14 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               <mat-icon>save</mat-icon>
               {{ 'psbt_save_draft' | i18n }}
             </button>
+            <button mat-stroked-button (click)="copyBase64()">
+              <mat-icon>content_copy</mat-icon>
+              {{ 'psbt_copy_base64' | i18n }}
+            </button>
+            <button mat-stroked-button (click)="savePsbtFile()">
+              <mat-icon>download</mat-icon>
+              {{ 'psbt_save_file' | i18n }}
+            </button>
             <span class="spacer"></span>
             @if (showBroadcastSection(document)) {
               <button
@@ -558,20 +543,26 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 <mat-icon iconPositionEnd>arrow_forward</mat-icon>
               </button>
             } @else {
-              <button
-                mat-raised-button
-                color="primary"
-                [disabled]="document.status !== 'ready' || finalizing()"
-                [matTooltip]="document.status !== 'ready' ? ('psbt_finalize_needs_sigs' | i18n) : ''"
-                (click)="finalize()"
+              <span
+                class="tooltip-host"
+                [matTooltip]="
+                  document.status !== 'ready' ? ('psbt_finalize_needs_sigs' | i18n) : ''
+                "
               >
-                @if (finalizing()) {
-                  <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-                } @else {
-                  <mat-icon>lock</mat-icon>
-                }
-                {{ 'psbt_finalize' | i18n }}
-              </button>
+                <button
+                  mat-raised-button
+                  color="primary"
+                  [disabled]="document.status !== 'ready' || finalizing()"
+                  (click)="finalize()"
+                >
+                  @if (finalizing()) {
+                    <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
+                  } @else {
+                    <mat-icon>lock</mat-icon>
+                  }
+                  {{ 'psbt_finalize' | i18n }}
+                </button>
+              </span>
             }
           </div>
         }
@@ -1245,6 +1236,11 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
           background: rgba(0, 0, 0, 0.12) !important;
           color: rgba(0, 0, 0, 0.38) !important;
         }
+      }
+
+      // Wrapper so tooltips work on disabled buttons (no mouse events there)
+      .tooltip-host {
+        display: inline-flex;
       }
 
       .soon-pill {
@@ -1989,14 +1985,6 @@ export class PsbtComponent implements OnInit {
     const hex = this.finalHex();
     if (!hex) return;
     this.psbtService.saveHexFile(this.fileBaseName(), hex);
-  }
-
-  showQr(): void {
-    const document = this.doc();
-    if (!document) return;
-    this.dialog.open(PsbtQrDialogComponent, {
-      data: { base64: document.base64 },
-    });
   }
 
   private fileBaseName(): string {
