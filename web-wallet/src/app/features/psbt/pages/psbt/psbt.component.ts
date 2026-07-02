@@ -232,20 +232,20 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               <div class="stat">
                 <div class="stat-key">{{ 'psbt_sending' | i18n }}</div>
                 <div class="stat-value mono">
-                  {{ document.sendingTotal | number: '1.5-5' }} <small>BTCX</small>
+                  {{ document.sendingTotal | number: '1.8-8' }} <small>BTCX</small>
                 </div>
               </div>
               <div class="stat">
                 <div class="stat-key">{{ 'psbt_change' | i18n }}</div>
                 <div class="stat-value mono">
-                  {{ document.changeTotal | number: '1.5-5' }} <small>BTCX</small>
+                  {{ document.changeTotal | number: '1.8-8' }} <small>BTCX</small>
                 </div>
               </div>
               <div class="stat">
                 <div class="stat-key">{{ 'fee' | i18n }}</div>
                 <div class="stat-value mono">
                   @if (document.fee !== undefined) {
-                    {{ document.fee | number: '1.5-5' }} <small>BTCX</small>
+                    {{ document.fee | number: '1.8-8' }} <small>BTCX</small>
                   } @else {
                     — <small>{{ 'psbt_unknown' | i18n }}</small>
                   }
@@ -284,7 +284,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 <span class="section-aside">
                   {{ document.inputs.length }}
                   @if (document.totalInput !== undefined) {
-                    · {{ document.totalInput | number: '1.5-5' }} BTCX
+                    · {{ document.totalInput | number: '1.8-8' }} BTCX
                   }
                 </span>
               </div>
@@ -303,11 +303,15 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     </div>
                   </div>
                   @if (input.amount !== undefined) {
-                    <span class="io-amount mono">{{ input.amount | number: '1.5-5' }}</span>
+                    <span class="io-amount mono">{{ input.amount | number: '1.8-8' }}</span>
                   }
                   <span class="io-status">
-                    @if (input.isFinal) {
-                      <mat-icon class="ok" [matTooltip]="'psbt_input_final' | i18n">check_circle</mat-icon>
+                    @if (input.isFinal || (input.sigCount > 0 && input.missingSigs === 0)) {
+                      <mat-icon
+                        class="ok"
+                        [matTooltip]="(input.isFinal ? 'psbt_input_final' : 'psbt_input_signed') | i18n"
+                        >check_circle</mat-icon
+                      >
                     } @else if (input.sigCount > 0) {
                       <span
                         class="sig-count"
@@ -337,7 +341,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     </div>
                     <div class="io-meta">{{ outputHint(out) }}</div>
                   </div>
-                  <span class="io-amount mono">{{ out.amount | number: '1.5-5' }}</span>
+                  <span class="io-amount mono">{{ out.amount | number: '1.8-8' }}</span>
                 </div>
               }
             </div>
@@ -349,7 +353,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               <div class="card-pad">
                 <div class="card-head no-pad">
                   <h3 class="section-title">{{ 'psbt_signatures' | i18n }}</h3>
-                  <span class="section-aside">{{ 'psbt_next_role' | i18n }}: {{ document.nextRole }}</span>
                 </div>
                 <div class="actions">
                   <button
@@ -1521,7 +1524,13 @@ export class PsbtComponent implements OnInit {
         false
       );
       if (result.psbt === before) {
-        this.notification.info(this.i18n.get('psbt_no_sigs_added'));
+        // Nothing changed: either everything signable is already signed,
+        // or the missing keys live elsewhere
+        const key =
+          document.status === 'ready' || result.complete
+            ? 'psbt_already_signed'
+            : 'psbt_no_sigs_added';
+        this.notification.info(this.i18n.get(key));
         return;
       }
       this.doc.set(await this.psbtService.buildDocument(result.psbt));
