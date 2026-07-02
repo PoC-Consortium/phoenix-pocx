@@ -738,10 +738,15 @@ const UTXO_PAGE_SIZE = 10;
         .addr-field {
           flex: 1;
           min-width: 0;
+
+          input {
+            font-size: 11px;
+            letter-spacing: -0.5px;
+          }
         }
 
         .amount-field {
-          width: 170px;
+          width: 150px;
           flex-shrink: 0;
         }
       }
