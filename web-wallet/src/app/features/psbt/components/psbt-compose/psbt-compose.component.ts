@@ -340,6 +340,31 @@ const UTXO_PAGE_SIZE = 10;
 
           <div class="change-row">
             <div class="option-info">
+              <span class="option-label">{{ 'psbt_include_data' | i18n }}</span>
+              <span class="option-hint">{{ 'psbt_include_data_hint' | i18n }}</span>
+            </div>
+            <mat-slide-toggle [checked]="showData()" (change)="onDataToggle($event.checked)">
+            </mat-slide-toggle>
+          </div>
+          @if (showData()) {
+            <mat-form-field appearance="outline" class="data-field">
+              <mat-label>{{ 'psbt_data_hex' | i18n }}</mat-label>
+              <input
+                matInput
+                [(ngModel)]="dataHex"
+                autocomplete="off"
+                spellcheck="false"
+                class="mono"
+                placeholder="deadbeef"
+              />
+              @if (dataHex && dataHexError()) {
+                <mat-hint class="error-hint">{{ dataHexError() }}</mat-hint>
+              }
+            </mat-form-field>
+          }
+
+          <div class="change-row">
+            <div class="option-info">
               <span class="option-label">{{ 'psbt_change_auto' | i18n }}</span>
               <span class="option-hint">{{ 'psbt_change_auto_hint' | i18n }}</span>
             </div>
@@ -378,31 +403,6 @@ const UTXO_PAGE_SIZE = 10;
                 }
               </mat-menu>
             </div>
-          }
-
-          <div class="change-row">
-            <div class="option-info">
-              <span class="option-label">{{ 'psbt_include_data' | i18n }}</span>
-              <span class="option-hint">{{ 'psbt_include_data_hint' | i18n }}</span>
-            </div>
-            <mat-slide-toggle [checked]="showData()" (change)="onDataToggle($event.checked)">
-            </mat-slide-toggle>
-          </div>
-          @if (showData()) {
-            <mat-form-field appearance="outline" class="data-field">
-              <mat-label>{{ 'psbt_data_hex' | i18n }}</mat-label>
-              <input
-                matInput
-                [(ngModel)]="dataHex"
-                autocomplete="off"
-                spellcheck="false"
-                class="mono"
-                placeholder="deadbeef"
-              />
-              @if (dataHex && dataHexError()) {
-                <mat-hint class="error-hint">{{ dataHexError() }}</mat-hint>
-              }
-            </mat-form-field>
           }
         </div>
 
