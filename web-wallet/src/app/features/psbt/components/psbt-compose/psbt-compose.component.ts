@@ -1803,7 +1803,13 @@ export class PsbtComposeComponent implements OnInit {
       this.created.emit({ psbt: result.psbt, fee: result.fee });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.createError.set(message);
+      // Core -4: wallet lacks the scripts/pubkeys behind these coins
+      // (typical for address-only watch wallets — xpub descriptor imports work)
+      if (/solving data|not solvable|external input/i.test(message)) {
+        this.createError.set(this.i18n.get('psbt_not_solvable'));
+      } else {
+        this.createError.set(message);
+      }
     } finally {
       this.creating.set(false);
     }

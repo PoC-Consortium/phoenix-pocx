@@ -1011,6 +1011,7 @@
   "psbt_locktime_height": "Block height",
   "psbt_create_and_review": "Create PSBT & review",
   "psbt_no_wallet": "No wallet is loaded.",
+  "psbt_not_solvable": "This wallet doesn't know the keys behind these coins, so it cannot build a transaction. Address-only watch wallets can observe but not compose — import the wallet as a descriptor (xpub) to compose here and sign elsewhere.",
   "psbt_utxo_load_failed": "Could not load the coin list.",
   "psbt_paste_base64": "Paste PSBT (Base64)",
   "psbt_or": "or",
