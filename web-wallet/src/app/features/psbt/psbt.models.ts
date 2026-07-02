@@ -41,6 +41,8 @@ export interface PsbtOutputView {
   address?: string;
   amount: number;
   kind: PsbtOutputKind;
+  /** OP_RETURN payload (data outputs only) — kept so compose can prefill it */
+  dataHex?: string;
 }
 
 /**
@@ -69,6 +71,7 @@ export interface PsbtDocument {
   /** Sum of change outputs in BTCX */
   changeTotal: number;
   totalInput?: number;
+  locktime: number;
 }
 
 /**

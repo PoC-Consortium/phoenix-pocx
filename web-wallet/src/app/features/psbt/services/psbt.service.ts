@@ -84,6 +84,7 @@ export class PsbtService {
       sendingTotal,
       changeTotal,
       totalInput,
+      locktime: decoded.tx.locktime,
     };
   }
 
@@ -117,7 +118,9 @@ export class PsbtService {
       decoded.tx.vout.map(async (vout, index): Promise<PsbtOutputView> => {
         const address = vout.scriptPubKey.address;
         if (vout.scriptPubKey.type === 'nulldata') {
-          return { index, amount: vout.value, kind: 'data' };
+          // asm reads "OP_RETURN <payload-hex>"
+          const dataHex = vout.scriptPubKey.asm?.split(' ').slice(1).join('') || undefined;
+          return { index, amount: vout.value, kind: 'data', dataHex };
         }
         let kind: PsbtOutputView['kind'] = 'external';
         if (address && walletName) {

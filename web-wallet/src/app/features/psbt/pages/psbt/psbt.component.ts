@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, ViewChild } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -1622,6 +1622,8 @@ export class PsbtComponent implements OnInit {
   /** How the current document entered the page — decides where Back leads */
   readonly docOrigin = signal<'compose' | 'import' | 'draft'>('compose');
 
+  @ViewChild(PsbtComposeComponent) private composeForm?: PsbtComposeComponent;
+
   /** Start a fresh composition (drops any stale document reference) */
   startCompose(): void {
     this.doc.set(null);
@@ -1632,19 +1634,36 @@ export class PsbtComponent implements OnInit {
   }
 
   /**
-   * Wizard Back: on a finalized document's broadcast view, step back to the
-   * signatures & export section; on a freshly composed document back to the
-   * compose form (inputs intact, e.g. to add another output); otherwise to
-   * the start page. The draft stays under In progress either way.
+   * Wizard Back. On a finalized document's broadcast view: step back to the
+   * signatures & export section. On any non-finalized document: back to the
+   * compose form to edit inputs/outputs — freshly composed transactions keep
+   * the live form state, drafts and imports get the form prefilled from the
+   * PSBT. Editing a signed document requires confirming the loss of the
+   * collected signatures. Finalized documents cannot be edited.
    */
-  goBackStep(): void {
+  async goBackStep(): Promise<void> {
     const document = this.doc();
     if (document && this.showBroadcastSection(document)) {
       this.docSection.set('sign');
       return;
     }
     this.docSection.set(null);
-    if (this.docOrigin() === 'compose' && document?.status === 'unsigned') {
+    if (this.view() === 'doc' && document && document.status !== 'finalized') {
+      if (document.status !== 'unsigned') {
+        const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+          data: {
+            title: this.i18n.get('psbt_edit_signed_title'),
+            message: this.i18n.get('psbt_edit_signed_message'),
+            confirmText: this.i18n.get('psbt_edit_signed_confirm'),
+            type: 'warning',
+          },
+        });
+        const confirmed = await firstValueFrom(dialogRef.afterClosed());
+        if (!confirmed) return;
+      }
+      if (this.docOrigin() !== 'compose') {
+        await this.composeForm?.prefill(document);
+      }
       this.view.set('compose');
       return;
     }

@@ -21,7 +21,7 @@ import { WalletRpcService, UTXO } from '../../../../bitcoin/services/rpc/wallet-
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
-import type { ComposeOutput } from '../../psbt.models';
+import type { ComposeOutput, PsbtDocument } from '../../psbt.models';
 
 interface FeeChip {
   labelKey: string;
@@ -1492,6 +1492,37 @@ export class PsbtComposeComponent implements OnInit {
   onDataToggle(checked: boolean): void {
     this.showData.set(checked);
     if (!checked) this.dataHex = '';
+  }
+
+  /**
+   * Populate the form from an existing PSBT so a draft or import can be
+   * edited: recipient outputs, OP_RETURN payload, locktime, and the original
+   * inputs preselected via manual coin control. Change is dropped — the
+   * wallet recreates it on the next create.
+   */
+  async prefill(document: PsbtDocument): Promise<void> {
+    const recipients: ComposeOutput[] = document.outputs
+      .filter(o => (o.kind === 'external' || o.kind === 'mine') && o.address)
+      .map(o => ({ address: o.address as string, amount: o.amount }));
+    this.outputs.set(recipients.length > 0 ? recipients : [{ address: '', amount: null }]);
+    this.outputPage.set(0);
+    this.subtractFeeIndex.set(null);
+    this.showListImport.set(false);
+    this.createError.set(null);
+
+    const data = document.outputs.find(o => o.kind === 'data');
+    this.showData.set(!!data?.dataHex);
+    this.dataHex = data?.dataHex ?? '';
+
+    this.useLocktime.set(document.locktime > 0);
+    this.locktime = document.locktime > 0 ? document.locktime : null;
+
+    // Preselect the transaction's inputs via manual coin control
+    this.manualCoins.set(true);
+    await this.loadUtxos();
+    const wanted = new Set(document.inputs.map(i => `${i.txid}:${i.vout}`));
+    const available = new Set(this.utxos().map(u => `${u.txid}:${u.vout}`));
+    this.selectedOutpoints.set(new Set([...wanted].filter(key => available.has(key))));
   }
 
   onAutoChangeToggle(checked: boolean): void {
