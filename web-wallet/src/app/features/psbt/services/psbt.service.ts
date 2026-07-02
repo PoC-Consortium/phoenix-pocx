@@ -189,6 +189,7 @@ export class PsbtService {
       psbt,
       status: doc.status,
       amountLabel: `${doc.sendingTotal.toFixed(8)} BTCX`,
+      walletName: this.walletManager.activeWallet ?? undefined,
       createdAt: now,
       updatedAt: now,
     };

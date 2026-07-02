@@ -153,7 +153,11 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     <div class="draft-body">
                       <div class="draft-name">{{ draft.name }}</div>
                       <div class="draft-meta">
-                        {{ draft.amountLabel }} · {{ draft.updatedAt | date: 'short' }}
+                        {{ draft.amountLabel }}
+                        @if (draft.walletName) {
+                          · {{ draft.walletName }}
+                        }
+                        · {{ draft.updatedAt | date: 'short' }}
                       </div>
                     </div>
                     <button

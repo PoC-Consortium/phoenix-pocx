@@ -90,6 +90,8 @@ export interface PsbtDraft {
   amountLabel?: string;
   /** Coin selection mode used when composing — restored when editing */
   autoCoins?: boolean;
+  /** Wallet that was active when the draft was created (informational) */
+  walletName?: string;
   createdAt: number;
   updatedAt: number;
 }
