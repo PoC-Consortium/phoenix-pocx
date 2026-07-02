@@ -74,7 +74,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         </div>
       </div>
 
-      <div class="content">
+      <div class="content" [class.wide]="wideLayout()">
         <!-- Lifecycle steps (mirrors mining/wallet setup wizards) -->
         <div class="step-indicator">
           @for (step of steps; track step; let i = $index) {
@@ -640,7 +640,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
-      // Narrow single-column page — one width for every step (send-card sized)
+      // Narrow by default (start, broadcast); wide on compose and sign/finalize
       .content {
         padding: 24px;
         max-width: 648px;
@@ -648,6 +648,28 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         width: 100%;
         box-sizing: border-box;
         position: relative;
+
+        &.wide {
+          max-width: 980px;
+
+          .stats {
+            grid-template-columns: repeat(4, 1fr);
+          }
+
+          .io-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+      }
+
+      @media (max-width: 900px) {
+        .content.wide .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .content.wide .io-grid {
+          grid-template-columns: 1fr;
+        }
       }
 
       app-psbt-compose.view-hidden {
@@ -1638,6 +1660,20 @@ export class PsbtComponent implements OnInit {
   });
 
   readonly draftName = computed(() => this.draft()?.name ?? this.i18n.get('psbt_untitled'));
+
+  /**
+   * Compose and the sign/finalize views get the wide layout (side-by-side
+   * inputs/outputs, 4-across stats); start and the focused broadcast view
+   * stay narrow.
+   */
+  readonly wideLayout = computed(() => {
+    if (this.view() === 'compose') return true;
+    const document = this.doc();
+    if (this.view() === 'doc' && document) {
+      return !this.showBroadcastSection(document);
+    }
+    return false;
+  });
   readonly feeWarning = computed(() => {
     const document = this.doc();
     return document ? this.psbtService.checkFee(document) : null;
