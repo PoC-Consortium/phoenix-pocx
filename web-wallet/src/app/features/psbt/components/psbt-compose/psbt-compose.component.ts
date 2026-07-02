@@ -741,7 +741,7 @@ const UTXO_PAGE_SIZE = 10;
         }
 
         .amount-field {
-          width: 150px;
+          width: 250px;
           flex-shrink: 0;
         }
       }
