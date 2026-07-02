@@ -1798,7 +1798,6 @@ export class PsbtComponent implements OnInit {
       this.docOrigin.set('import');
       this.draft.set(null);
       this.finalHex.set(null);
-      await this.seedComposeHistoryEntry();
       await this.loadDocument(base64, true);
     }
   }
@@ -1807,22 +1806,7 @@ export class PsbtComponent implements OnInit {
     this.docOrigin.set('draft');
     this.draft.set(draft);
     this.finalHex.set(draft.finalHex ?? null);
-    if (draft.status !== 'finalized') {
-      await this.seedComposeHistoryEntry();
-    }
     await this.loadDocument(draft.psbt, false);
-  }
-
-  /**
-   * When a document enters at step 2+ (draft/import), push a synthetic
-   * compose entry beneath it so browser-back walks the step ladder:
-   * review → compose (prefilled) → start.
-   */
-  private async seedComposeHistoryEntry(): Promise<void> {
-    await this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { view: 'compose', section: null },
-    });
   }
 
   private async loadDocument(base64: string, createDraft: boolean): Promise<void> {
