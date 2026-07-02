@@ -233,16 +233,20 @@ const UTXO_PAGE_SIZE = 10;
           </mat-menu>
 
           <div class="add-row">
-            <button mat-button color="primary" (click)="addOutput()">
+            <button mat-stroked-button class="add-button" (click)="addOutput()">
               <mat-icon>add_circle_outline</mat-icon>
               {{ 'psbt_add_output' | i18n }}
             </button>
-            <button mat-button color="primary" (click)="showListImport.set(!showListImport())">
+            <button
+              mat-stroked-button
+              class="add-button"
+              (click)="showListImport.set(!showListImport())"
+            >
               <mat-icon>playlist_add</mat-icon>
               {{ 'psbt_import_list' | i18n }}
             </button>
             @if (!showData()) {
-              <button mat-button color="primary" (click)="showData.set(true)">
+              <button mat-stroked-button class="add-button" (click)="showData.set(true)">
                 <mat-icon>data_object</mat-icon>
                 {{ 'psbt_add_data' | i18n }}
               </button>
@@ -815,12 +819,25 @@ const UTXO_PAGE_SIZE = 10;
         display: flex;
         gap: 8px;
         flex-wrap: wrap;
+        margin-top: 4px;
 
-        button mat-icon {
-          margin-right: 4px;
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
+        .add-button {
+          height: 36px;
+          font-size: 12px;
+          color: #1976d2;
+          border-color: rgba(25, 118, 210, 0.4);
+
+          mat-icon {
+            margin-right: 6px;
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+          }
+
+          &:hover {
+            background: rgba(25, 118, 210, 0.06);
+            border-color: #1976d2;
+          }
         }
       }
 
