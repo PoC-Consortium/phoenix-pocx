@@ -1612,7 +1612,8 @@ export class PsbtComponent implements OnInit {
       }
       return document.status === 'ready' ? 2 : 1;
     }
-    return 0;
+    // Start page is "step 0" — nothing begun yet, no step highlighted
+    return this.view() === 'compose' ? 0 : -1;
   });
 
   showBroadcastSection(document: PsbtDocument): boolean {
