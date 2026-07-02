@@ -713,7 +713,7 @@ const UTXO_PAGE_SIZE = 10;
           font-family: 'Roboto Mono', monospace;
           font-size: 15px;
           font-weight: 600;
-          color: #1976d2;
+          color: rgba(0, 0, 0, 0.87);
         }
       }
 
@@ -897,19 +897,20 @@ const UTXO_PAGE_SIZE = 10;
         .add-button {
           height: 36px;
           font-size: 12px;
-          color: #1976d2;
-          border-color: rgba(25, 118, 210, 0.4);
+          color: rgba(0, 0, 0, 0.87);
+          border-color: rgba(0, 0, 0, 0.12);
 
           mat-icon {
             margin-right: 6px;
             font-size: 18px;
             width: 18px;
             height: 18px;
+            color: #666;
           }
 
           &:hover {
-            background: rgba(25, 118, 210, 0.06);
-            border-color: #1976d2;
+            background: rgba(0, 0, 0, 0.04);
+            border-color: rgba(0, 0, 0, 0.38);
           }
         }
       }
