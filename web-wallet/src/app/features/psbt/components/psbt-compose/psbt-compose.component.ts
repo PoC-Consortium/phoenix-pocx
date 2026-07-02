@@ -189,23 +189,23 @@ const UTXO_PAGE_SIZE = 10;
             <span class="section-aside">{{ 'psbt_amounts_in_btcx' | i18n }}</span>
           </div>
 
-          @for (out of outputs(); track $index) {
+          @for (row of pagedOutputRows(); track row.index) {
             <div class="output-row">
               <mat-form-field appearance="outline" class="addr-field">
                 <mat-label>{{ 'psbt_recipient_address' | i18n }}</mat-label>
                 <input
                   matInput
-                  [ngModel]="out.address"
-                  (ngModelChange)="updateOutput($index, 'address', $event)"
+                  [ngModel]="row.out.address"
+                  (ngModelChange)="updateOutput(row.index, 'address', $event)"
                   autocomplete="off"
                   spellcheck="false"
                   class="mono"
                 />
-                @if (out.address && addressError($index)) {
-                  <mat-icon matSuffix class="invalid-icon" [matTooltip]="addressError($index)!"
+                @if (row.out.address && addressError(row.index)) {
+                  <mat-icon matSuffix class="invalid-icon" [matTooltip]="addressError(row.index)!"
                     >error</mat-icon
                   >
-                } @else if (out.address) {
+                } @else if (row.out.address) {
                   <mat-icon matSuffix class="valid-icon">check_circle</mat-icon>
                 }
               </mat-form-field>
@@ -215,7 +215,7 @@ const UTXO_PAGE_SIZE = 10;
                 [matMenuTriggerFor]="contactsMenu"
                 [disabled]="contacts().length === 0"
                 [matTooltip]="'select_contact' | i18n"
-                (click)="contactTargetIndex = $index"
+                (click)="contactTargetIndex = row.index"
               >
                 <mat-icon>contacts</mat-icon>
               </button>
@@ -226,15 +226,15 @@ const UTXO_PAGE_SIZE = 10;
                   type="number"
                   step="0.00000001"
                   min="0"
-                  [ngModel]="out.amount"
-                  (ngModelChange)="updateOutput($index, 'amount', $event)"
+                  [ngModel]="row.out.amount"
+                  (ngModelChange)="updateOutput(row.index, 'amount', $event)"
                   autocomplete="off"
                 />
               </mat-form-field>
               <button
                 mat-stroked-button
                 class="square-button"
-                (click)="setMaxAmount($index)"
+                (click)="setMaxAmount(row.index)"
                 [matTooltip]="'use_all_funds' | i18n"
               >
                 <mat-icon>all_inclusive</mat-icon>
@@ -242,19 +242,43 @@ const UTXO_PAGE_SIZE = 10;
               <button
                 mat-stroked-button
                 class="square-button"
-                (click)="removeOutput($index)"
+                (click)="removeOutput(row.index)"
                 [disabled]="outputs().length === 1"
                 [matTooltip]="'psbt_remove_output' | i18n"
               >
                 <mat-icon>close</mat-icon>
               </button>
             </div>
-            @if (subtractFeeIndex() === $index) {
+            @if (subtractFeeIndex() === row.index) {
               <div class="subtract-note">
                 <mat-icon>info</mat-icon>
                 {{ 'psbt_subtract_fee_note' | i18n }}
               </div>
             }
+          }
+          @if (outputs().length > pageSize) {
+            <div class="utxo-pager">
+              <span class="selection-summary">
+                {{ 'psbt_outputs' | i18n }}: {{ outputs().length }}
+              </span>
+              <span class="pager-controls">
+                <button
+                  mat-icon-button
+                  [disabled]="outputPage() === 0"
+                  (click)="outputPage.set(outputPage() - 1)"
+                >
+                  <mat-icon>chevron_left</mat-icon>
+                </button>
+                <span class="pager-range mono">{{ outputRangeLabel() }}</span>
+                <button
+                  mat-icon-button
+                  [disabled]="(outputPage() + 1) * pageSize >= outputs().length"
+                  (click)="outputPage.set(outputPage() + 1)"
+                >
+                  <mat-icon>chevron_right</mat-icon>
+                </button>
+              </span>
+            </div>
           }
 
           <mat-menu #contactsMenu="matMenu">
@@ -854,6 +878,10 @@ const UTXO_PAGE_SIZE = 10;
         }
       }
 
+      .data-row {
+        margin-top: 12px;
+      }
+
       .subtract-note {
         display: flex;
         align-items: center;
@@ -1308,6 +1336,7 @@ export class PsbtComposeComponent implements OnInit {
   sizeValue = signal<number | null>(null);
 
   outputs = signal<ComposeOutput[]>([{ address: '', amount: null }]);
+  outputPage = signal(0);
   /** Output index the fee is subtracted from (set via Max), or null = fee on top */
   subtractFeeIndex = signal<number | null>(null);
   showData = signal(false);
@@ -1365,6 +1394,25 @@ export class PsbtComposeComponent implements OnInit {
     const start = this.utxoPage() * UTXO_PAGE_SIZE;
     return this.filteredUtxos().slice(start, start + UTXO_PAGE_SIZE);
   });
+
+  /** Current page of output rows, each carrying its index in the full list */
+  pagedOutputRows = computed(() => {
+    const start = this.outputPage() * UTXO_PAGE_SIZE;
+    return this.outputs()
+      .slice(start, start + UTXO_PAGE_SIZE)
+      .map((out, i) => ({ out, index: start + i }));
+  });
+
+  outputRangeLabel(): string {
+    const total = this.outputs().length;
+    const start = this.outputPage() * UTXO_PAGE_SIZE + 1;
+    const end = Math.min(total, start + UTXO_PAGE_SIZE - 1);
+    return `${start}–${end} / ${total}`;
+  }
+
+  private lastOutputPage(): number {
+    return Math.max(0, Math.ceil(this.outputs().length / UTXO_PAGE_SIZE) - 1);
+  }
 
   setUtxoFilterText(value: string): void {
     this.utxoFilterText.set(value);
@@ -1505,6 +1553,7 @@ export class PsbtComposeComponent implements OnInit {
       this.subtractFeeIndex.set(null);
       this.showListImport.set(false);
       this.listImportText = '';
+      this.outputPage.set(this.lastOutputPage());
     }
     if (invalid > 0) {
       this.notification.warning(
@@ -1616,6 +1665,7 @@ export class PsbtComposeComponent implements OnInit {
 
   addOutput(): void {
     this.outputs.set([...this.outputs(), { address: '', amount: null }]);
+    this.outputPage.set(this.lastOutputPage());
   }
 
   removeOutput(index: number): void {
@@ -1625,6 +1675,7 @@ export class PsbtComposeComponent implements OnInit {
       if (subtract === index) this.subtractFeeIndex.set(null);
       else if (subtract > index) this.subtractFeeIndex.set(subtract - 1);
     }
+    this.outputPage.set(Math.min(this.outputPage(), this.lastOutputPage()));
   }
 
   addressError(index: number): string | null {
