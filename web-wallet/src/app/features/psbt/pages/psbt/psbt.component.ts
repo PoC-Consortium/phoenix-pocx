@@ -75,6 +75,32 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       </div>
 
       <div class="content">
+        <!-- Lifecycle steps (mirrors mining/wallet setup wizards) -->
+        <div class="step-indicator">
+          @for (step of steps; track step; let i = $index) {
+            @if (i > 0) {
+              <div class="step-line" [class.complete]="currentStep() >= i"></div>
+            }
+            <div class="step">
+              <div
+                class="step-circle"
+                [class.active]="currentStep() === i"
+                [class.complete]="currentStep() > i"
+                [class.inactive]="currentStep() < i"
+              >
+                @if (currentStep() > i) {
+                  &#10003;
+                } @else {
+                  {{ i + 1 }}
+                }
+              </div>
+              <span class="step-label" [class.active]="currentStep() === i"
+                >{{ step | i18n }}{{ i === 1 ? signProgress() : '' }}</span
+              >
+            </div>
+          }
+        </div>
+
         <!-- ================= START ================= -->
         @if (view() === 'start') {
           <div class="start-column">
@@ -107,12 +133,17 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               </div>
             </div>
 
-            @if (drafts().length > 0) {
-              <div class="card drafts-card">
-                <div class="card-head">
-                  <h3 class="section-title">{{ 'psbt_in_progress' | i18n }}</h3>
-                  <span class="section-aside">{{ 'psbt_saved_locally' | i18n }}</span>
+            <div class="card drafts-card">
+              <div class="card-head">
+                <h3 class="section-title">{{ 'psbt_in_progress' | i18n }}</h3>
+                <span class="section-aside">{{ 'psbt_saved_locally' | i18n }}</span>
+              </div>
+              @if (drafts().length === 0) {
+                <div class="drafts-empty">
+                  <mat-icon>hourglass_empty</mat-icon>
+                  <p>{{ 'psbt_no_drafts' | i18n }}</p>
                 </div>
+              } @else {
                 @for (draft of drafts(); track draft.id) {
                   <div class="draft-row" (click)="openDraft(draft)" (keydown.enter)="openDraft(draft)" tabindex="0" role="button">
                     <span class="badge" [class]="draft.status">
@@ -136,8 +167,8 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     <mat-icon class="draft-chevron">chevron_right</mat-icon>
                   </div>
                 }
-              </div>
-            }
+              }
+            </div>
           </div>
         }
 
@@ -182,39 +213,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 <span class="badge" [class]="document.status">
                   <mat-icon>{{ statusIcon(document.status) }}</mat-icon>
                   {{ statusLabel(document) }}
-                </span>
-              </div>
-
-              <!-- Lifecycle track -->
-              <div class="track mono">
-                <span class="track-item done"><mat-icon>check</mat-icon>{{ 'psbt_track_composed' | i18n }}</span>
-                <span class="track-sep">—</span>
-                <span
-                  class="track-item"
-                  [class.done]="document.status === 'ready' || document.status === 'finalized'"
-                  [class.now]="document.status === 'unsigned' || document.status === 'partial'"
-                >
-                  @if (document.status === 'ready' || document.status === 'finalized') {
-                    <mat-icon>check</mat-icon>
-                  } @else {
-                    <mat-icon>draw</mat-icon>
-                  }
-                  {{ 'psbt_track_signing' | i18n }} {{ document.signedInputs }}/{{ document.inputs.length }}
-                </span>
-                <span class="track-sep">—</span>
-                <span
-                  class="track-item"
-                  [class.done]="document.status === 'finalized'"
-                  [class.now]="document.status === 'ready'"
-                >
-                  @if (document.status === 'finalized') {
-                    <mat-icon>check</mat-icon>
-                  }
-                  {{ 'psbt_track_finalize' | i18n }}
-                </span>
-                <span class="track-sep">—</span>
-                <span class="track-item" [class.now]="document.status === 'finalized'">
-                  {{ 'psbt_track_broadcast' | i18n }}
                 </span>
               </div>
 
@@ -829,38 +827,87 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
-      // ============ Lifecycle track ============
-      .track {
+      // ============ Step indicator (mirrors mining setup wizard) ============
+      .step-indicator {
         display: flex;
         align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        font-size: 11.5px;
-        color: #9aa7b5;
+        margin: 0 auto 16px;
+        max-width: 600px;
+        padding: 12px 16px;
+        background: #ffffff;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+        box-sizing: border-box;
+      }
 
-        .track-item {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
 
-          mat-icon {
-            font-size: 14px;
-            width: 14px;
-            height: 14px;
-          }
+      .step-circle {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 600;
+        background: #e0e0e0;
+        color: #9e9e9e;
+        flex-shrink: 0;
 
-          &.done {
-            color: #2e7d32;
-          }
-
-          &.now {
-            color: #e65100;
-            font-weight: 600;
-          }
+        &.active {
+          background: #1976d2;
+          color: white;
         }
 
-        .track-sep {
-          color: #e6ebf1;
+        &.complete {
+          background: #4caf50;
+          color: white;
+        }
+      }
+
+      .step-label {
+        font-size: 12px;
+        color: #666666;
+        white-space: nowrap;
+
+        &.active {
+          color: rgb(0, 35, 65);
+          font-weight: 500;
+        }
+      }
+
+      .step-line {
+        flex: 1;
+        height: 2px;
+        background: #e0e0e0;
+        margin: 0 10px;
+        min-width: 12px;
+
+        &.complete {
+          background: #4caf50;
+        }
+      }
+
+      .drafts-empty {
+        text-align: center;
+        padding: 24px 20px 28px;
+        color: rgba(0, 0, 0, 0.45);
+
+        mat-icon {
+          font-size: 36px;
+          width: 36px;
+          height: 36px;
+          opacity: 0.4;
+        }
+
+        p {
+          margin: 8px 0 0;
+          font-size: 12.5px;
         }
       }
 
@@ -1248,8 +1295,13 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       // ============ Dark theme ============
       :host-context(.dark-theme) {
         .card,
-        .success-card {
+        .success-card,
+        .step-indicator {
           background: #424242;
+        }
+
+        .step-label.active {
+          color: #fff;
         }
 
         .stat {
@@ -1373,6 +1425,33 @@ export class PsbtComponent implements OnInit {
 
   readonly renaming = signal(false);
   renameValue = '';
+
+  /** Lifecycle steps shown in the wizard-style indicator */
+  readonly steps = ['psbt_step_create', 'psbt_step_sign', 'psbt_step_finalize', 'psbt_step_broadcast'];
+
+  /** Index of the active lifecycle step; 4 = everything done (broadcast) */
+  readonly currentStep = computed(() => {
+    if (this.view() === 'success') return 4;
+    const document = this.doc();
+    if (this.view() === 'doc' && document) {
+      switch (document.status) {
+        case 'ready':
+          return 2;
+        case 'finalized':
+          return 3;
+        default:
+          return 1;
+      }
+    }
+    return 0;
+  });
+
+  /** " 1/2" suffix on the Sign step while a document is open */
+  readonly signProgress = computed(() => {
+    const document = this.doc();
+    if (!document || this.view() !== 'doc') return '';
+    return ` ${document.signedInputs}/${document.inputs.length}`;
+  });
 
   readonly draftName = computed(() => this.draft()?.name ?? this.i18n.get('psbt_untitled'));
   readonly feeWarning = computed(() => {
