@@ -533,6 +533,10 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               <mat-icon>delete_outline</mat-icon>
               {{ 'psbt_discard' | i18n }}
             </button>
+            <button mat-stroked-button (click)="saveAndClose()">
+              <mat-icon>save</mat-icon>
+              {{ 'psbt_save_draft' | i18n }}
+            </button>
             <span class="spacer"></span>
             @if (showBroadcastSection(document)) {
               <button
@@ -2043,6 +2047,15 @@ export class PsbtComponent implements OnInit {
     const updated = { ...draft, name, updatedAt: Date.now() };
     this.draft.set(updated);
     this.psbtService.saveDraft(updated);
+  }
+
+  /** Save the current document as a draft and return to the start page */
+  saveAndClose(): void {
+    this.syncDraft();
+    this.docSection.set(null);
+    this.view.set('start');
+    this.refreshDrafts();
+    this.notification.success(this.i18n.get('psbt_draft_saved'));
   }
 
   async discardDraft(): Promise<void> {

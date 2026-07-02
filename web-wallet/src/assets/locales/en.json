@@ -959,6 +959,8 @@
   "psbt_edit_signed_message": "Editing recreates the transaction, so the signatures collected so far will be discarded. Copies you already exported are not affected.",
   "psbt_edit_signed_confirm": "Edit & discard signatures",
   "psbt_discard": "Discard draft",
+  "psbt_save_draft": "Save draft",
+  "psbt_draft_saved": "Draft saved — find it under In progress",
   "psbt_discard_confirm": "The saved draft will be removed from this machine. Any copies you exported are not affected.",
   "psbt_finalize": "Finalize",
   "psbt_finalize_needs_sigs": "All signatures must be collected first",
