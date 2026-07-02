@@ -803,6 +803,14 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         cursor: pointer;
         border-top: 1px solid #e6ebf1;
 
+        // Fixed badge column so draft names align like a table
+        .badge {
+          width: 148px;
+          justify-content: center;
+          flex-shrink: 0;
+          box-sizing: border-box;
+        }
+
         &:hover {
           background: rgba(0, 0, 0, 0.03);
         }
