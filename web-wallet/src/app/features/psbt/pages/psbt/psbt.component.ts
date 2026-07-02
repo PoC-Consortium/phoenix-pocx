@@ -1,8 +1,17 @@
-import { Component, inject, signal, computed, OnInit, ViewChild } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  Component,
+  inject,
+  signal,
+  computed,
+  effect,
+  OnInit,
+  ViewChild,
+  DestroyRef,
+} from '@angular/core';
+import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DecimalPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -1517,6 +1526,9 @@ export class PsbtComponent implements OnInit {
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
   private readonly location = inject(Location);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly store = inject(Store);
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
 
@@ -1678,8 +1690,67 @@ export class PsbtComponent implements OnInit {
     return document ? this.psbtService.checkFee(document) : null;
   });
 
+  // ============================================================
+  // Browser-history integration: each step is a history entry, so
+  // mouse/keyboard back-forward navigates the wizard, and backing out
+  // of the first step leaves the page naturally.
+  // ============================================================
+
+  /** Mirrors view/section into the URL whenever they change */
+  private readonly urlSync = effect(() => {
+    const view = this.view();
+    const section = this.docSection() === 'sign' ? 'sign' : null;
+    const current = this.route.snapshot.queryParamMap;
+    const desiredView = view === 'start' ? null : view;
+    if (current.get('view') === desiredView && current.get('section') === section) return;
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { view: desiredView, section },
+      // Success replaces the broadcast entry — back should not re-arm it
+      replaceUrl: view === 'success',
+    });
+  });
+
+  /** Applies popstate (browser back/forward) to the wizard state */
+  private applyUrlState(view: string | null, section: string | null): void {
+    const urlView = (view ?? 'start') as PsbtView;
+    const urlSection = section === 'sign' ? 'sign' : null;
+    if (urlView === this.view() && urlSection === (this.docSection() === 'sign' ? 'sign' : null)) {
+      return;
+    }
+    switch (urlView) {
+      case 'doc':
+        if (this.doc()) {
+          this.docSection.set(urlSection);
+          this.view.set('doc');
+        } else {
+          // Stale deep link (e.g. reload) — no document in memory
+          this.view.set('start');
+          this.refreshDrafts();
+        }
+        break;
+      case 'compose': {
+        const document = this.doc();
+        if (document && this.docOrigin() !== 'compose') {
+          void this.composeForm?.prefill(document, this.draft()?.autoCoins ?? false);
+        }
+        this.view.set('compose');
+        break;
+      }
+      case 'success':
+        this.view.set(this.broadcastTxid() ? 'success' : 'start');
+        break;
+      default:
+        this.view.set('start');
+        this.refreshDrafts();
+    }
+  }
+
   ngOnInit(): void {
     this.refreshDrafts();
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(params => this.applyUrlState(params.get('view'), params.get('section')));
   }
 
   goBack(): void {
