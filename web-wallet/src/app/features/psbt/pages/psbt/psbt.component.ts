@@ -214,7 +214,12 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               <div class="doc-meta mono">
                 txid {{ shortId(document.unsignedTxid) }} · {{ document.sizeBytes }} bytes
               </div>
-              <span class="badge" [class]="document.status">
+              <span
+                class="badge"
+                [class]="document.status"
+                [matTooltip]="guidance(document)"
+                matTooltipPosition="below"
+              >
                 <mat-icon>{{ statusIcon(document.status) }}</mat-icon>
                 {{ statusLabel(document) }}
               </span>
@@ -256,12 +261,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- Guidance -->
-          <div class="guide standalone">
-            <mat-icon>{{ document.status === 'finalized' ? 'task_alt' : 'info' }}</mat-icon>
-            <div>{{ guidance(document) }}</div>
           </div>
 
           <!-- Fee warning -->
@@ -1014,30 +1013,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
-      .guide {
-        background: #f5f7fa;
-        border-radius: 6px;
-        padding: 10px 14px;
-
-        &.standalone {
-          margin-bottom: 16px;
-        }
-        font-size: 13px;
-        color: rgb(0, 35, 65);
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-
-        mat-icon {
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
-          color: #1976d2;
-          margin-top: 1px;
-          flex-shrink: 0;
-        }
-      }
-
       // ============ Stats ============
       .stats {
         display: grid;
@@ -1476,7 +1451,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         .io-amount,
         .stat-value,
         .target-name,
-        .guide,
         h2 {
           color: #ffffff !important;
         }
@@ -1491,10 +1465,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
           .mode-desc {
             color: rgba(255, 255, 255, 0.6);
           }
-        }
-
-        .guide {
-          background: #333;
         }
 
         .io-row,
@@ -1572,7 +1542,7 @@ export class PsbtComponent implements OnInit {
   readonly renaming = signal(false);
   renameValue = '';
 
-  readonly ioPageSize = 10;
+  readonly ioPageSize = 5;
   readonly inputPage = signal(0);
   readonly outputPage = signal(0);
 
