@@ -107,12 +107,10 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             <div class="card options-card">
               <div
                 class="mode-option"
-                [class.selected]="selectedMode() === 'compose'"
-                (click)="selectedMode.set('compose')"
-                (keydown.enter)="selectedMode.set('compose')"
+                (click)="startCompose()"
+                (keydown.enter)="startCompose()"
                 tabindex="0"
-                role="radio"
-                [attr.aria-checked]="selectedMode() === 'compose'"
+                role="button"
               >
                 <mat-icon class="mode-icon">edit_note</mat-icon>
                 <div class="mode-details">
@@ -122,12 +120,10 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               </div>
               <div
                 class="mode-option"
-                [class.selected]="selectedMode() === 'import'"
-                (click)="selectedMode.set('import')"
-                (keydown.enter)="selectedMode.set('import')"
+                (click)="importPsbt()"
+                (keydown.enter)="importPsbt()"
                 tabindex="0"
-                role="radio"
-                [attr.aria-checked]="selectedMode() === 'import'"
+                role="button"
               >
                 <mat-icon class="mode-icon">file_open</mat-icon>
                 <div class="mode-details">
@@ -177,10 +173,14 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
 
         <!-- ================= COMPOSE ================= -->
-        @if (view() === 'compose') {
-          <app-psbt-compose (created)="onComposed($event)" (cancelled)="view.set('start')">
-          </app-psbt-compose>
-        }
+        <!-- Kept alive (hidden, not destroyed) so Back from the sign step
+             returns to the form with all inputs intact -->
+        <app-psbt-compose
+          [class.view-hidden]="view() !== 'compose'"
+          (created)="onComposed($event)"
+          (cancelled)="view.set('start')"
+        >
+        </app-psbt-compose>
 
         <!-- ================= DOCUMENT (review / broadcast) ================= -->
         @if (view() === 'doc' && doc(); as document) {
@@ -276,8 +276,9 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             </div>
           }
 
-          <!-- Inputs / outputs -->
-          <div class="io-grid">
+          <!-- Inputs / outputs (hidden on the focused broadcast view; Back shows them) -->
+          @if (!showBroadcastSection(document)) {
+            <div class="io-grid">
             <div class="card io-card">
               <div class="card-head">
                 <h3 class="section-title">{{ 'psbt_inputs' | i18n }}</h3>
@@ -345,7 +346,8 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 </div>
               }
             </div>
-          </div>
+            </div>
+          }
 
           @if (!showBroadcastSection(document)) {
             <!-- Signatures & actions -->
@@ -471,20 +473,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
 
         <!-- Wizard navigation footer (mirrors mining/node setup wizards) -->
-        @if (view() === 'start') {
-          <div class="wizard-footer">
-            <span class="spacer"></span>
-            <button
-              mat-raised-button
-              color="primary"
-              [disabled]="!selectedMode()"
-              (click)="startNext()"
-            >
-              {{ 'psbt_next' | i18n }}
-              <mat-icon iconPositionEnd>arrow_forward</mat-icon>
-            </button>
-          </div>
-        }
         @if (view() === 'doc' && doc(); as document) {
           <div class="wizard-footer">
             <button mat-stroked-button (click)="goBackStep()">
@@ -610,13 +598,18 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
+      // Narrow single-column page — one width for every step (send-card sized)
       .content {
         padding: 24px;
-        max-width: 1100px;
+        max-width: 648px;
         margin: 0 auto;
         width: 100%;
         box-sizing: border-box;
         position: relative;
+      }
+
+      app-psbt-compose.view-hidden {
+        display: none !important;
       }
 
       .card {
@@ -684,11 +677,8 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         cursor: pointer;
         transition: all 0.2s;
 
-        &:hover {
-          background: rgba(0, 0, 0, 0.02);
-        }
-
-        &.selected {
+        &:hover,
+        &:focus-visible {
           border-color: #1976d2;
           background: rgba(33, 150, 243, 0.08);
 
@@ -968,7 +958,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       // ============ Stats ============
       .stats {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 1px;
         background: #e6ebf1;
         border-top: 1px solid #e6ebf1;
@@ -1003,7 +993,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       // ============ I/O ============
       .io-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 16px;
         margin-bottom: 16px;
 
@@ -1426,16 +1416,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       }
 
       // ============ Responsive ============
-      @media (max-width: 900px) {
-        .io-grid {
-          grid-template-columns: 1fr;
-        }
-
-        .stats {
-          grid-template-columns: repeat(2, 1fr);
-        }
-      }
-
       @media (max-width: 600px) {
         .content {
           padding: 16px;
@@ -1529,22 +1509,23 @@ export class PsbtComponent implements OnInit {
     return document.status === 'finalized' && this.docSection() !== 'sign';
   }
 
-  /** Mode chosen on the start page; Next proceeds to compose or import */
-  readonly selectedMode = signal<'compose' | 'import' | null>(null);
+  /** How the current document entered the page — decides where Back leads */
+  readonly docOrigin = signal<'compose' | 'import' | 'draft'>('compose');
 
-  startNext(): void {
-    const mode = this.selectedMode();
-    if (mode === 'compose') {
-      this.view.set('compose');
-    } else if (mode === 'import') {
-      this.importPsbt();
-    }
+  /** Start a fresh composition (drops any stale document reference) */
+  startCompose(): void {
+    this.doc.set(null);
+    this.draft.set(null);
+    this.finalHex.set(null);
+    this.docSection.set(null);
+    this.view.set('compose');
   }
 
   /**
    * Wizard Back: on a finalized document's broadcast view, step back to the
-   * signatures & export section; everywhere else return to the start page
-   * (the draft stays under In progress).
+   * signatures & export section; on a freshly composed document back to the
+   * compose form (inputs intact, e.g. to add another output); otherwise to
+   * the start page. The draft stays under In progress either way.
    */
   goBackStep(): void {
     const document = this.doc();
@@ -1553,6 +1534,10 @@ export class PsbtComponent implements OnInit {
       return;
     }
     this.docSection.set(null);
+    if (this.docOrigin() === 'compose' && document?.status === 'unsigned') {
+      this.view.set('compose');
+      return;
+    }
     this.view.set('start');
     this.refreshDrafts();
   }
@@ -1592,6 +1577,7 @@ export class PsbtComponent implements OnInit {
   // ============================================================
 
   async onComposed(event: { psbt: string; fee: number }): Promise<void> {
+    this.docOrigin.set('compose');
     await this.loadDocument(event.psbt, true);
   }
 
@@ -1602,11 +1588,15 @@ export class PsbtComponent implements OnInit {
     });
     const base64: string | undefined = await firstValueFrom(dialogRef.afterClosed());
     if (base64) {
+      this.docOrigin.set('import');
+      this.draft.set(null);
+      this.finalHex.set(null);
       await this.loadDocument(base64, true);
     }
   }
 
   async openDraft(draft: PsbtDraft): Promise<void> {
+    this.docOrigin.set('draft');
     this.draft.set(draft);
     this.finalHex.set(draft.finalHex ?? null);
     await this.loadDocument(draft.psbt, false);
@@ -1621,9 +1611,24 @@ export class PsbtComponent implements OnInit {
       this.doc.set(document);
       if (createDraft) {
         this.finalHex.set(null);
-        const draft = this.psbtService.createDraft(this.network(), document.base64, document);
-        this.draft.set(draft);
-        this.psbtService.saveDraft(draft);
+        const existing = this.draft();
+        if (existing && this.docOrigin() === 'compose') {
+          // Recomposed after Back: replace the draft's transaction, keep its identity
+          const updated: PsbtDraft = {
+            ...existing,
+            psbt: document.base64,
+            status: document.status,
+            amountLabel: `${document.sendingTotal.toFixed(8)} BTCX`,
+            finalHex: undefined,
+            updatedAt: Date.now(),
+          };
+          this.draft.set(updated);
+          this.psbtService.saveDraft(updated);
+        } else {
+          const draft = this.psbtService.createDraft(this.network(), document.base64, document);
+          this.draft.set(draft);
+          this.psbtService.saveDraft(draft);
+        }
       }
       this.view.set('doc');
     } catch (error) {
