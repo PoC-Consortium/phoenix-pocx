@@ -419,7 +419,10 @@ const UTXO_PAGE_SIZE = 10;
 
         <!-- Actions -->
         <div class="actions-row">
-          <button mat-stroked-button (click)="cancelled.emit()">{{ 'cancel' | i18n }}</button>
+          <button mat-stroked-button (click)="cancelled.emit()">
+            <mat-icon>arrow_back</mat-icon>
+            {{ 'psbt_back' | i18n }}
+          </button>
           <span class="spacer"></span>
           <button
             mat-raised-button

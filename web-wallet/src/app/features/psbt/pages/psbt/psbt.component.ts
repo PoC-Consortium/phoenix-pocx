@@ -81,14 +81,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             @if (i > 0) {
               <div class="step-line" [class.complete]="currentStep() >= i"></div>
             }
-            <div
-              class="step"
-              [class.clickable]="canClickStep(i)"
-              (click)="onStepClick(i)"
-              (keydown.enter)="onStepClick(i)"
-              [attr.tabindex]="canClickStep(i) ? 0 : null"
-              [attr.role]="canClickStep(i) ? 'button' : null"
-            >
+            <div class="step">
               <div
                 class="step-circle"
                 [class.active]="viewedStep() === i"
@@ -114,10 +107,12 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             <div class="card options-card">
               <div
                 class="mode-option"
-                (click)="view.set('compose')"
-                (keydown.enter)="view.set('compose')"
+                [class.selected]="selectedMode() === 'compose'"
+                (click)="selectedMode.set('compose')"
+                (keydown.enter)="selectedMode.set('compose')"
                 tabindex="0"
-                role="button"
+                role="radio"
+                [attr.aria-checked]="selectedMode() === 'compose'"
               >
                 <mat-icon class="mode-icon">edit_note</mat-icon>
                 <div class="mode-details">
@@ -127,10 +122,12 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
               </div>
               <div
                 class="mode-option"
-                (click)="importPsbt()"
-                (keydown.enter)="importPsbt()"
+                [class.selected]="selectedMode() === 'import'"
+                (click)="selectedMode.set('import')"
+                (keydown.enter)="selectedMode.set('import')"
                 tabindex="0"
-                role="button"
+                role="radio"
+                [attr.aria-checked]="selectedMode() === 'import'"
               >
                 <mat-icon class="mode-icon">file_open</mat-icon>
                 <div class="mode-details">
@@ -471,16 +468,58 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             </div>
           }
 
-          <!-- Bottom actions -->
-          <div class="actions bottom-actions">
-            <button mat-stroked-button (click)="discardDraft()">
+        }
+
+        <!-- Wizard navigation footer (mirrors mining/node setup wizards) -->
+        @if (view() === 'start') {
+          <div class="wizard-footer">
+            <span class="spacer"></span>
+            <button
+              mat-raised-button
+              color="primary"
+              [disabled]="!selectedMode()"
+              (click)="startNext()"
+            >
+              {{ 'psbt_next' | i18n }}
+              <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+            </button>
+          </div>
+        }
+        @if (view() === 'doc' && doc(); as document) {
+          <div class="wizard-footer">
+            <button mat-stroked-button (click)="goBackStep()">
+              <mat-icon>arrow_back</mat-icon>
+              {{ 'psbt_back' | i18n }}
+            </button>
+            <button mat-stroked-button class="discard-button" (click)="discardDraft()">
               <mat-icon>delete_outline</mat-icon>
               {{ 'psbt_discard' | i18n }}
             </button>
             <span class="spacer"></span>
-            @if (document.status !== 'finalized') {
+            @if (showBroadcastSection(document)) {
               <button
-                mat-stroked-button
+                mat-raised-button
+                class="broadcast-button"
+                [disabled]="!finalHex() || broadcasting()"
+                (click)="broadcast()"
+              >
+                @if (broadcasting()) {
+                  <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
+                } @else {
+                  <mat-icon>send</mat-icon>
+                }
+                {{ 'psbt_broadcast' | i18n }}
+              </button>
+            } @else if (document.status === 'finalized') {
+              <!-- Stepped back on a finalized document: Next returns to broadcast -->
+              <button mat-raised-button color="primary" (click)="docSection.set(null)">
+                {{ 'psbt_next' | i18n }}
+                <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+              </button>
+            } @else {
+              <button
+                mat-raised-button
+                color="primary"
                 [disabled]="document.status !== 'ready' || finalizing()"
                 [matTooltip]="document.status !== 'ready' ? ('psbt_finalize_needs_sigs' | i18n) : ''"
                 (click)="finalize()"
@@ -493,19 +532,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 {{ 'psbt_finalize' | i18n }}
               </button>
             }
-            <button
-              mat-raised-button
-              class="broadcast-button"
-              [disabled]="document.status !== 'finalized' || !finalHex() || broadcasting()"
-              (click)="broadcast()"
-            >
-              @if (broadcasting()) {
-                <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-              } @else {
-                <mat-icon>send</mat-icon>
-              }
-              {{ 'psbt_broadcast' | i18n }}
-            </button>
           </div>
         }
 
@@ -658,8 +684,11 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         cursor: pointer;
         transition: all 0.2s;
 
-        &:hover,
-        &:focus-visible {
+        &:hover {
+          background: rgba(0, 0, 0, 0.02);
+        }
+
+        &.selected {
           border-color: #1976d2;
           background: rgba(33, 150, 243, 0.08);
 
@@ -849,22 +878,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         display: flex;
         align-items: center;
         gap: 6px;
-        border-radius: 6px;
-        padding: 2px 6px;
-        margin: -2px -6px;
-
-        &.clickable {
-          cursor: pointer;
-
-          &:hover,
-          &:focus-visible {
-            background: rgba(25, 118, 210, 0.08);
-
-            .step-label {
-              color: #1976d2;
-            }
-          }
-        }
       }
 
       .step-circle {
@@ -1123,9 +1136,35 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
-      .bottom-actions {
-        margin-top: 0;
+      // Wizard navigation footer
+      .wizard-footer {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
         margin-bottom: 24px;
+
+        .spacer {
+          flex: 1;
+        }
+
+        button {
+          min-width: 110px;
+
+          mat-icon {
+            margin-right: 6px;
+
+            &[iconPositionEnd] {
+              margin-right: 0;
+              margin-left: 6px;
+            }
+          }
+
+          .button-spinner {
+            display: inline-block;
+            margin-right: 8px;
+          }
+        }
       }
 
       .broadcast-button {
@@ -1490,27 +1529,32 @@ export class PsbtComponent implements OnInit {
     return document.status === 'finalized' && this.docSection() !== 'sign';
   }
 
-  canClickStep(index: number): boolean {
-    if (this.view() !== 'doc' || !this.doc()) return false;
-    if (index === 0) return true;
-    const document = this.doc()!;
-    if (document.status === 'finalized') {
-      if (index === 1 || index === 2) return this.docSection() !== 'sign';
-      if (index === 3) return this.docSection() === 'sign';
+  /** Mode chosen on the start page; Next proceeds to compose or import */
+  readonly selectedMode = signal<'compose' | 'import' | null>(null);
+
+  startNext(): void {
+    const mode = this.selectedMode();
+    if (mode === 'compose') {
+      this.view.set('compose');
+    } else if (mode === 'import') {
+      this.importPsbt();
     }
-    return false;
   }
 
-  onStepClick(index: number): void {
-    if (!this.canClickStep(index)) return;
-    if (index === 0) {
-      this.docSection.set(null);
-      this.view.set('start');
-      this.refreshDrafts();
+  /**
+   * Wizard Back: on a finalized document's broadcast view, step back to the
+   * signatures & export section; everywhere else return to the start page
+   * (the draft stays under In progress).
+   */
+  goBackStep(): void {
+    const document = this.doc();
+    if (document && this.showBroadcastSection(document)) {
+      this.docSection.set('sign');
       return;
     }
-    // Only reachable on a finalized document: toggle sign vs broadcast section
-    this.docSection.set(index === 3 ? null : 'sign');
+    this.docSection.set(null);
+    this.view.set('start');
+    this.refreshDrafts();
   }
 
   /** " 1/2" suffix on the Sign step while a document is open */

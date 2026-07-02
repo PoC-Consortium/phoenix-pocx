@@ -902,6 +902,8 @@
   "psbt_status_partial_n": "{signed} of {total} signed",
   "psbt_status_ready": "Ready to finalize",
   "psbt_status_finalized": "Finalized",
+  "psbt_back": "Back",
+  "psbt_next": "Next",
   "psbt_step_create": "Create",
   "psbt_step_sign": "Sign",
   "psbt_step_finalize": "Finalize",
