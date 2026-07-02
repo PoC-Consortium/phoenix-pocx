@@ -106,10 +106,9 @@ const UTXO_PAGE_SIZE = 10;
                     }
                   </div>
                   <div class="utxo-main">
-                    <div class="utxo-addr mono">
-                      {{ shortAddress(utxo.address) }} · {{ shortTxid(utxo.txid) }}:{{ utxo.vout }}
-                    </div>
+                    <div class="utxo-addr mono">{{ utxo.address }}</div>
                     <div class="utxo-meta">
+                      {{ shortTxid(utxo.txid) }}:{{ utxo.vout }} ·
                       {{ utxo.confirmations }} {{ 'psbt_confirmations' | i18n }}
                     </div>
                   </div>
@@ -154,78 +153,71 @@ const UTXO_PAGE_SIZE = 10;
           </div>
 
           @for (out of outputs(); track $index) {
-            <div class="output-group">
-              <!-- Address line: field + contacts + remove (matches send page) -->
-              <div class="field-row">
-                <mat-form-field appearance="outline" class="grow-field">
-                  <mat-label>{{ 'psbt_recipient_address' | i18n }}</mat-label>
-                  <input
-                    matInput
-                    [ngModel]="out.address"
-                    (ngModelChange)="updateOutput($index, 'address', $event)"
-                    autocomplete="off"
-                    spellcheck="false"
-                    class="mono"
-                  />
-                  @if (out.address && addressError($index)) {
-                    <mat-icon matSuffix class="invalid-icon" [matTooltip]="addressError($index)!"
-                      >error</mat-icon
-                    >
-                  } @else if (out.address) {
-                    <mat-icon matSuffix class="valid-icon">check_circle</mat-icon>
-                  }
-                </mat-form-field>
-                <button
-                  mat-stroked-button
-                  class="square-button"
-                  [matMenuTriggerFor]="contactsMenu"
-                  [disabled]="contacts().length === 0"
-                  [matTooltip]="'select_contact' | i18n"
-                  (click)="contactTargetIndex = $index"
-                >
-                  <mat-icon>contacts</mat-icon>
-                </button>
-                <button
-                  mat-stroked-button
-                  class="square-button"
-                  (click)="removeOutput($index)"
-                  [disabled]="outputs().length === 1"
-                  [matTooltip]="'psbt_remove_output' | i18n"
-                >
-                  <mat-icon>close</mat-icon>
-                </button>
-              </div>
-              <!-- Amount line: field + Max (matches send page) -->
-              <div class="field-row">
-                <mat-form-field appearance="outline" class="grow-field">
-                  <mat-label>{{ 'amount' | i18n }} (BTCX)</mat-label>
-                  <input
-                    matInput
-                    type="number"
-                    step="0.00000001"
-                    min="0"
-                    [ngModel]="out.amount"
-                    (ngModelChange)="updateOutput($index, 'amount', $event)"
-                    autocomplete="off"
-                  />
-                </mat-form-field>
-                <button
-                  mat-stroked-button
-                  class="max-button"
-                  (click)="setMaxAmount($index)"
-                  [matTooltip]="'use_all_funds' | i18n"
-                >
-                  <mat-icon>all_inclusive</mat-icon>
-                  {{ 'max_button' | i18n }}
-                </button>
-              </div>
-              @if (subtractFeeIndex() === $index) {
-                <div class="subtract-note">
-                  <mat-icon>info</mat-icon>
-                  {{ 'psbt_subtract_fee_note' | i18n }}
-                </div>
-              }
+            <div class="output-row">
+              <mat-form-field appearance="outline" class="addr-field">
+                <mat-label>{{ 'psbt_recipient_address' | i18n }}</mat-label>
+                <input
+                  matInput
+                  [ngModel]="out.address"
+                  (ngModelChange)="updateOutput($index, 'address', $event)"
+                  autocomplete="off"
+                  spellcheck="false"
+                  class="mono"
+                />
+                @if (out.address && addressError($index)) {
+                  <mat-icon matSuffix class="invalid-icon" [matTooltip]="addressError($index)!"
+                    >error</mat-icon
+                  >
+                } @else if (out.address) {
+                  <mat-icon matSuffix class="valid-icon">check_circle</mat-icon>
+                }
+              </mat-form-field>
+              <button
+                mat-stroked-button
+                class="square-button"
+                [matMenuTriggerFor]="contactsMenu"
+                [disabled]="contacts().length === 0"
+                [matTooltip]="'select_contact' | i18n"
+                (click)="contactTargetIndex = $index"
+              >
+                <mat-icon>contacts</mat-icon>
+              </button>
+              <mat-form-field appearance="outline" class="amount-field">
+                <mat-label>{{ 'amount' | i18n }}</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  step="0.00000001"
+                  min="0"
+                  [ngModel]="out.amount"
+                  (ngModelChange)="updateOutput($index, 'amount', $event)"
+                  autocomplete="off"
+                />
+              </mat-form-field>
+              <button
+                mat-stroked-button
+                class="square-button"
+                (click)="setMaxAmount($index)"
+                [matTooltip]="'use_all_funds' | i18n"
+              >
+                <mat-icon>all_inclusive</mat-icon>
+              </button>
+              <button
+                mat-stroked-button
+                class="square-button"
+                (click)="removeOutput($index)"
+                [disabled]="outputs().length === 1"
+                [matTooltip]="'psbt_remove_output' | i18n"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
             </div>
+            @if (subtractFeeIndex() === $index) {
+              <div class="subtract-note">
+                <mat-icon>info</mat-icon>
+                {{ 'psbt_subtract_fee_note' | i18n }}
+              </div>
+            }
           }
 
           <mat-menu #contactsMenu="matMenu">
@@ -633,9 +625,7 @@ const UTXO_PAGE_SIZE = 10;
         .utxo-addr {
           font-size: 12px;
           color: rgb(0, 35, 65);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          word-break: break-all;
         }
 
         .utxo-meta {
@@ -698,15 +688,6 @@ const UTXO_PAGE_SIZE = 10;
         padding: 4px 0;
       }
 
-      // Output groups — address line + amount line, send-page alignment
-      .output-group {
-        &:not(:first-of-type) {
-          border-top: 1px solid #f0f0f0;
-          padding-top: 12px;
-          margin-top: 4px;
-        }
-      }
-
       .field-row {
         display: flex;
         gap: 8px;
@@ -716,31 +697,6 @@ const UTXO_PAGE_SIZE = 10;
         .grow-field {
           flex: 1;
           min-width: 0;
-        }
-      }
-
-      .max-button {
-        height: 40px;
-        min-width: 70px;
-        color: #666;
-        border-color: rgba(0, 0, 0, 0.12);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        flex-shrink: 0;
-
-        mat-icon {
-          margin-right: 4px;
-          font-size: 16px;
-          height: 16px;
-          width: 16px;
-        }
-
-        &:hover {
-          background: rgba(0, 0, 0, 0.04);
-          border-color: rgba(0, 0, 0, 0.38);
-          color: #333;
         }
       }
 
@@ -772,6 +728,8 @@ const UTXO_PAGE_SIZE = 10;
         display: inline-block;
       }
 
+      // Single-line output rows — every control exactly 40px tall,
+      // aligned like the send page's recipient/amount rows
       .output-row {
         display: flex;
         gap: 6px;
@@ -780,6 +738,11 @@ const UTXO_PAGE_SIZE = 10;
         .addr-field {
           flex: 1;
           min-width: 0;
+        }
+
+        .amount-field {
+          width: 170px;
+          flex-shrink: 0;
         }
       }
 
@@ -1627,11 +1590,6 @@ export class PsbtComposeComponent implements OnInit {
     } finally {
       this.creating.set(false);
     }
-  }
-
-  shortAddress(address: string): string {
-    if (!address || address.length <= 16) return address;
-    return `${address.slice(0, 10)}…${address.slice(-6)}`;
   }
 
   shortTxid(txid: string): string {
