@@ -407,6 +407,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     mat-raised-button
                     color="primary"
                     [disabled]="signing() || document.status === 'ready'"
+                    [matTooltip]="'psbt_sign_tooltip' | i18n"
                     (click)="sign()"
                   >
                     @if (signing()) {
@@ -416,14 +417,20 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     }
                     {{ 'psbt_sign_with_wallet' | i18n }}
                   </button>
-                  <button mat-stroked-button [disabled]="combining()" (click)="combine()">
+                  <button
+                    mat-stroked-button
+                    [disabled]="combining()"
+                    [matTooltip]="'psbt_combine_tooltip' | i18n"
+                    (click)="combine()"
+                  >
                     <mat-icon>call_merge</mat-icon>
                     {{ 'psbt_combine' | i18n }}
                   </button>
                   <span
                     class="tooltip-host"
                     [matTooltip]="
-                      document.status !== 'unsigned' ? ('psbt_join_needs_unsigned' | i18n) : ''
+                      (document.status !== 'unsigned' ? 'psbt_join_needs_unsigned' : 'psbt_join_tooltip')
+                        | i18n
                     "
                   >
                     <button
