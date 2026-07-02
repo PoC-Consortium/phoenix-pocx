@@ -188,40 +188,36 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
 
         <!-- ================= DOCUMENT (review / broadcast) ================= -->
         @if (view() === 'doc' && doc(); as document) {
-          <!-- Document header -->
+          <!-- Document header — single compact row -->
           <div class="card">
             <div class="doc-head">
-              <div class="doc-top">
-                <div class="doc-id">
-                  @if (renaming()) {
-                    <mat-form-field appearance="outline" class="rename-field">
-                      <input
-                        matInput
-                        [(ngModel)]="renameValue"
-                        (keydown.enter)="commitRename()"
-                        (keydown.escape)="renaming.set(false)"
-                      />
-                    </mat-form-field>
-                    <button mat-icon-button (click)="commitRename()">
-                      <mat-icon>check</mat-icon>
-                    </button>
-                  } @else {
-                    <h2>
-                      {{ draftName() }}
-                      <button mat-icon-button class="rename-button" (click)="startRename()">
-                        <mat-icon>edit</mat-icon>
-                      </button>
-                    </h2>
-                  }
-                  <div class="doc-meta mono">
-                    txid {{ shortId(document.unsignedTxid) }} · {{ document.sizeBytes }} bytes
-                  </div>
-                </div>
-                <span class="badge" [class]="document.status">
-                  <mat-icon>{{ statusIcon(document.status) }}</mat-icon>
-                  {{ statusLabel(document) }}
-                </span>
+              @if (renaming()) {
+                <mat-form-field appearance="outline" class="rename-field">
+                  <input
+                    matInput
+                    [(ngModel)]="renameValue"
+                    (keydown.enter)="commitRename()"
+                    (keydown.escape)="renaming.set(false)"
+                  />
+                </mat-form-field>
+                <button mat-icon-button (click)="commitRename()">
+                  <mat-icon>check</mat-icon>
+                </button>
+              } @else {
+                <h2>
+                  {{ draftName() }}
+                  <button mat-icon-button class="rename-button" (click)="startRename()">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                </h2>
+              }
+              <div class="doc-meta mono">
+                txid {{ shortId(document.unsignedTxid) }} · {{ document.sizeBytes }} bytes
               </div>
+              <span class="badge" [class]="document.status">
+                <mat-icon>{{ statusIcon(document.status) }}</mat-icon>
+                {{ statusLabel(document) }}
+              </span>
             </div>
 
             <!-- Stats -->
@@ -885,25 +881,16 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
-      // ============ Document header ============
+      // ============ Document header — one compact row ============
       .doc-head {
-        padding: 18px 20px;
+        padding: 10px 20px;
         display: flex;
-        flex-direction: column;
+        align-items: center;
         gap: 12px;
-      }
-
-      .doc-top {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 16px;
         flex-wrap: wrap;
-      }
 
-      .doc-id {
         h2 {
-          font-size: 18px;
+          font-size: 16px;
           color: rgb(0, 35, 65);
           font-weight: 600;
           margin: 0;
@@ -913,14 +900,14 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
 
         .rename-button {
-          width: 28px;
-          height: 28px;
+          width: 26px;
+          height: 26px;
           padding: 0;
 
           mat-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
+            font-size: 15px;
+            width: 15px;
+            height: 15px;
             color: #9aa7b5;
           }
 
@@ -934,9 +921,13 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
 
         .doc-meta {
-          font-size: 11.5px;
+          font-size: 11px;
           color: #6b7787;
-          margin-top: 3px;
+          flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
       }
 
@@ -1058,23 +1049,23 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
 
       .stat {
         background: #fff;
-        padding: 13px 20px;
+        padding: 8px 16px;
 
         .stat-key {
-          font-size: 10.5px;
+          font-size: 10px;
           text-transform: uppercase;
           letter-spacing: 0.4px;
           color: #6b7787;
-          margin-bottom: 3px;
+          margin-bottom: 2px;
         }
 
         .stat-value {
-          font-size: 16px;
+          font-size: 14px;
           font-weight: 600;
           color: rgb(0, 35, 65);
 
           small {
-            font-size: 11px;
+            font-size: 10.5px;
             color: #6b7787;
             font-weight: 500;
             font-family: 'Montserrat', sans-serif;
