@@ -39,6 +39,12 @@ If you sent it with Replace-By-Fee enabled, bump its fee (Chapter 9). If not, yo
 **Can I have more than one wallet?**
 Yes. Phoenix supports multiple wallets; switch between them from the toolbar. See Chapter 5.
 
+**Can I create a shared wallet that needs several people to approve a spend?**
+Yes — a *multisig* wallet. Click **Multisig** on the Wallets screen and pick an *M-of-N* policy such as 2-of-3. Every participant runs the same wizard with the same set of public keys. See Chapter 5.
+
+**Why is Send greyed out on my wallet?**
+Because that wallet cannot produce a complete signature on its own — it is either *watch-only* or *multisig*. Spend it through the **Transaction Builder** instead, which builds a PSBT that is signed (and, for multisig, co-signed) before broadcast. See Chapters 5 and 8.
+
 ## Security and backup
 
 **What is the most important thing to protect?**

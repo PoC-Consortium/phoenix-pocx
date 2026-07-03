@@ -138,7 +138,7 @@ Every plot file embeds the address that will receive rewards from blocks it forg
 
 The collapsible block in step 2 is the densest part of the wizard. Most of it is safe to leave alone; the parts worth understanding follow.
 
-**Memory estimation.** A box at the top of the advanced block shows Phoenix's estimate of how much RAM the plotter will use, broken down into a *plotter cache* line and an *HDD cache* line (the latter scales with *drives in parallel*). The total is compared against your system's available RAM; the *available RAM* value turns yellow if the estimate exceeds it.
+**Memory estimation.** A box at the top of the advanced block shows Phoenix's estimate of how much RAM the plotter will use, broken down into a *plotter cache* line and an *HDD cache* line (the latter scales with *drives in parallel*). The estimated **total** turns red when it exceeds the memory the plotter can actually draw on. On desktop that budget is your available RAM; on Android, where the plotter's memory gate also counts free swap (zram / memory-extension), the box adds an **Available Swap** line and compares the total against RAM + swap — so the wizard's warning matches what the plotter will really allow.
 
 ![Step 2 advanced: the estimated-memory box against available RAM.](images/processed/ch15-memory-estimation.png){width=72%}
 

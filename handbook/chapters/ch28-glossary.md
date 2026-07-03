@@ -26,6 +26,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Coinbase maturity.** The waiting period before a newly forged block reward becomes spendable. Until then it shows as *immature*. *(Chapter 9)*
 
+**Co-signer.** A participant in a multisig wallet who holds one of its keys. Spending requires signatures from a threshold of co-signers. *(Chapters 5, 8)*
+
 **Cookie authentication.** An RPC authentication method where Bitcoin-PoCX Core writes a rotating `.cookie` file that clients read. Preferred for local or trusted nodes. *(Chapters 12, 25)*
 
 **Deadline.** The number of seconds a plot would have to wait before being eligible to forge a given block. The smallest deadline on the network wins. Smaller is better. *(Chapter 13)*
@@ -62,6 +64,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Mnemonic.** See *recovery phrase*.
 
+**Multisig (multi-signature).** A wallet whose funds require signatures from several keys — *M-of-N*, for example 2-of-3 — so no single key holder can spend alone. Phoenix builds standard P2WSH `sortedmulti` multisig wallets and spends them through the Transaction Builder. *(Chapters 5, 8)*
+
 **Network capacity.** An estimate of the total plot space across the entire Bitcoin-PoCX network. Your share of it is roughly your share of blocks. *(Chapter 20)*
 
 **Node.** The Bitcoin-PoCX Core program that connects to the network, downloads and validates the blockchain, and holds the wallet. Phoenix drives a node; it is not itself the node. *(Chapters 2, 6)*
@@ -89,6 +93,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 **Proof-of-capacity.** See *PoCX*. A consensus model where mining power comes from stored data. *(Chapters 2, 13)*
 
 **Proof-of-work.** Bitcoin's original consensus model, where mining power comes from continuous computation. Bitcoin-PoCX replaces it with proof-of-capacity. *(Chapter 2)*
+
+**PSBT (Partially Signed Bitcoin Transaction).** The standard container format for a transaction that is being passed between wallets and signers as it collects signatures. Phoenix's Transaction Builder composes, signs, combines, finalizes, and broadcasts PSBTs — the basis of multisig and offline signing. *(Chapter 8)*
 
 **Quality.** A 64-bit value computed for each nonce from the selected scoop and the generation signature; lower quality yields a smaller (better) deadline. *(Chapter 13)*
 

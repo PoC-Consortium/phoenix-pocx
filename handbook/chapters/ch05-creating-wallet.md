@@ -8,13 +8,14 @@ The first time you reach this screen there are no wallets yet. Phoenix shows a f
 
 ![The Wallets screen on first run â€” Create New, Import, or Watch Only.](images/processed/ch05-wallets-empty.png){width=70%}
 
-Three buttons sit along the bottom edge of the box:
+A row of buttons sits along the bottom edge of the box:
 
 | Button         | Use it when…                                                                                                |
 |----------------|-------------------------------------------------------------------------------------------------------------|
 | **Create New** | You are starting from nothing. Phoenix generates a new recovery phrase that becomes the master key for your funds. |
 | **Import**     | You already have a Phoenix or Bitcoin-PoCX recovery phrase from a previous setup, hardware wallet, or another wallet. |
 | **Watch Only** | You want to *watch* an address or extended public key (xpub) without ever being able to spend from it.       |
+| **Multisig**   | You want a shared wallet whose funds require several keys to spend — a 2-of-3 treasury, for example.          |
 
 A primary **Open Wallet** button on the right is greyed out for now — it becomes active once you have at least one wallet to open.
 
@@ -163,6 +164,80 @@ Click **Watch Only** on the Wallets screen. The three-step wizard:
 The watch-only wallet appears in the Wallets list with a distinctive **eye icon** instead of a lock. You can open it just like any other wallet, but the Send screen is disabled — there is nothing for it to sign with.
 
 > **Tip** — A watch-only wallet of your *forging address* is a useful companion to a separate cold wallet that holds the keys: you can monitor incoming block rewards from any computer, while the spending keys stay offline.
+
+## Setting up a multisig wallet
+
+A *multisig* (multi-signature) wallet spreads control of the funds across several independent keys, held by several people or several devices, and requires more than one of them to authorise any spend. A **2-of-3** wallet, for example, has three key holders; any two of them together can spend, but no single one can. This is the standard tool for shared treasuries, family funds, and self-custody setups where you want a lost or stolen single key to be survivable rather than catastrophic.
+
+Phoenix builds standard **P2WSH `sortedmulti`** multisig wallets — the widely interoperable form — so the wallet you create here can be co-signed with, and recovered by, other Bitcoin descriptor wallets that follow the same standard.
+
+> **Note** — Every participant runs *this same wizard* on their own machine, each with their own separate seed, and everyone enters the same set of public keys and the same policy. Because they all describe the identical wallet, they all derive the identical addresses. There is no "server" that holds the wallet; it exists independently on each participant's computer.
+
+Click **Multisig** on the Wallets screen (the fourth button, with a group-of-people icon; it stays disabled until Bitcoin-PoCX Core is connected). The wizard has **five steps**: *Multisig Policy → Your Seed → Verify Backup → Exchange Keys → Review & Create.*
+
+![The multisig wizard, step 1: the policy — wallet name and the *M-of-N* selectors.](images/processed/ch05-multisig-policy.png){width=70%}
+
+### Step 1 — Multisig Policy
+
+Two things are set here:
+
+- **Wallet name** — a recognisable label, for example *"treasury-2of3"*. As with the other flows, Phoenix rejects a name that clashes with an existing wallet (*"A wallet with this name already exists"*).
+- **The policy** — two dropdowns reading **Required signatures** *of* **Total keys**. *Total keys* is the number of participants (2 through 7); *Required signatures* is how many of them must sign to spend. The default is **2 of 3**. If you lower *Total* below the current *Required*, Phoenix clamps *Required* down to match.
+
+An explanatory line spells the policy out in words — *"any 2 of the 3 key holders can spend"* — and reminds you that every participant must complete the wizard with the same keys, so you will need the **public keys** of your co-signers.
+
+### Step 2 — Your Seed
+
+Each participant contributes one key, derived from their own recovery phrase. Choose how you supply yours:
+
+- **Create a new seed for this multisig** *(default)* — Phoenix generates a fresh **24-word recovery phrase**, shown as numbered chips exactly as in the create-wallet flow. Write it down (the warning here is emphatic: without these words *and* the co-signer public keys, your share of the wallet cannot be recovered), then tick **I have written down my recovery phrase**. **Generate new** throws the phrase away and produces another.
+- **I already have a seed (restore or rejoin)** — enter an existing 12- or 24-word phrase, with the same autocomplete and checksum checking as the Import flow. Use this to rejoin a multisig you already belong to, or to restore one.
+
+> **Note** — The multisig wizard does **not** offer a BIP39 passphrase (25th word); each seed is used on its own.
+
+### Step 3 — Verify Backup
+
+For a *new* seed, Phoenix asks you to type three of the 24 words at random positions, just like the create-wallet flow, to confirm your written copy is correct. For a *restored* seed this step is skipped — you already have the phrase — and the wizard simply notes *"Seed entered manually — no verification needed."*
+
+### Step 4 — Exchange Keys
+
+This is the collaborative step. Phoenix derives your wallet's **public key** from your seed (an *extended public key*, or xpub, annotated with its origin — it looks like `[fingerprint/48h/0h/0h/2h]xpub…`). A public key can be shared freely: it lets others build the shared wallet and watch it, but it cannot spend anything on its own.
+
+![Step 4: your own public key to share, and the field for pasting each co-signer's key.](images/processed/ch05-multisig-keys.png){width=70%}
+
+- **Your key** is shown in a monospace box with **Copy key** and **Save as file** buttons. Send it to your co-signers by whatever channel you like — it is not secret.
+- **Co-signer keys** — paste each co-signer's key (exactly as they sent it) and click **Add**. A running counter shows how many of the required co-signers you have entered. Phoenix validates every key and refuses:
+    - anything that is not a public key (*"expected [fingerprint/path]xpub… or a bare xpub"*);
+    - a **private** key — *"This is a private key — never share private keys"* (a co-signer who sends you an `xprv` has made a serious mistake);
+    - a key for the **wrong network**;
+    - a key with a **bad checksum** (usually copied incompletely);
+    - **your own** key, or a **duplicate** of one already added.
+
+The **Next** button unlocks only once you have added exactly the right number of co-signers (*Total keys* minus one — the missing one is you).
+
+### Step 5 — Review & Create
+
+![Step 5: the review — policy, the addresses to verify with your co-signers, and the descriptor backup.](images/processed/ch05-multisig-review.png){width=70%}
+
+The final step summarises the wallet: the policy (*"2 of 3 · P2WSH (sortedmulti)"*), the name, and the keys (*You* plus your co-signers, by fingerprint).
+
+> **Warning — verify the addresses before funding.** Under **Verify with your co-signers**, Phoenix lists the wallet's first few receive addresses. These **must be byte-for-byte identical on every participant's machine.** Compare them out loud or over a trusted channel with your co-signers *before anyone sends funds in.* If they differ, someone entered a wrong key or a different policy — do not fund the wallet until they match.
+
+Two more controls before you finish:
+
+- **Save descriptor backup** downloads a text file with the wallet's public descriptors. This is an essential companion to your seed: restoring a multisig wallet needs *both* a participant seed *and* the full set of public keys. Keep this file with your written recovery phrase. The on-screen note repeats the point.
+- **Encrypt wallet** — the same optional password protection offered in the other flows.
+- If you *restored* an existing seed, a **Rescan** choice appears (rescan from now, or from genesis) so Core can rediscover the wallet's history.
+
+Click **Create Wallet**. Phoenix builds the wallet in Core and opens the dashboard with it active.
+
+### Living with a multisig wallet
+
+A multisig wallet appears in the Wallets list and the toolbar selector with a **purple group icon** and a tooltip naming its policy (*"2-of-3 multisig wallet"*).
+
+Because spending needs several signatures, the ordinary one-click **Send** screen is **disabled** for a multisig wallet — one machine cannot produce a complete signature on its own. Instead, multisig wallets spend through the **Transaction Builder**, which builds a partially-signed transaction (a PSBT) that each co-signer signs in turn until the threshold is met. That workflow is covered in Chapter 8.
+
+> **Warning** — Every co-signer must keep their own seed *and* the descriptor backup safe. Losing one participant's seed in a 2-of-3 wallet is survivable (the other two can still spend and re-secure the funds); losing enough seeds to drop below the threshold makes the funds permanently unspendable. Treat each share with the same care as a single-wallet recovery phrase.
 
 ## Two layers of protection, one ultimate backup
 

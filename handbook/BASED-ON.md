@@ -6,10 +6,10 @@ between this commit and the new HEAD) instead of a full re-read.
 
 | Field            | Value                                      |
 |------------------|--------------------------------------------|
-| Based-on commit  | `9e4854c1bb406d18041852a72cac89ab45a06017` |
-| Short SHA        | `9e4854c`                                   |
-| App version      | `2.0.3`                                      |
-| Synced on        | 2026-06-22                                   |
+| Based-on commit  | `5e6a96ca2f48971c55949cfeb24b15ce270b6153` |
+| Short SHA        | `5e6a96c`                                   |
+| App version      | `2.0.5`                                      |
+| Synced on        | 2026-07-03                                   |
 
 ## How to update the handbook against a newer wallet
 
@@ -34,5 +34,6 @@ between this commit and the new HEAD) instead of a full re-read.
 
 | Synced on  | Based-on  | Version | Notes                                              |
 |------------|-----------|---------|----------------------------------------------------|
+| 2026-07-03 | `5e6a96c` | 2.0.5   | Added the Transaction Builder (PSBT) to ch08 and the multisig wallet wizard to ch05; tour, glossary, and FAQ updates; Android swap-aware memory note. New screenshots captured (3 for the multisig wizard, 4 for the Transaction Builder). |
 | 2026-06-22 | `9e4854c` | 2.0.3   | First recorded revision. See `UPDATE-NOTES-2026-06.md`. |
 | (original) | `4c48855` | 2.0     | Initial handbook authoring (no revision was recorded). |
