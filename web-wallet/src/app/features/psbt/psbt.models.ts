@@ -93,6 +93,15 @@ export interface PsbtDocument {
   sendingTotal: number;
   /** Sum of change outputs in BTCX */
   changeTotal: number;
+  /**
+   * No change output came back although the fee is larger than a dust
+   * change output plus the minimum relay fee for this size — the leftover
+   * was (almost certainly) folded into the fee by the node's dust rule.
+   * Derived from the PSBT itself, so it also holds for reopened drafts and
+   * imports. A deliberately high fee rate on a sweep can trigger it too;
+   * the notice is informational, so that is acceptable.
+   */
+  changeAbsorbed: boolean;
   totalInput?: number;
   locktime: number;
 }

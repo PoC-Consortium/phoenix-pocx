@@ -61,6 +61,16 @@ export class PsbtService {
 
     const fee = decoded.fee ?? analysis.fee;
     const vsize = analysis.estimated_vsize ?? decoded.tx.vsize;
+    // No change output, yet the fee could have paid for one: the fee exceeds
+    // a P2WSH dust change (330 sat, the highest dust bar among our output
+    // types) plus min relay (0.1 sat/vB) for this size, so the leftover was
+    // folded into the fee by the node's dust rule
+    const changeAbsorbed =
+      fee !== undefined &&
+      vsize !== undefined &&
+      outputs.length > 0 &&
+      changeTotal === 0 &&
+      fee * 1e8 > 330 + vsize * 0.1;
     // estimated_feerate is BTC/kvB → sat/vB
     let feeRate = analysis.estimated_feerate
       ? (analysis.estimated_feerate * 1e8) / 1000
@@ -87,6 +97,7 @@ export class PsbtService {
       vsize,
       sendingTotal,
       changeTotal,
+      changeAbsorbed,
       totalInput,
       locktime: decoded.tx.locktime,
     };

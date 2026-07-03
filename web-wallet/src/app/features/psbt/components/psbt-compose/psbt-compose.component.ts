@@ -1304,8 +1304,8 @@ export class PsbtComposeComponent implements OnInit {
   private readonly store = inject(Store);
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
 
-  /** Emits the funded PSBT (base64) once created; changeAbsorbed = node dropped a dust change output into the fee */
-  readonly created = output<{ psbt: string; fee: number; changeAbsorbed: boolean }>();
+  /** Emits the funded PSBT (base64) once created */
+  readonly created = output<{ psbt: string; fee: number }>();
   readonly cancelled = output<void>();
 
   readonly pageSize = UTXO_PAGE_SIZE;
@@ -1796,13 +1796,7 @@ export class PsbtComposeComponent implements OnInit {
         }
       );
 
-      // changepos -1 with fee-on-top means the remainder was below the dust
-      // limit and Core folded it into the fee — surface that on the review
-      this.created.emit({
-        psbt: result.psbt,
-        fee: result.fee,
-        changeAbsorbed: result.changepos === -1 && subtract === null,
-      });
+      this.created.emit({ psbt: result.psbt, fee: result.fee });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // Core -4: wallet lacks the scripts/pubkeys behind these coins
