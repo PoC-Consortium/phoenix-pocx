@@ -456,9 +456,11 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   showUpdateBadge = computed(() => this.appUpdateService.showUpdateBadge());
 
   navGroups = computed<NavGroup[]>(() => {
-    // Multisig wallets cannot sign a full transaction alone — plain Send
-    // would always fail, so it's disabled in favor of the PSBT builder.
+    // Multisig wallets cannot sign a full transaction alone and watch-only
+    // wallets cannot sign at all — plain Send would always fail for both,
+    // so it's disabled in favor of the PSBT builder.
     const isMultisig = this.walletService.activeMultisig() !== null;
+    const isWatchOnly = this.walletService.activeWatchOnly();
 
     const miningItems: NavItem[] = [
       { path: '/mining', icon: 'hardware', labelKey: 'mining_dashboard' },
@@ -485,8 +487,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
             path: '/send',
             icon: 'send',
             labelKey: 'send',
-            disabled: isMultisig,
-            disabledTooltipKey: 'msig_send_disabled',
+            disabled: isMultisig || isWatchOnly,
+            disabledTooltipKey: isMultisig ? 'msig_send_disabled' : 'watch_only_send_disabled',
           },
           { path: '/receive', icon: 'call_received', labelKey: 'receive' },
           { path: '/psbt', icon: 'edit_document', labelKey: 'psbt_title' },

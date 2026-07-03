@@ -460,6 +460,14 @@ a {
       font-weight: 500;
     }
 
+    .wallet-row-multisig {
+      flex-shrink: 0;
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: #9c27b0;
+    }
+
     .wallet-row-watch,
     .wallet-row-watch-placeholder {
       flex-shrink: 0;

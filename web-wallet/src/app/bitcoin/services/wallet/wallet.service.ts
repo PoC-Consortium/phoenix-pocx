@@ -62,6 +62,7 @@ export class WalletService implements OnDestroy {
   private readonly _lastUpdated = signal<Date | null>(null);
   private readonly _recentTransactions = signal<WalletTransaction[]>([]);
   private readonly _activeMultisig = signal<MultisigInfo | null>(null);
+  private readonly _activeWatchOnly = signal<boolean>(false);
 
   // Public readonly signals
   readonly balance = this._balance.asReadonly();
@@ -74,6 +75,8 @@ export class WalletService implements OnDestroy {
   readonly recentTransactions = this._recentTransactions.asReadonly();
   /** N-of-M shape of the active wallet when it is multisig, null otherwise */
   readonly activeMultisig = this._activeMultisig.asReadonly();
+  /** True when the active wallet has private keys disabled (watch-only) */
+  readonly activeWatchOnly = this._activeWatchOnly.asReadonly();
 
   // Computed signals
   readonly totalBalance = computed(
@@ -101,6 +104,7 @@ export class WalletService implements OnDestroy {
         this.refresh();
         this.startAutoRefresh();
         this._activeMultisig.set(null);
+        this._activeWatchOnly.set(false);
         void this.walletManager.getMultisigInfo(wallet).then(info => {
           // Guard against the wallet having changed again while listing descriptors
           if (this.walletManager.activeWallet === wallet) {
@@ -111,6 +115,7 @@ export class WalletService implements OnDestroy {
         this.stopAutoRefresh();
         this.resetState();
         this._activeMultisig.set(null);
+        this._activeWatchOnly.set(false);
       }
     });
 
@@ -147,6 +152,7 @@ export class WalletService implements OnDestroy {
       // Fetch wallet info for tx count
       const info = await this.walletRpc.getWalletInfo(walletName);
       this._txCount.set(info.txcount);
+      this._activeWatchOnly.set(info.private_keys_enabled === false);
 
       // Fetch recent transactions (100 for chart history, sorted newest first)
       const transactions = await this.walletRpc.listTransactions(walletName, '*', 100);
