@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, OnInit, OnDestroy, ViewChild } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -10,14 +10,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { StepHeaderComponent } from '../../../../shared/components';
+import { StepHeaderComponent, MnemonicEntryComponent } from '../../../../shared/components';
+import type { MnemonicEntryState } from '../../../../shared/components';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
-import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
 import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
 
 /**
@@ -41,10 +39,9 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     MatCheckboxModule,
     MatSnackBarModule,
     MatProgressBarModule,
-    MatAutocompleteModule,
-    MatTooltipModule,
     I18nPipe,
     StepHeaderComponent,
+    MnemonicEntryComponent,
   ],
   template: `
     <div class="import-wallet-container">
@@ -99,63 +96,10 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
             <div class="step-content">
               <p class="info-text">{{ 'import_mnemonic_description' | i18n }}</p>
 
-              <!-- Word length selector -->
-              <div class="word-length-selector">
-                <button
-                  mat-stroked-button
-                  [class.active]="wordCount === 12"
-                  (click)="setWordCount(12)"
-                  [disabled]="importing()"
-                >
-                  12 {{ 'words' | i18n }}
-                </button>
-                <button
-                  mat-stroked-button
-                  [class.active]="wordCount === 24"
-                  (click)="setWordCount(24)"
-                  [disabled]="importing()"
-                >
-                  24 {{ 'words' | i18n }}
-                </button>
-              </div>
-
-              <div class="mnemonic-input-grid" [class.words-12]="wordCount === 12">
-                @for (word of mnemonicWords; track $index; let i = $index) {
-                  <div class="word-input-chip">
-                    <span class="word-index">{{ i + 1 }}</span>
-                    <input
-                      class="word-input"
-                      [(ngModel)]="mnemonicWords[i]"
-                      [disabled]="importing()"
-                      [matAutocomplete]="auto"
-                      (input)="updateSuggestions(i, mnemonicWords[i])"
-                      (blur)="validateWord(i)"
-                      autocomplete="off"
-                      spellcheck="false"
-                    />
-                    <mat-autocomplete
-                      #auto="matAutocomplete"
-                      (optionSelected)="onWordSelected(i, $event.option.value)"
-                    >
-                      @for (suggestion of wordSuggestions[i]; track suggestion) {
-                        <mat-option [value]="suggestion">{{ suggestion }}</mat-option>
-                      }
-                    </mat-autocomplete>
-                    @if (wordErrors[i]) {
-                      <mat-icon class="word-error-icon" matTooltip="{{ 'invalid_word' | i18n }}"
-                        >error</mat-icon
-                      >
-                    }
-                  </div>
-                }
-              </div>
-
-              @if (isMnemonicChecksumInvalid()) {
-                <p class="warning-text small">
-                  <mat-icon>error</mat-icon>
-                  {{ 'mnemonic_checksum_invalid' | i18n }}
-                </p>
-              }
+              <app-mnemonic-entry
+                [disabled]="importing()"
+                (changed)="onMnemonicChanged($event)"
+              ></app-mnemonic-entry>
 
               <!-- BIP39 Passphrase Option (25th word) -->
               <div class="passphrase-section">
@@ -203,7 +147,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!isMnemonicValid() || importing() || !bip39PassphraseValid()"
+                  [disabled]="!mnemonicValid() || importing() || !bip39PassphraseValid()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -350,81 +294,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
         }
       }
 
-      /* Word length selector */
-      .word-length-selector {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 16px;
-
-        button {
-          flex: 1;
-
-          &.active {
-            background: #1e3a5f;
-            color: white;
-          }
-        }
-      }
-
-      /* Mnemonic input grid */
-      .mnemonic-input-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 8px;
-        margin-bottom: 16px;
-
-        &.words-12 {
-          grid-template-columns: repeat(3, 1fr);
-        }
-      }
-
-      .word-input-chip {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 8px 10px;
-        background: #ffffff;
-        border-radius: 4px;
-        border: 1px solid transparent;
-        position: relative;
-        min-width: 0;
-        overflow: hidden;
-
-        &:focus-within {
-          border-color: #1e3a5f;
-          background: white;
-        }
-      }
-
-      .word-index {
-        color: rgba(0, 0, 0, 0.4);
-        font-size: 11px;
-        min-width: 16px;
-        flex-shrink: 0;
-        font-family: 'Roboto Mono', monospace;
-      }
-
-      .word-input {
-        flex: 1;
-        border: none;
-        outline: none;
-        background: transparent;
-        font-family: 'Roboto Mono', monospace;
-        font-weight: 500;
-        font-size: 13px;
-        min-width: 0;
-        width: 0;
-      }
-
-      .word-error-icon {
-        color: #f44336;
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        position: absolute;
-        right: 8px;
-      }
-
       .passphrase-section {
         margin: 16px 0;
         padding: 16px;
@@ -447,26 +316,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
         padding-top: 16px;
         border-top: 1px solid rgba(0, 0, 0, 0.08);
       }
-
-      @media (max-width: 599px) {
-        .mnemonic-input-grid {
-          grid-template-columns: repeat(3, 1fr);
-
-          &.words-12 {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-      }
-
-      @media (max-width: 400px) {
-        .mnemonic-input-grid {
-          grid-template-columns: repeat(2, 1fr);
-
-          &.words-12 {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-      }
     `,
   ],
 })
@@ -474,7 +323,6 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly store = inject(Store);
   private readonly walletManager = inject(WalletManagerService);
-  private readonly descriptorService = inject(DescriptorService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
 
@@ -492,11 +340,10 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   private readonly existingWalletNames = signal<string[]>([]);
   readonly walletNameConflict = signal(false);
 
-  // Mnemonic input
-  wordCount = 24;
-  mnemonicWords: string[] = [];
-  wordSuggestions: string[][] = [];
-  wordErrors: boolean[] = [];
+  // Mnemonic input (via shared MnemonicEntryComponent)
+  private mnemonic = '';
+  readonly mnemonicValid = signal(false);
+  @ViewChild(MnemonicEntryComponent) private mnemonicEntry?: MnemonicEntryComponent;
 
   // BIP39 Passphrase (25th word)
   useBip39Passphrase = false;
@@ -509,7 +356,6 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   walletPasswordConfirm = '';
 
   ngOnInit(): void {
-    this.initializeWordArrays();
     this.walletManager
       .listAllWallets()
       .then(names => this.existingWalletNames.set(names))
@@ -524,20 +370,13 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     );
   }
 
-  private initializeWordArrays(): void {
-    this.mnemonicWords = new Array(this.wordCount).fill('');
-    this.wordSuggestions = new Array(this.wordCount).fill(null).map(() => []);
-    this.wordErrors = new Array(this.wordCount).fill(false);
-  }
-
   getCurrentStepTitle(): string {
     return this.i18n.get(this.stepTitles[this.currentStep() - 1]);
   }
 
-  setWordCount(count: 12 | 24): void {
-    if (this.wordCount === count) return;
-    this.wordCount = count;
-    this.initializeWordArrays();
+  onMnemonicChanged(state: MnemonicEntryState): void {
+    this.mnemonic = state.mnemonic;
+    this.mnemonicValid.set(state.valid);
   }
 
   nextStep(): void {
@@ -550,59 +389,6 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     if (this.currentStep() > 1) {
       this.currentStep.update(s => s - 1);
     }
-  }
-
-  updateSuggestions(index: number, value: string): void {
-    if (value && value.length >= 1) {
-      this.wordSuggestions[index] = this.descriptorService.getWordSuggestions(value, 8);
-    } else {
-      this.wordSuggestions[index] = [];
-    }
-    // Clear error when typing
-    this.wordErrors[index] = false;
-  }
-
-  onWordSelected(index: number, word: string): void {
-    this.mnemonicWords[index] = word;
-    this.wordSuggestions[index] = [];
-    this.wordErrors[index] = false;
-  }
-
-  validateWord(index: number): void {
-    const word = this.mnemonicWords[index]?.trim().toLowerCase();
-    if (word) {
-      const wordlist = this.descriptorService.getWordlist();
-      this.wordErrors[index] = !wordlist.includes(word);
-    } else {
-      this.wordErrors[index] = false;
-    }
-  }
-
-  isMnemonicComplete(): boolean {
-    const wordlist = this.descriptorService.getWordlist();
-    const filledWords = this.mnemonicWords.filter(w => w.trim().length > 0);
-
-    // All words must be filled
-    if (filledWords.length !== this.wordCount) return false;
-
-    // All words must be valid BIP39 words
-    return this.mnemonicWords.every(word => {
-      const trimmed = word.trim().toLowerCase();
-      return wordlist.includes(trimmed);
-    });
-  }
-
-  isMnemonicValid(): boolean {
-    if (!this.isMnemonicComplete()) return false;
-
-    // BIP39 checksum: the last word encodes a checksum of the first N-1,
-    // so a typo swapping one valid word for another is detectable here.
-    const phrase = this.mnemonicWords.map(w => w.trim().toLowerCase()).join(' ');
-    return this.descriptorService.validateMnemonic(phrase);
-  }
-
-  isMnemonicChecksumInvalid(): boolean {
-    return this.isMnemonicComplete() && !this.isMnemonicValid();
   }
 
   bip39PassphraseValid(): boolean {
@@ -621,8 +407,7 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     this.importing.set(true);
 
     try {
-      // Build mnemonic from words
-      const mnemonic = this.mnemonicWords.map(w => w.trim().toLowerCase()).join(' ');
+      const mnemonic = this.mnemonic;
 
       // Only use BIP39 passphrase if checkbox is enabled
       const mnemonicPassphrase = this.useBip39Passphrase ? this.passphrase : undefined;
@@ -665,9 +450,9 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   }
 
   private clearSecrets(): void {
-    this.mnemonicWords = new Array(this.wordCount).fill('');
-    this.wordSuggestions = new Array(this.wordCount).fill(null).map(() => []);
-    this.wordErrors = new Array(this.wordCount).fill(false);
+    this.mnemonic = '';
+    this.mnemonicValid.set(false);
+    this.mnemonicEntry?.reset();
     this.passphrase = '';
     this.passphraseConfirm = '';
     this.useBip39Passphrase = false;

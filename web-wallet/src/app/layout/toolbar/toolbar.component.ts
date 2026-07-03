@@ -205,8 +205,22 @@ import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-d
                   <div class="wallet-row-content">
                     <!-- Column 1: Wallet icon -->
                     <mat-icon class="wallet-row-icon">account_balance_wallet</mat-icon>
-                    <!-- Column 2: Wallet name -->
+                    <!-- Column 2: Wallet name (+ multisig glyph) -->
                     <span class="wallet-row-name">{{ wallet.name || '(default)' }}</span>
+                    @if (wallet.multisig) {
+                      <mat-icon
+                        class="wallet-row-multisig"
+                        [matTooltip]="
+                          'msig_wallet_tooltip'
+                            | i18n
+                              : {
+                                  required: wallet.multisig.requiredSigs,
+                                  total: wallet.multisig.totalKeys,
+                                }
+                        "
+                        >group</mat-icon
+                      >
+                    }
                     <!-- Column 3: Watch-only indicator (only for loaded watch-only wallets) -->
                     @if (wallet.isLoaded && wallet.isWatchOnly) {
                       <mat-icon class="wallet-row-watch" matTooltip="{{ 'watch_only' | i18n }}"

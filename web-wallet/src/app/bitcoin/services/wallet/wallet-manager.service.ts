@@ -60,6 +60,25 @@ export function rescanToTimestamp(rescan: WatchOnlyRescan): number | 'now' {
 }
 
 /**
+ * N-of-M shape of a multisig wallet, parsed from its active
+ * wsh(sortedmulti(...)) / wsh(multi(...)) descriptor.
+ */
+export interface MultisigInfo {
+  requiredSigs: number;
+  totalKeys: number;
+}
+
+/**
+ * Parse a descriptor like "wsh(sortedmulti(2,keyA,keyB,...))" into its
+ * N-of-M shape. Returns null for non-multisig descriptors.
+ */
+export function parseMultisigDescriptor(desc: string): MultisigInfo | null {
+  const match = desc.match(/^wsh\((?:sorted)?multi\((\d+),([^)]+)\)/);
+  if (!match) return null;
+  return { requiredSigs: parseInt(match[1], 10), totalKeys: match[2].split(',').length };
+}
+
+/**
  * Wallet summary for UI display
  */
 export interface WalletSummary {
@@ -70,6 +89,8 @@ export interface WalletSummary {
   txCount?: number;
   isDescriptor?: boolean;
   isWatchOnly?: boolean;
+  /** Set when the wallet's active descriptors are N-of-M multisig (loaded wallets only) */
+  multisig?: MultisigInfo;
   isEncrypted?: boolean;
   /**
    * Mirrors `getwalletinfo.unlocked_until`. `undefined` if the wallet is not
@@ -175,6 +196,9 @@ export class WalletManagerService {
           // Wallet is encrypted if unlocked_until field exists (0 means locked, >0 means unlocked until timestamp)
           summary.isEncrypted = info.unlocked_until !== undefined;
           summary.unlockedUntil = info.unlocked_until;
+          if (info.descriptors) {
+            summary.multisig = (await this.getMultisigInfo(name)) ?? undefined;
+          }
         } catch {
           // Wallet info failed, just mark as loaded
         }
@@ -184,6 +208,23 @@ export class WalletManagerService {
     }
 
     return summaries;
+  }
+
+  /**
+   * N-of-M shape of a loaded wallet's multisig descriptors, or null when the
+   * wallet is not multisig (or descriptors cannot be listed).
+   */
+  async getMultisigInfo(walletName: string): Promise<MultisigInfo | null> {
+    try {
+      const result = await this.walletRpc.listDescriptors(walletName);
+      for (const d of result.descriptors) {
+        const info = parseMultisigDescriptor(d.desc);
+        if (info) return info;
+      }
+    } catch {
+      // Legacy wallet or listing failed — treat as non-multisig
+    }
+    return null;
   }
 
   // ============================================================
@@ -349,6 +390,64 @@ export class WalletManagerService {
       await this.refreshLoadedWallets();
       this.setActiveWallet(options.walletName);
 
+      this.walletsChangedSubject.next();
+    } catch (error) {
+      try {
+        await this.walletRpc.unloadWallet(options.walletName);
+      } catch {
+        // Ignore unload error
+      }
+      throw error;
+    } finally {
+      this.isLoadingSubject.next(false);
+    }
+  }
+
+  /**
+   * Create an N-of-M multisig wallet from prepared wsh(sortedmulti(...))
+   * import entries (this participant's key as xprv, co-signers as xpubs).
+   *
+   * Creates a blank descriptor wallet WITH private keys (the wallet must
+   * sign its share of PSBTs), then batch-imports the receive/change
+   * descriptors as active so the wallet derives addresses itself. Failure
+   * unloads the wallet so the wizard can retry after correction.
+   */
+  async createMultisigWallet(options: {
+    walletName: string;
+    importEntries: Array<{
+      desc: string;
+      active: boolean;
+      internal: boolean;
+      range: [number, number];
+      timestamp: number | 'now';
+    }>;
+  }): Promise<void> {
+    if (options.importEntries.length === 0) {
+      throw new Error('No descriptors to import');
+    }
+    this.isLoadingSubject.next(true);
+
+    try {
+      await this.walletRpc.createWallet(options.walletName, {
+        blank: true,
+        descriptors: true,
+        disablePrivateKeys: false,
+      });
+
+      const importResults = await this.walletRpc.importDescriptors(
+        options.walletName,
+        options.importEntries
+      );
+
+      const errors = importResults
+        .filter(r => !r.success)
+        .map(r => r.error?.message || 'Unknown import error');
+      if (errors.length > 0) {
+        throw new Error(errors.join(', '));
+      }
+
+      await this.refreshLoadedWallets();
+      this.setActiveWallet(options.walletName);
       this.walletsChangedSubject.next();
     } catch (error) {
       try {

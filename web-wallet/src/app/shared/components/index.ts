@@ -24,3 +24,8 @@ export { HashRefComponent } from './hash-ref/hash-ref.component';
 export type { HashRefKind } from './hash-ref/hash-ref.component';
 export { LoadingSpinnerComponent } from './loading-spinner/loading-spinner.component';
 export { StepHeaderComponent } from './step-header/step-header.component';
+
+// Seed phrase (shared by create-wallet / import-wallet / multisig wizards)
+export { MnemonicDisplayComponent } from './mnemonic-display/mnemonic-display.component';
+export { MnemonicEntryComponent } from './mnemonic-entry/mnemonic-entry.component';
+export type { MnemonicEntryState } from './mnemonic-entry/mnemonic-entry.component';

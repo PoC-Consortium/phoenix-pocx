@@ -14,7 +14,7 @@ import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { StepHeaderComponent } from '../../../../shared/components';
+import { StepHeaderComponent, MnemonicDisplayComponent } from '../../../../shared/components';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
 import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
@@ -44,6 +44,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
     MatAutocompleteModule,
     I18nPipe,
     StepHeaderComponent,
+    MnemonicDisplayComponent,
   ],
   template: `
     <div class="create-wallet-container">
@@ -101,21 +102,11 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 {{ 'backup_warning' | i18n }}
               </p>
 
-              <div class="mnemonic-display">
-                @for (word of mnemonicWords(); track $index) {
-                  <div class="word-chip">
-                    <span class="word-index">{{ $index + 1 }}</span>
-                    <span class="word-text">{{ word }}</span>
-                  </div>
-                }
-              </div>
-
-              <div class="mnemonic-actions">
-                <button mat-stroked-button (click)="generateMnemonic()">
-                  <mat-icon>refresh</mat-icon>
-                  {{ 'generate_new' | i18n }}
-                </button>
-              </div>
+              <app-mnemonic-display
+                [words]="mnemonicWords()"
+                [disabled]="creating()"
+                (regenerate)="generateMnemonic()"
+              ></app-mnemonic-display>
 
               <!-- BIP39 Passphrase Option (25th word) -->
               <div class="passphrase-section">
@@ -330,39 +321,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
         margin-bottom: 16px;
       }
 
-      .mnemonic-display {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-
-      .word-chip {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        background: #ffffff;
-        border-radius: 4px;
-        font-family: 'Roboto Mono', monospace;
-      }
-
-      .word-index {
-        color: rgba(0, 0, 0, 0.4);
-        font-size: 12px;
-        min-width: 20px;
-      }
-
-      .word-text {
-        font-weight: 500;
-      }
-
-      .mnemonic-actions {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-
       .confirm-checkbox {
         margin: 16px 0;
       }
@@ -394,22 +352,6 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
         margin-top: 24px;
         padding-top: 16px;
         border-top: 1px solid rgba(0, 0, 0, 0.08);
-      }
-
-      @media (max-width: 599px) {
-        .mnemonic-display {
-          grid-template-columns: repeat(3, 1fr);
-        }
-
-        .mnemonic-actions {
-          flex-direction: column;
-        }
-      }
-
-      @media (max-width: 400px) {
-        .mnemonic-display {
-          grid-template-columns: repeat(2, 1fr);
-        }
       }
     `,
   ],

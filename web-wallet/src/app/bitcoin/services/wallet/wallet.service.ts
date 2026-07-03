@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, computed, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, Subscription, interval, takeUntil } from 'rxjs';
 import { WalletRpcService, WalletTransaction, UTXO, AddressInfo } from '../rpc/wallet-rpc.service';
-import { WalletManagerService } from './wallet-manager.service';
+import { WalletManagerService, MultisigInfo } from './wallet-manager.service';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 import { TransactionStateService } from '../transaction-state.service';
 import { NodeService } from '../../../node/services/node.service';
@@ -61,6 +61,8 @@ export class WalletService implements OnDestroy {
   private readonly _lastError = signal<string | null>(null);
   private readonly _lastUpdated = signal<Date | null>(null);
   private readonly _recentTransactions = signal<WalletTransaction[]>([]);
+  private readonly _activeMultisig = signal<MultisigInfo | null>(null);
+  private readonly _activeWatchOnly = signal<boolean>(false);
 
   // Public readonly signals
   readonly balance = this._balance.asReadonly();
@@ -71,6 +73,10 @@ export class WalletService implements OnDestroy {
   readonly lastError = this._lastError.asReadonly();
   readonly lastUpdated = this._lastUpdated.asReadonly();
   readonly recentTransactions = this._recentTransactions.asReadonly();
+  /** N-of-M shape of the active wallet when it is multisig, null otherwise */
+  readonly activeMultisig = this._activeMultisig.asReadonly();
+  /** True when the active wallet has private keys disabled (watch-only) */
+  readonly activeWatchOnly = this._activeWatchOnly.asReadonly();
 
   // Computed signals
   readonly totalBalance = computed(
@@ -97,9 +103,19 @@ export class WalletService implements OnDestroy {
       if (wallet) {
         this.refresh();
         this.startAutoRefresh();
+        this._activeMultisig.set(null);
+        this._activeWatchOnly.set(false);
+        void this.walletManager.getMultisigInfo(wallet).then(info => {
+          // Guard against the wallet having changed again while listing descriptors
+          if (this.walletManager.activeWallet === wallet) {
+            this._activeMultisig.set(info);
+          }
+        });
       } else {
         this.stopAutoRefresh();
         this.resetState();
+        this._activeMultisig.set(null);
+        this._activeWatchOnly.set(false);
       }
     });
 
@@ -136,6 +152,7 @@ export class WalletService implements OnDestroy {
       // Fetch wallet info for tx count
       const info = await this.walletRpc.getWalletInfo(walletName);
       this._txCount.set(info.txcount);
+      this._activeWatchOnly.set(info.private_keys_enabled === false);
 
       // Fetch recent transactions (100 for chart history, sorted newest first)
       const transactions = await this.walletRpc.listTransactions(walletName, '*', 100);

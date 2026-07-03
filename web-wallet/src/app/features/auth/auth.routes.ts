@@ -21,4 +21,11 @@ export const AUTH_ROUTES: Routes = [
     loadComponent: () =>
       import('./pages/watch-only/watch-only.component').then(m => m.WatchOnlyComponent),
   },
+  {
+    path: 'multisig',
+    loadComponent: () =>
+      import('./pages/multisig-wallet/multisig-wallet.component').then(
+        m => m.MultisigWalletComponent
+      ),
+  },
 ];
