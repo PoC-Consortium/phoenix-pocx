@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "交易已封定，内容无法再更改。请再次检查摘要，然后广播。",
   "psbt_sending": "发送金额",
   "psbt_change": "找零",
-  "psbt_change_dust_hint": "低于粉尘限额 — 该剩余金额将计入费用，而不会作为找零返回。",
   "psbt_no_change_notice": "未创建找零输出：剩余金额低于粉尘限额，已计入费用。",
   "psbt_fee_rate": "费率",
   "psbt_unknown": "未知",

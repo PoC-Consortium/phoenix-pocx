@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "Transaksi telah disegel dan isinya tidak dapat berubah lagi. Tinjau ringkasan sekali lagi, lalu siarkan.",
   "psbt_sending": "Mengirim",
   "psbt_change": "Kembalian",
-  "psbt_change_dust_hint": "Di bawah batas dust — sisa ini akan ditambahkan ke biaya alih-alih dikembalikan sebagai kembalian.",
   "psbt_no_change_notice": "Tidak ada output kembalian yang dibuat: sisanya berada di bawah batas dust dan ditambahkan ke biaya.",
   "psbt_fee_rate": "Tingkat Biaya",
   "psbt_unknown": "tidak diketahui",

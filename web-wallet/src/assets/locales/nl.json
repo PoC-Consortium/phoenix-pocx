@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "De transactie is verzegeld en de inhoud kan niet meer veranderen. Controleer de samenvatting nog een keer en zend daarna uit.",
   "psbt_sending": "Te versturen",
   "psbt_change": "Wisselgeld",
-  "psbt_change_dust_hint": "Onder de dustlimiet — dit restant wordt bij de vergoeding opgeteld in plaats van als wisselgeld terug te keren.",
   "psbt_no_change_notice": "Er is geen wisselgelduitvoer aangemaakt: het restant lag onder de dustlimiet en is bij de vergoeding opgeteld.",
   "psbt_fee_rate": "Vergoedingstarief",
   "psbt_unknown": "onbekend",

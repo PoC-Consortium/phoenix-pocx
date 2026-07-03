@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "La transacción está sellada y su contenido ya no puede cambiar. Revisa el resumen una vez más y luego transmítela.",
   "psbt_sending": "Enviando",
   "psbt_change": "Cambio",
-  "psbt_change_dust_hint": "Por debajo del límite de dust — este remanente se añadirá a la comisión en lugar de devolverse como cambio.",
   "psbt_no_change_notice": "No se creó ninguna salida de cambio: el remanente estaba por debajo del límite de dust y se añadió a la comisión.",
   "psbt_fee_rate": "Tasa de comisión",
   "psbt_unknown": "desconocido",

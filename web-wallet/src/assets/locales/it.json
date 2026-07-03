@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "La transazione è sigillata e il suo contenuto non può più cambiare. Rivedi il riepilogo ancora una volta, poi trasmetti.",
   "psbt_sending": "In invio",
   "psbt_change": "Resto",
-  "psbt_change_dust_hint": "Sotto il limite dust — questo residuo sarà aggiunto alla commissione anziché essere restituito come resto.",
   "psbt_no_change_notice": "Nessun output di resto è stato creato: il residuo era sotto il limite dust ed è stato aggiunto alla commissione.",
   "psbt_fee_rate": "Tasso commissione",
   "psbt_unknown": "sconosciuto",

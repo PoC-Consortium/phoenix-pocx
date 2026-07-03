@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "İşlem mühürlendi ve içeriği artık değiştirilemez. Özeti bir kez daha gözden geçirin, ardından yayınlayın.",
   "psbt_sending": "Gönderilen",
   "psbt_change": "Para üstü",
-  "psbt_change_dust_hint": "Toz (dust) limitinin altında — bu kalan tutar, para üstü olarak dönmek yerine ücrete eklenecek.",
   "psbt_no_change_notice": "Para üstü çıkışı oluşturulmadı: kalan tutar toz limitinin altındaydı ve ücrete eklendi.",
   "psbt_fee_rate": "Ücret oranı",
   "psbt_unknown": "bilinmiyor",

@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "Transakcja jest zapieczętowana i jej zawartość nie może się już zmienić. Sprawdź podsumowanie jeszcze raz, a następnie rozgłoś.",
   "psbt_sending": "Wysyłane",
   "psbt_change": "Reszta",
-  "psbt_change_dust_hint": "Poniżej limitu dust — ta pozostałość zostanie doliczona do opłaty zamiast wrócić jako reszta.",
   "psbt_no_change_notice": "Nie utworzono wyjścia reszty: pozostałość była poniżej limitu dust i została doliczona do opłaty.",
   "psbt_fee_rate": "Stawka opłaty",
   "psbt_unknown": "nieznana",

@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "Operacija užantspauduota ir jos turinys nebegali keistis. Dar kartą peržiūrėkite santrauką ir transliuokite.",
   "psbt_sending": "Siunčiama",
   "psbt_change": "Grąža",
-  "psbt_change_dust_hint": "Žemiau dust limito — šis likutis bus pridėtas prie mokesčio, o ne grąžintas kaip grąža.",
   "psbt_no_change_notice": "Grąžos išvestis nesukurta: likutis buvo žemiau dust limito ir buvo pridėtas prie mokesčio.",
   "psbt_fee_rate": "Mokesčio norma",
   "psbt_unknown": "nežinoma",

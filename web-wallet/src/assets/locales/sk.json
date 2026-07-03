@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "Transakcia je zapečatená a jej obsah sa už nemôže zmeniť. Ešte raz skontrolujte súhrn a potom ju odošlite do siete.",
   "psbt_sending": "Odosiela sa",
   "psbt_change": "Výdavok",
-  "psbt_change_dust_hint": "Pod limitom dust — tento zvyšok bude pripočítaný k poplatku namiesto vrátenia ako výdavok.",
   "psbt_no_change_notice": "Nebol vytvorený žiadny výstup výdavku: zvyšok bol pod limitom dust a bol pripočítaný k poplatku.",
   "psbt_fee_rate": "Sadzba poplatku",
   "psbt_unknown": "neznáme",

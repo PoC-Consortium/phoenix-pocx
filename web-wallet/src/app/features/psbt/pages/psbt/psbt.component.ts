@@ -412,6 +412,14 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             </div>
           </div>
 
+          <!-- Notice (informational, e.g. dust change folded into fee) -->
+          @if (docNotice()) {
+            <div class="notice-banner">
+              <mat-icon>info</mat-icon>
+              <span>{{ docNotice() }}</span>
+            </div>
+          }
+
           @if (!showBroadcastSection(document)) {
             <!-- Actions: sign / combine / join -->
             <div class="card">
@@ -496,14 +504,6 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                   </div>
                 </div>
               </div>
-            </div>
-          }
-
-          <!-- Notice (informational, e.g. dust change folded into fee) -->
-          @if (docNotice()) {
-            <div class="notice-banner">
-              <mat-icon>info</mat-icon>
-              <span>{{ docNotice() }}</span>
             </div>
           }
 

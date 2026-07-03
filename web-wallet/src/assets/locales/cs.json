@@ -915,7 +915,6 @@
   "psbt_guide_finalized": "Transakce je zapečetěná a její obsah se už nemůže změnit. Ještě jednou zkontrolujte souhrn a poté ji odešlete do sítě.",
   "psbt_sending": "Odesílá se",
   "psbt_change": "Drobné",
-  "psbt_change_dust_hint": "Pod dust limitem — tento zbytek bude přidán k poplatku, místo aby se vrátil jako drobné.",
   "psbt_no_change_notice": "Výstup pro drobné nebyl vytvořen: zbytek byl pod dust limitem a byl přidán k poplatku.",
   "psbt_fee_rate": "Sazba poplatku",
   "psbt_unknown": "neznámé",
