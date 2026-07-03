@@ -36,6 +36,39 @@ export interface WalletDescriptors {
 }
 
 /**
+ * A participant key for a multisig wallet, derived at the BIP48 P2WSH path
+ * (m/48'/coin'/account'/2').
+ */
+export interface MultisigKey {
+  /** Master key fingerprint (8 hex chars) */
+  fingerprint: string;
+  /** Display path, e.g. m/48'/0'/0'/2' */
+  path: string;
+  /** Shareable key expression: [fingerprint/48h/…/2h]xpub… */
+  keyExpression: string;
+  /** Same expression with the private key — used only for wallet import */
+  privateKeyExpression: string;
+}
+
+/**
+ * Everything needed to create and share an N-of-M multisig wallet.
+ */
+export interface MultisigDescriptors {
+  /** Entries for importdescriptors (this participant's key as xprv) */
+  importEntries: Array<{
+    desc: string;
+    active: boolean;
+    internal: boolean;
+    range: [number, number];
+    timestamp: number | 'now';
+  }>;
+  /** All-xpub descriptors (with checksums) — for backup, verification and
+   *  address derivation; identical on every participant's machine */
+  publicReceiveDescriptor: string;
+  publicChangeDescriptor: string;
+}
+
+/**
  * Options for descriptor generation
  */
 export interface DescriptorOptions {
@@ -327,6 +360,141 @@ export class DescriptorService {
       default:
         return 'Unknown';
     }
+  }
+
+  // ============================================================
+  // Multisig (BIP48 P2WSH, sortedmulti)
+  // ============================================================
+
+  /**
+   * Derive this participant's multisig key from a mnemonic at the BIP48
+   * P2WSH path m/48'/coin'/account'/2'.
+   */
+  deriveMultisigKey(
+    mnemonic: string,
+    options: { passphrase?: string; isTestnet?: boolean; account?: number } = {}
+  ): MultisigKey {
+    const { passphrase = '', isTestnet = true, account = 0 } = options;
+    if (!this.validateMnemonic(mnemonic)) {
+      throw new Error('Invalid mnemonic phrase');
+    }
+
+    const seed = bip39.mnemonicToSeedSync(mnemonic.trim().toLowerCase(), passphrase);
+    const masterKey = HDKey.fromMasterSeed(seed);
+    const fingerprint = this.getFingerprint(masterKey);
+    const coinType = isTestnet ? 1 : 0;
+
+    const path = `m/48'/${coinType}'/${account}'/2'`;
+    const pathPart = `48h/${coinType}h/${account}h/2h`;
+    const key = masterKey.derive(path);
+    const xpub = this.serializeKey(key, true, isTestnet);
+    const xprv = this.serializeKey(key, false, isTestnet);
+
+    return {
+      fingerprint,
+      path,
+      keyExpression: `[${fingerprint}/${pathPart}]${xpub}`,
+      privateKeyExpression: `[${fingerprint}/${pathPart}]${xprv}`,
+    };
+  }
+
+  /**
+   * Parse and validate a co-signer key expression:
+   * `[fingerprint/path]xpub…` (recommended) or a bare xpub/tpub.
+   * Returns the normalized expression or throws with a reason key.
+   */
+  parseCosignerKey(input: string, isTestnet: boolean): { keyExpression: string } {
+    const trimmed = input.trim().replace(/\s+/g, '');
+    const match = /^(\[([0-9a-fA-F]{8})((?:\/\d+[hH'])*)\])?([a-zA-Z0-9]+)$/.exec(trimmed);
+    if (!match) {
+      throw new Error('cosigner_key_invalid_format');
+    }
+    const [, origin, fingerprint, originPath, key] = match;
+
+    const expectedPrefix = isTestnet ? 'tpub' : 'xpub';
+    if (!key.startsWith(expectedPrefix)) {
+      throw new Error(
+        key.startsWith('xprv') || key.startsWith('tprv')
+          ? 'cosigner_key_is_private'
+          : 'cosigner_key_wrong_network'
+      );
+    }
+
+    // Verify base58check payload: 78 bytes with the expected version
+    let payload: Uint8Array;
+    try {
+      payload = base58check(sha256).decode(key);
+    } catch {
+      throw new Error('cosigner_key_invalid_checksum');
+    }
+    if (payload.length !== 78) {
+      throw new Error('cosigner_key_invalid_format');
+    }
+    const version = new DataView(payload.buffer, payload.byteOffset).getUint32(0, false);
+    const expectedVersion = isTestnet ? VERSION_BYTES.testnet.tpub : VERSION_BYTES.mainnet.xpub;
+    if (version !== expectedVersion) {
+      throw new Error('cosigner_key_wrong_network');
+    }
+
+    if (origin) {
+      // Normalize hardened markers to 'h' (checksum-relevant)
+      const normalizedPath = originPath.replace(/'/g, 'h').replace(/H/g, 'h');
+      return { keyExpression: `[${fingerprint.toLowerCase()}${normalizedPath}]${key}` };
+    }
+    return { keyExpression: key };
+  }
+
+  /**
+   * Build wsh(sortedmulti(...)) receive/change descriptors for an N-of-M
+   * multisig. `sortedmulti` makes the result independent of key order, so
+   * every participant derives the identical wallet.
+   */
+  generateMultisigDescriptors(options: {
+    mnemonic: string;
+    passphrase?: string;
+    isTestnet?: boolean;
+    account?: number;
+    threshold: number;
+    /** Normalized co-signer key expressions (xpub form) */
+    cosignerKeys: string[];
+    addressRange?: [number, number];
+    timestamp?: number | 'now';
+  }): MultisigDescriptors & { myKey: MultisigKey } {
+    const { threshold, cosignerKeys, addressRange = [0, 999], timestamp = 'now' } = options;
+    const totalKeys = cosignerKeys.length + 1;
+    if (threshold < 1 || threshold > totalKeys) {
+      throw new Error('Invalid multisig threshold');
+    }
+
+    const myKey = this.deriveMultisigKey(options.mnemonic, options);
+
+    const build = (myExpression: string, change: 0 | 1): string => {
+      const keys = [myExpression, ...cosignerKeys].map(k => `${k}/${change}/*`);
+      const desc = `wsh(sortedmulti(${threshold},${keys.join(',')}))`;
+      return `${desc}#${descriptorChecksum(desc)}`;
+    };
+
+    return {
+      myKey,
+      importEntries: [
+        {
+          desc: build(myKey.privateKeyExpression, 0),
+          active: true,
+          internal: false,
+          range: addressRange,
+          timestamp,
+        },
+        {
+          desc: build(myKey.privateKeyExpression, 1),
+          active: true,
+          internal: true,
+          range: addressRange,
+          timestamp,
+        },
+      ],
+      publicReceiveDescriptor: build(myKey.keyExpression, 0),
+      publicChangeDescriptor: build(myKey.keyExpression, 1),
+    };
   }
 
   // ============================================================

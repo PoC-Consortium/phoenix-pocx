@@ -236,6 +236,10 @@ import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.s
               <mat-icon>visibility</mat-icon>
               {{ 'watch_only' | i18n }}
             </button>
+            <button mat-stroked-button routerLink="/auth/multisig" [disabled]="!isConnected()">
+              <mat-icon>group</mat-icon>
+              {{ 'msig_multisig' | i18n }}
+            </button>
           </div>
           <div class="right-actions">
             <button

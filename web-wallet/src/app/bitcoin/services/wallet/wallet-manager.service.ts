@@ -362,6 +362,64 @@ export class WalletManagerService {
     }
   }
 
+  /**
+   * Create an N-of-M multisig wallet from prepared wsh(sortedmulti(...))
+   * import entries (this participant's key as xprv, co-signers as xpubs).
+   *
+   * Creates a blank descriptor wallet WITH private keys (the wallet must
+   * sign its share of PSBTs), then batch-imports the receive/change
+   * descriptors as active so the wallet derives addresses itself. Failure
+   * unloads the wallet so the wizard can retry after correction.
+   */
+  async createMultisigWallet(options: {
+    walletName: string;
+    importEntries: Array<{
+      desc: string;
+      active: boolean;
+      internal: boolean;
+      range: [number, number];
+      timestamp: number | 'now';
+    }>;
+  }): Promise<void> {
+    if (options.importEntries.length === 0) {
+      throw new Error('No descriptors to import');
+    }
+    this.isLoadingSubject.next(true);
+
+    try {
+      await this.walletRpc.createWallet(options.walletName, {
+        blank: true,
+        descriptors: true,
+        disablePrivateKeys: false,
+      });
+
+      const importResults = await this.walletRpc.importDescriptors(
+        options.walletName,
+        options.importEntries
+      );
+
+      const errors = importResults
+        .filter(r => !r.success)
+        .map(r => r.error?.message || 'Unknown import error');
+      if (errors.length > 0) {
+        throw new Error(errors.join(', '));
+      }
+
+      await this.refreshLoadedWallets();
+      this.setActiveWallet(options.walletName);
+      this.walletsChangedSubject.next();
+    } catch (error) {
+      try {
+        await this.walletRpc.unloadWallet(options.walletName);
+      } catch {
+        // Ignore unload error
+      }
+      throw error;
+    } finally {
+      this.isLoadingSubject.next(false);
+    }
+  }
+
   // ============================================================
   // Wallet Loading/Unloading
   // ============================================================
