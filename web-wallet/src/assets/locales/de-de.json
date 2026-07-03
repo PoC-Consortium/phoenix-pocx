@@ -915,6 +915,8 @@
   "psbt_guide_finalized": "Die Transaktion ist versiegelt und ihr Inhalt kann sich nicht mehr aendern. Pruefe die Zusammenfassung noch einmal und uebertrage sie dann.",
   "psbt_sending": "Senden",
   "psbt_change": "Wechselgeld",
+  "psbt_change_dust_hint": "Unter dem Dust-Limit — dieser Restbetrag wird der Gebuehr hinzugefuegt, statt als Wechselgeld zurueckzufliessen.",
+  "psbt_no_change_notice": "Es wurde kein Wechselgeld-Ausgang erstellt: Der Restbetrag lag unter dem Dust-Limit und wurde der Gebuehr hinzugefuegt.",
   "psbt_fee_rate": "Gebuehrensatz",
   "psbt_unknown": "unbekannt",
   "psbt_high_fee": "Ungewoehnlich hohe Gebuehr.",

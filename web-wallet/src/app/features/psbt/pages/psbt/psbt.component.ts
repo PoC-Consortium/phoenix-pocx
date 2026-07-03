@@ -499,6 +499,14 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             </div>
           }
 
+          <!-- Notice (informational, e.g. dust change folded into fee) -->
+          @if (docNotice()) {
+            <div class="notice-banner">
+              <mat-icon>info</mat-icon>
+              <span>{{ docNotice() }}</span>
+            </div>
+          }
+
           <!-- Error -->
           @if (docError()) {
             <div class="error-banner">
@@ -1374,6 +1382,21 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
+      .notice-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        background: #fff3e0;
+        color: #e65100;
+        border-radius: 4px;
+        margin-bottom: 16px;
+
+        mat-icon {
+          flex-shrink: 0;
+        }
+      }
+
       // ============ Success ============
       .success-card {
         background: #ffffff;
@@ -1490,6 +1513,11 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
           color: #ff8a80;
         }
 
+        .notice-banner {
+          background: #4a3000;
+          color: #ffcc80;
+        }
+
         .soon-pill {
           background: #333;
         }
@@ -1546,6 +1574,8 @@ export class PsbtComponent implements OnInit {
   readonly finalizing = signal(false);
   readonly broadcasting = signal(false);
   readonly docError = signal<string | null>(null);
+  /** One-shot informational banner on the review screen (e.g. dust change folded into fee) */
+  readonly docNotice = signal<string | null>(null);
 
   readonly renaming = signal(false);
   renameValue = '';
@@ -1784,9 +1814,12 @@ export class PsbtComponent implements OnInit {
   // Entry points
   // ============================================================
 
-  async onComposed(event: { psbt: string; fee: number }): Promise<void> {
+  async onComposed(event: { psbt: string; fee: number; changeAbsorbed: boolean }): Promise<void> {
     this.docOrigin.set('compose');
     await this.loadDocument(event.psbt, true);
+    if (event.changeAbsorbed) {
+      this.docNotice.set(this.i18n.get('psbt_no_change_notice'));
+    }
     // Remember the coin-selection mode so editing later restores it
     const draft = this.draft();
     if (draft) {
@@ -1820,6 +1853,7 @@ export class PsbtComponent implements OnInit {
   private async loadDocument(base64: string, createDraft: boolean): Promise<void> {
     this.loadingDoc.set(true);
     this.docError.set(null);
+    this.docNotice.set(null);
     this.docSection.set(null);
     this.inputPage.set(0);
     this.outputPage.set(0);

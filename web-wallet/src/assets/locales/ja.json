@@ -915,6 +915,8 @@
   "psbt_guide_finalized": "トランザクションは確定され、内容はもう変更できません。もう一度概要を確認してから、ブロードキャストしてください。",
   "psbt_sending": "送金額",
   "psbt_change": "お釣り",
+  "psbt_change_dust_hint": "ダスト制限未満のため、この残額はお釣りとして返らず手数料に加算されます。",
+  "psbt_no_change_notice": "お釣りの出力は作成されませんでした。残額がダスト制限未満だったため、手数料に加算されました。",
   "psbt_fee_rate": "手数料率",
   "psbt_unknown": "不明",
   "psbt_high_fee": "手数料が異常に高くなっています。",

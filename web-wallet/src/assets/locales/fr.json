@@ -915,6 +915,8 @@
   "psbt_guide_finalized": "La transaction est scellée et son contenu ne peut plus changer. Vérifiez le résumé une dernière fois, puis diffusez.",
   "psbt_sending": "Envoi",
   "psbt_change": "Monnaie",
+  "psbt_change_dust_hint": "Sous la limite de dust — ce reliquat sera ajouté aux frais au lieu d'être rendu en monnaie.",
+  "psbt_no_change_notice": "Aucune sortie de monnaie n'a été créée : le reliquat était sous la limite de dust et a été ajouté aux frais.",
   "psbt_fee_rate": "Taux de frais",
   "psbt_unknown": "inconnu",
   "psbt_high_fee": "Frais inhabituellement élevés.",

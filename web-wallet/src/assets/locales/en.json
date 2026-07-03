@@ -916,6 +916,8 @@
   "psbt_guide_finalized": "The transaction is sealed and its contents can no longer change. Review the summary once more, then broadcast.",
   "psbt_sending": "Sending",
   "psbt_change": "Change",
+  "psbt_change_dust_hint": "Below the dust limit — this remainder will be added to the fee instead of returning as change.",
+  "psbt_no_change_notice": "No change output was created: the remainder was below the dust limit and was added to the fee.",
   "psbt_fee_rate": "Fee rate",
   "psbt_unknown": "unknown",
   "psbt_high_fee": "Unusually high fee.",

@@ -488,7 +488,7 @@ const UTXO_PAGE_SIZE = 10;
             </div>
             <div class="summary-row">
               <span class="summary-label">{{ 'psbt_change' | i18n }}:</span>
-              <span class="summary-value mono">
+              <span class="summary-value mono" [class.dust]="dustChange()">
                 @if (estimatedChange() !== null) {
                   ≈ {{ estimatedChange() | number: '1.8-8' }} BTCX
                 } @else {
@@ -496,6 +496,12 @@ const UTXO_PAGE_SIZE = 10;
                 }
               </span>
             </div>
+            @if (dustChange()) {
+              <div class="dust-hint">
+                <mat-icon>info</mat-icon>
+                <span>{{ 'psbt_change_dust_hint' | i18n }}</span>
+              </div>
+            }
             <mat-divider></mat-divider>
             <div class="summary-row total">
               <span class="summary-label">{{ 'total' | i18n }}:</span>
@@ -1109,6 +1115,25 @@ const UTXO_PAGE_SIZE = 10;
         margin-top: 6px;
       }
 
+      .summary-value.dust {
+        color: #e65100;
+      }
+
+      .dust-hint {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 0 6px;
+        font-size: 12px;
+        color: #e65100;
+
+        mat-icon {
+          font-size: 16px;
+          height: 16px;
+          width: 16px;
+        }
+      }
+
       .balance-warning {
         display: flex;
         align-items: center;
@@ -1304,8 +1329,8 @@ export class PsbtComposeComponent implements OnInit {
   private readonly store = inject(Store);
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
 
-  /** Emits the funded PSBT (base64) once created */
-  readonly created = output<{ psbt: string; fee: number }>();
+  /** Emits the funded PSBT (base64) once created; changeAbsorbed = node dropped a dust change output into the fee */
+  readonly created = output<{ psbt: string; fee: number; changeAbsorbed: boolean }>();
   readonly cancelled = output<void>();
 
   readonly pageSize = UTXO_PAGE_SIZE;
@@ -1452,6 +1477,19 @@ export class PsbtComposeComponent implements OnInit {
     if (fee === null) return null;
     const change = this.availableFunds() - this.totalWithFee();
     return Math.max(0, change);
+  });
+
+  /**
+   * Estimated change is positive but below Core's dust threshold — the node
+   * will drop the change output and add the remainder to the fee. Threshold
+   * at the default 3 sat/vB dust relay rate: 330 sat for P2WSH change
+   * (multisig wallets), 294 sat for P2WPKH.
+   */
+  dustChange = computed<boolean>(() => {
+    const change = this.estimatedChange();
+    if (change === null || change <= 0) return false;
+    const dustSats = this.walletService.activeMultisig() !== null ? 330 : 294;
+    return change < dustSats / 1e8;
   });
 
   totalWithFee = computed(() => {
@@ -1796,7 +1834,13 @@ export class PsbtComposeComponent implements OnInit {
         }
       );
 
-      this.created.emit({ psbt: result.psbt, fee: result.fee });
+      // changepos -1 with fee-on-top means the remainder was below the dust
+      // limit and Core folded it into the fee — surface that on the review
+      this.created.emit({
+        psbt: result.psbt,
+        fee: result.fee,
+        changeAbsorbed: result.changepos === -1 && subtract === null,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // Core -4: wallet lacks the scripts/pubkeys behind these coins

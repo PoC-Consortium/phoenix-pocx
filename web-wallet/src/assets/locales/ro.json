@@ -915,6 +915,8 @@
   "psbt_guide_finalized": "Tranzacția este sigilată, iar conținutul ei nu se mai poate modifica. Verifică rezumatul încă o dată, apoi transmite.",
   "psbt_sending": "Se trimite",
   "psbt_change": "Rest",
+  "psbt_change_dust_hint": "Sub limita de dust — suma rămasă va fi adăugată la comision în loc să fie returnată ca rest.",
+  "psbt_no_change_notice": "Nu a fost creată nicio ieșire de rest: suma rămasă a fost sub limita de dust și a fost adăugată la comision.",
   "psbt_fee_rate": "Rată comision",
   "psbt_unknown": "necunoscut",
   "psbt_high_fee": "Comision neobișnuit de mare.",

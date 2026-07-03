@@ -915,6 +915,8 @@
   "psbt_guide_finalized": "Transakcija je zapečaćena i njezin se sadržaj više ne može mijenjati. Pregledaj sažetak još jednom, a zatim emitiraj.",
   "psbt_sending": "Šalje se",
   "psbt_change": "Ostatak",
+  "psbt_change_dust_hint": "Ispod dust limita — preostali iznos bit će dodan naknadi umjesto da se vrati kao ostatak.",
+  "psbt_no_change_notice": "Izlaz za ostatak nije stvoren: preostali iznos bio je ispod dust limita pa je dodan naknadi.",
   "psbt_fee_rate": "Stopa naknade",
   "psbt_unknown": "nepoznato",
   "psbt_high_fee": "Neobično visoka naknada.",

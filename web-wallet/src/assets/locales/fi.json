@@ -915,6 +915,8 @@
   "psbt_guide_finalized": "Tapahtuma on sinetöity, eikä sen sisältö voi enää muuttua. Tarkista yhteenveto vielä kerran ja lähetä sitten verkkoon.",
   "psbt_sending": "Lähetetään",
   "psbt_change": "Vaihtoraha",
+  "psbt_change_dust_hint": "Alle dust-rajan — tämä jäännös lisätään maksuun sen sijaan, että se palautuisi vaihtorahana.",
+  "psbt_no_change_notice": "Vaihtorahatuotosta ei luotu: jäännös jäi alle dust-rajan ja lisättiin maksuun.",
   "psbt_fee_rate": "Maksuaste",
   "psbt_unknown": "tuntematon",
   "psbt_high_fee": "Epätavallisen korkea maksu.",
