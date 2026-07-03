@@ -17,7 +17,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { StepHeaderComponent } from '../../../../shared/components';
+import {
+  StepHeaderComponent,
+  MnemonicDisplayComponent,
+  MnemonicEntryComponent,
+} from '../../../../shared/components';
+import type { MnemonicEntryState } from '../../../../shared/components';
 import {
   WalletManagerService,
   WatchOnlyRescan,
@@ -64,6 +69,8 @@ interface CosignerEntry {
     MatTooltipModule,
     I18nPipe,
     StepHeaderComponent,
+    MnemonicDisplayComponent,
+    MnemonicEntryComponent,
   ],
   template: `
     <div class="create-wallet-container">
@@ -129,6 +136,11 @@ interface CosignerEntry {
                 }}
               </p>
 
+              <div class="procedure-box">
+                <mat-icon>groups</mat-icon>
+                <div>{{ 'msig_procedure_info' | i18n }}</div>
+              </div>
+
               <div class="step-actions">
                 <button mat-button routerLink="/auth">
                   {{ 'back' | i18n }}
@@ -165,41 +177,21 @@ interface CosignerEntry {
                   {{ 'msig_backup_warning' | i18n }}
                 </p>
 
-                <div class="mnemonic-display">
-                  @for (word of mnemonicWords(); track $index) {
-                    <div class="word-chip">
-                      <span class="word-index">{{ $index + 1 }}</span>
-                      <span class="word-text">{{ word }}</span>
-                    </div>
-                  }
-                </div>
-
-                <div class="mnemonic-actions">
-                  <button mat-stroked-button (click)="generateMnemonic()">
-                    <mat-icon>refresh</mat-icon>
-                    {{ 'generate_new' | i18n }}
-                  </button>
-                </div>
+                <app-mnemonic-display
+                  [words]="mnemonicWords()"
+                  [disabled]="creating()"
+                  (regenerate)="generateMnemonic()"
+                ></app-mnemonic-display>
 
                 <mat-checkbox [(ngModel)]="mnemonicWrittenDown" class="confirm-checkbox">
                   {{ 'confirm_backup_written' | i18n }}
                 </mat-checkbox>
               } @else {
                 <p class="info-text">{{ 'msig_restore_info' | i18n }}</p>
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>{{ 'msig_restore_words' | i18n }}</mat-label>
-                  <textarea
-                    matInput
-                    rows="4"
-                    [(ngModel)]="restoreMnemonic"
-                    (ngModelChange)="onRestoreMnemonicChange()"
-                    autocomplete="off"
-                    spellcheck="false"
-                  ></textarea>
-                  @if (restoreMnemonic && !restoreMnemonicValid()) {
-                    <mat-error>{{ 'msig_restore_invalid' | i18n }}</mat-error>
-                  }
-                </mat-form-field>
+                <app-mnemonic-entry
+                  [disabled]="creating()"
+                  (changed)="onRestoreChanged($event)"
+                ></app-mnemonic-entry>
               }
 
               <div class="step-actions">
@@ -274,6 +266,11 @@ interface CosignerEntry {
           <!-- Step 4: Exchange Keys -->
           @if (currentStep() === 4) {
             <div class="step-content">
+              <div class="procedure-box">
+                <mat-icon>groups</mat-icon>
+                <div>{{ 'msig_exchange_info' | i18n }}</div>
+              </div>
+
               <h3 class="section-label">{{ 'msig_your_key' | i18n }}</h3>
               <p class="info-text small">{{ 'msig_your_key_info' | i18n }}</p>
               <div class="key-box">
@@ -554,37 +551,22 @@ interface CosignerEntry {
         margin-bottom: 16px;
       }
 
-      .mnemonic-display {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 8px;
-        margin-bottom: 16px;
-      }
-
-      .word-chip {
+      .procedure-box {
         display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        background: #ffffff;
+        align-items: flex-start;
+        gap: 10px;
+        background: rgba(33, 150, 243, 0.06);
+        border: 1px solid rgba(33, 150, 243, 0.25);
         border-radius: 4px;
-        font-family: 'Roboto Mono', monospace;
-      }
-
-      .word-index {
-        color: rgba(0, 0, 0, 0.4);
-        font-size: 12px;
-        min-width: 20px;
-      }
-
-      .word-text {
-        font-weight: 500;
-      }
-
-      .mnemonic-actions {
-        display: flex;
-        gap: 8px;
+        padding: 12px;
         margin-bottom: 16px;
+        font-size: 13px;
+        color: rgba(0, 0, 0, 0.7);
+
+        mat-icon {
+          color: #1976d2;
+          flex-shrink: 0;
+        }
       }
 
       .confirm-checkbox {
@@ -771,18 +753,6 @@ interface CosignerEntry {
         padding-top: 16px;
         border-top: 1px solid rgba(0, 0, 0, 0.08);
       }
-
-      @media (max-width: 599px) {
-        .mnemonic-display {
-          grid-template-columns: repeat(3, 1fr);
-        }
-      }
-
-      @media (max-width: 400px) {
-        .mnemonic-display {
-          grid-template-columns: repeat(2, 1fr);
-        }
-      }
     `,
   ],
 })
@@ -934,11 +904,9 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
     this.verifyWords = ['', '', ''];
   }
 
-  onRestoreMnemonicChange(): void {
-    this.restoreMnemonicValid.set(
-      this.restoreMnemonic.trim().length > 0 &&
-        this.walletManager.validateMnemonic(this.restoreMnemonic)
-    );
+  onRestoreChanged(state: MnemonicEntryState): void {
+    this.restoreMnemonic = state.mnemonic;
+    this.restoreMnemonicValid.set(state.valid);
   }
 
   seedStepValid(): boolean {
