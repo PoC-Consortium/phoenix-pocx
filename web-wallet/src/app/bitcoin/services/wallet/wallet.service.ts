@@ -1,7 +1,7 @@
 import { Injectable, inject, signal, computed, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, Subscription, interval, takeUntil } from 'rxjs';
 import { WalletRpcService, WalletTransaction, UTXO, AddressInfo } from '../rpc/wallet-rpc.service';
-import { WalletManagerService } from './wallet-manager.service';
+import { WalletManagerService, MultisigInfo } from './wallet-manager.service';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 import { TransactionStateService } from '../transaction-state.service';
 import { NodeService } from '../../../node/services/node.service';
@@ -61,6 +61,7 @@ export class WalletService implements OnDestroy {
   private readonly _lastError = signal<string | null>(null);
   private readonly _lastUpdated = signal<Date | null>(null);
   private readonly _recentTransactions = signal<WalletTransaction[]>([]);
+  private readonly _activeMultisig = signal<MultisigInfo | null>(null);
 
   // Public readonly signals
   readonly balance = this._balance.asReadonly();
@@ -71,6 +72,8 @@ export class WalletService implements OnDestroy {
   readonly lastError = this._lastError.asReadonly();
   readonly lastUpdated = this._lastUpdated.asReadonly();
   readonly recentTransactions = this._recentTransactions.asReadonly();
+  /** N-of-M shape of the active wallet when it is multisig, null otherwise */
+  readonly activeMultisig = this._activeMultisig.asReadonly();
 
   // Computed signals
   readonly totalBalance = computed(
@@ -97,9 +100,17 @@ export class WalletService implements OnDestroy {
       if (wallet) {
         this.refresh();
         this.startAutoRefresh();
+        this._activeMultisig.set(null);
+        void this.walletManager.getMultisigInfo(wallet).then(info => {
+          // Guard against the wallet having changed again while listing descriptors
+          if (this.walletManager.activeWallet === wallet) {
+            this._activeMultisig.set(info);
+          }
+        });
       } else {
         this.stopAutoRefresh();
         this.resetState();
+        this._activeMultisig.set(null);
       }
     });
 

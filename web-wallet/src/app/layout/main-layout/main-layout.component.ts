@@ -5,6 +5,7 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { Subject, takeUntil } from 'rxjs';
@@ -20,6 +21,9 @@ interface NavItem {
   path: string;
   icon: string;
   labelKey: string;
+  /** Item stays visible but does not navigate; tooltip explains why */
+  disabled?: boolean;
+  disabledTooltipKey?: string;
 }
 
 interface NavGroup {
@@ -43,6 +47,7 @@ interface NavGroup {
     MatButtonModule,
     MatIconModule,
     MatListModule,
+    MatTooltipModule,
     I18nPipe,
     BalanceDisplayComponent,
     ToolbarComponent,
@@ -112,9 +117,16 @@ interface NavGroup {
                 @for (item of group.items; track item.path) {
                   <a
                     mat-list-item
-                    [routerLink]="item.path"
+                    [routerLink]="item.disabled ? null : item.path"
                     routerLinkActive="active"
-                    (click)="isMobile() && sidenav.close()"
+                    [class.nav-disabled]="item.disabled"
+                    [matTooltip]="
+                      item.disabled && item.disabledTooltipKey
+                        ? (item.disabledTooltipKey | i18n)
+                        : ''
+                    "
+                    matTooltipPosition="right"
+                    (click)="!item.disabled && isMobile() && sidenav.close()"
                   >
                     <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                     <span matListItemTitle>{{ item.labelKey | i18n }}</span>
@@ -348,6 +360,19 @@ interface NavGroup {
             color: rgba(255, 255, 255, 0.9);
             font-size: 13px;
           }
+
+          &.nav-disabled {
+            cursor: default;
+
+            &:hover {
+              background: transparent;
+            }
+
+            .mat-icon,
+            .mdc-list-item__primary-text {
+              color: rgba(255, 255, 255, 0.35);
+            }
+          }
         }
       }
 
@@ -431,6 +456,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   showUpdateBadge = computed(() => this.appUpdateService.showUpdateBadge());
 
   navGroups = computed<NavGroup[]>(() => {
+    // Multisig wallets cannot sign a full transaction alone — plain Send
+    // would always fail, so it's disabled in favor of the PSBT builder.
+    const isMultisig = this.walletService.activeMultisig() !== null;
+
     const miningItems: NavItem[] = [
       { path: '/mining', icon: 'hardware', labelKey: 'mining_dashboard' },
     ];
@@ -452,7 +481,13 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
         titleKey: 'transactions',
         items: [
           { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },
-          { path: '/send', icon: 'send', labelKey: 'send' },
+          {
+            path: '/send',
+            icon: 'send',
+            labelKey: 'send',
+            disabled: isMultisig,
+            disabledTooltipKey: 'msig_send_disabled',
+          },
           { path: '/receive', icon: 'call_received', labelKey: 'receive' },
           { path: '/psbt', icon: 'edit_document', labelKey: 'psbt_title' },
           { path: '/contacts', icon: 'contacts', labelKey: 'contacts' },

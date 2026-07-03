@@ -318,7 +318,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     <span class="io-amount mono">{{ input.amount | number: '1.8-8' }}</span>
                   }
                   <span class="io-status">
-                    @if (input.isFinal || (input.sigCount > 0 && input.missingSigs === 0)) {
+                    @if (input.satisfied) {
                       <mat-icon
                         class="ok"
                         [matTooltip]="
@@ -333,7 +333,11 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                           'psbt_input_partial'
                             | i18n: { signed: input.sigCount, missing: input.missingSigs }
                         "
-                        >{{ input.sigCount }}<mat-icon>draw</mat-icon></span
+                        >{{
+                          input.requiredSigs !== undefined
+                            ? input.sigCount + '/' + input.requiredSigs
+                            : input.sigCount
+                        }}<mat-icon>draw</mat-icon></span
                       >
                     } @else {
                       <mat-icon class="wait" [matTooltip]="'psbt_input_unsigned' | i18n"
@@ -1671,11 +1675,14 @@ export class PsbtComponent implements OnInit {
     this.refreshDrafts();
   }
 
-  /** " 1/2" suffix on the Sign step while a document is open */
+  /** " 1/2" suffix on the Sign step while a document is open — signatures when countable, inputs otherwise */
   readonly signProgress = computed(() => {
     const document = this.doc();
     if (!document || this.view() !== 'doc') return '';
-    return ` ${document.signedInputs}/${document.inputs.length}`;
+    if (document.sigsRequired) {
+      return ` ${document.sigsCollected}/${document.sigsRequired}`;
+    }
+    return ` ${document.satisfiedInputs}/${document.inputs.length}`;
   });
 
   readonly draftName = computed(() => this.draft()?.name ?? this.i18n.get('psbt_untitled'));
@@ -1883,7 +1890,7 @@ export class PsbtComponent implements OnInit {
         return;
       }
       if (!(await this.ensureWalletUnlocked(walletName))) return;
-      const signedBefore = document.signedInputs;
+      const sigsBefore = document.sigsCollected;
       // finalize=false keeps sealing an explicit, separate step
       const result = await this.walletRpc.walletProcessPsbt(
         walletName,
@@ -1899,7 +1906,7 @@ export class PsbtComponent implements OnInit {
       const updated = await this.psbtService.buildDocument(result.psbt);
       this.doc.set(updated);
       this.syncDraft();
-      if (updated.signedInputs > signedBefore || result.complete) {
+      if (updated.sigsCollected > sigsBefore || result.complete) {
         this.notification.success(this.i18n.get('psbt_signed'));
       } else if (document.status === 'ready') {
         this.notification.info(this.i18n.get('psbt_already_signed'));
@@ -2158,8 +2165,16 @@ export class PsbtComponent implements OnInit {
 
   statusLabel(document: PsbtDocument): string {
     if (document.status === 'partial') {
+      // Count signatures when every input's requirement is known (the normal
+      // coordination flow); otherwise fall back to satisfied-input counts.
+      if (document.sigsRequired !== undefined) {
+        return this.i18n.get('psbt_status_partial_sigs', {
+          collected: document.sigsCollected,
+          required: document.sigsRequired,
+        });
+      }
       return this.i18n.get('psbt_status_partial_n', {
-        signed: document.signedInputs,
+        signed: document.satisfiedInputs,
         total: document.inputs.length,
       });
     }

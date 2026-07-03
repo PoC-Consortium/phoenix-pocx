@@ -15,7 +15,17 @@
  */
 export type PsbtStatus = 'unsigned' | 'partial' | 'ready' | 'finalized';
 
-/** One transaction input, digested for display */
+/**
+ * One transaction input, digested for display.
+ *
+ * Signature model: every input carries its own signing requirement — a
+ * single-sig input needs 1 signature, a k-of-n multisig input needs k. A
+ * PSBT can mix them freely (e.g. a coinjoin spending two different
+ * multisigs), so completeness is always judged per input and only then
+ * aggregated. `requiredSigs` is undefined when Core cannot determine the
+ * requirement (witness/redeem script or UTXO not embedded yet, or the
+ * input is already final and its signatures moved into the final witness).
+ */
 export interface PsbtInputView {
   index: number;
   txid: string;
@@ -28,6 +38,10 @@ export interface PsbtInputView {
   sigCount: number;
   /** Number of signatures still missing (from analyzepsbt) */
   missingSigs: number;
+  /** Total signatures this input's script requires (sigCount + missingSigs); undefined when unknown */
+  requiredSigs?: number;
+  /** Nothing more needed from signers: final, or all required signatures collected */
+  satisfied: boolean;
   isFinal: boolean;
   /** Input UTXO is known (witness_utxo or non_witness_utxo present) */
   hasUtxo: boolean;
@@ -59,8 +73,17 @@ export interface PsbtDocument {
   nextRole: string;
   inputs: PsbtInputView[];
   outputs: PsbtOutputView[];
-  /** Count of inputs that are final or have at least one signature */
-  signedInputs: number;
+  /** Count of inputs that are final or have all required signatures */
+  satisfiedInputs: number;
+  /** Partial signatures collected across all non-final inputs */
+  sigsCollected: number;
+  /**
+   * Total signatures the transaction needs (Σ requiredSigs over all inputs).
+   * Heterogeneous inputs simply sum their thresholds — two 2-of-2 multisig
+   * inputs need 4. undefined when any input's requirement is unknown or any
+   * input is already final; progress displays fall back to input counts then.
+   */
+  sigsRequired?: number;
   /** BTCX; undefined when input UTXOs are unknown */
   fee?: number;
   /** sat/vB */

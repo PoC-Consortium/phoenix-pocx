@@ -77,7 +77,11 @@ export class PsbtService {
       nextRole: analysis.next,
       inputs,
       outputs,
-      signedInputs: inputs.filter(i => i.isFinal || i.sigCount > 0).length,
+      satisfiedInputs: inputs.filter(i => i.satisfied).length,
+      sigsCollected: inputs.filter(i => !i.isFinal).reduce((sum, i) => sum + i.sigCount, 0),
+      sigsRequired: inputs.every(i => i.requiredSigs !== undefined)
+        ? inputs.reduce((sum, i) => sum + (i.requiredSigs ?? 0), 0)
+        : undefined,
       fee,
       feeRate,
       vsize,
@@ -95,6 +99,23 @@ export class PsbtService {
       const isFinal =
         inAnalysis?.is_final ??
         (psbtIn.final_scriptwitness !== undefined || psbtIn.final_scriptSig !== undefined);
+      const hasUtxo =
+        inAnalysis?.has_utxo ??
+        (psbtIn.witness_utxo !== undefined || psbtIn.non_witness_utxo !== undefined);
+      const sigCount = Object.keys(psbtIn.partial_signatures ?? {}).length;
+      const missingSigs = inAnalysis?.missing?.signatures?.length ?? 0;
+      // analyzepsbt can only enumerate missing signatures once it has the
+      // UTXO and the full script; without them the requirement is unknown
+      // (never assume "nothing missing" for a foreign or incomplete input).
+      const missing = inAnalysis?.missing;
+      const requirementKnown =
+        !isFinal &&
+        hasUtxo &&
+        inAnalysis !== undefined &&
+        missing?.witnessscript === undefined &&
+        missing?.redeemscript === undefined &&
+        (missing?.pubkeys?.length ?? 0) === 0;
+      const requiredSigs = requirementKnown ? sigCount + missingSigs : undefined;
       return {
         index,
         txid: vin.txid,
@@ -102,12 +123,12 @@ export class PsbtService {
         address: psbtIn.witness_utxo?.scriptPubKey?.address,
         amount: psbtIn.witness_utxo?.amount,
         scriptType: psbtIn.witness_utxo?.scriptPubKey?.type,
-        sigCount: Object.keys(psbtIn.partial_signatures ?? {}).length,
-        missingSigs: inAnalysis?.missing?.signatures?.length ?? 0,
+        sigCount,
+        missingSigs,
+        requiredSigs,
+        satisfied: isFinal || (requiredSigs !== undefined && missingSigs === 0 && sigCount > 0),
         isFinal,
-        hasUtxo:
-          inAnalysis?.has_utxo ??
-          (psbtIn.witness_utxo !== undefined || psbtIn.non_witness_utxo !== undefined),
+        hasUtxo,
       };
     });
   }

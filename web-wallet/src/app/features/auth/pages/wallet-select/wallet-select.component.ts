@@ -137,6 +137,20 @@ import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.s
                   </th>
                   <td mat-cell *matCellDef="let wallet" [class.unloaded]="!wallet.isLoaded">
                     {{ wallet.name || '(default)' }}
+                    @if (wallet.multisig) {
+                      <mat-icon
+                        class="multisig-icon"
+                        [matTooltip]="
+                          'msig_wallet_tooltip'
+                            | i18n
+                              : {
+                                  required: wallet.multisig.requiredSigs,
+                                  total: wallet.multisig.totalKeys,
+                                }
+                        "
+                        >group</mat-icon
+                      >
+                    }
                   </td>
                 </ng-container>
 
@@ -530,6 +544,15 @@ import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.s
 
         .encryption-cell {
           font-size: 0; /* Hide stray template text — .no-encryption opts back in */
+        }
+
+        .multisig-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          vertical-align: text-bottom;
+          margin-left: 6px;
+          color: #9c27b0;
         }
 
         .encryption-icon {
