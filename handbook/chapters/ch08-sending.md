@@ -148,6 +148,94 @@ Most send failures fall into a small handful of categories. Phoenix shows the un
 
 A failed send does not consume any funds — nothing is broadcast until Core has built and signed a valid transaction.
 
+## The Transaction Builder
+
+The **Send** screen above is the fast path: one wallet, one signature, broadcast immediately. The **Transaction Builder** is the advanced path for everything Send cannot do on its own:
+
+- **Multisig wallets**, where a spend needs signatures from several co-signers (Chapter 5). The Builder collects them one at a time.
+- **Watch-only wallets** imported as a descriptor, where you compose here and sign on the machine that holds the keys.
+- **Offline / air-gapped signing**, where the transaction is built on one machine and signed on another.
+- **Preparing a transaction now to sign or broadcast later**, or handing a half-finished transaction to someone else.
+- **Manual coin (UTXO) control**, adding an `OP_RETURN` data output, or setting a locktime.
+
+Under the hood the Builder works with a **PSBT** — a *Partially Signed Bitcoin Transaction*, the standard container format for a transaction that is being passed between wallets and signers as it collects signatures. You do not need to understand the format; the Builder walks you through it.
+
+Open it from the sidebar: **Transaction Builder**, in the *Transactions* group.
+
+### The start screen: two doors
+
+The Builder opens on a choice of two "doors", plus a list of anything you have in progress:
+
+| Door | For… |
+|------|------|
+| **Compose a transaction** | Building a new transaction from scratch — pick coins, set outputs and fee. |
+| **Import a transaction**  | Continuing a PSBT that was started elsewhere — paste its Base64 text or open a `.psbt` file. |
+
+Below the doors, an **In progress** list shows drafts saved on this machine. A composed transaction is saved here automatically and stays until you broadcast or discard it, so multi-day multisig coordination survives restarts. Each row shows a status badge, name, amount, and last-updated time, with a trash button to delete it.
+
+![The Transaction Builder start screen: compose or import, with saved drafts below.](images/processed/ch08-psbt-start.png){width=70%}
+
+### Composing a transaction
+
+The compose form is a single scrolling card. Nothing is signed while you fill it in — when you finish, Bitcoin-PoCX Core funds the transaction and decides the exact change.
+
+![Composing a transaction: coins, outputs, fee, options, and a live summary.](images/processed/ch08-psbt-compose.png){width=80%}
+
+
+**Coins to spend.** A toggle between **Automatic** (the wallet picks which coins to spend and makes change for you — the default) and **Manual** (you choose the exact coins). Manual mode reveals a checklist of your spendable coins, each showing its address, `txid:vout`, confirmation count, and amount, with a filter box (by address/txid and by size) and a running *Selected* total. Manual control is useful for consolidating specific coins or avoiding particular ones.
+
+**Outputs.** One row per recipient. Each has an **address** field (validated live against the current network, with a contacts shortcut) and an **amount in BTCX**. A **Max** button on a row fills it with everything left over and marks that output as the one the network fee comes out of (*"The network fee will be subtracted from this output"*). **Add output** adds another recipient; **Import list** lets you paste many recipients at once, one `address, amount` per line.
+
+**Include data (OP_RETURN).** An optional toggle that embeds a small hex payload (up to 80 bytes) as an unspendable data output.
+
+**Change address.** By default change returns to a fresh address in this wallet. Turn the toggle off to direct change to a specific address instead.
+
+**Fee.** The same **Slow / Normal / Fast / Custom** choice as the Send screen, in `sat/vB`, with a refresh button for fresh estimates.
+
+**Options.** **Replace-By-Fee** (on by default — see the RBF discussion earlier in this chapter) and an optional **Locktime** that delays the transaction's validity until a given block height.
+
+A live **summary** shows what you are sending, the estimated fee, and the total. When everything is valid, click **Create PSBT & review**.
+
+> **Note** — The fee and change shown while composing are *estimates*. The exact figures are fixed by the node when it builds the PSBT; the fee is paid on top of the output amounts and taken from the change. If a watch-only wallet cannot build the transaction because it holds no key information, Phoenix says so and points you to import it as a descriptor (xpub) instead.
+
+### The four steps: Create, Sign, Finalize, Broadcast
+
+Once a PSBT exists, a step indicator across the top tracks it through its life: **Create → Sign → Finalize → Broadcast.** The review screen shows the transaction's inputs and outputs — each output tagged **recipient**, **mine**, **change**, or **data** — and a status badge with a one-line explanation of what to do next.
+
+![The review view: the four-step indicator, signature progress, and tagged inputs and outputs — shown here part-way through signing a multisig spend.](images/processed/ch08-psbt-review.png){width=98%}
+
+
+**Sign.** Click **Sign with wallet** to add this wallet's signatures. If the wallet is encrypted, Phoenix prompts for the password first (a brief unlock, as with Send). What happens next depends on the wallet:
+
+- A single-key wallet signs completely in one go.
+- A **multisig** wallet adds only *your* signature. The status becomes *partially signed*, and the badge counts progress — for example *"1 of 2 signatures"*, and per-input counters like `1/2`. You then export the PSBT (below), send it to a co-signer, and merge their signed copy back with **Combine** (below) until the threshold is met.
+- A **watch-only** wallet has no keys and cannot sign; Phoenix tells you to export the transaction and sign it on the machine that holds the keys.
+
+*Sign on device* (hardware wallet) is shown but marked **coming soon**.
+
+**Finalize.** Once all required signatures are present (status *Signed*), **Finalize** seals the inputs. After finalizing, the transaction can no longer be edited.
+
+**Broadcast.** The final step sends the finalized transaction to the network. The only target today is your **local node**; broadcasting through a remote Electrum server is shown but marked *soon*. On success, Phoenix shows a **Transaction broadcast** confirmation with the copyable txid and buttons to view your transactions or start another.
+
+![The final step: choosing where to broadcast the finalized transaction.](images/processed/ch08-psbt-broadcast.png){width=98%}
+
+
+### Coordinating and moving a transaction between machines
+
+The Builder is built for passing a transaction around. While a PSBT is not yet finalized you can:
+
+- **Copy Base64** or **Save file** (`.psbt`) to hand the transaction to a co-signer or another device. (After finalizing, these become **Copy hex** / save the raw transaction, ready for any broadcaster.)
+- **Combine signatures** — paste or open a co-signer's signed copy to merge their signatures into yours. This is how a multisig spend accumulates enough signatures.
+- **Join transaction** — merge another party's inputs and outputs into this one (a CoinJoin-style combine). Both sides must still be unsigned, since joining changes what everyone signs.
+- **Save draft** to set the transaction aside and pick it up later from the *In progress* list, or **Discard draft** to delete the local copy (exported copies are unaffected).
+
+> **Warning** — Editing a transaction after it has been signed (stepping back into the compose form) discards the signatures collected so far, because changing the transaction invalidates them. Phoenix warns you before doing this. Copies you already exported are not affected.
+
+### Two notices to understand
+
+- **"No change output was created."** When the leftover change would be smaller than the network's *dust* threshold, creating a change output would cost more in fees than it is worth, so Core folds the remainder into the fee instead. The Builder shows an informational notice; nothing is wrong.
+- **"Unusually high fee."** If the fee is a large share of the amount sent (or the rate is very high), the Builder flags it in orange before you broadcast — a guard against a fat-fingered fee rate. Broadcasting cannot be undone, so read it and confirm the numbers.
+
 ## What's next
 
-You now know how to send and receive. The next chapter — **Transaction History & Details** — covers what happens after the broadcast: how Phoenix tracks confirmations, how to filter and search past transactions, and how to look at the details of a single transaction.
+You now know how to send BTCX — the quick way with **Send**, and the advanced way with the **Transaction Builder** for multisig, watch-only, and coordinated spends. The next chapter — **Transaction History & Details** — covers what happens after the broadcast: how Phoenix tracks confirmations, how to filter and search past transactions, and how to look at the details of a single transaction.

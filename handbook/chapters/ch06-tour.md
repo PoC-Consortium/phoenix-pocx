@@ -62,12 +62,15 @@ The first navigation entry is **Dashboard**, the wallet's home screen. It is the
 
 Everything to do with moving and tracking BTCX:
 
-| Item              | Icon                | Goes to                                                                  |
-|-------------------|---------------------|--------------------------------------------------------------------------|
-| **Transactions**  | `compare_arrows`    | Full transaction history with filters and details. Chapter 9.            |
-| **Send**          | `send`              | Send BTCX. Chapter 8.                                                    |
-| **Receive**       | `call_received`     | Generate or copy a receive address. Chapter 7.                           |
-| **Contacts**      | `contacts`          | Local address book of names and addresses. Chapter 10.                   |
+| Item                      | Icon                | Goes to                                                                  |
+|---------------------------|---------------------|--------------------------------------------------------------------------|
+| **Transactions**          | `compare_arrows`    | Full transaction history with filters and details. Chapter 9.            |
+| **Send**                  | `send`              | Send BTCX. Chapter 8.                                                    |
+| **Receive**               | `call_received`     | Generate or copy a receive address. Chapter 7.                           |
+| **Transaction Builder**   | `edit_document`     | Compose, sign, coordinate, and broadcast a PSBT — the advanced spending path used for multisig and watch-only wallets. Chapter 8. |
+| **Contacts**              | `contacts`          | Local address book of names and addresses. Chapter 10.                   |
+
+> **Note** — **Send** is disabled for wallets that cannot produce a complete signature on their own — *watch-only* wallets and *multisig* wallets. Hovering the greyed-out entry explains why and points you to the **Transaction Builder** instead (Chapters 5 and 8).
 
 ### Group: Mining
 
@@ -128,7 +131,7 @@ To the right of the status icons is the **wallet selector** — the wallet's nam
 - Switch the active wallet (click a row).
 - Lock or unlock an encrypted wallet for the session.
 - Load or unload a wallet.
-- Identify watch-only wallets (eye icon).
+- Identify watch-only wallets (eye icon) and multisig wallets (a purple group icon whose tooltip names the policy, e.g. *"2-of-3 multisig wallet"*).
 
 A **Manage wallets** entry at the top of the menu jumps to the full Wallets screen (Chapter 5) where you can also create, import, or set up watch-only wallets.
 
@@ -155,6 +158,7 @@ Use this as a cheat sheet while you find your way around:
 | See your current balance                              | Sidebar (always visible) or Dashboard.                  |
 | Receive BTCX                                          | **Receive** (sidebar → Transactions group).             |
 | Send BTCX                                             | **Send** (sidebar → Transactions group).                |
+| Spend from a multisig or watch-only wallet, or build a PSBT | **Transaction Builder** (sidebar → Transactions group). |
 | See what arrived and what left                        | **Transactions** (sidebar → Transactions group).        |
 | Manage saved names and addresses                      | **Contacts** (sidebar → Transactions group).            |
 | Set up plotting and mining                            | **Mining Dashboard** (sidebar → Mining group).          |
