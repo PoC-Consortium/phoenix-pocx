@@ -7,16 +7,24 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { BtcxWalletService, BTCX_COIN_TYPE } from '../../../../core/services/btcx-wallet.service';
+import {
+  BtcxWalletService,
+  BtcxRestoreResult,
+  BTCX_COIN_TYPE,
+} from '../../../../core/services/btcx-wallet.service';
 import { sanitizeReturnTo } from '../../return-to';
 
 /**
  * WalletRestoreComponent - restore-from-mnemonic flow.
  *
- * The backend probes which descriptor branch the seed's history lives on
- * (BIP-84/86 x BTCX-coin-type/legacy coin-0') against the configured
- * Electrum server before importing; the result is surfaced on success.
- * Restoring therefore requires a configured Electrum server.
+ * The backend probes EVERY descriptor branch the seed's history could live
+ * on (BIP-84/86 x BTCX-coin-type/legacy coin-0') against the configured
+ * Electrum server before importing. The success screen surfaces the branch
+ * it opened, notes when history also exists on OTHER branches (the mobile
+ * wallet opens one branch — the desktop restore imports them all), and
+ * gives an honest "no history anywhere — starting fresh" verdict with a
+ * scan-again retry (the server could have been lagging). Restoring
+ * therefore requires a configured Electrum server.
  *
  * Accepts a `returnTo` query param (app-internal path, e.g. the mining
  * setup wizard's address step): the success screen's button then continues
@@ -45,14 +53,38 @@ import { sanitizeReturnTo } from '../../return-to';
       </div>
 
       @if (restored()) {
-        <!-- Success: show which derivation branch the probe found -->
+        <!-- Success: branch verdict of the restore probe -->
         <div class="card success-card">
           <mat-icon class="success-icon">check_circle</mat-icon>
           <h3>{{ 'mwallet_restore_success' | i18n }}</h3>
-          @if (branchLabel()) {
-            <p class="hint-text">
-              {{ 'mwallet_restore_branch' | i18n: { branch: branchLabel() } }}
-            </p>
+          @if (result()?.fresh) {
+            <!-- Honest empty verdict + scan-again retry -->
+            <p class="hint-text">{{ 'mwallet_restore_fresh' | i18n }}</p>
+            @if (reprobeError()) {
+              <p class="error-text">{{ reprobeError() }}</p>
+            }
+            <button
+              mat-stroked-button
+              class="full-width scan-again"
+              [disabled]="reprobing()"
+              (click)="scanAgain()"
+            >
+              @if (reprobing()) {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else {
+                <mat-icon>refresh</mat-icon>
+              }
+              {{ 'mwallet_restore_scan_again' | i18n }}
+            </button>
+          } @else {
+            @if (branchLabel()) {
+              <p class="hint-text">
+                {{ 'mwallet_restore_branch' | i18n: { branch: branchLabel() } }}
+              </p>
+            }
+            @if (otherBranches()) {
+              <p class="hint-text small">{{ 'mwallet_restore_other_branches' | i18n }}</p>
+            }
           }
           @if (returnTo()) {
             <button mat-raised-button color="primary" class="full-width" (click)="continueSetup()">
@@ -217,6 +249,10 @@ import { sanitizeReturnTo } from '../../return-to';
           width: 40px;
           height: 40px;
         }
+
+        .scan-again {
+          margin-bottom: 12px;
+        }
       }
 
       :host-context(.dark-theme) {
@@ -248,6 +284,11 @@ export class WalletRestoreComponent implements OnInit {
   readonly restored = signal(false);
   readonly restoreError = signal<string | null>(null);
 
+  /** Outcome of the restore probe (selected branch, hit list, fresh verdict). */
+  readonly result = signal<BtcxRestoreResult | null>(null);
+  readonly reprobing = signal(false);
+  readonly reprobeError = signal<string | null>(null);
+
   /** Sanitized returnTo target (app-internal path), or null. */
   readonly returnTo = computed(() =>
     sanitizeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'))
@@ -262,13 +303,16 @@ export class WalletRestoreComponent implements OnInit {
   }
 
   readonly branchLabel = computed(() => {
-    const policy = this.wallet.descriptorPolicy();
+    const policy = this.result()?.selected ?? this.wallet.descriptorPolicy();
     if (!policy) return '';
     const kind = policy.kind === 'bip86' ? 'BIP-86' : 'BIP-84';
     const coin =
       policy.coinType === BTCX_COIN_TYPE ? 'BTCX' : this.i18n.get('mwallet_branch_legacy');
     return `${kind} / ${coin}`;
   });
+
+  /** History also exists on branches this wallet does not open. */
+  readonly otherBranches = computed(() => (this.result()?.hits.length ?? 0) > 1);
 
   ngOnInit(): void {
     void this.wallet.initialize();
@@ -289,15 +333,34 @@ export class WalletRestoreComponent implements OnInit {
     this.restoreError.set(null);
     try {
       const normalized = this.phrase.trim().toLowerCase().split(/\s+/).join(' ');
-      await this.wallet.restore(normalized, this.passphrase || undefined);
+      const result = await this.wallet.restore(normalized, this.passphrase || undefined);
       this.phrase = '';
       this.passphrase = '';
+      this.result.set(result);
       this.restored.set(true);
     } catch (err) {
       console.error('Failed to restore wallet:', err);
       this.restoreError.set(`${err}`);
     } finally {
       this.restoring.set(false);
+    }
+  }
+
+  /**
+   * Re-run the probe after a fresh verdict — the server could have been
+   * lagging. A found branch replaces the (empty) fresh wallet.
+   */
+  async scanAgain(): Promise<void> {
+    if (this.reprobing()) return;
+    this.reprobing.set(true);
+    this.reprobeError.set(null);
+    try {
+      this.result.set(await this.wallet.reprobe());
+    } catch (err) {
+      console.error('Failed to re-probe wallet branches:', err);
+      this.reprobeError.set(`${err}`);
+    } finally {
+      this.reprobing.set(false);
     }
   }
 }

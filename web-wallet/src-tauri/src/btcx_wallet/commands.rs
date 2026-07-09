@@ -11,8 +11,8 @@ use electrum_btcx::SendFee;
 use keys_btcx::WalletSeed;
 use wallet_btcx::WalletTxInfo;
 
-use super::config::{BtcxWalletConfig, WalletNetwork};
-use super::manager;
+use super::config::{BtcxWalletConfig, DescriptorPolicy, WalletNetwork};
+use super::manager::{self, BranchHit};
 use super::state::{BtcxWalletStatus, SharedBtcxWalletState};
 
 /// Run a blocking wallet operation off the async runtime.
@@ -78,27 +78,70 @@ pub async fn btcx_wallet_create(
     .await
 }
 
-/// Restore the wallet from an existing mnemonic. Probes which descriptor
-/// branch the seed's history lives on (BIP-84/86 × BTCX-coin-type/legacy
-/// coin-0 — see `manager`) against the configured Electrum server BEFORE
-/// importing, and opens the winning branch; no history anywhere opens the
-/// fresh default (BIP-84/BTCX). Requires a configured, reachable Electrum
-/// server — restoring blind could silently hide legacy funds.
+/// What a restore (or a later re-probe) found and did: the branch the
+/// wallet opened on, EVERY branch with history (candidate priority order),
+/// and the honest fresh verdict when none had any.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxRestoreResult {
+    pub status: BtcxWalletStatus,
+    /// The branch the wallet opened with (also recorded in the config).
+    pub selected: DescriptorPolicy,
+    /// Every probed branch with history, candidate priority order. More
+    /// than one entry means funds/history also exist on branches this
+    /// wallet does NOT open — the desktop restore imports them all.
+    pub hits: Vec<BranchHit>,
+    /// True when NO branch had history — the wallet starts fresh on the
+    /// default branch (BIP-84 / BTCX coin type).
+    pub fresh: bool,
+}
+
+/// Open the runtime and, when the winning branch has probe hits beyond the
+/// first sync's gap-scan reach, pre-reveal addresses through them (see
+/// `manager::ensure_probe_reach`). Reveal failures are logged, not fatal:
+/// the seed is already imported and the hit list still tells the UI where
+/// history lives.
+fn open_after_probe(
+    state: &SharedBtcxWalletState,
+    app: AppHandle,
+    hits: &[BranchHit],
+    selected: DescriptorPolicy,
+) -> Result<(), String> {
+    state.open_runtime(Some(app))?;
+    if let Some(hit) = hits.iter().find(|h| h.policy == selected) {
+        let reach = state.with_entry(|entry| {
+            manager::ensure_probe_reach(entry, hit).map_err(|e| format!("{e:#}"))
+        });
+        if let Err(e) = reach {
+            log::warn!("btcx wallet: revealing probe reach after restore failed: {e}");
+        }
+    }
+    Ok(())
+}
+
+/// Restore the wallet from an existing mnemonic. Probes ALL descriptor
+/// branches the seed's history could live on (BIP-84/86 × BTCX-coin-type/
+/// legacy coin-0 — see `manager`) against the configured Electrum server
+/// BEFORE importing, opens the highest-priority branch with history, and
+/// reports every hit plus an honest fresh verdict. Requires a configured,
+/// reachable Electrum server — restoring blind could silently hide legacy
+/// funds.
 #[tauri::command]
 pub async fn btcx_wallet_restore(
     mnemonic: String,
     passphrase: Option<String>,
     app: AppHandle,
     state: State<'_, SharedBtcxWalletState>,
-) -> Result<BtcxWalletStatus, String> {
+) -> Result<BtcxRestoreResult, String> {
     let state = state.inner().clone();
     blocking(move || {
         // Validate + derive first: nothing is written if the phrase is bad
         // or the probe cannot run.
         let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
         let chain = state.probe_chain()?;
-        let policy = manager::probe_restore_policy(&seed, &chain)
+        let hits = manager::probe_all_branches(&seed, &chain)
             .map_err(|e| format!("Restore probing failed: {e:#}"))?;
+        let (selected, fresh) = manager::select_restore_policy(&hits);
 
         state.with_seed(|s| {
             s.import_seed(&mnemonic, passphrase.as_deref())
@@ -107,11 +150,81 @@ pub async fn btcx_wallet_restore(
         })?;
         state.update_config(|c| {
             let network = c.network;
-            c.set_policy(network, policy);
+            c.set_policy(network, selected);
             c.active = true;
         })?;
-        state.open_runtime(Some(app))?;
-        state.status()
+        open_after_probe(&state, app, &hits, selected)?;
+        Ok(BtcxRestoreResult {
+            status: state.status()?,
+            selected,
+            hits,
+            fresh,
+        })
+    })
+    .await
+}
+
+/// Re-run the restore probe over the ALREADY-imported seed — the "scan
+/// again" affordance behind a fresh-restore verdict (the Electrum server
+/// could have been lagging when the restore probed). If the probe now
+/// finds history and the current branch has NONE of it, the wallet
+/// switches to the winning branch: the current branch's store is by
+/// definition an empty fresh-default store, so it is discarded and
+/// recreated on the new branch. A current branch that HAS history is never
+/// switched away from — the hit list still reports the other branches.
+#[tauri::command]
+pub async fn btcx_wallet_reprobe(
+    app: AppHandle,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxRestoreResult, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        let mnemonic = state.with_seed(|s| s.mnemonic().map_err(|e| format!("{e:#}")))?;
+        let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+        let chain = state.probe_chain()?;
+        let hits = manager::probe_all_branches(&seed, &chain)
+            .map_err(|e| format!("Restore probing failed: {e:#}"))?;
+
+        let config = state.get_config();
+        let current = config.policy();
+        let current_has_history = hits.iter().any(|h| h.policy == current);
+        let (mut selected, fresh) = manager::select_restore_policy(&hits);
+        if current_has_history {
+            // Never abandon a branch that holds history.
+            selected = current;
+        }
+
+        if selected != current {
+            // The current store belongs to a branch WITHOUT history — an
+            // empty fresh-default store. Close it and remove its sqlite
+            // files so open_wallet can create the new branch's store.
+            state.close_runtime();
+            let db = config.wallet_db_path();
+            for suffix in ["", "-wal", "-shm"] {
+                let mut path = db.clone().into_os_string();
+                path.push(suffix);
+                if let Err(e) = std::fs::remove_file(&path) {
+                    if e.kind() != std::io::ErrorKind::NotFound {
+                        return Err(format!(
+                            "Removing the fresh wallet store {}: {e}",
+                            std::path::Path::new(&path).display()
+                        ));
+                    }
+                }
+            }
+            state.update_config(|c| {
+                let network = c.network;
+                c.set_policy(network, selected);
+            })?;
+        }
+
+        open_after_probe(&state, app, &hits, selected)?;
+        Ok(BtcxRestoreResult {
+            status: state.status()?,
+            selected,
+            hits,
+            fresh,
+        })
     })
     .await
 }

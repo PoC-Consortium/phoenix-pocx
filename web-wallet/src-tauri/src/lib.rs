@@ -921,6 +921,7 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_generate_mnemonic,
             btcx_wallet::commands::btcx_wallet_create,
             btcx_wallet::commands::btcx_wallet_restore,
+            btcx_wallet::commands::btcx_wallet_reprobe,
             btcx_wallet::commands::btcx_wallet_unlock,
             btcx_wallet::commands::btcx_wallet_lock,
             // Nodeless BTCX wallet commands - Operations

@@ -25,8 +25,10 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use phoenix_pocx_lib::btcx_wallet::config::DescriptorPolicy;
-use phoenix_pocx_lib::btcx_wallet::manager::open_wallet;
+use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy};
+use phoenix_pocx_lib::btcx_wallet::manager::{
+    candidate_spks, open_wallet, probe_all_branches, select_restore_policy,
+};
 use phoenix_pocx_lib::btcx_wallet::state::broadcast_tx_over_electrum;
 
 const ELECTRUM_URL: &str = "tcp://127.0.0.1:60401";
@@ -253,6 +255,120 @@ fn regtest_end_to_end() {
     rpc(None, "setmocktime", serde_json::json!([0]));
     worker.shutdown();
     println!("regtest end-to-end smoke: OK (funded {funded}, after spend {after})");
+}
+
+/// Hardened restore probe, live: a fresh seed first gets an HONEST empty
+/// verdict from the real electrs; then ONE branch (BIP-86 / BTCX coin
+/// type) is funded through the node's miner wallet, and the probe must
+/// come back with exactly that branch — selected for the restore and
+/// reported in the hit list with the funded index.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_restore_probe_selects_funded_branch() {
+    let params = &params_btcx::params::BTCX_REGTEST;
+    let dir = tempfile::tempdir().unwrap();
+
+    let mut store = seedstore::SeedStore::open(dir.path(), None).unwrap();
+    let mnemonic = store.create_seed(None, 12).unwrap();
+    let seed = keys_btcx::WalletSeed::from_mnemonic(&mnemonic, "").unwrap();
+
+    let chain = electrum_btcx::ElectrumBackend::new(params, ELECTRUM_URL).unwrap();
+
+    // 1. Brand-new seed: no branch has history — the probe must say so
+    //    honestly and the selection must fall back to the fresh default.
+    let hits = probe_all_branches(&seed, &chain).expect("probe against live electrs");
+    assert!(
+        hits.is_empty(),
+        "a fresh seed cannot have history: {hits:?}"
+    );
+    let (selected, fresh) = select_restore_policy(&hits);
+    assert!(fresh);
+    assert_eq!(selected, DescriptorPolicy::default());
+
+    // 2. Fund external index 0 of the BIP-86 / BTCX branch via the miner
+    //    wallet (bech32m address with the regtest BTCX HRP).
+    let funded_policy = DescriptorPolicy {
+        kind: DescriptorKindCfg::Bip86,
+        coin_type: keys_btcx::COIN_BTCX,
+    };
+    let spk = candidate_spks(&seed, funded_policy, 0, 1).unwrap()[0].clone();
+    let output_key =
+        bitcoin::XOnlyPublicKey::from_slice(&spk.as_bytes()[2..]).expect("p2tr program");
+    let address = params.p2tr_address(&output_key).unwrap();
+    assert!(
+        address.starts_with("rpocx1p"),
+        "expected a taproot rpocx1p... address, got {address}"
+    );
+    assert_eq!(
+        params.parse_address(&address).unwrap(),
+        spk,
+        "address round-trips to the derived scriptPubKey"
+    );
+
+    let wallets = rpc(None, "listwallets", serde_json::json!([]));
+    let wallet_name = wallets[0]
+        .as_str()
+        .expect("a loaded miner wallet on the regtest node")
+        .to_string();
+    let miner_addr = rpc(Some(&wallet_name), "getnewaddress", serde_json::json!([]))
+        .as_str()
+        .unwrap()
+        .to_string();
+    let mediantime = rpc(None, "getblockchaininfo", serde_json::json!([]))["mediantime"]
+        .as_u64()
+        .unwrap();
+    let fund_txid = rpc(
+        Some(&wallet_name),
+        "sendtoaddress",
+        serde_json::json!([address, 0.25]),
+    );
+    println!("funded BIP-86/BTCX {address} with 0.25 BTCX: {fund_txid}");
+    rpc(
+        None,
+        "setmocktime",
+        serde_json::json!([now_secs().max(mediantime) + 3600]),
+    );
+    rpc(
+        None,
+        "generatetoaddress",
+        serde_json::json!([1, miner_addr]),
+    );
+
+    // Wait for electrs to index the confirmed funding.
+    let mut indexed = false;
+    for _ in 0..30 {
+        std::thread::sleep(Duration::from_secs(1));
+        let histories = chain.histories(std::slice::from_ref(&spk)).unwrap();
+        if !histories[0].is_empty() {
+            indexed = true;
+            break;
+        }
+    }
+    assert!(indexed, "electrs did not index the funding tx in time");
+
+    // 3. The probe now finds EXACTLY the funded branch, selects it, and
+    //    reports the funded index in the hit list.
+    let hits = probe_all_branches(&seed, &chain).expect("probe against live electrs");
+    assert_eq!(
+        hits.len(),
+        1,
+        "only the funded branch has history: {hits:?}"
+    );
+    assert_eq!(hits[0].policy, funded_policy);
+    assert_eq!(hits[0].deepest_external, Some(0));
+    assert_eq!(hits[0].deepest_internal, None);
+    let (selected, fresh) = select_restore_policy(&hits);
+    assert!(!fresh);
+    assert_eq!(selected, funded_policy);
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    println!(
+        "restore-probe smoke: OK (selected {:?} 0x{:x}, hits {})",
+        selected.kind,
+        selected.coin_type,
+        hits.len()
+    );
 }
 
 /// Chain-only Electrum broadcast (Phase 6a): a raw transaction built and
