@@ -110,11 +110,16 @@ export class AppComponent implements OnInit, OnDestroy {
     // Add platform class to body for platform-specific styling (e.g., Android safe area)
     this.initPlatformClass();
 
-    // If in mining-only mode, redirect to miner route immediately
-    if (this.appModeService.isMiningOnly()) {
-      // Only redirect if we're not already on a miner route
+    // If in mining-only or mobile mode, redirect to miner route immediately
+    // (mining remains the default landing; mobile mode also has /wallet)
+    if (this.appModeService.isMiningOnly() || this.appModeService.isMobileMode()) {
+      // Only redirect if we're not already on an allowed route
       const currentUrl = this.router.url;
-      if (!currentUrl.startsWith('/miner') && !currentUrl.startsWith('/node')) {
+      if (
+        !currentUrl.startsWith('/miner') &&
+        !currentUrl.startsWith('/node') &&
+        !currentUrl.startsWith('/wallet')
+      ) {
         this.router.navigate(['/miner']);
       }
     }
@@ -123,7 +128,11 @@ export class AppComponent implements OnInit, OnDestroy {
     // render the wallet selector (which would try to connect and show a
     // spurious error) while NodeService is still initializing. initNodeService
     // clears it once it knows whether it needs to auto-start the node.
-    if (this.electronService.isDesktop && !this.appModeService.isMiningOnly()) {
+    if (
+      this.electronService.isDesktop &&
+      !this.appModeService.isMiningOnly() &&
+      !this.appModeService.isMobileMode()
+    ) {
       this.isStartingNode.set(true);
     }
 
