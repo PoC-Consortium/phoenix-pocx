@@ -408,6 +408,25 @@ export class BtcxWalletService {
     return invoke<BtcxFeeEstimates>('btcx_wallet_fee_estimates');
   }
 
+  /**
+   * Broadcast a raw transaction (hex) over the configured Electrum servers
+   * and return the txid. Chain-only: needs NO seed and NO open wallet —
+   * used by the desktop Transaction Builder's Electrum broadcast target.
+   * `network` picks which network's server list to use (default: the wallet
+   * config's active network). Throws on failure — callers surface the message.
+   */
+  async broadcastTx(txHex: string, network?: BtcxNetwork): Promise<string> {
+    return invoke<string>('btcx_broadcast_tx', { txHex, network: network ?? null });
+  }
+
+  /**
+   * Electrum servers configured for `network` per the last refreshed config
+   * (empty until refreshConfig()/initialize() has run).
+   */
+  serversFor(network: BtcxNetwork): string[] {
+    return this._config()?.electrumServers[network] ?? [];
+  }
+
   // ============================================================================
   // Configuration & Sync
   // ============================================================================

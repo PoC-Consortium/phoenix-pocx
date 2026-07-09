@@ -34,6 +34,8 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { ElectronService } from '../../../../core/services/electron.service';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import { PsbtService } from '../../services/psbt.service';
 import type { PsbtDocument, PsbtDraft, PsbtOutputView } from '../../psbt.models';
@@ -486,23 +488,54 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 <div class="card-head no-pad">
                   <h3 class="section-title">{{ 'psbt_broadcast_via' | i18n }}</h3>
                 </div>
-                <div class="target selected">
-                  <span class="radio checked"></span>
+                <div
+                  class="target"
+                  [class.selected]="broadcastTarget() === 'local'"
+                  (click)="broadcastTarget.set('local')"
+                  (keydown.enter)="broadcastTarget.set('local')"
+                  tabindex="0"
+                  role="radio"
+                  [attr.aria-checked]="broadcastTarget() === 'local'"
+                >
+                  <span class="radio" [class.checked]="broadcastTarget() === 'local'"></span>
                   <div class="target-body">
                     <div class="target-name">{{ 'psbt_target_local' | i18n }}</div>
                     <div class="target-hint">{{ 'psbt_target_local_hint' | i18n }}</div>
                   </div>
-                  <mat-icon class="ok">check_circle</mat-icon>
+                  @if (broadcastTarget() === 'local') {
+                    <mat-icon class="ok">check_circle</mat-icon>
+                  }
                 </div>
-                <div class="target disabled">
-                  <span class="radio"></span>
-                  <div class="target-body">
-                    <div class="target-name">
-                      Electrum <span class="soon-pill">{{ 'psbt_soon' | i18n }}</span>
+                @if (electrumAvailable()) {
+                  <div
+                    class="target"
+                    [class.selected]="broadcastTarget() === 'electrum'"
+                    (click)="broadcastTarget.set('electrum')"
+                    (keydown.enter)="broadcastTarget.set('electrum')"
+                    tabindex="0"
+                    role="radio"
+                    [attr.aria-checked]="broadcastTarget() === 'electrum'"
+                  >
+                    <span class="radio" [class.checked]="broadcastTarget() === 'electrum'"></span>
+                    <div class="target-body">
+                      <div class="target-name">Electrum</div>
+                      <div class="target-hint">{{ 'psbt_target_electrum_ready' | i18n }}</div>
                     </div>
-                    <div class="target-hint">{{ 'psbt_target_electrum_hint' | i18n }}</div>
+                    @if (broadcastTarget() === 'electrum') {
+                      <mat-icon class="ok">check_circle</mat-icon>
+                    }
                   </div>
-                </div>
+                } @else {
+                  <div class="target disabled">
+                    <span class="radio"></span>
+                    <div class="target-body">
+                      <div class="target-name">
+                        Electrum <span class="soon-pill">{{ 'psbt_soon' | i18n }}</span>
+                      </div>
+                      <div class="target-hint">{{ 'psbt_target_electrum_hint' | i18n }}</div>
+                    </div>
+                  </div>
+                }
               </div>
             </div>
           }
@@ -1295,6 +1328,10 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         border-radius: 6px;
         margin-top: 8px;
 
+        &:not(.disabled) {
+          cursor: pointer;
+        }
+
         &.selected {
           border-color: #1976d2;
           background: rgba(25, 118, 210, 0.04);
@@ -1549,6 +1586,8 @@ export class PsbtComponent implements OnInit {
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
+  private readonly btcxWallet = inject(BtcxWalletService);
+  private readonly electron = inject(ElectronService);
   private readonly psbtService = inject(PsbtService);
   private readonly notification = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
@@ -1574,6 +1613,17 @@ export class PsbtComponent implements OnInit {
   readonly finalizing = signal(false);
   readonly broadcasting = signal(false);
   readonly docError = signal<string | null>(null);
+
+  /** Broadcast target: the local Core node (default) or an Electrum server */
+  readonly broadcastTarget = signal<'local' | 'electrum'>('local');
+
+  /**
+   * Whether the Electrum target is usable: at least one Electrum server is
+   * configured for the current network in the nodeless wallet config.
+   */
+  readonly electrumAvailable = computed(
+    () => this.btcxWallet.serversFor(this.network()).length > 0
+  );
 
   readonly renaming = signal(false);
   renameValue = '';
@@ -1793,6 +1843,13 @@ export class PsbtComponent implements OnInit {
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(params => this.applyUrlState(params.get('view'), params.get('section')));
+
+    // Load the btcx wallet config so the Electrum broadcast target knows
+    // whether a server is configured for this network (a cheap config read
+    // — no seed or open wallet required)
+    if (this.electron.isDesktop) {
+      void this.btcxWallet.refreshConfig();
+    }
   }
 
   goBack(): void {
@@ -2045,23 +2102,31 @@ export class PsbtComponent implements OnInit {
     this.broadcasting.set(true);
     this.docError.set(null);
     try {
-      // Preflight: catches already-broadcast and policy rejections without sending
-      const [check] = await this.blockchainRpc.testMempoolAccept([hex]);
-      if (check && !check.allowed) {
-        const reason = check['reject-reason'] ?? '';
-        if (reason.includes('already') || reason.includes('txn-known')) {
-          this.docError.set(this.i18n.get('psbt_already_broadcast'));
-        } else {
-          this.docError.set(`${this.i18n.get('psbt_rejected')}: ${reason}`);
+      let txid: string;
+      if (this.broadcastTarget() === 'electrum' && this.electrumAvailable()) {
+        // Chain-only Electrum broadcast: no local node (and no node wallet)
+        // involved. Rejection reasons come back from the server's node.
+        txid = await this.btcxWallet.broadcastTx(hex, this.network());
+      } else {
+        // Preflight: catches already-broadcast and policy rejections without sending
+        const [check] = await this.blockchainRpc.testMempoolAccept([hex]);
+        if (check && !check.allowed) {
+          const reason = check['reject-reason'] ?? '';
+          if (reason.includes('already') || reason.includes('txn-known')) {
+            this.docError.set(this.i18n.get('psbt_already_broadcast'));
+          } else {
+            this.docError.set(`${this.i18n.get('psbt_rejected')}: ${reason}`);
+          }
+          return;
         }
-        return;
+        txid = await this.blockchainRpc.sendRawTransaction(hex);
+        // Only the local path implies a reachable Core wallet to refresh
+        this.walletService.refresh();
       }
-      const txid = await this.blockchainRpc.sendRawTransaction(hex);
       this.broadcastTxid.set(txid);
       const draft = this.draft();
       if (draft) this.psbtService.deleteDraft(draft.id);
       this.view.set('success');
-      this.walletService.refresh();
       this.notification.success(this.i18n.get('psbt_broadcast_success'));
     } catch (error) {
       this.docError.set(error instanceof Error ? error.message : String(error));
