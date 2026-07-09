@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { MiningService } from '../../../../mining/services';
 
 /**
  * WalletHomeComponent - the mobile wallet landing page.
@@ -18,6 +19,10 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
  * - seed 'locked'    -> unlock form
  * - seed 'unlocked'  -> balance breakdown, sync status, actions;
  *                       empty state when no Electrum server is configured
+ *
+ * While mining is not configured yet, an unlocked wallet also shows a hint
+ * card linking to the mining setup wizard ("mine to this wallet") - the
+ * wallet-side mirror of the wizard's create-wallet nudge.
  */
 @Component({
   selector: 'app-wallet-home',
@@ -173,6 +178,18 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
             {{ 'mwallet_history_title' | i18n }}
           </button>
         </div>
+
+        <!-- Mining nudge: only until mining is configured -->
+        @if (showMiningHint()) {
+          <div class="card mine-hint-card">
+            <h3>{{ 'mwallet_mine_hint_title' | i18n }}</h3>
+            <p class="hint-text">{{ 'mwallet_mine_hint_text' | i18n }}</p>
+            <button mat-stroked-button routerLink="/miner/setup">
+              <mat-icon>hardware</mat-icon>
+              {{ 'mwallet_mine_setup' | i18n }}
+            </button>
+          </div>
+        }
       }
     </div>
   `,
@@ -316,6 +333,16 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         }
       }
 
+      .mine-hint-card {
+        h3 {
+          margin-top: 0;
+        }
+
+        .hint-text {
+          margin-bottom: 12px;
+        }
+      }
+
       :host-context(.dark-theme) {
         .card {
           background: #424242;
@@ -346,6 +373,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 })
 export class WalletHomeComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
+  private readonly mining = inject(MiningService);
 
   readonly balance = computed(() => this.wallet.balance());
   readonly pendingSat = computed(() => {
@@ -358,8 +386,14 @@ export class WalletHomeComponent implements OnInit {
   readonly unlocking = signal(false);
   readonly unlockError = signal(false);
 
+  // Only show the mining nudge once the mining state has actually loaded,
+  // so a configured setup never sees the card flash.
+  private readonly miningStateLoaded = signal(false);
+  readonly showMiningHint = computed(() => this.miningStateLoaded() && !this.mining.isConfigured());
+
   ngOnInit(): void {
     void this.wallet.initialize();
+    void this.mining.getState().then(() => this.miningStateLoaded.set(true));
   }
 
   async unlock(): Promise<void> {
