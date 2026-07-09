@@ -167,6 +167,14 @@ export const settingsReducer = createReducer(
     })
   ),
 
+  on(
+    SettingsActions.setNodelessWallet,
+    (state, { enabled }): SettingsState => ({
+      ...state,
+      nodelessWallet: enabled,
+    })
+  ),
+
   // Aggregator
   on(
     SettingsActions.updateAggregatorSettings,
