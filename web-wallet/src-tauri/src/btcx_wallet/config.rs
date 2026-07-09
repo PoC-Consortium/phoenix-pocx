@@ -147,8 +147,14 @@ impl BtcxWalletConfig {
 
     /// The Electrum servers configured for the ACTIVE network.
     pub fn servers(&self) -> Vec<String> {
+        self.servers_for(self.network)
+    }
+
+    /// The Electrum servers configured for `network` (not necessarily the
+    /// active one — e.g. chain-only broadcasts from the desktop wallet).
+    pub fn servers_for(&self, network: WalletNetwork) -> Vec<String> {
         self.electrum_servers
-            .get(self.network.as_str())
+            .get(network.as_str())
             .cloned()
             .unwrap_or_default()
     }

@@ -278,6 +278,27 @@ impl BtcxWalletState {
             .map_err(|e| format!("Electrum connection: {e:#}"))
     }
 
+    /// Broadcast a raw transaction over Electrum — chain-only: needs no
+    /// seed and no open wallet runtime, only a configured server for
+    /// `network` (default: the active network). This is what the desktop
+    /// Transaction Builder's "broadcast via Electrum" rides.
+    pub fn broadcast_tx(
+        &self,
+        tx_hex: &str,
+        network: Option<WalletNetwork>,
+    ) -> Result<String, String> {
+        let config = self.get_config();
+        let network = network.unwrap_or(config.network);
+        let servers = config.servers_for(network);
+        if servers.is_empty() {
+            return Err(format!(
+                "No Electrum server configured for {} — add one in the wallet settings first",
+                network.as_str()
+            ));
+        }
+        broadcast_tx_over_electrum(network.params(), &servers, tx_hex)
+    }
+
     /// Run `f` on the open wallet entry (bdk wallet + sqlite connection).
     pub fn with_entry<T>(
         &self,
@@ -395,5 +416,59 @@ fn spawn_sync_emitter(
         });
     if let Err(e) = result {
         log::warn!("btcx wallet: failed to spawn sync emitter: {e}");
+    }
+}
+
+/// Chain-only Electrum broadcast: decode `tx_hex` and hand it to the first
+/// server that takes it, trying each of `servers` in turn (the serial
+/// fan-over pattern of wallet-btcx's broadcast_fan). Deliberately dials
+/// FRESH connections instead of going through the pool: broadcasts are rare,
+/// and the pool's live-URL pruning is keyed to the active network's server
+/// list — which this call, unlike everything else, may not be using.
+///
+/// Errors distinguish the three failure shapes: `servers` empty (caller
+/// guards, but kept for direct users like the integration test), no server
+/// reachable, and the transaction being rejected.
+pub fn broadcast_tx_over_electrum(
+    params: &'static ChainParams,
+    servers: &[String],
+    tx_hex: &str,
+) -> Result<String, String> {
+    if servers.is_empty() {
+        return Err("No Electrum server configured — add one in the wallet settings first".into());
+    }
+    let tx: bitcoin::Transaction = bitcoin::consensus::encode::deserialize_hex(tx_hex.trim())
+        .map_err(|e| format!("Not a valid raw transaction: {e}"))?;
+
+    // Connection failures and rejections are kept apart: a rejection is
+    // definitive for that server but another server MIGHT still take the tx
+    // (mempool policy differences), so the fan-over continues either way and
+    // the rejection — the more actionable message — wins the error report.
+    // `new` dials lazily, so reachability is probed with a cheap `tip()`
+    // first: a server that cannot even answer that is unreachable, one that
+    // can but refuses the broadcast rejected the transaction.
+    let mut last_reject: Option<String> = None;
+    let mut last_connect: Option<String> = None;
+    for url in servers {
+        let backend = match ElectrumBackend::new(params, url) {
+            Ok(backend) => backend,
+            Err(e) => {
+                last_connect = Some(format!("{url}: {e:#}"));
+                continue;
+            }
+        };
+        if let Err(e) = backend.tip() {
+            last_connect = Some(format!("{url}: {e:#}"));
+            continue;
+        }
+        match backend.broadcast(&tx) {
+            Ok(txid) => return Ok(txid.to_string()),
+            Err(e) => last_reject = Some(format!("{url}: {e:#}")),
+        }
+    }
+    match (last_reject, last_connect) {
+        (Some(reject), _) => Err(format!("Transaction rejected — {reject}")),
+        (None, Some(connect)) => Err(format!("No Electrum server reachable — {connect}")),
+        (None, None) => unreachable!("servers is non-empty"),
     }
 }
