@@ -19,6 +19,9 @@ pub mod mining;
 // Node management module
 pub mod node;
 
+// Nodeless BTCX wallet module (btcx crates over Electrum)
+pub mod btcx_wallet;
+
 // Update checking module
 pub mod update;
 
@@ -593,6 +596,9 @@ pub fn run() {
     // Create shared aggregator state
     let aggregator_state = aggregator::state::create_aggregator_state();
 
+    // Create shared nodeless BTCX wallet state
+    let btcx_wallet_state = btcx_wallet::create_btcx_wallet_state();
+
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -619,6 +625,7 @@ pub fn run() {
         .manage(node_state)
         .manage(node_manager)
         .manage(aggregator_state)
+        .manage(btcx_wallet_state)
         .setup(|app| {
             // Set app handle for TauriEventAppender (log forwarding to frontend)
             logging::set_app_handle(app.handle().clone());
@@ -636,6 +643,24 @@ pub fn run() {
                 .inner()
                 .clone();
             mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
+
+            // Resume the nodeless BTCX wallet if it was set up (off the main
+            // thread — opening dials nothing, but sqlite + seed I/O should
+            // never delay startup; failures only log).
+            {
+                let state = app
+                    .state::<btcx_wallet::SharedBtcxWalletState>()
+                    .inner()
+                    .clone();
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    if state.get_config().active {
+                        if let Err(e) = state.open_runtime(Some(handle)) {
+                            log::warn!("btcx wallet: resume failed: {}", e);
+                        }
+                    }
+                });
+            }
 
             // Register aggregator callback (OnceLock - must be done once at startup)
             let agg_state = app
@@ -879,6 +904,24 @@ pub fn run() {
             aggregator::commands::is_aggregator_running,
             aggregator::commands::get_aggregator_status,
             aggregator::commands::get_aggregator_stats,
+            // Nodeless BTCX wallet commands - Status & Seed
+            btcx_wallet::commands::btcx_wallet_status,
+            btcx_wallet::commands::btcx_wallet_generate_mnemonic,
+            btcx_wallet::commands::btcx_wallet_create,
+            btcx_wallet::commands::btcx_wallet_restore,
+            btcx_wallet::commands::btcx_wallet_unlock,
+            btcx_wallet::commands::btcx_wallet_lock,
+            // Nodeless BTCX wallet commands - Operations
+            btcx_wallet::commands::btcx_wallet_new_address,
+            btcx_wallet::commands::btcx_wallet_balance,
+            btcx_wallet::commands::btcx_wallet_transactions,
+            btcx_wallet::commands::btcx_wallet_send,
+            btcx_wallet::commands::btcx_wallet_bumpfee,
+            btcx_wallet::commands::btcx_wallet_fee_estimates,
+            // Nodeless BTCX wallet commands - Config & Sync
+            btcx_wallet::commands::btcx_wallet_get_config,
+            btcx_wallet::commands::btcx_wallet_set_config,
+            btcx_wallet::commands::btcx_wallet_sync_now,
             // Update commands
             update::get_app_version,
             update::check_wallet_update,

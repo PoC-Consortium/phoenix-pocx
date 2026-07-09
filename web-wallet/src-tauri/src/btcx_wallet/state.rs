@@ -1,0 +1,399 @@
+//! Shared state for the nodeless BTCX wallet
+//!
+//! Follows the node/mining module pattern: one `Arc<...>` managed by Tauri,
+//! interior mutability via `Mutex`, config persisted as JSON. On top of
+//! that it owns the btcx-crate runtime pieces:
+//!
+//! - the [`SeedStore`] (seed-at-rest, lock/unlock),
+//! - the [`ElectrumPool`] (one long-lived connection per configured server),
+//! - the open wallet runtime: bdk [`WalletHandle`] + background
+//!   [`SyncWorker`] (which syncs over its OWN connection, per the
+//!   wallet-btcx contract) + the `btcx-wallet:sync` event emitter thread.
+
+use serde::Serialize;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+
+use electrum_btcx::{ElectrumBackend, ElectrumPool, SyncWorker, WalletEntry, WalletHandle};
+use keys_btcx::WalletSeed;
+use params_btcx::params::ChainParams;
+use seedstore::SeedStore;
+use tauri::Emitter;
+use wallet_btcx::BdkWalletBackend;
+
+use super::config::{BtcxWalletConfig, DescriptorPolicy, WalletNetwork, COIN_ID};
+use super::manager;
+
+/// Seed lifecycle as the frontend sees it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SeedState {
+    /// No seed yet — first-run.
+    None,
+    /// Passphrase-encrypted seed present, passphrase not supplied.
+    Locked,
+    /// Seed readable (unlocked, or not passphrase-encrypted).
+    Unlocked,
+}
+
+/// Wallet status snapshot for the frontend (`btcx_wallet_status`).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxWalletStatus {
+    /// Seed lifecycle: none | locked | unlocked.
+    pub seed: SeedState,
+    /// Whether the on-disk seed is passphrase-encrypted.
+    pub seed_encrypted: bool,
+    /// Whether the wallet runtime is open (bdk wallet + sync worker).
+    pub wallet_active: bool,
+    /// Whether the nodeless wallet feature is configured active.
+    pub active: bool,
+    /// Active network name (mainnet, testnet, regtest).
+    pub network: String,
+    /// Wallet-cache chain height (bdk checkpoint tip), once open.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub synced_height: Option<u32>,
+    /// Seconds since the sync worker last completed a pass — `None` before
+    /// the first completed sync (or while closed).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sync_age_secs: Option<u64>,
+}
+
+/// The open wallet runtime of the active network.
+pub struct WalletRuntime {
+    pub params: &'static ChainParams,
+    pub network: WalletNetwork,
+    pub policy: DescriptorPolicy,
+    pub handle: WalletHandle,
+    pub worker: Arc<SyncWorker>,
+    /// The wallet HOME server (first configured URL) — the pooled
+    /// connection wallet chain reads ride; the worker dials it separately.
+    pub home_url: String,
+    /// Remaining configured servers: independent views / broadcast fallbacks.
+    pub view_urls: Vec<String>,
+    /// Tells the sync-event emitter thread to exit with this runtime.
+    emitter_stop: Arc<AtomicBool>,
+}
+
+/// Internal state for the nodeless BTCX wallet.
+pub struct BtcxWalletState {
+    /// Persisted configuration.
+    pub config: Mutex<BtcxWalletConfig>,
+    /// Seed store, opened lazily (holds the unlock passphrase in memory).
+    seed: Mutex<Option<SeedStore>>,
+    /// Long-lived Electrum connections, one per (coin, url).
+    pool: ElectrumPool,
+    /// The open wallet runtime, if any.
+    runtime: Mutex<Option<WalletRuntime>>,
+}
+
+/// Type alias for shared BTCX wallet state.
+pub type SharedBtcxWalletState = Arc<BtcxWalletState>;
+
+/// Create a new shared BTCX wallet state.
+pub fn create_btcx_wallet_state() -> SharedBtcxWalletState {
+    Arc::new(BtcxWalletState {
+        config: Mutex::new(BtcxWalletConfig::load()),
+        seed: Mutex::new(None),
+        pool: ElectrumPool::new(),
+        runtime: Mutex::new(None),
+    })
+}
+
+impl BtcxWalletState {
+    /// Run `f` on the seed store, opening it on first use. The store lives
+    /// in `<app data dir>/btcx-wallet` and holds the unlock passphrase in
+    /// memory across calls.
+    pub fn with_seed<T>(
+        &self,
+        f: impl FnOnce(&mut SeedStore) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut guard = self.seed.lock().map_err(|_| "seed store lock poisoned")?;
+        if guard.is_none() {
+            let store = SeedStore::open(&BtcxWalletConfig::wallet_dir(), None)
+                .map_err(|e| format!("Failed to open seed store: {e:#}"))?;
+            *guard = Some(store);
+        }
+        f(guard.as_mut().expect("seed store just opened"))
+    }
+
+    /// Drop the in-memory seed store (and with it any held passphrase).
+    /// The next `with_seed` reopens it without a passphrase.
+    pub fn drop_seed_passphrase(&self) {
+        if let Ok(mut guard) = self.seed.lock() {
+            *guard = None;
+        }
+    }
+
+    /// Snapshot of the current configuration.
+    pub fn get_config(&self) -> BtcxWalletConfig {
+        self.config.lock().map(|c| c.clone()).unwrap_or_default()
+    }
+
+    /// Update + persist the configuration.
+    pub fn update_config(
+        &self,
+        f: impl FnOnce(&mut BtcxWalletConfig),
+    ) -> Result<BtcxWalletConfig, String> {
+        let mut guard = self.config.lock().map_err(|_| "config lock poisoned")?;
+        f(&mut guard);
+        guard.save()?;
+        Ok(guard.clone())
+    }
+
+    /// Whether the wallet runtime is currently open.
+    pub fn is_open(&self) -> bool {
+        self.runtime.lock().map(|r| r.is_some()).unwrap_or(false)
+    }
+
+    /// Open the wallet runtime (bdk wallet + sync worker + sync-event
+    /// emitter) if everything it needs is available. Returns `Ok(false)` —
+    /// not an error — when prerequisites are missing: no seed yet, seed
+    /// locked, or no Electrum server configured for the active network.
+    pub fn open_runtime(&self, app: Option<tauri::AppHandle>) -> Result<bool, String> {
+        if self.is_open() {
+            return Ok(true);
+        }
+        let config = self.get_config();
+        let servers = config.servers();
+        if servers.is_empty() {
+            log::info!(
+                "btcx wallet: no Electrum servers configured for {} — wallet stays closed",
+                config.network.as_str()
+            );
+            return Ok(false);
+        }
+        // Locked or absent seed: not an error, the wallet just stays closed.
+        let Ok(mnemonic) = self.with_seed(|s| s.mnemonic().map_err(|e| format!("{e:#}"))) else {
+            return Ok(false);
+        };
+        let seed = WalletSeed::from_mnemonic(&mnemonic, "")
+            .map_err(|e| format!("Failed to derive wallet seed: {e:#}"))?;
+
+        let params = config.network.params();
+        let policy = config.policy();
+        let home_url = servers[0].clone();
+        let view_urls: Vec<String> = servers[1..].to_vec();
+
+        let handle = manager::open_wallet(&config.wallet_db_path(), params, &seed, policy)
+            .map_err(|e| format!("Failed to open wallet: {e:#}"))?;
+
+        // The worker gets its OWN connection to the home server (never the
+        // pooled one) so each socket has exactly one caller domain — see
+        // wallet_btcx::WalletManager::ensure_worker.
+        let worker_chain = Arc::new(
+            ElectrumBackend::new(params, &home_url)
+                .map_err(|e| format!("Failed to set up Electrum connection: {e:#}"))?,
+        );
+        let worker = SyncWorker::spawn(COIN_ID, worker_chain, &handle);
+
+        let emitter_stop = Arc::new(AtomicBool::new(false));
+        if let Some(app) = app {
+            spawn_sync_emitter(
+                app,
+                config.network,
+                handle.clone(),
+                worker.clone(),
+                emitter_stop.clone(),
+            );
+        }
+
+        let runtime = WalletRuntime {
+            params,
+            network: config.network,
+            policy,
+            handle,
+            worker,
+            home_url,
+            view_urls,
+            emitter_stop,
+        };
+        *self.runtime.lock().map_err(|_| "runtime lock poisoned")? = Some(runtime);
+        log::info!(
+            "btcx wallet opened on {} ({:?}, coin type 0x{:x})",
+            config.network.as_str(),
+            policy.kind,
+            policy.coin_type
+        );
+        Ok(true)
+    }
+
+    /// Close the wallet runtime: stop the sync worker and the emitter
+    /// thread, drop the wallet handle (and with it the in-memory keys).
+    pub fn close_runtime(&self) {
+        let runtime = self.runtime.lock().ok().and_then(|mut r| r.take());
+        if let Some(runtime) = runtime {
+            runtime.emitter_stop.store(true, Ordering::Relaxed);
+            runtime.worker.shutdown();
+            log::info!("btcx wallet closed");
+        }
+    }
+
+    /// Build the per-call wallet backend from the open runtime: pooled home
+    /// connection for chain reads, the other configured servers as
+    /// broadcast-fallback views, the shared wallet handle + worker for the
+    /// wallet operations (the wallet-btcx consumption pattern).
+    pub fn backend(&self) -> Result<BdkWalletBackend, String> {
+        let guard = self.runtime.lock().map_err(|_| "runtime lock poisoned")?;
+        let rt = guard.as_ref().ok_or(
+            "The nodeless wallet is not open — create or restore a seed, unlock it, and \
+             configure an Electrum server first",
+        )?;
+        let live: Vec<&str> = std::iter::once(rt.home_url.as_str())
+            .chain(rt.view_urls.iter().map(String::as_str))
+            .collect();
+        let chain = self
+            .pool
+            .get(rt.params, COIN_ID, &rt.home_url, &live)
+            .map_err(|e| format!("Electrum connection: {e:#}"))?;
+        let views = rt
+            .view_urls
+            .iter()
+            .map(|url| self.pool.get(rt.params, COIN_ID, url, &live))
+            .collect::<anyhow::Result<Vec<_>>>()
+            .map_err(|e| format!("Electrum connection: {e:#}"))?;
+        Ok(BdkWalletBackend::new(
+            rt.params,
+            chain,
+            views,
+            Some((rt.handle.clone(), rt.worker.clone())),
+        ))
+    }
+
+    /// A pooled Electrum connection to the FIRST configured server of the
+    /// active network — for operations that need the chain but not an open
+    /// wallet (restore probing).
+    pub fn probe_chain(&self) -> Result<Arc<ElectrumBackend>, String> {
+        let config = self.get_config();
+        let servers = config.servers();
+        let home = servers.first().ok_or_else(|| {
+            format!(
+                "No Electrum server configured for {} — add one first",
+                config.network.as_str()
+            )
+        })?;
+        let live: Vec<&str> = servers.iter().map(String::as_str).collect();
+        self.pool
+            .get(config.network.params(), COIN_ID, home, &live)
+            .map_err(|e| format!("Electrum connection: {e:#}"))
+    }
+
+    /// Run `f` on the open wallet entry (bdk wallet + sqlite connection).
+    pub fn with_entry<T>(
+        &self,
+        f: impl FnOnce(&mut WalletEntry) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let guard = self.runtime.lock().map_err(|_| "runtime lock poisoned")?;
+        let rt = guard.as_ref().ok_or("The nodeless wallet is not open")?;
+        let handle = rt.handle.clone();
+        drop(guard);
+        let mut entry = handle.lock().map_err(|_| "wallet entry poisoned")?;
+        f(&mut entry)
+    }
+
+    /// Poke the sync worker for an immediate pass.
+    pub fn poke(&self) -> Result<(), String> {
+        let guard = self.runtime.lock().map_err(|_| "runtime lock poisoned")?;
+        let rt = guard.as_ref().ok_or("The nodeless wallet is not open")?;
+        rt.worker.poke();
+        Ok(())
+    }
+
+    /// Current status snapshot (`btcx_wallet_status`).
+    pub fn status(&self) -> Result<BtcxWalletStatus, String> {
+        let config = self.get_config();
+        let seed_status = self.with_seed(|s| s.wallet_status().map_err(|e| format!("{e:#}")))?;
+        let seed = if !seed_status.seed_exists {
+            SeedState::None
+        } else if seed_status.locked {
+            SeedState::Locked
+        } else {
+            SeedState::Unlocked
+        };
+
+        let (wallet_active, synced_height, sync_age_secs) = {
+            let guard = self.runtime.lock().map_err(|_| "runtime lock poisoned")?;
+            match guard.as_ref() {
+                Some(rt) => {
+                    let height = rt
+                        .handle
+                        .lock()
+                        .ok()
+                        .map(|entry| entry.wallet.latest_checkpoint().height());
+                    let age = rt.worker.fresh_age().map(|d| d.as_secs());
+                    (true, height, age)
+                }
+                None => (false, None, None),
+            }
+        };
+
+        Ok(BtcxWalletStatus {
+            seed,
+            seed_encrypted: seed_status.encrypted,
+            wallet_active,
+            active: config.active,
+            network: config.network.as_str().to_string(),
+            synced_height,
+            sync_age_secs,
+        })
+    }
+}
+
+/// Payload of the `btcx-wallet:sync` event.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncEvent {
+    network: &'static str,
+    height: u32,
+    sync_age_secs: Option<u64>,
+}
+
+/// Emit `btcx-wallet:sync` to the frontend on sync completion and on every
+/// height change: a small polling thread over the worker's freshness latch
+/// and the wallet's checkpoint tip (the SyncWorker surface has no callback
+/// hook; polling its cheap accessors is the sanctioned pattern). Exits with
+/// the runtime that spawned it.
+fn spawn_sync_emitter(
+    app: tauri::AppHandle,
+    network: WalletNetwork,
+    handle: WalletHandle,
+    worker: Arc<SyncWorker>,
+    stop: Arc<AtomicBool>,
+) {
+    let result = std::thread::Builder::new()
+        .name("btcx-wallet-sync-emitter".to_string())
+        .spawn(move || {
+            let mut last_height: Option<u32> = None;
+            loop {
+                // ~3s cadence, checking the stop flag every 500ms so a
+                // close/network-switch never waits on a sleeping thread.
+                for _ in 0..6 {
+                    if stop.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                }
+                // Nothing to report before the first completed sync.
+                let Some(age) = worker.fresh_age() else {
+                    continue;
+                };
+                let Ok(entry) = handle.lock() else { return };
+                let height = entry.wallet.latest_checkpoint().height();
+                drop(entry);
+                if last_height != Some(height) {
+                    last_height = Some(height);
+                    let _ = app.emit(
+                        "btcx-wallet:sync",
+                        SyncEvent {
+                            network: network.as_str(),
+                            height,
+                            sync_age_secs: Some(age.as_secs()),
+                        },
+                    );
+                }
+            }
+        });
+    if let Err(e) = result {
+        log::warn!("btcx wallet: failed to spawn sync emitter: {e}");
+    }
+}
