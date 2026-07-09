@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Syötä pyydetyt sanat kirjoittamastasi varmuuskopiosta.",
   "mwallet_verify_mismatch": "Sanat eivät vastaa palautuslausettasi.",
   "mwallet_verify_title": "Vahvista varmuuskopiosi",
-  "mwallet_waiting_first_sync": "Odotetaan ensimmäistä synkronointia…"
+  "mwallet_waiting_first_sync": "Odotetaan ensimmäistä synkronointia…",
+  "mwallet_continue_setup": "Jatka louhinnan asetuksia",
+  "mwallet_mine_hint_text": "Luo plotteja vapaasta levytilasta ja saat louhintapalkkiot suoraan tähän lompakkoon.",
+  "mwallet_mine_hint_title": "Louhi tähän lompakkoon",
+  "mwallet_mine_setup": "Määritä louhinta",
+  "setup_create_wallet": "Luo lompakko",
+  "setup_no_mobile_wallet_hint": "Ei vielä lompakkoa — luo sellainen saadaksesi louhintapalkkiot omalle avaimellesi",
+  "setup_wallet_address_loading": "Haetaan lompakon osoitetta…",
+  "setup_wallet_locked_hint": "Lompakko on lukittu — avaa se louhiaksesi siihen",
+  "setup_wallet_recommended": "Suositus: louhi omaan lompakkoosi"
 }

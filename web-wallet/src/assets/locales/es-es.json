@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Introduzca las palabras solicitadas desde su copia escrita.",
   "mwallet_verify_mismatch": "Las palabras no coinciden con su frase de recuperación.",
   "mwallet_verify_title": "Confirme su copia de seguridad",
-  "mwallet_waiting_first_sync": "Esperando la primera sincronización…"
+  "mwallet_waiting_first_sync": "Esperando la primera sincronización…",
+  "mwallet_continue_setup": "Continuar la configuración de minería",
+  "mwallet_mine_hint_text": "Cree plots con el espacio libre del disco y reciba las recompensas de minería directamente en esta billetera.",
+  "mwallet_mine_hint_title": "Minar hacia esta billetera",
+  "mwallet_mine_setup": "Configurar minería",
+  "setup_create_wallet": "Crear billetera",
+  "setup_no_mobile_wallet_hint": "Aún no hay billetera — cree una para recibir las recompensas de minería en su propia clave",
+  "setup_wallet_address_loading": "Obteniendo dirección de la billetera…",
+  "setup_wallet_locked_hint": "La billetera está bloqueada — desbloquéela para minar hacia ella",
+  "setup_wallet_recommended": "Recomendado: mine hacia su propia billetera"
 }

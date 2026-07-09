@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { sanitizeReturnTo } from '../../return-to';
 
 type CreateStep = 'phrase' | 'verify' | 'protect';
 
@@ -21,6 +22,10 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
  *
  * No skippable-backup shortcuts: the acknowledge checkbox and the word
  * check are both required before the seed is committed.
+ *
+ * Accepts a `returnTo` query param (app-internal path, e.g. the mining
+ * setup wizard's address step) and navigates there instead of /wallet
+ * after a successful create.
  */
 @Component({
   selector: 'app-wallet-create',
@@ -310,6 +315,7 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
 export class WalletCreateComponent implements OnInit {
   private readonly wallet = inject(BtcxWalletService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly step = signal<CreateStep>('phrase');
   readonly words = signal<string[]>([]);
@@ -376,7 +382,13 @@ export class WalletCreateComponent implements OnInit {
       await this.wallet.create(this.mnemonic, this.passphrase || undefined);
       this.mnemonic = '';
       this.words.set([]);
-      await this.router.navigate(['/wallet']);
+      // Chain back into the flow that launched us (e.g. mining setup)
+      const returnTo = sanitizeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'));
+      if (returnTo) {
+        await this.router.navigateByUrl(returnTo);
+      } else {
+        await this.router.navigate(['/wallet']);
+      }
     } catch (err) {
       console.error('Failed to create wallet:', err);
       this.createError.set(`${err}`);

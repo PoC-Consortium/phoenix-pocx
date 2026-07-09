@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Wpisz wskazane słowa z zapisanej kopii.",
   "mwallet_verify_mismatch": "Słowa nie pasują do frazy odzyskiwania.",
   "mwallet_verify_title": "Potwierdź kopię zapasową",
-  "mwallet_waiting_first_sync": "Oczekiwanie na pierwszą synchronizację…"
+  "mwallet_waiting_first_sync": "Oczekiwanie na pierwszą synchronizację…",
+  "mwallet_continue_setup": "Kontynuuj konfigurację kopania",
+  "mwallet_mine_hint_text": "Twórz ploty z wolnego miejsca na dysku i otrzymuj nagrody z kopania prosto do tego portfela.",
+  "mwallet_mine_hint_title": "Kop do tego portfela",
+  "mwallet_mine_setup": "Skonfiguruj kopanie",
+  "setup_create_wallet": "Utwórz portfel",
+  "setup_no_mobile_wallet_hint": "Nie ma jeszcze portfela — utwórz go, aby otrzymywać nagrody z kopania na własny klucz",
+  "setup_wallet_address_loading": "Pobieranie adresu portfela…",
+  "setup_wallet_locked_hint": "Portfel jest zablokowany — odblokuj go, aby kopać do niego",
+  "setup_wallet_recommended": "Zalecane: kop do własnego portfela"
 }

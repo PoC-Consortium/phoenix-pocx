@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Gib die abgefragten Wörter aus deiner schriftlichen Sicherung ein.",
   "mwallet_verify_mismatch": "Die Wörter stimmen nicht mit deiner Wiederherstellungsphrase überein.",
   "mwallet_verify_title": "Sicherung bestätigen",
-  "mwallet_waiting_first_sync": "Warte auf erste Synchronisierung…"
+  "mwallet_waiting_first_sync": "Warte auf erste Synchronisierung…",
+  "mwallet_continue_setup": "Mining-Einrichtung fortsetzen",
+  "mwallet_mine_hint_text": "Plotte freien Speicherplatz und erhalte Mining-Erträge direkt in dieses Wallet.",
+  "mwallet_mine_hint_title": "In dieses Wallet minen",
+  "mwallet_mine_setup": "Mining einrichten",
+  "setup_create_wallet": "Wallet erstellen",
+  "setup_no_mobile_wallet_hint": "Noch kein Wallet — erstelle eins, um Mining-Erträge auf deinen eigenen Schlüssel zu erhalten",
+  "setup_wallet_address_loading": "Wallet-Adresse wird geladen…",
+  "setup_wallet_locked_hint": "Wallet ist gesperrt — entsperre es, um in dein Wallet zu minen",
+  "setup_wallet_recommended": "Empfohlen: mine in dein eigenes Wallet"
 }

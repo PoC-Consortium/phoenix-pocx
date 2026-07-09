@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Digite as palavras solicitadas do seu backup escrito.",
   "mwallet_verify_mismatch": "As palavras não correspondem à sua frase de recuperação.",
   "mwallet_verify_title": "Confirme seu backup",
-  "mwallet_waiting_first_sync": "Aguardando a primeira sincronização…"
+  "mwallet_waiting_first_sync": "Aguardando a primeira sincronização…",
+  "mwallet_continue_setup": "Continuar a configuração de mineração",
+  "mwallet_mine_hint_text": "Crie plots com o espaço livre do disco e receba as recompensas de mineração diretamente nesta carteira.",
+  "mwallet_mine_hint_title": "Minerar para esta carteira",
+  "mwallet_mine_setup": "Configurar mineração",
+  "setup_create_wallet": "Criar carteira",
+  "setup_no_mobile_wallet_hint": "Ainda não há carteira — crie uma para receber as recompensas de mineração na sua própria chave",
+  "setup_wallet_address_loading": "Obtendo endereço da carteira…",
+  "setup_wallet_locked_hint": "A carteira está bloqueada — desbloqueie-a para minerar para ela",
+  "setup_wallet_recommended": "Recomendado: minere para a sua própria carteira"
 }

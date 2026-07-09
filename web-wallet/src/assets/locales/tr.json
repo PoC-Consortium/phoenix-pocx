@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Yazılı yedeğinizden istenen kelimeleri girin.",
   "mwallet_verify_mismatch": "Kelimeler kurtarma ifadenizle eşleşmiyor.",
   "mwallet_verify_title": "Yedeğinizi onaylayın",
-  "mwallet_waiting_first_sync": "İlk senkronizasyon bekleniyor…"
+  "mwallet_waiting_first_sync": "İlk senkronizasyon bekleniyor…",
+  "mwallet_continue_setup": "Madencilik kurulumuna devam et",
+  "mwallet_mine_hint_text": "Boş disk alanını plotlayın ve madencilik ödüllerini doğrudan bu cüzdana alın.",
+  "mwallet_mine_hint_title": "Bu cüzdana madencilik yap",
+  "mwallet_mine_setup": "Madenciliği kur",
+  "setup_create_wallet": "Cüzdan oluştur",
+  "setup_no_mobile_wallet_hint": "Henüz cüzdan yok — madencilik ödüllerini kendi anahtarınıza almak için bir tane oluşturun",
+  "setup_wallet_address_loading": "Cüzdan adresi alınıyor…",
+  "setup_wallet_locked_hint": "Cüzdan kilitli — cüzdana madencilik yapmak için kilidini açın",
+  "setup_wallet_recommended": "Önerilen: kendi cüzdanınıza madencilik yapın"
 }

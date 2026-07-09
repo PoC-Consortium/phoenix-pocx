@@ -9,6 +9,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CdkDragDrop, CdkDrag, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { I18nPipe, I18nService } from '../../../core/i18n';
 import { AppModeService } from '../../../core/services/app-mode.service';
+import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
+import { resolveMobilePlotAddressSelection } from './mobile-plot-address';
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Store } from '@ngrx/store';
@@ -478,19 +480,74 @@ interface ChainModalData {
           </div>
           <div class="section-content">
             <div class="radio-group">
-              <label class="radio-option" [class.disabled]="appMode.isMobile()">
+              <label class="radio-option" [class.disabled]="useWalletAddressDisabled()">
                 <input
                   type="radio"
                   name="addressMode"
                   [checked]="!useCustomAddress()"
-                  (change)="useCustomAddress.set(false)"
-                  [disabled]="appMode.isMobile()"
+                  (change)="selectWalletAddressMode()"
+                  [disabled]="useWalletAddressDisabled()"
                 />
                 <div class="radio-label">
                   <div class="radio-label-main">{{ 'setup_use_wallet_address' | i18n }}</div>
-                  <div class="radio-label-sub address-full">
-                    {{ walletAddress() || ('setup_no_wallet_connected' | i18n) }}
-                  </div>
+                  @if (!appMode.isMobileMode()) {
+                    <div class="radio-label-sub address-full">
+                      {{ walletAddress() || ('setup_no_wallet_connected' | i18n) }}
+                    </div>
+                  } @else if (btcxWallet.walletActive()) {
+                    <!-- Mobile: address handed out by the nodeless BTCX wallet -->
+                    <div class="radio-label-sub address-full">
+                      {{
+                        walletAddress() ||
+                          (walletAddressLoading()
+                            ? ('setup_wallet_address_loading' | i18n)
+                            : ('setup_no_wallet_connected' | i18n))
+                      }}
+                    </div>
+                  } @else if (btcxWallet.seedState() === 'locked') {
+                    <!-- Mobile: wallet exists but is locked - inline unlock -->
+                    <div class="radio-label-sub">{{ 'setup_wallet_locked_hint' | i18n }}</div>
+                    <div class="wallet-inline-row">
+                      <input
+                        type="password"
+                        class="input-field unlock-input"
+                        [ngModel]="walletUnlockPassphrase()"
+                        (ngModelChange)="walletUnlockPassphrase.set($event)"
+                        (keyup.enter)="unlockMobileWallet()"
+                        [placeholder]="'mwallet_passphrase_label' | i18n"
+                      />
+                      <button
+                        class="btn btn-secondary btn-sm"
+                        (click)="unlockMobileWallet()"
+                        [disabled]="!walletUnlockPassphrase() || walletUnlocking()"
+                      >
+                        {{ 'unlock' | i18n }}
+                      </button>
+                    </div>
+                    @if (walletUnlockError()) {
+                      <div class="radio-label-sub unlock-error">
+                        {{ 'mwallet_unlock_failed' | i18n }}
+                      </div>
+                    }
+                  } @else {
+                    <!-- Mobile: no wallet yet - suggest creating one -->
+                    <div class="radio-label-sub">{{ 'setup_no_mobile_wallet_hint' | i18n }}</div>
+                    @if (isFirstRun()) {
+                      <div class="radio-label-sub wallet-recommended">
+                        {{ 'setup_wallet_recommended' | i18n }}
+                      </div>
+                    }
+                    <div class="wallet-inline-row">
+                      <button
+                        class="btn btn-sm"
+                        [class.btn-primary]="isFirstRun()"
+                        [class.btn-secondary]="!isFirstRun()"
+                        (click)="goToCreateWallet()"
+                      >
+                        {{ 'setup_create_wallet' | i18n }}
+                      </button>
+                    </div>
+                  }
                 </div>
               </label>
               <label class="radio-option">
@@ -1906,6 +1963,32 @@ interface ChainModalData {
         margin-top: 4px;
       }
 
+      .radio-label-sub.unlock-error {
+        color: #f44336;
+        margin-top: 4px;
+      }
+
+      .radio-label-sub.wallet-recommended {
+        color: #1976d2;
+        font-family: inherit;
+        margin-top: 4px;
+      }
+
+      /* Inline unlock / create-wallet affordances inside the wallet radio */
+      .wallet-inline-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        max-width: 340px;
+      }
+
+      .wallet-inline-row .input-field {
+        margin-top: 0;
+        flex: 1;
+        min-width: 0;
+      }
+
       .input-field {
         width: 100%;
         padding: 8px 10px;
@@ -2626,6 +2709,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   readonly aggregatorService = inject(AggregatorService);
   private readonly nodeService = inject(NodeService);
+  // Nodeless BTCX wallet (mobile mode only; never touched on desktop)
+  readonly btcxWallet = inject(BtcxWalletService);
 
   // Wallet settings for solo mining (synced to mining config)
   private readonly walletRpcHost = toSignal(this.store.select(selectRpcHost), {
@@ -2716,6 +2801,15 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly walletAddress = signal('');
   readonly customPlottingAddress = signal('');
   readonly addressValidation = signal<AddressInfo | null>(null);
+  // Mobile (nodeless) wallet-address UX state
+  readonly walletAddressLoading = signal(false);
+  readonly walletUnlockPassphrase = signal('');
+  readonly walletUnlocking = signal(false);
+  readonly walletUnlockError = signal(false);
+  /** "Use wallet address" is selectable unless mobile mode has no open wallet. */
+  readonly useWalletAddressDisabled = computed(
+    () => this.appMode.isMobileMode() && !this.btcxWallet.walletActive()
+  );
   readonly compressionLevel = signal('1');
   readonly escalation = signal(1); // default 1, min 1
   readonly directIo = signal(true);
@@ -2822,25 +2916,33 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     // Android-specific defaults
     if (this.appMode.isMobile()) {
-      this.useCustomAddress.set(true); // No wallet on Android
+      // Custom address until the nodeless wallet state resolves
+      // (initMobileWalletAddress may flip this to the wallet address)
+      this.useCustomAddress.set(true);
       this.directIo.set(false); // Direct I/O not reliable on Android
       this.miningDirectIo.set(false); // Direct I/O not reliable on Android
     }
 
     // Check for step query parameter FIRST to avoid visual jump
     const stepParam = this.route.snapshot.queryParamMap.get('step');
+    // Round-trip marker set by the wallet-onboarding returnTo chain: jump
+    // back to the address step WITHOUT dropping first-run behavior.
+    const fromWallet = this.route.snapshot.queryParamMap.get('fromWallet') === '1';
     if (stepParam) {
       const step = parseInt(stepParam, 10);
       if (!isNaN(step) && step >= 0 && step <= 2) {
         this.currentStep.set(step);
         // If navigating to specific step, this is not first run
-        this.isFirstRun.set(false);
+        if (!fromWallet) {
+          this.isFirstRun.set(false);
+        }
       }
     }
 
     await this.loadDeviceInfo();
     await this.loadWalletAddress();
     await this.loadExistingConfig();
+    await this.initMobileWalletAddress();
     await this.setupBenchmarkListener();
   }
 
@@ -2985,6 +3087,10 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   }
 
   private async loadWalletAddress(): Promise<void> {
+    // Mobile mode sources the address from the nodeless BTCX wallet instead
+    // (initMobileWalletAddress); the Core-RPC wallet does not exist there.
+    if (this.appMode.isMobileMode()) return;
+
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
@@ -3026,6 +3132,98 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     } catch (error) {
       console.error('Failed to load wallet address:', error);
     }
+  }
+
+  // ==========================================================================
+  // Mobile (nodeless) wallet address sourcing
+  // ==========================================================================
+
+  /** Radio "Use wallet address" picked: mine to the wallet's own address. */
+  selectWalletAddressMode(): void {
+    this.useCustomAddress.set(false);
+    if (this.appMode.isMobileMode() && !this.walletAddress()) {
+      void this.fetchMobileWalletAddress();
+    }
+  }
+
+  /**
+   * Resolve the nodeless wallet state and default the address selection.
+   * Runs AFTER loadExistingConfig so a persisted plotting address always
+   * wins - existing setups keep their exact flow.
+   */
+  private async initMobileWalletAddress(): Promise<void> {
+    if (!this.appMode.isMobileMode()) return;
+
+    try {
+      await this.btcxWallet.initialize();
+      await this.btcxWallet.refreshStatus();
+    } catch (error) {
+      console.error('Failed to load mobile wallet state:', error);
+      return;
+    }
+
+    const selection = resolveMobilePlotAddressSelection({
+      firstRun: this.isFirstRun(),
+      configuredPlottingAddress: this.customPlottingAddress(),
+      seedState: this.btcxWallet.seedState(),
+      walletActive: this.btcxWallet.walletActive(),
+    });
+    if (selection === 'wallet') {
+      this.useCustomAddress.set(false);
+      await this.fetchMobileWalletAddress();
+    }
+  }
+
+  /**
+   * Fetch ONE receive address from the nodeless wallet for plotting.
+   *
+   * wallet-btcx's `wallet_new_address` hands out addresses under a capped
+   * scheme (reveal fresh while < 20 unused are outstanding, then recycle
+   * the oldest unused), so repeated calls can never run the gap limit away.
+   * The wizard still fetches at most once per session, and on Save the
+   * address persists into the mining config (`plottingAddress`); later
+   * visits reload it from there and never ask the wallet again - plots and
+   * rewards stay bound to one account id.
+   */
+  private async fetchMobileWalletAddress(): Promise<void> {
+    if (this.walletAddressLoading() || this.walletAddress()) return;
+    if (!this.btcxWallet.walletActive()) return;
+
+    this.walletAddressLoading.set(true);
+    try {
+      const address = await this.btcxWallet.newAddress();
+      this.walletAddress.set(address);
+    } catch (error) {
+      console.error('Failed to fetch mobile wallet address:', error);
+    } finally {
+      this.walletAddressLoading.set(false);
+    }
+  }
+
+  /** Unlock the nodeless wallet inline and switch to its address. */
+  async unlockMobileWallet(): Promise<void> {
+    if (!this.walletUnlockPassphrase() || this.walletUnlocking()) return;
+
+    this.walletUnlocking.set(true);
+    this.walletUnlockError.set(false);
+    try {
+      await this.btcxWallet.unlock(this.walletUnlockPassphrase());
+      this.walletUnlockPassphrase.set('');
+      this.useCustomAddress.set(false);
+      await this.fetchMobileWalletAddress();
+    } catch (error) {
+      console.error('Failed to unlock wallet from wizard:', error);
+      this.walletUnlockError.set(true);
+    } finally {
+      this.walletUnlocking.set(false);
+    }
+  }
+
+  /** Route to wallet onboarding; returnTo brings the user back to this step. */
+  goToCreateWallet(): void {
+    void this.router.navigate(['/wallet/create'], {
+      queryParams: { returnTo: '/miner/setup?step=1&fromWallet=1' },
+    });
   }
 
   private async loadDeviceInfo(): Promise<void> {

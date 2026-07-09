@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Inserisci le parole richieste dal tuo backup scritto.",
   "mwallet_verify_mismatch": "Le parole non corrispondono alla tua frase di recupero.",
   "mwallet_verify_title": "Conferma il tuo backup",
-  "mwallet_waiting_first_sync": "In attesa della prima sincronizzazione…"
+  "mwallet_waiting_first_sync": "In attesa della prima sincronizzazione…",
+  "mwallet_continue_setup": "Continua la configurazione del mining",
+  "mwallet_mine_hint_text": "Crea plot con lo spazio libero su disco e ricevi le ricompense di mining direttamente in questo portafoglio.",
+  "mwallet_mine_hint_title": "Mina verso questo portafoglio",
+  "mwallet_mine_setup": "Configura il mining",
+  "setup_create_wallet": "Crea portafoglio",
+  "setup_no_mobile_wallet_hint": "Nessun portafoglio — creane uno per ricevere le ricompense di mining sulla tua chiave",
+  "setup_wallet_address_loading": "Recupero dell'indirizzo del portafoglio…",
+  "setup_wallet_locked_hint": "Il portafoglio è bloccato — sbloccalo per minare verso di esso",
+  "setup_wallet_recommended": "Consigliato: mina verso il tuo portafoglio"
 }
