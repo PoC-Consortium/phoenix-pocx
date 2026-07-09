@@ -1119,5 +1119,14 @@
   "mwallet_verify_hint": "Enter the requested words from your written backup.",
   "mwallet_verify_mismatch": "The words do not match your recovery phrase.",
   "mwallet_verify_title": "Confirm your backup",
-  "mwallet_waiting_first_sync": "Waiting for first sync…"
+  "mwallet_waiting_first_sync": "Waiting for first sync…",
+  "mwallet_continue_setup": "Continue mining setup",
+  "mwallet_mine_hint_text": "Plot free storage space and earn mining rewards straight into this wallet.",
+  "mwallet_mine_hint_title": "Mine to this wallet",
+  "mwallet_mine_setup": "Set up mining",
+  "setup_create_wallet": "Create wallet",
+  "setup_no_mobile_wallet_hint": "No wallet yet — create one to receive mining rewards to your own key",
+  "setup_wallet_address_loading": "Fetching wallet address…",
+  "setup_wallet_locked_hint": "Wallet is locked — unlock it to mine to your wallet",
+  "setup_wallet_recommended": "Recommended: mine to your own wallet"
 }

@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Masukkan kata-kata yang diminta dari cadangan tertulis Anda.",
   "mwallet_verify_mismatch": "Kata-kata tidak cocok dengan frasa pemulihan Anda.",
   "mwallet_verify_title": "Konfirmasi cadangan Anda",
-  "mwallet_waiting_first_sync": "Menunggu sinkronisasi pertama…"
+  "mwallet_waiting_first_sync": "Menunggu sinkronisasi pertama…",
+  "mwallet_continue_setup": "Lanjutkan pengaturan penambangan",
+  "mwallet_mine_hint_text": "Buat plot dari ruang disk kosong dan terima hadiah penambangan langsung ke dompet ini.",
+  "mwallet_mine_hint_title": "Menambang ke dompet ini",
+  "mwallet_mine_setup": "Atur penambangan",
+  "setup_create_wallet": "Buat dompet",
+  "setup_no_mobile_wallet_hint": "Belum ada dompet — buat satu untuk menerima hadiah penambangan ke kunci Anda sendiri",
+  "setup_wallet_address_loading": "Mengambil alamat dompet…",
+  "setup_wallet_locked_hint": "Dompet terkunci — buka kunci untuk menambang ke dompet ini",
+  "setup_wallet_recommended": "Disarankan: menambang ke dompet Anda sendiri"
 }

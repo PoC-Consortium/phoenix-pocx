@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "从您记下的备份中输入指定的单词。",
   "mwallet_verify_mismatch": "单词与您的恢复短语不匹配。",
   "mwallet_verify_title": "确认您的备份",
-  "mwallet_waiting_first_sync": "等待首次同步…"
+  "mwallet_waiting_first_sync": "等待首次同步…",
+  "mwallet_continue_setup": "继续挖矿设置",
+  "mwallet_mine_hint_text": "利用空闲磁盘空间绘图，挖矿奖励直接进入此钱包。",
+  "mwallet_mine_hint_title": "挖矿到此钱包",
+  "mwallet_mine_setup": "设置挖矿",
+  "setup_create_wallet": "创建钱包",
+  "setup_no_mobile_wallet_hint": "还没有钱包 — 创建一个，让挖矿奖励直接归属您自己的密钥",
+  "setup_wallet_address_loading": "正在获取钱包地址…",
+  "setup_wallet_locked_hint": "钱包已锁定 — 解锁后即可挖矿到您的钱包",
+  "setup_wallet_recommended": "推荐：挖矿到您自己的钱包"
 }

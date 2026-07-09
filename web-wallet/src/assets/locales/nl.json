@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Voer de gevraagde woorden in vanuit uw geschreven back-up.",
   "mwallet_verify_mismatch": "De woorden komen niet overeen met uw herstelzin.",
   "mwallet_verify_title": "Bevestig uw back-up",
-  "mwallet_waiting_first_sync": "Wachten op eerste synchronisatie…"
+  "mwallet_waiting_first_sync": "Wachten op eerste synchronisatie…",
+  "mwallet_continue_setup": "Ga verder met mijnbouwinstellingen",
+  "mwallet_mine_hint_text": "Plot vrije schijfruimte en ontvang mijnbouwbeloningen rechtstreeks in deze portemonnee.",
+  "mwallet_mine_hint_title": "Minen naar deze portemonnee",
+  "mwallet_mine_setup": "Mijnbouw instellen",
+  "setup_create_wallet": "Portemonnee aanmaken",
+  "setup_no_mobile_wallet_hint": "Nog geen portemonnee — maak er een aan om mijnbouwbeloningen op uw eigen sleutel te ontvangen",
+  "setup_wallet_address_loading": "Portemonnee-adres ophalen…",
+  "setup_wallet_locked_hint": "Portemonnee is vergrendeld — ontgrendel deze om ernaartoe te minen",
+  "setup_wallet_recommended": "Aanbevolen: mine naar uw eigen portemonnee"
 }

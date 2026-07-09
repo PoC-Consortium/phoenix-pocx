@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Zadejte požadovaná slova ze své písemné zálohy.",
   "mwallet_verify_mismatch": "Slova neodpovídají vaší obnovovací frázi.",
   "mwallet_verify_title": "Potvrďte svou zálohu",
-  "mwallet_waiting_first_sync": "Čekání na první synchronizaci…"
+  "mwallet_waiting_first_sync": "Čekání na první synchronizaci…",
+  "mwallet_continue_setup": "Pokračovat v nastavení těžby",
+  "mwallet_mine_hint_text": "Vytvořte ploty z volného místa na disku a získávejte odměny z těžby přímo do této peněženky.",
+  "mwallet_mine_hint_title": "Těžit do této peněženky",
+  "mwallet_mine_setup": "Nastavit těžbu",
+  "setup_create_wallet": "Vytvořit peněženku",
+  "setup_no_mobile_wallet_hint": "Zatím žádná peněženka — vytvořte si ji a získávejte odměny z těžby na vlastní klíč",
+  "setup_wallet_address_loading": "Načítání adresy peněženky…",
+  "setup_wallet_locked_hint": "Peněženka je uzamčena — odemkněte ji, abyste do ní mohli těžit",
+  "setup_wallet_recommended": "Doporučeno: těžte do vlastní peněženky"
 }

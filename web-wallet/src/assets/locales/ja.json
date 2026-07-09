@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "書き留めたバックアップから指定された単語を入力してください。",
   "mwallet_verify_mismatch": "単語がリカバリーフレーズと一致しません。",
   "mwallet_verify_title": "バックアップの確認",
-  "mwallet_waiting_first_sync": "最初の同期を待っています…"
+  "mwallet_waiting_first_sync": "最初の同期を待っています…",
+  "mwallet_continue_setup": "マイニング設定を続ける",
+  "mwallet_mine_hint_text": "空きディスク領域をプロットして、マイニング報酬をこのウォレットで直接受け取れます。",
+  "mwallet_mine_hint_title": "このウォレットへマイニング",
+  "mwallet_mine_setup": "マイニングを設定",
+  "setup_create_wallet": "ウォレットを作成",
+  "setup_no_mobile_wallet_hint": "ウォレットがまだありません — 作成して自分の鍵でマイニング報酬を受け取りましょう",
+  "setup_wallet_address_loading": "ウォレットアドレスを取得中…",
+  "setup_wallet_locked_hint": "ウォレットはロックされています — ロックを解除するとウォレットへマイニングできます",
+  "setup_wallet_recommended": "推奨: 自分のウォレットへマイニング"
 }

@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Unesite tražene riječi iz zapisane kopije.",
   "mwallet_verify_mismatch": "Riječi se ne podudaraju s vašom frazom za oporavak.",
   "mwallet_verify_title": "Potvrdite sigurnosnu kopiju",
-  "mwallet_waiting_first_sync": "Čekanje prve sinkronizacije…"
+  "mwallet_waiting_first_sync": "Čekanje prve sinkronizacije…",
+  "mwallet_continue_setup": "Nastavi postavljanje rudarenja",
+  "mwallet_mine_hint_text": "Stvorite plotove od slobodnog prostora na disku i primajte nagrade od rudarenja izravno u ovaj novčanik.",
+  "mwallet_mine_hint_title": "Rudari u ovaj novčanik",
+  "mwallet_mine_setup": "Postavi rudarenje",
+  "setup_create_wallet": "Kreiraj novčanik",
+  "setup_no_mobile_wallet_hint": "Još nema novčanika — kreirajte ga kako biste nagrade od rudarenja primali na vlastiti ključ",
+  "setup_wallet_address_loading": "Dohvaćanje adrese novčanika…",
+  "setup_wallet_locked_hint": "Novčanik je zaključan — otključajte ga za rudarenje u njega",
+  "setup_wallet_recommended": "Preporučeno: rudarite u vlastiti novčanik"
 }

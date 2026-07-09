@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Zadajte požadované slová zo svojej písomnej zálohy.",
   "mwallet_verify_mismatch": "Slová sa nezhodujú s vašou obnovovacou frázou.",
   "mwallet_verify_title": "Potvrďte svoju zálohu",
-  "mwallet_waiting_first_sync": "Čaká sa na prvú synchronizáciu…"
+  "mwallet_waiting_first_sync": "Čaká sa na prvú synchronizáciu…",
+  "mwallet_continue_setup": "Pokračovať v nastavení ťažby",
+  "mwallet_mine_hint_text": "Vytvorte ploty z voľného miesta na disku a získavajte odmeny z ťažby priamo do tejto peňaženky.",
+  "mwallet_mine_hint_title": "Ťažiť do tejto peňaženky",
+  "mwallet_mine_setup": "Nastaviť ťažbu",
+  "setup_create_wallet": "Vytvoriť peňaženku",
+  "setup_no_mobile_wallet_hint": "Zatiaľ žiadna peňaženka — vytvorte si ju a získavajte odmeny z ťažby na vlastný kľúč",
+  "setup_wallet_address_loading": "Načítava sa adresa peňaženky…",
+  "setup_wallet_locked_hint": "Peňaženka je uzamknutá — odomknite ju, aby ste do nej mohli ťažiť",
+  "setup_wallet_recommended": "Odporúčané: ťažte do vlastnej peňaženky"
 }

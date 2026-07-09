@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Saisissez les mots demandés depuis votre sauvegarde écrite.",
   "mwallet_verify_mismatch": "Les mots ne correspondent pas à votre phrase de récupération.",
   "mwallet_verify_title": "Confirmez votre sauvegarde",
-  "mwallet_waiting_first_sync": "En attente de la première synchronisation…"
+  "mwallet_waiting_first_sync": "En attente de la première synchronisation…",
+  "mwallet_continue_setup": "Continuer la configuration du minage",
+  "mwallet_mine_hint_text": "Créez des plots avec l'espace disque libre et recevez les récompenses de minage directement dans ce portefeuille.",
+  "mwallet_mine_hint_title": "Miner vers ce portefeuille",
+  "mwallet_mine_setup": "Configurer le minage",
+  "setup_create_wallet": "Créer un portefeuille",
+  "setup_no_mobile_wallet_hint": "Pas encore de portefeuille — créez-en un pour recevoir les récompenses de minage sur votre propre clé",
+  "setup_wallet_address_loading": "Récupération de l'adresse du portefeuille…",
+  "setup_wallet_locked_hint": "Le portefeuille est verrouillé — déverrouillez-le pour miner vers celui-ci",
+  "setup_wallet_recommended": "Recommandé : minez vers votre propre portefeuille"
 }

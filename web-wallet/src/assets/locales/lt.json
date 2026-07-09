@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Įveskite prašomus žodžius iš savo užrašytos kopijos.",
   "mwallet_verify_mismatch": "Žodžiai nesutampa su jūsų atkūrimo fraze.",
   "mwallet_verify_title": "Patvirtinkite atsarginę kopiją",
-  "mwallet_waiting_first_sync": "Laukiama pirmos sinchronizacijos…"
+  "mwallet_waiting_first_sync": "Laukiama pirmos sinchronizacijos…",
+  "mwallet_continue_setup": "Tęsti kasybos nustatymą",
+  "mwallet_mine_hint_text": "Kurkite plotus iš laisvos disko vietos ir gaukite kasybos atlygį tiesiai į šią piniginę.",
+  "mwallet_mine_hint_title": "Kasti į šią piniginę",
+  "mwallet_mine_setup": "Nustatyti kasybą",
+  "setup_create_wallet": "Sukurti piniginę",
+  "setup_no_mobile_wallet_hint": "Piniginės dar nėra — sukurkite ją, kad kasybos atlygį gautumėte į savo raktą",
+  "setup_wallet_address_loading": "Gaunamas piniginės adresas…",
+  "setup_wallet_locked_hint": "Piniginė užrakinta — atrakinkite ją, kad galėtumėte kasti į ją",
+  "setup_wallet_recommended": "Rekomenduojama: kaskite į savo piniginę"
 }

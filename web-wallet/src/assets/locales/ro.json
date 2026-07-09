@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Introduceți cuvintele solicitate din copia scrisă.",
   "mwallet_verify_mismatch": "Cuvintele nu corespund frazei de recuperare.",
   "mwallet_verify_title": "Confirmați copia de rezervă",
-  "mwallet_waiting_first_sync": "Se așteaptă prima sincronizare…"
+  "mwallet_waiting_first_sync": "Se așteaptă prima sincronizare…",
+  "mwallet_continue_setup": "Continuă configurarea mineritului",
+  "mwallet_mine_hint_text": "Creați ploturi din spațiul liber de pe disc și primiți recompensele de minerit direct în acest portofel.",
+  "mwallet_mine_hint_title": "Minează către acest portofel",
+  "mwallet_mine_setup": "Configurează mineritul",
+  "setup_create_wallet": "Creează portofel",
+  "setup_no_mobile_wallet_hint": "Încă nu există portofel — creați unul pentru a primi recompensele de minerit pe propria cheie",
+  "setup_wallet_address_loading": "Se obține adresa portofelului…",
+  "setup_wallet_locked_hint": "Portofelul este blocat — deblocați-l pentru a mina către el",
+  "setup_wallet_recommended": "Recomandat: minați către propriul portofel"
 }

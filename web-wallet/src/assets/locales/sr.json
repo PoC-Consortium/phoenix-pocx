@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Унесите тражене речи из записане копије.",
   "mwallet_verify_mismatch": "Речи се не подударају са вашом фразом за опоравак.",
   "mwallet_verify_title": "Потврдите резервну копију",
-  "mwallet_waiting_first_sync": "Чекање прве синхронизације…"
+  "mwallet_waiting_first_sync": "Чекање прве синхронизације…",
+  "mwallet_continue_setup": "Настави подешавање рударења",
+  "mwallet_mine_hint_text": "Направите плотове од слободног простора на диску и примајте награде од рударења директно у овај новчаник.",
+  "mwallet_mine_hint_title": "Рудари у овај новчаник",
+  "mwallet_mine_setup": "Подеси рударење",
+  "setup_create_wallet": "Креирај новчаник",
+  "setup_no_mobile_wallet_hint": "Још нема новчаника — направите га да бисте награде од рударења примали на сопствени кључ",
+  "setup_wallet_address_loading": "Преузимање адресе новчаника…",
+  "setup_wallet_locked_hint": "Новчаник је закључан — откључајте га да бисте рударили у њега",
+  "setup_wallet_recommended": "Препоручено: рударите у сопствени новчаник"
 }

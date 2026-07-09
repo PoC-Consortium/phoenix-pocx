@@ -1118,5 +1118,14 @@
   "mwallet_verify_hint": "Introduïu les paraules sol·licitades des de la còpia escrita.",
   "mwallet_verify_mismatch": "Les paraules no coincideixen amb la frase de recuperació.",
   "mwallet_verify_title": "Confirmeu la còpia de seguretat",
-  "mwallet_waiting_first_sync": "Esperant la primera sincronització…"
+  "mwallet_waiting_first_sync": "Esperant la primera sincronització…",
+  "mwallet_continue_setup": "Continuar la configuració de mineria",
+  "mwallet_mine_hint_text": "Creeu plots amb l'espai lliure del disc i rebeu les recompenses de mineria directament en aquesta cartera.",
+  "mwallet_mine_hint_title": "Minar cap a aquesta cartera",
+  "mwallet_mine_setup": "Configurar la mineria",
+  "setup_create_wallet": "Crear cartera",
+  "setup_no_mobile_wallet_hint": "Encara no hi ha cartera — creeu-ne una per rebre les recompenses de mineria a la vostra pròpia clau",
+  "setup_wallet_address_loading": "Obtenint l'adreça de la cartera…",
+  "setup_wallet_locked_hint": "La cartera està bloquejada — desbloquegeu-la per minar-hi",
+  "setup_wallet_recommended": "Recomanat: mineu cap a la vostra pròpia cartera"
 }
