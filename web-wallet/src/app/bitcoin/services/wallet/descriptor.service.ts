@@ -8,6 +8,7 @@ import { base58check } from '@scure/base';
 import { bytesToHex } from '@noble/hashes/utils.js';
 import { descriptorChecksum } from '../../utils/descriptor-checksum';
 import { validateDescriptorChecksum } from '../../utils/descriptor-validation';
+import { BTCX_COIN_TYPE } from '../../../core/services/btcx-wallet.service';
 
 /**
  * Descriptor types for Bitcoin Core
@@ -69,13 +70,21 @@ export interface MultisigDescriptors {
 }
 
 /**
- * Options for descriptor generation
+ * Options for descriptor generation.
+ *
+ * `isTestnet` controls the extended-key serialization (tprv/tpub vs
+ * xprv/xpub) only — it no longer selects the BIP32 coin type. New wallets
+ * derive at the registered BTCX coin type on every network; restores add
+ * the historic coin-0'/1' branches explicitly (see
+ * `generateLegacyRestoreDescriptors`).
  */
 export interface DescriptorOptions {
   passphrase?: string;
   isTestnet?: boolean;
   account?: number;
   addressRange?: [number, number];
+  /** BIP32 coin type of the derivation paths. Default: BTCX (0x504F4358). */
+  coinType?: number;
   enableLegacy?: boolean; // BIP44 (pkh)
   enableNestedSegwit?: boolean; // BIP49 (sh(wpkh))
   enableNativeSegwit?: boolean; // BIP84 (wpkh)
@@ -140,10 +149,66 @@ export class DescriptorService {
   }
 
   /**
-   * Generate all standard descriptors from a mnemonic for Bitcoin Core import
+   * The descriptor set for a NEW wallet: BIP-84 (wpkh) + BIP-86 (tr) at
+   * the BTCX coin type, on every network.
+   *
+   * Deliberately NO 44'/49' branches: a freshly generated seed cannot have
+   * history at any legacy purpose, and Phoenix never hands out legacy or
+   * nested-segwit addresses — generating those branches would only inflate
+   * the wallet with dead keyspace. Restores are different (see
+   * `generateLegacyRestoreDescriptors`).
+   */
+  generateNewWalletDescriptors(
+    mnemonic: string,
+    options: Pick<DescriptorOptions, 'passphrase' | 'isTestnet' | 'account' | 'addressRange'> = {}
+  ): WalletDescriptors {
+    return this.generateDescriptors(mnemonic, {
+      ...options,
+      coinType: BTCX_COIN_TYPE,
+      enableLegacy: false,
+      enableNestedSegwit: false,
+      enableNativeSegwit: true,
+      enableTaproot: true,
+    });
+  }
+
+  /**
+   * The LEGACY descriptor sets a restored seed may have pre-BTCX-coin-type
+   * history on:
+   *
+   * - legacy desktop, mainnet era: 44'/49'/84'/86' at coin type 0'
+   * - legacy desktop, testnet era: the same purposes at 1' (testnet only)
+   *
+   * A restore does NOT import these blindly: the wallet manager first
+   * checks the UTXO set (`scantxoutset`) and only imports the legacy set —
+   * inactive, i.e. watched/spendable but never address-generating — when
+   * coins actually live there. New receive AND change addresses always
+   * come from the active BTCX-coin-type branches
+   * (`generateNewWalletDescriptors`), so legacy funds drain into the
+   * modern branch organically as they are spent.
+   */
+  generateLegacyRestoreDescriptors(
+    mnemonic: string,
+    options: Pick<DescriptorOptions, 'passphrase' | 'isTestnet' | 'account' | 'addressRange'> = {}
+  ): WalletDescriptors {
+    const mainnetEra = this.generateDescriptors(mnemonic, { ...options, coinType: 0 });
+    const descriptors = [...mainnetEra.descriptors];
+    if (options.isTestnet) {
+      descriptors.push(
+        ...this.generateDescriptors(mnemonic, { ...options, coinType: 1 }).descriptors
+      );
+    }
+    return { fingerprint: mainnetEra.fingerprint, descriptors };
+  }
+
+  /**
+   * Generate standard descriptors from a mnemonic for Bitcoin Core import
+   * at ONE coin type (default: the BTCX coin type).
    *
    * By default creates 8 descriptors (4 types × 2 for receive/change).
    * Can be customized via options to enable/disable specific types.
+   * Prefer the intent-named wrappers `generateNewWalletDescriptors` /
+   * `generateLegacyRestoreDescriptors` at call sites.
    */
   generateDescriptors(mnemonic: string, options: DescriptorOptions = {}): WalletDescriptors {
     const {
@@ -151,6 +216,7 @@ export class DescriptorService {
       isTestnet = true,
       account = 0,
       addressRange = [0, 999],
+      coinType = BTCX_COIN_TYPE,
       enableLegacy = true,
       enableNestedSegwit = true,
       enableNativeSegwit = true,
@@ -172,7 +238,6 @@ export class DescriptorService {
     // Get master fingerprint
     const fingerprint = this.getFingerprint(masterKey);
 
-    const coinType = isTestnet ? 1 : 0;
     const descriptors: DescriptorInfo[] = [];
     const timestamp = 'now' as const;
 
@@ -369,12 +434,22 @@ export class DescriptorService {
   /**
    * Derive this participant's multisig key from a mnemonic at the BIP48
    * P2WSH path m/48'/coin'/account'/2'.
+   *
+   * New multisigs derive at the BTCX coin type (48'/1347371864'/0'/2') on
+   * every network. Restores of existing multisig wallets are unaffected:
+   * their descriptors embed the full original paths.
    */
   deriveMultisigKey(
     mnemonic: string,
-    options: { passphrase?: string; isTestnet?: boolean; account?: number } = {}
+    options: {
+      passphrase?: string;
+      isTestnet?: boolean;
+      account?: number;
+      /** BIP32 coin type of the path. Default: BTCX (0x504F4358). */
+      coinType?: number;
+    } = {}
   ): MultisigKey {
-    const { passphrase = '', isTestnet = true, account = 0 } = options;
+    const { passphrase = '', isTestnet = true, account = 0, coinType = BTCX_COIN_TYPE } = options;
     if (!this.validateMnemonic(mnemonic)) {
       throw new Error('Invalid mnemonic phrase');
     }
@@ -382,7 +457,6 @@ export class DescriptorService {
     const seed = bip39.mnemonicToSeedSync(mnemonic.trim().toLowerCase(), passphrase);
     const masterKey = HDKey.fromMasterSeed(seed);
     const fingerprint = this.getFingerprint(masterKey);
-    const coinType = isTestnet ? 1 : 0;
 
     const path = `m/48'/${coinType}'/${account}'/2'`;
     const pathPart = `48h/${coinType}h/${account}h/2h`;
@@ -454,6 +528,8 @@ export class DescriptorService {
     passphrase?: string;
     isTestnet?: boolean;
     account?: number;
+    /** BIP32 coin type of this participant's key path. Default: BTCX. */
+    coinType?: number;
     threshold: number;
     /** Normalized co-signer key expressions (xpub form) */
     cosignerKeys: string[];

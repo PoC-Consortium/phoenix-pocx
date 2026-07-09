@@ -15,7 +15,10 @@ import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { StepHeaderComponent, MnemonicEntryComponent } from '../../../../shared/components';
 import type { MnemonicEntryState } from '../../../../shared/components';
-import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
+import {
+  WalletManagerService,
+  RestoreBranchReport,
+} from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
 
 /**
@@ -46,11 +49,13 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
   template: `
     <div class="import-wallet-container">
       <mat-card class="import-card">
-        <app-step-header
-          [title]="getCurrentStepTitle()"
-          [currentStep]="currentStep()"
-          [totalSteps]="3"
-        ></app-step-header>
+        @if (!imported()) {
+          <app-step-header
+            [title]="getCurrentStepTitle()"
+            [currentStep]="currentStep()"
+            [totalSteps]="3"
+          ></app-step-header>
+        }
 
         @if (importing()) {
           <mat-progress-bar mode="indeterminate"></mat-progress-bar>
@@ -156,8 +161,30 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
             </div>
           }
 
+          <!-- Success: wallet imported, branch report -->
+          @if (imported()) {
+            <div class="step-content success-content">
+              <mat-icon class="success-icon">check_circle</mat-icon>
+              <h3>{{ 'wallet_imported_success' | i18n: { name: walletName } }}</h3>
+              @if (branchReport(); as report) {
+                @if (report.fresh) {
+                  <p class="info-text">{{ 'restore_no_history' | i18n }}</p>
+                } @else if (report.legacy.length > 0 || report.pocx.length > 0) {
+                  <p class="info-text">
+                    {{ 'restore_history_found' | i18n: { branches: branchList(report) } }}
+                  </p>
+                }
+              }
+              <div class="step-actions">
+                <button mat-raised-button color="primary" (click)="goToDashboard()">
+                  {{ 'dashboard' | i18n }}
+                </button>
+              </div>
+            </div>
+          }
+
           <!-- Step 3: Bitcoin Core Wallet Encryption -->
-          @if (currentStep() === 3) {
+          @if (currentStep() === 3 && !imported()) {
             <div class="step-content">
               <p class="info-text">{{ 'wallet_encryption_info' | i18n }}</p>
 
@@ -316,6 +343,27 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
         padding-top: 16px;
         border-top: 1px solid rgba(0, 0, 0, 0.08);
       }
+
+      .success-content {
+        text-align: center;
+
+        .success-icon {
+          color: #4caf50;
+          font-size: 40px;
+          width: 40px;
+          height: 40px;
+        }
+
+        h3 {
+          margin: 8px 0 16px;
+          font-size: 16px;
+          font-weight: 500;
+        }
+
+        .step-actions {
+          justify-content: center;
+        }
+      }
     `,
   ],
 })
@@ -335,6 +383,10 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
 
   walletName = '';
   importing = signal(false);
+
+  // Success state: wallet imported, best-effort branch report shown.
+  imported = signal(false);
+  branchReport = signal<RestoreBranchReport | null>(null);
 
   // Existing wallet names (for conflict check on step 1)
   private readonly existingWalletNames = signal<string[]>([]);
@@ -418,11 +470,16 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
         mnemonicPassphrase,
         isTestnet: this.isTestnet(),
         rescan: true, // Always rescan for imported wallets
+        restore: true, // POCX branch active + funded legacy branches watched
       });
 
       if (!result.success) {
         throw new Error(result.errors?.join(', ') || 'Import failed');
       }
+
+      // Which branches the restore-time UTXO scan found coins on (null
+      // when the scan could not run — the note is simply skipped then).
+      this.branchReport.set(result.branchReport ?? null);
 
       // Encrypt wallet if requested
       if (this.useWalletEncryption && this.walletPassword) {
@@ -430,19 +487,30 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
       }
 
       this.clearSecrets();
-
-      this.snackBar.open(
-        this.i18n.get('wallet_imported_success', { name: this.walletName }),
-        undefined,
-        { duration: 3000 }
-      );
-      this.router.navigate(['/dashboard']);
+      this.importing.set(false);
+      this.imported.set(true);
     } catch (error) {
       console.error('Failed to import wallet:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to import wallet';
       this.snackBar.open(errorMessage, this.i18n.get('dismiss'), { duration: 5000 });
       this.importing.set(false);
     }
+  }
+
+  /** Compact era-labelled list, e.g. "legacy desktop (84'/0'), mobile (84'/BTCX)". */
+  branchList(report: RestoreBranchReport): string {
+    const parts: string[] = [];
+    if (report.legacy.length > 0) {
+      parts.push(`${this.i18n.get('restore_branch_legacy')} (${report.legacy.join(', ')})`);
+    }
+    if (report.pocx.length > 0) {
+      parts.push(`${this.i18n.get('restore_branch_pocx')} (${report.pocx.join(', ')})`);
+    }
+    return parts.join(', ');
+  }
+
+  goToDashboard(): void {
+    void this.router.navigate(['/dashboard']);
   }
 
   ngOnDestroy(): void {

@@ -1,7 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { WalletRpcService, WalletInfo, ImportResult } from '../rpc/wallet-rpc.service';
-import { DescriptorService, DescriptorOptions } from './descriptor.service';
+import { BlockchainRpcService, ScanTxOutSetObject } from '../rpc/blockchain-rpc.service';
+import { DescriptorService, WalletDescriptors } from './descriptor.service';
+import { BTCX_COIN_TYPE } from '../../../core/services/btcx-wallet.service';
 
 /**
  * Wallet creation options
@@ -25,6 +27,32 @@ export interface ImportWalletOptions {
   account?: number;
   addressRange?: [number, number];
   rescan?: boolean;
+  /**
+   * true = the seed may have prior history: the active BTCX-coin-type
+   * branches are imported as always, and the legacy branches (44'/49'/
+   * 84'/86' at 0', plus 1' on testnet) are UTXO-scanned first and only
+   * imported — inactive, never address-generating — when coins actually
+   * live there. false/absent = brand-new seed: 84'+86' at the BTCX coin
+   * type only.
+   */
+  restore?: boolean;
+}
+
+/**
+ * Which derivation branches the restore-time UTXO scan found coins on.
+ *
+ * Deliberate trade-off (UTXO presence is the criterion): a legacy branch
+ * that was fully DRAINED before the restore is not imported, so its old
+ * transactions will not show in the history — but no funds can be
+ * stranded, and the wallet stays free of dead legacy keyspace.
+ */
+export interface RestoreBranchReport {
+  /** Legacy-era branches holding coins, e.g. ["84'/0'"]. */
+  legacy: string[];
+  /** BTCX-era branches holding coins, e.g. ["84'/BTCX"]. */
+  pocx: string[];
+  /** True when the UTXO scan found nothing on any branch. */
+  fresh: boolean;
 }
 
 /**
@@ -120,6 +148,7 @@ export const SESSION_UNLOCK_SECONDS = 2_147_483_647;
 @Injectable({ providedIn: 'root' })
 export class WalletManagerService {
   private readonly walletRpc = inject(WalletRpcService);
+  private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly descriptorService = inject(DescriptorService);
 
   private readonly loadedWalletsSubject = new BehaviorSubject<string[]>([]);
@@ -255,10 +284,15 @@ export class WalletManagerService {
   }
 
   /**
-   * Create a new wallet and import mnemonic-based descriptors
+   * Create a new wallet and import mnemonic-based descriptors.
    *
    * This is the primary method for creating a wallet from a seed phrase.
-   * It creates a blank descriptor wallet and imports all standard descriptors.
+   * New wallets get the ACTIVE BTCX-coin-type branches (84'+86', receive
+   * and change) — nothing else. Restores additionally UTXO-scan the legacy
+   * branches (`scantxoutset`, no wallet needed) and import them INACTIVE
+   * (watched and spendable, never address-generating) only when coins
+   * actually live there, so legacy funds drain into the modern branch via
+   * change while fresh/mobile/drained seeds get a clean modern-only wallet.
    */
   async createWalletFromMnemonic(options: ImportWalletOptions): Promise<{
     success: boolean;
@@ -266,6 +300,8 @@ export class WalletManagerService {
     fingerprint: string;
     importResults: ImportResult[];
     errors?: string[];
+    /** Restore only: which branches the UTXO scan found coins on. */
+    branchReport?: RestoreBranchReport;
   }> {
     this.isLoadingSubject.next(true);
 
@@ -275,6 +311,50 @@ export class WalletManagerService {
         throw new Error('Invalid mnemonic phrase');
       }
 
+      const descriptorOptions = {
+        passphrase: options.mnemonicPassphrase,
+        isTestnet: options.isTestnet ?? true,
+        account: options.account ?? 0,
+        addressRange: options.addressRange ?? ([0, 999] as [number, number]),
+      };
+
+      // The BTCX-coin-type branches — always imported, ACTIVE, so every
+      // new receive AND change address comes from the modern derivation.
+      const pocxSet = this.descriptorService.generateNewWalletDescriptors(
+        options.mnemonic,
+        descriptorOptions
+      );
+
+      // Restore: pre-check the legacy branches against the UTXO set
+      // (before touching any wallet) and keep only funded ones.
+      let branchReport: RestoreBranchReport | undefined;
+      let legacyEntries: Array<{
+        desc: string;
+        active: boolean;
+        internal: boolean;
+        range: [number, number];
+        timestamp: number | 'now';
+      }> = [];
+      if (options.restore) {
+        const legacySet = this.descriptorService.generateLegacyRestoreDescriptors(
+          options.mnemonic,
+          descriptorOptions
+        );
+        const scan = await this.scanBranchesForCoins(
+          legacySet,
+          pocxSet,
+          descriptorOptions.addressRange
+        );
+        branchReport = scan.report ?? undefined;
+        if (scan.importLegacy) {
+          // INACTIVE: spendable and watched, but never handing out
+          // addresses — legacy coins migrate to the BTCX branch as change.
+          legacyEntries = this.descriptorService
+            .formatForImport(legacySet)
+            .map(entry => ({ ...entry, active: false }));
+        }
+      }
+
       // Create blank descriptor wallet
       await this.walletRpc.createWallet(options.walletName, {
         blank: true,
@@ -282,23 +362,8 @@ export class WalletManagerService {
         disablePrivateKeys: false,
       });
 
-      // Generate descriptors from mnemonic
-      const descriptorOptions: DescriptorOptions = {
-        passphrase: options.mnemonicPassphrase,
-        isTestnet: options.isTestnet ?? true,
-        account: options.account ?? 0,
-        addressRange: options.addressRange ?? [0, 999],
-      };
-
-      const walletDescriptors = this.descriptorService.generateDescriptors(
-        options.mnemonic,
-        descriptorOptions
-      );
-
-      // Format for import
-      const importData = this.descriptorService.formatForImport(walletDescriptors);
-
-      // Import descriptors
+      // Import: active BTCX set + (restore only) funded legacy set.
+      const importData = [...this.descriptorService.formatForImport(pocxSet), ...legacyEntries];
       const importResults = await this.walletRpc.importDescriptors(options.walletName, importData);
 
       // Check for errors
@@ -317,9 +382,10 @@ export class WalletManagerService {
       return {
         success: errors.length === 0,
         walletName: options.walletName,
-        fingerprint: walletDescriptors.fingerprint,
+        fingerprint: pocxSet.fingerprint,
         importResults,
         errors: errors.length > 0 ? errors : undefined,
+        branchReport,
       };
     } catch (error) {
       // If wallet was created but import failed, try to unload it
@@ -331,6 +397,51 @@ export class WalletManagerService {
       throw error;
     } finally {
       this.isLoadingSubject.next(false);
+    }
+  }
+
+  /**
+   * One `scantxoutset` over the legacy AND BTCX branch descriptors:
+   * decides whether the legacy set gets imported (any legacy coin found)
+   * and doubles as the user-facing branch report.
+   *
+   * Fails SAFE: when the scan cannot run (RPC hiccup, exotic node), the
+   * legacy set is imported anyway — a pointless legacy import costs dead
+   * keyspace, skipping a funded one would strand coins. No report then.
+   */
+  private async scanBranchesForCoins(
+    legacySet: WalletDescriptors,
+    pocxSet: WalletDescriptors,
+    addressRange: [number, number]
+  ): Promise<{ importLegacy: boolean; report: RestoreBranchReport | null }> {
+    try {
+      const scanObjects: ScanTxOutSetObject[] = [
+        ...legacySet.descriptors,
+        ...pocxSet.descriptors,
+      ].map(d => ({ desc: d.descriptor, range: addressRange }));
+
+      const result = await this.blockchainRpc.scanTxOutSet(scanObjects);
+      if (!result.success) {
+        return { importLegacy: true, report: null };
+      }
+
+      const legacy = new Set<string>();
+      const pocx = new Set<string>();
+      for (const unspent of result.unspents) {
+        const branch = parseBranchFromDescriptor(unspent.desc);
+        if (!branch) continue;
+        (branch.coinType === BTCX_COIN_TYPE ? pocx : legacy).add(branch.label);
+      }
+      return {
+        importLegacy: legacy.size > 0,
+        report: {
+          legacy: [...legacy].sort(),
+          pocx: [...pocx].sort(),
+          fresh: result.unspents.length === 0,
+        },
+      };
+    } catch {
+      return { importLegacy: true, report: null };
     }
   }
 
@@ -625,4 +736,21 @@ export class WalletManagerService {
   async abortRescan(walletName: string): Promise<boolean> {
     return this.walletRpc.abortRescan(walletName);
   }
+}
+
+/**
+ * Fold a descriptor carrying a key-origin like `[fp/84h/0h/0h]` (or the
+ * apostrophe-hardened form, as `scantxoutset` echoes it back) into its
+ * purpose'/coin' branch. Returns null when there is no such origin.
+ */
+export function parseBranchFromDescriptor(
+  desc: string | undefined
+): { purpose: number; coinType: number; label: string } | null {
+  if (!desc) return null;
+  const match = /\[[0-9a-fA-F]{8}\/(\d+)['hH]\/(\d+)['hH]/.exec(desc);
+  if (!match) return null;
+  const purpose = parseInt(match[1], 10);
+  const coinType = parseInt(match[2], 10);
+  const coinLabel = coinType === BTCX_COIN_TYPE ? 'BTCX' : `${coinType}'`;
+  return { purpose, coinType, label: `${purpose}'/${coinLabel}` };
 }
