@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -8,6 +8,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { BtcxWalletService, BTCX_COIN_TYPE } from '../../../../core/services/btcx-wallet.service';
+import { sanitizeReturnTo } from '../../return-to';
 
 /**
  * WalletRestoreComponent - restore-from-mnemonic flow.
@@ -16,6 +17,10 @@ import { BtcxWalletService, BTCX_COIN_TYPE } from '../../../../core/services/btc
  * (BIP-84/86 x BTCX-coin-type/legacy coin-0') against the configured
  * Electrum server before importing; the result is surfaced on success.
  * Restoring therefore requires a configured Electrum server.
+ *
+ * Accepts a `returnTo` query param (app-internal path, e.g. the mining
+ * setup wizard's address step): the success screen's button then continues
+ * there instead of going to /wallet.
  */
 @Component({
   selector: 'app-wallet-restore',
@@ -49,9 +54,15 @@ import { BtcxWalletService, BTCX_COIN_TYPE } from '../../../../core/services/btc
               {{ 'mwallet_restore_branch' | i18n: { branch: branchLabel() } }}
             </p>
           }
-          <button mat-raised-button color="primary" class="full-width" routerLink="/wallet">
-            {{ 'mwallet_title' | i18n }}
-          </button>
+          @if (returnTo()) {
+            <button mat-raised-button color="primary" class="full-width" (click)="continueSetup()">
+              {{ 'mwallet_continue_setup' | i18n }}
+            </button>
+          } @else {
+            <button mat-raised-button color="primary" class="full-width" routerLink="/wallet">
+              {{ 'mwallet_title' | i18n }}
+            </button>
+          }
         </div>
       } @else {
         <div class="card">
@@ -227,6 +238,8 @@ import { BtcxWalletService, BTCX_COIN_TYPE } from '../../../../core/services/btc
 export class WalletRestoreComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly i18n = inject(I18nService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   phrase = '';
   passphrase = '';
@@ -234,6 +247,19 @@ export class WalletRestoreComponent implements OnInit {
   readonly restoring = signal(false);
   readonly restored = signal(false);
   readonly restoreError = signal<string | null>(null);
+
+  /** Sanitized returnTo target (app-internal path), or null. */
+  readonly returnTo = computed(() =>
+    sanitizeReturnTo(this.route.snapshot.queryParamMap.get('returnTo'))
+  );
+
+  /** Continue the flow that launched the restore (e.g. mining setup). */
+  continueSetup(): void {
+    const target = this.returnTo();
+    if (target) {
+      void this.router.navigateByUrl(target);
+    }
+  }
 
   readonly branchLabel = computed(() => {
     const policy = this.wallet.descriptorPolicy();
