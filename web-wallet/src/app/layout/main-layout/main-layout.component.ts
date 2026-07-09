@@ -8,7 +8,9 @@ import { MatListModule } from '@angular/material/list';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
+import { Store } from '@ngrx/store';
 import { Subject, takeUntil } from 'rxjs';
+import { selectNodelessWallet } from '../../store/settings/settings.selectors';
 import { I18nPipe } from '../../core/i18n';
 import { BalanceDisplayComponent } from '../../shared';
 import { WalletManagerService } from '../../bitcoin/services/wallet/wallet-manager.service';
@@ -444,7 +446,11 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly aggregatorService = inject(AggregatorService);
   private readonly appUpdateService = inject(AppUpdateService);
   private readonly dialog = inject(MatDialog);
+  private readonly store = inject(Store);
   private readonly destroy$ = new Subject<void>();
+
+  /** Experimental: the nodeless (Electrum-backed) wallet nav entry */
+  private readonly nodelessWallet = this.store.selectSignal(selectNodelessWallet);
 
   isMobile = signal(false);
   currentWalletName = signal('No Wallet');
@@ -477,23 +483,35 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       labelKey: 'forging_assignment',
     });
 
+    const transactionItems: NavItem[] = [
+      { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },
+      {
+        path: '/send',
+        icon: 'send',
+        labelKey: 'send',
+        disabled: isMultisig || isWatchOnly,
+        disabledTooltipKey: isMultisig ? 'msig_send_disabled' : 'watch_only_send_disabled',
+      },
+      { path: '/receive', icon: 'call_received', labelKey: 'receive' },
+      { path: '/psbt', icon: 'edit_document', labelKey: 'psbt_title' },
+      { path: '/contacts', icon: 'contacts', labelKey: 'contacts' },
+    ];
+
+    // Experimental nodeless wallet (Electrum-backed, no local node) —
+    // default OFF, so the desktop nav is unchanged until enabled in settings
+    if (this.nodelessWallet()) {
+      transactionItems.push({
+        path: '/wallet',
+        icon: 'account_balance_wallet',
+        labelKey: 'nodeless_wallet_nav',
+      });
+    }
+
     return [
       {
         id: 'transactions',
         titleKey: 'transactions',
-        items: [
-          { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },
-          {
-            path: '/send',
-            icon: 'send',
-            labelKey: 'send',
-            disabled: isMultisig || isWatchOnly,
-            disabledTooltipKey: isMultisig ? 'msig_send_disabled' : 'watch_only_send_disabled',
-          },
-          { path: '/receive', icon: 'call_received', labelKey: 'receive' },
-          { path: '/psbt', icon: 'edit_document', labelKey: 'psbt_title' },
-          { path: '/contacts', icon: 'contacts', labelKey: 'contacts' },
-        ],
+        items: transactionItems,
       },
       {
         id: 'mining',

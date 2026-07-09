@@ -22,11 +22,13 @@ import { NotificationService } from '../../../../shared/services';
 import { RpcClientService } from '../../../../bitcoin/services/rpc/rpc-client.service';
 import { PlatformService } from '../../../../core/services/platform.service';
 import { ElectronService, DebugPaths } from '../../../../core/services/electron.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { SettingsActions } from '../../../../store/settings/settings.actions';
 import { WalletActions } from '../../../../store/wallet/wallet.actions';
 import {
   selectNodeConfig,
+  selectNodelessWallet,
   selectNotifications,
 } from '../../../../store/settings/settings.selectors';
 import {
@@ -640,6 +642,22 @@ function withListenPort(listenAddress: string, port: number): string {
                       }
                       {{ 'save_apply' | i18n }}
                     </button>
+                  </div>
+                }
+
+                <!-- Experimental (desktop wallet mode only) -->
+                @if (showExperimental) {
+                  <div class="config-section">
+                    <h3 class="section-title">{{ 'settings_experimental' | i18n }}</h3>
+                    <mat-slide-toggle
+                      [ngModel]="nodelessWallet()"
+                      (ngModelChange)="onNodelessWalletToggle($event)"
+                    >
+                      {{ 'settings_nodeless_wallet' | i18n }}
+                    </mat-slide-toggle>
+                    <p class="section-description">
+                      {{ 'settings_nodeless_wallet_desc' | i18n }}
+                    </p>
                   </div>
                 }
               </div>
@@ -1823,7 +1841,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   readonly nodeService = inject(NodeService);
   protected readonly aggregatorService = inject(AggregatorService);
+  private readonly appMode = inject(AppModeService);
   private readonly destroy$ = new Subject<void>();
+
+  // Experimental settings (desktop wallet mode only — the nodeless wallet
+  // is always-on in mobile/wallet-only modes and pointless in mining-only)
+  readonly nodelessWallet = this.store.selectSignal(selectNodelessWallet);
+  readonly showExperimental =
+    this.electron.isDesktop &&
+    !this.appMode.isMobileMode() &&
+    !this.appMode.isWalletOnly() &&
+    !this.appMode.isMiningOnly();
 
   // Managed node state
   nodeMode = signal<NodeMode>('managed');
@@ -2180,6 +2208,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.store.dispatch(
       SettingsActions.setNotifications({ notifications: { ...this.notifications } })
     );
+  }
+
+  // ============================================================
+  // Experimental
+  // ============================================================
+
+  /** Toggle the experimental desktop nodeless wallet (persisted setting) */
+  onNodelessWalletToggle(enabled: boolean): void {
+    this.store.dispatch(SettingsActions.setNodelessWallet({ enabled }));
   }
 
   // ============================================================
