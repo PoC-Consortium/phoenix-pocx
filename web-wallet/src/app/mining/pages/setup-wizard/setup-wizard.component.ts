@@ -4238,13 +4238,26 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
   // Save and start
   async saveAndStart(): Promise<void> {
+    const plottingAddress = (
+      this.useCustomAddress() ? this.customPlottingAddress() : this.walletAddress()
+    ).trim();
+
+    // A config without a valid plotting address cannot plot or mine —
+    // refuse to save instead of persisting a broken setup (the empty
+    // wallet-address case slipped through here before).
+    if (!plottingAddress || validatePocxAddress(plottingAddress).kind !== 'valid') {
+      this.snackBar.open(
+        this.i18n.get('setup_plotting_address_invalid') ||
+          'Enter a valid plotting address before saving',
+        this.i18n.get('dismiss') || 'Dismiss',
+        { duration: 5000, panelClass: ['snackbar-error'] }
+      );
+      return;
+    }
+
     this.saving.set(true);
 
     try {
-      const plottingAddress = this.useCustomAddress()
-        ? this.customPlottingAddress()
-        : this.walletAddress();
-
       console.log('Saving config with drives:', this.driveConfigs());
 
       const success = await this.miningService.saveConfig({
