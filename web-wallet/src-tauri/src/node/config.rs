@@ -364,7 +364,7 @@ mod tests {
     fn test_default_config() {
         let config = NodeConfig::default();
         assert_eq!(config.mode, NodeMode::Managed);
-        assert_eq!(config.network, Network::Testnet);
+        assert_eq!(config.network, Network::Mainnet);
         assert!(!config.txindex);
     }
 
@@ -386,9 +386,11 @@ mod tests {
 
     #[test]
     fn test_bitcoin_conf_generation() {
-        let mut config = NodeConfig::default();
-        config.network = Network::Testnet;
-        config.txindex = true;
+        let config = NodeConfig {
+            network: Network::Testnet,
+            txindex: true,
+            ..Default::default()
+        };
 
         let conf = config.generate_bitcoin_conf();
         assert!(conf.contains("server=1"));
