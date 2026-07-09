@@ -1,30 +1,46 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { I18nPipe } from '../../../core/i18n';
+import { AppModeService } from '../../../core/services/app-mode.service';
 
 /**
- * MobileNavComponent - bottom navigation for mobile mode.
+ * MobileNavComponent - bottom navigation for the nodeless wallet layouts.
  *
- * Lets wallet and mining coexist on Android: two tabs, Mining (/miner)
- * and Wallet (/wallet). Rendered by MiningLayoutComponent (mobile mode
- * only) and MobileWalletLayoutComponent.
+ * Mobile mode (Android): lets wallet and mining coexist — two tabs,
+ * Mining (/miner) and Wallet (/wallet). Rendered by MiningLayoutComponent
+ * (mobile mode only) and MobileWalletLayoutComponent.
+ *
+ * Wallet-only mode: the wallet is the only section, so the nav renders
+ * nothing at all.
+ *
+ * Desktop (experimental nodeless wallet): the Mining tab makes no sense —
+ * a Dashboard tab leads back to the desktop wallet instead.
  */
 @Component({
   selector: 'app-mobile-nav',
   standalone: true,
   imports: [RouterModule, MatIconModule, I18nPipe],
   template: `
-    <nav class="mobile-nav">
-      <a routerLink="/miner" routerLinkActive="active" class="nav-item">
-        <mat-icon>hardware</mat-icon>
-        <span class="nav-label">{{ 'mining' | i18n }}</span>
-      </a>
-      <a routerLink="/wallet" routerLinkActive="active" class="nav-item">
-        <mat-icon>account_balance_wallet</mat-icon>
-        <span class="nav-label">{{ 'mwallet_title' | i18n }}</span>
-      </a>
-    </nav>
+    @if (!appMode.isWalletOnly()) {
+      <nav class="mobile-nav">
+        @if (appMode.isMobileMode()) {
+          <a routerLink="/miner" routerLinkActive="active" class="nav-item">
+            <mat-icon>hardware</mat-icon>
+            <span class="nav-label">{{ 'mining' | i18n }}</span>
+          </a>
+        } @else {
+          <a routerLink="/dashboard" routerLinkActive="active" class="nav-item">
+            <mat-icon>dashboard</mat-icon>
+            <span class="nav-label">{{ 'dashboard' | i18n }}</span>
+          </a>
+        }
+        <a routerLink="/wallet" routerLinkActive="active" class="nav-item">
+          <mat-icon>account_balance_wallet</mat-icon>
+          <span class="nav-label">{{ 'mwallet_title' | i18n }}</span>
+        </a>
+      </nav>
+    }
   `,
   styles: [
     `
@@ -80,4 +96,6 @@ import { I18nPipe } from '../../../core/i18n';
     `,
   ],
 })
-export class MobileNavComponent {}
+export class MobileNavComponent {
+  readonly appMode = inject(AppModeService);
+}

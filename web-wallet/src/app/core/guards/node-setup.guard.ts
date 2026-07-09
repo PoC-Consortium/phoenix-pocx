@@ -18,14 +18,20 @@ import type { NodeMode } from '../../node/models/node.models';
  * initialization race where default signal values (mode=managed, installed=false)
  * spuriously trigger a redirect.
  *
- * Skipped on mobile (no local node) and mining-only mode (miner is independent).
+ * Skipped on mobile (no local node), mining-only mode (miner is
+ * independent), and wallet-only mode (nodeless by definition).
  */
 export const nodeSetupGuard: CanActivateFn = async () => {
   const electronService = inject(ElectronService);
   const router = inject(Router);
   const appModeService = inject(AppModeService);
 
-  if (appModeService.isMobile() || appModeService.isMiningOnly() || !electronService.isDesktop) {
+  if (
+    appModeService.isMobile() ||
+    appModeService.isMiningOnly() ||
+    appModeService.isWalletOnly() ||
+    !electronService.isDesktop
+  ) {
     return true;
   }
 

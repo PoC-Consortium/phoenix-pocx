@@ -12,6 +12,13 @@ default-run = "phoenix-pocx"
 name = "phoenix_pocx_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Wallet-only launch flavor (the future iOS / wallet-only-Android app):
+# on Android, `get_launch_mode` reports "wallet-mobile" instead of "mobile",
+# so the frontend shows only the nodeless wallet (no mining, no node).
+# Desktop builds keep both modes and pick at runtime via `--wallet-only`.
+wallet-only = []
+
 # macOS miner launcher - native binary to avoid Rosetta prompts
 [[bin]]
 name = "phoenix-pocx-miner"
