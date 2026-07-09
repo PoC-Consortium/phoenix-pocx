@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Trasmetti tramite",
   "psbt_target_local": "Nodo locale (gestito)",
   "psbt_target_local_hint": "bitcoind su questa macchina",
-  "psbt_target_electrum_hint": "Trasmetti tramite un server remoto — nessun nodo locale richiesto",
+  "psbt_target_electrum_hint": "Richiede un server Electrum configurato — aggiungine prima uno nelle impostazioni del portafoglio",
+  "psbt_target_electrum_ready": "Trasmetti tramite un server remoto — nessun nodo locale richiesto",
   "psbt_edit_signed_title": "Modifica transazione",
   "psbt_edit_signed_message": "La modifica ricrea la transazione, quindi le firme raccolte finora verranno scartate. Le copie già esportate non sono interessate.",
   "psbt_edit_signed_confirm": "Modifica e scarta le firme",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Nessun portafoglio — creane uno per ricevere le ricompense di mining sulla tua chiave",
   "setup_wallet_address_loading": "Recupero dell'indirizzo del portafoglio…",
   "setup_wallet_locked_hint": "Il portafoglio è bloccato — sbloccalo per minare verso di esso",
-  "setup_wallet_recommended": "Consigliato: mina verso il tuo portafoglio"
+  "setup_wallet_recommended": "Consigliato: mina verso il tuo portafoglio",
+  "nodeless_wallet_nav": "Portafoglio senza nodo",
+  "settings_experimental": "Sperimentale",
+  "settings_nodeless_wallet": "Portafoglio senza nodo (sperimentale)",
+  "settings_nodeless_wallet_desc": "Portafoglio BTCX basato su Electrum che funziona senza nodo locale. Aggiunge una voce Portafoglio senza nodo alla navigazione.",
+  "setup_plotting_address_invalid": "Inserisci un indirizzo plotting valido prima di salvare"
 }

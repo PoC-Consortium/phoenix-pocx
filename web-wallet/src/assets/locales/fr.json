@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Diffuser via",
   "psbt_target_local": "Nœud local (géré)",
   "psbt_target_local_hint": "bitcoind sur cette machine",
-  "psbt_target_electrum_hint": "Diffuser via un serveur distant — aucun nœud local requis",
+  "psbt_target_electrum_hint": "Nécessite un serveur Electrum configuré — ajoutez-en d'abord un dans les paramètres du portefeuille",
+  "psbt_target_electrum_ready": "Diffuser via un serveur distant — aucun nœud local requis",
   "psbt_edit_signed_title": "Modifier la transaction",
   "psbt_edit_signed_message": "La modification recrée la transaction, donc les signatures réunies jusqu'ici seront rejetées. Les copies déjà exportées ne sont pas affectées.",
   "psbt_edit_signed_confirm": "Modifier et rejeter les signatures",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Pas encore de portefeuille — créez-en un pour recevoir les récompenses de minage sur votre propre clé",
   "setup_wallet_address_loading": "Récupération de l'adresse du portefeuille…",
   "setup_wallet_locked_hint": "Le portefeuille est verrouillé — déverrouillez-le pour miner vers celui-ci",
-  "setup_wallet_recommended": "Recommandé : minez vers votre propre portefeuille"
+  "setup_wallet_recommended": "Recommandé : minez vers votre propre portefeuille",
+  "nodeless_wallet_nav": "Portefeuille sans nœud",
+  "settings_experimental": "Expérimental",
+  "settings_nodeless_wallet": "Portefeuille sans nœud (expérimental)",
+  "settings_nodeless_wallet_desc": "Portefeuille BTCX basé sur Electrum qui fonctionne sans nœud local. Ajoute une entrée Portefeuille sans nœud à la navigation.",
+  "setup_plotting_address_invalid": "Saisissez une adresse de plotting valide avant d'enregistrer"
 }

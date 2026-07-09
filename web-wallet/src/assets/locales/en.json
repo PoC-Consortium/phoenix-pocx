@@ -954,7 +954,8 @@
   "psbt_broadcast_via": "Broadcast via",
   "psbt_target_local": "Local node (managed)",
   "psbt_target_local_hint": "bitcoind on this machine",
-  "psbt_target_electrum_hint": "Broadcast through a remote server — no local node required",
+  "psbt_target_electrum_hint": "Requires a configured Electrum server — add one in the nodeless wallet settings",
+  "psbt_target_electrum_ready": "Broadcast through a remote server — no local node required",
   "psbt_edit_signed_title": "Edit transaction",
   "psbt_edit_signed_message": "Editing recreates the transaction, so the signatures collected so far will be discarded. Copies you already exported are not affected.",
   "psbt_edit_signed_confirm": "Edit & discard signatures",
@@ -1128,5 +1129,10 @@
   "setup_no_mobile_wallet_hint": "No wallet yet — create one to receive mining rewards to your own key",
   "setup_wallet_address_loading": "Fetching wallet address…",
   "setup_wallet_locked_hint": "Wallet is locked — unlock it to mine to your wallet",
-  "setup_wallet_recommended": "Recommended: mine to your own wallet"
+  "setup_wallet_recommended": "Recommended: mine to your own wallet",
+  "nodeless_wallet_nav": "Nodeless Wallet",
+  "settings_experimental": "Experimental",
+  "settings_nodeless_wallet": "Nodeless wallet (experimental)",
+  "settings_nodeless_wallet_desc": "Electrum-backed BTCX wallet that works without a local node. Adds a Nodeless Wallet entry to the navigation.",
+  "setup_plotting_address_invalid": "Enter a valid plotting address before saving"
 }

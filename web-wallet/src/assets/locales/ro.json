@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Transmite prin",
   "psbt_target_local": "Nod local (gestionat)",
   "psbt_target_local_hint": "bitcoind pe acest calculator",
-  "psbt_target_electrum_hint": "Transmite printr-un server la distanță — nu necesită nod local",
+  "psbt_target_electrum_hint": "Necesită un server Electrum configurat — adăugați mai întâi unul în setările portofelului",
+  "psbt_target_electrum_ready": "Transmite printr-un server la distanță — nu necesită nod local",
   "psbt_edit_signed_title": "Editează tranzacția",
   "psbt_edit_signed_message": "Editarea recreează tranzacția, așa că semnăturile colectate până acum vor fi eliminate. Copiile deja exportate nu sunt afectate.",
   "psbt_edit_signed_confirm": "Editează și elimină semnăturile",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Încă nu există portofel — creați unul pentru a primi recompensele de minerit pe propria cheie",
   "setup_wallet_address_loading": "Se obține adresa portofelului…",
   "setup_wallet_locked_hint": "Portofelul este blocat — deblocați-l pentru a mina către el",
-  "setup_wallet_recommended": "Recomandat: minați către propriul portofel"
+  "setup_wallet_recommended": "Recomandat: minați către propriul portofel",
+  "nodeless_wallet_nav": "Portofel fără nod",
+  "settings_experimental": "Experimental",
+  "settings_nodeless_wallet": "Portofel fără nod (experimental)",
+  "settings_nodeless_wallet_desc": "Portofel BTCX bazat pe Electrum care funcționează fără nod local. Adaugă o intrare Portofel fără nod în navigare.",
+  "setup_plotting_address_invalid": "Introduceți o adresă de plotare validă înainte de a salva"
 }

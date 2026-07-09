@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Difundir mediante",
   "psbt_target_local": "Nodo local (xestionado)",
   "psbt_target_local_hint": "bitcoind nesta máquina",
-  "psbt_target_electrum_hint": "Difundir a través dun servidor remoto — non se require nodo local",
+  "psbt_target_electrum_hint": "Require un servidor Electrum configurado — engade primeiro un na configuración da carteira",
+  "psbt_target_electrum_ready": "Difundir a través dun servidor remoto — non se require nodo local",
   "psbt_edit_signed_title": "Editar transacción",
   "psbt_edit_signed_message": "Editar recrea a transacción, polo que as sinaturas reunidas ata agora descartaranse. As copias que xa exportaches non se ven afectadas.",
   "psbt_edit_signed_confirm": "Editar e descartar sinaturas",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Aínda non hai carteira — cree unha para recibir as recompensas de minaría na súa propia chave",
   "setup_wallet_address_loading": "Obtendo o enderezo da carteira…",
   "setup_wallet_locked_hint": "A carteira está bloqueada — desbloquéea para minar cara a ela",
-  "setup_wallet_recommended": "Recomendado: mine cara á súa propia carteira"
+  "setup_wallet_recommended": "Recomendado: mine cara á súa propia carteira",
+  "nodeless_wallet_nav": "Carteira sen nodo",
+  "settings_experimental": "Experimental",
+  "settings_nodeless_wallet": "Carteira sen nodo (experimental)",
+  "settings_nodeless_wallet_desc": "Carteira BTCX baseada en Electrum que funciona sen nodo local. Engade unha entrada Carteira sen nodo á navegación.",
+  "setup_plotting_address_invalid": "Introduce un enderezo de trazado válido antes de gardar"
 }

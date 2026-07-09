@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Transmitir mediante",
   "psbt_target_local": "Nodo local (gestionado)",
   "psbt_target_local_hint": "bitcoind en esta máquina",
-  "psbt_target_electrum_hint": "Transmitir a través de un servidor remoto — no se requiere nodo local",
+  "psbt_target_electrum_hint": "Requiere un servidor Electrum configurado — añade primero uno en la configuración de la billetera",
+  "psbt_target_electrum_ready": "Transmitir a través de un servidor remoto — no se requiere nodo local",
   "psbt_edit_signed_title": "Editar transacción",
   "psbt_edit_signed_message": "Editar recrea la transacción, por lo que las firmas reunidas hasta ahora se descartarán. Las copias que ya exportaste no se ven afectadas.",
   "psbt_edit_signed_confirm": "Editar y descartar firmas",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Aún no hay billetera — cree una para recibir las recompensas de minería en su propia clave",
   "setup_wallet_address_loading": "Obteniendo dirección de la billetera…",
   "setup_wallet_locked_hint": "La billetera está bloqueada — desbloquéela para minar hacia ella",
-  "setup_wallet_recommended": "Recomendado: mine hacia su propia billetera"
+  "setup_wallet_recommended": "Recomendado: mine hacia su propia billetera",
+  "nodeless_wallet_nav": "Billetera sin nodo",
+  "settings_experimental": "Experimental",
+  "settings_nodeless_wallet": "Billetera sin nodo (experimental)",
+  "settings_nodeless_wallet_desc": "Billetera BTCX basada en Electrum que funciona sin nodo local. Añade una entrada Billetera sin nodo a la navegación.",
+  "setup_plotting_address_invalid": "Introduce una dirección de plotting válida antes de guardar"
 }

@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Yayınlama yöntemi",
   "psbt_target_local": "Yerel düğüm (yönetilen)",
   "psbt_target_local_hint": "Bu makinedeki bitcoind",
-  "psbt_target_electrum_hint": "Uzak bir sunucu üzerinden yayınla — yerel düğüm gerekmez",
+  "psbt_target_electrum_hint": "Yapılandırılmış bir Electrum sunucusu gerektirir — önce cüzdan ayarlarından bir tane ekleyin",
+  "psbt_target_electrum_ready": "Uzak bir sunucu üzerinden yayınla — yerel düğüm gerekmez",
   "psbt_edit_signed_title": "İşlemi düzenle",
   "psbt_edit_signed_message": "Düzenleme işlemi yeniden oluşturur; bu nedenle şimdiye kadar toplanan imzalar silinecek. Daha önce dışa aktardığınız kopyalar etkilenmez.",
   "psbt_edit_signed_confirm": "Düzenle ve imzaları sil",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Henüz cüzdan yok — madencilik ödüllerini kendi anahtarınıza almak için bir tane oluşturun",
   "setup_wallet_address_loading": "Cüzdan adresi alınıyor…",
   "setup_wallet_locked_hint": "Cüzdan kilitli — cüzdana madencilik yapmak için kilidini açın",
-  "setup_wallet_recommended": "Önerilen: kendi cüzdanınıza madencilik yapın"
+  "setup_wallet_recommended": "Önerilen: kendi cüzdanınıza madencilik yapın",
+  "nodeless_wallet_nav": "Düğümsüz Cüzdan",
+  "settings_experimental": "Deneysel",
+  "settings_nodeless_wallet": "Düğümsüz cüzdan (deneysel)",
+  "settings_nodeless_wallet_desc": "Yerel düğüm olmadan çalışan Electrum tabanlı BTCX cüzdanı. Gezinmeye Düğümsüz Cüzdan girişi ekler.",
+  "setup_plotting_address_invalid": "Kaydetmeden önce geçerli bir çizim adresi girin"
 }

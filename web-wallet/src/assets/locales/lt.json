@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Transliuoti per",
   "psbt_target_local": "Vietinis mazgas (valdomas)",
   "psbt_target_local_hint": "bitcoind šiame kompiuteryje",
-  "psbt_target_electrum_hint": "Transliuoti per nuotolinį serverį — vietinis mazgas nereikalingas",
+  "psbt_target_electrum_hint": "Reikalingas sukonfigūruotas Electrum serveris — pirmiausia pridėkite jį piniginės nustatymuose",
+  "psbt_target_electrum_ready": "Transliuoti per nuotolinį serverį — vietinis mazgas nereikalingas",
   "psbt_edit_signed_title": "Redaguoti operaciją",
   "psbt_edit_signed_message": "Redaguojant operacija sukuriama iš naujo, todėl iki šiol surinkti parašai bus atmesti. Jau eksportuotos kopijos nepaveikiamos.",
   "psbt_edit_signed_confirm": "Redaguoti ir atmesti parašus",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Piniginės dar nėra — sukurkite ją, kad kasybos atlygį gautumėte į savo raktą",
   "setup_wallet_address_loading": "Gaunamas piniginės adresas…",
   "setup_wallet_locked_hint": "Piniginė užrakinta — atrakinkite ją, kad galėtumėte kasti į ją",
-  "setup_wallet_recommended": "Rekomenduojama: kaskite į savo piniginę"
+  "setup_wallet_recommended": "Rekomenduojama: kaskite į savo piniginę",
+  "nodeless_wallet_nav": "Piniginė be mazgo",
+  "settings_experimental": "Eksperimentinės",
+  "settings_nodeless_wallet": "Piniginė be mazgo (eksperimentinė)",
+  "settings_nodeless_wallet_desc": "Electrum pagrindu veikianti BTCX piniginė, veikianti be vietinio mazgo. Prideda navigacijoje įrašą Piniginė be mazgo.",
+  "setup_plotting_address_invalid": "Prieš išsaugodami įveskite galiojantį plotinimo adresą"
 }

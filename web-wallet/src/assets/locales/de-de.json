@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Uebertragen ueber",
   "psbt_target_local": "Lokaler Node (verwaltet)",
   "psbt_target_local_hint": "bitcoind auf diesem Rechner",
-  "psbt_target_electrum_hint": "Ueber einen entfernten Server uebertragen — kein lokaler Node erforderlich",
+  "psbt_target_electrum_hint": "Erfordert einen konfigurierten Electrum-Server — füge zuerst einen in den Wallet-Einstellungen hinzu",
+  "psbt_target_electrum_ready": "Ueber einen entfernten Server uebertragen — kein lokaler Node erforderlich",
   "psbt_edit_signed_title": "Transaktion bearbeiten",
   "psbt_edit_signed_message": "Beim Bearbeiten wird die Transaktion neu erstellt, daher werden die bisher gesammelten Signaturen verworfen. Bereits exportierte Kopien sind nicht betroffen.",
   "psbt_edit_signed_confirm": "Bearbeiten & Signaturen verwerfen",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Noch kein Wallet — erstelle eins, um Mining-Erträge auf deinen eigenen Schlüssel zu erhalten",
   "setup_wallet_address_loading": "Wallet-Adresse wird geladen…",
   "setup_wallet_locked_hint": "Wallet ist gesperrt — entsperre es, um in dein Wallet zu minen",
-  "setup_wallet_recommended": "Empfohlen: mine in dein eigenes Wallet"
+  "setup_wallet_recommended": "Empfohlen: mine in dein eigenes Wallet",
+  "nodeless_wallet_nav": "Nodeless Wallet",
+  "settings_experimental": "Experimentell",
+  "settings_nodeless_wallet": "Nodeless Wallet (experimentell)",
+  "settings_nodeless_wallet_desc": "Electrum-basiertes BTCX-Wallet, das ohne lokalen Node funktioniert. Fügt der Navigation einen Nodeless-Wallet-Eintrag hinzu.",
+  "setup_plotting_address_invalid": "Gib vor dem Speichern eine gültige Plotting-Adresse ein"
 }

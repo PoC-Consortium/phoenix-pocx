@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Emitiraj putem",
   "psbt_target_local": "Lokalni čvor (upravljani)",
   "psbt_target_local_hint": "bitcoind na ovom računalu",
-  "psbt_target_electrum_hint": "Emitiraj putem udaljenog poslužitelja — lokalni čvor nije potreban",
+  "psbt_target_electrum_hint": "Zahtijeva konfigurirani Electrum poslužitelj — najprije ga dodajte u postavkama novčanika",
+  "psbt_target_electrum_ready": "Emitiraj putem udaljenog poslužitelja — lokalni čvor nije potreban",
   "psbt_edit_signed_title": "Uredi transakciju",
   "psbt_edit_signed_message": "Uređivanje ponovno stvara transakciju, pa će dosad prikupljeni potpisi biti odbačeni. Već izvezene kopije nisu zahvaćene.",
   "psbt_edit_signed_confirm": "Uredi i odbaci potpise",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Još nema novčanika — kreirajte ga kako biste nagrade od rudarenja primali na vlastiti ključ",
   "setup_wallet_address_loading": "Dohvaćanje adrese novčanika…",
   "setup_wallet_locked_hint": "Novčanik je zaključan — otključajte ga za rudarenje u njega",
-  "setup_wallet_recommended": "Preporučeno: rudarite u vlastiti novčanik"
+  "setup_wallet_recommended": "Preporučeno: rudarite u vlastiti novčanik",
+  "nodeless_wallet_nav": "Novčanik bez čvora",
+  "settings_experimental": "Eksperimentalno",
+  "settings_nodeless_wallet": "Novčanik bez čvora (eksperimentalno)",
+  "settings_nodeless_wallet_desc": "BTCX novčanik temeljen na Electrumu koji radi bez lokalnog čvora. Dodaje stavku Novčanik bez čvora u navigaciju.",
+  "setup_plotting_address_invalid": "Unesite valjanu adresu za plotanje prije spremanja"
 }

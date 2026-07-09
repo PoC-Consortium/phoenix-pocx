@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Uitzenden via",
   "psbt_target_local": "Lokale node (beheerd)",
   "psbt_target_local_hint": "bitcoind op deze computer",
-  "psbt_target_electrum_hint": "Uitzenden via een externe server — geen lokale node vereist",
+  "psbt_target_electrum_hint": "Vereist een geconfigureerde Electrum-server — voeg er eerst een toe in de wallet-instellingen",
+  "psbt_target_electrum_ready": "Uitzenden via een externe server — geen lokale node vereist",
   "psbt_edit_signed_title": "Transactie bewerken",
   "psbt_edit_signed_message": "Bewerken maakt de transactie opnieuw aan, waardoor de tot nu toe verzamelde handtekeningen worden verwijderd. Kopieën die je al hebt geëxporteerd worden niet beïnvloed.",
   "psbt_edit_signed_confirm": "Bewerken & handtekeningen verwijderen",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Nog geen portemonnee — maak er een aan om mijnbouwbeloningen op uw eigen sleutel te ontvangen",
   "setup_wallet_address_loading": "Portemonnee-adres ophalen…",
   "setup_wallet_locked_hint": "Portemonnee is vergrendeld — ontgrendel deze om ernaartoe te minen",
-  "setup_wallet_recommended": "Aanbevolen: mine naar uw eigen portemonnee"
+  "setup_wallet_recommended": "Aanbevolen: mine naar uw eigen portemonnee",
+  "nodeless_wallet_nav": "Nodeless wallet",
+  "settings_experimental": "Experimenteel",
+  "settings_nodeless_wallet": "Nodeless wallet (experimenteel)",
+  "settings_nodeless_wallet_desc": "Electrum-gebaseerde BTCX-wallet die zonder lokale node werkt. Voegt een Nodeless wallet-item toe aan de navigatie.",
+  "setup_plotting_address_invalid": "Voer een geldig plotting-adres in voordat je opslaat"
 }
