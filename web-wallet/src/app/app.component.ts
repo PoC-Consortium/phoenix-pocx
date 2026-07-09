@@ -111,8 +111,13 @@ export class AppComponent implements OnInit, OnDestroy {
     this.initPlatformClass();
 
     // If in mining-only or mobile mode, redirect to miner route immediately
-    // (mining remains the default landing; mobile mode also has /wallet)
-    if (this.appModeService.isMiningOnly() || this.appModeService.isMobileMode()) {
+    // (mining remains the default landing; mobile mode also has /wallet).
+    // Wallet-only mode has no miner: everything lands on /wallet.
+    if (this.appModeService.isWalletOnly()) {
+      if (!this.router.url.startsWith('/wallet')) {
+        this.router.navigate(['/wallet']);
+      }
+    } else if (this.appModeService.isMiningOnly() || this.appModeService.isMobileMode()) {
       // Only redirect if we're not already on an allowed route
       const currentUrl = this.router.url;
       if (
@@ -131,7 +136,8 @@ export class AppComponent implements OnInit, OnDestroy {
     if (
       this.electronService.isDesktop &&
       !this.appModeService.isMiningOnly() &&
-      !this.appModeService.isMobileMode()
+      !this.appModeService.isMobileMode() &&
+      !this.appModeService.isWalletOnly()
     ) {
       this.isStartingNode.set(true);
     }
@@ -214,7 +220,8 @@ export class AppComponent implements OnInit, OnDestroy {
         const shouldStartManagedNode =
           this.nodeService.isManaged() &&
           this.nodeService.isInstalled() &&
-          !this.appModeService.isMiningOnly();
+          !this.appModeService.isMiningOnly() &&
+          !this.appModeService.isWalletOnly();
 
         if (shouldStartManagedNode) {
           await this.nodeService.ensureNodeReadyAndAuthenticated(() =>

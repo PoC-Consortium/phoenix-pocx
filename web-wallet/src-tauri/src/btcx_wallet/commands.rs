@@ -283,6 +283,21 @@ pub async fn btcx_wallet_bumpfee(
     .await
 }
 
+/// Broadcast a raw transaction (hex) over the configured Electrum servers
+/// and return the txid. Chain-only: works with NO seed and NO open wallet —
+/// this is the desktop Transaction Builder's nodeless broadcast target.
+/// `network` picks which network's server list to use (default: the wallet
+/// config's active network).
+#[tauri::command]
+pub async fn btcx_broadcast_tx(
+    tx_hex: String,
+    network: Option<WalletNetwork>,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    blocking(move || state.broadcast_tx(&tx_hex, network)).await
+}
+
 /// Fee estimates for the send form, decimal sat/vB at the estimator's full
 /// sat/kvB resolution. `None` where the estimator has no data (fall back
 /// to `min_sat_per_vb`).

@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Odoslať do siete cez",
   "psbt_target_local": "Lokálny uzol (spravovaný)",
   "psbt_target_local_hint": "bitcoind na tomto počítači",
-  "psbt_target_electrum_hint": "Odoslanie cez vzdialený server — lokálny uzol nie je potrebný",
+  "psbt_target_electrum_hint": "Vyžaduje nakonfigurovaný server Electrum — najprv ho pridajte v nastaveniach peňaženky",
+  "psbt_target_electrum_ready": "Odoslanie cez vzdialený server — lokálny uzol nie je potrebný",
   "psbt_edit_signed_title": "Upraviť transakciu",
   "psbt_edit_signed_message": "Úprava transakciu znovu vytvorí, takže doteraz zhromaždené podpisy budú zahodené. Kópie, ktoré ste už exportovali, to neovplyvní.",
   "psbt_edit_signed_confirm": "Upraviť a zahodiť podpisy",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Zatiaľ žiadna peňaženka — vytvorte si ju a získavajte odmeny z ťažby na vlastný kľúč",
   "setup_wallet_address_loading": "Načítava sa adresa peňaženky…",
   "setup_wallet_locked_hint": "Peňaženka je uzamknutá — odomknite ju, aby ste do nej mohli ťažiť",
-  "setup_wallet_recommended": "Odporúčané: ťažte do vlastnej peňaženky"
+  "setup_wallet_recommended": "Odporúčané: ťažte do vlastnej peňaženky",
+  "nodeless_wallet_nav": "Peňaženka bez uzla",
+  "settings_experimental": "Experimentálne",
+  "settings_nodeless_wallet": "Peňaženka bez uzla (experimentálne)",
+  "settings_nodeless_wallet_desc": "BTCX peňaženka založená na Electrum, ktorá funguje bez lokálneho uzla. Pridá do navigácie položku Peňaženka bez uzla.",
+  "setup_plotting_address_invalid": "Pred uložením zadajte platnú adresu plotovania"
 }

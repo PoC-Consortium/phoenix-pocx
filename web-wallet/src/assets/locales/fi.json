@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Lähetystapa",
   "psbt_target_local": "Paikallinen solmu (hallittu)",
   "psbt_target_local_hint": "bitcoind tällä koneella",
-  "psbt_target_electrum_hint": "Lähetä etäpalvelimen kautta — paikallista solmua ei tarvita",
+  "psbt_target_electrum_hint": "Vaatii määritetyn Electrum-palvelimen — lisää ensin sellainen lompakon asetuksissa",
+  "psbt_target_electrum_ready": "Lähetä etäpalvelimen kautta — paikallista solmua ei tarvita",
   "psbt_edit_signed_title": "Muokkaa tapahtumaa",
   "psbt_edit_signed_message": "Muokkaaminen luo tapahtuman uudelleen, joten tähän mennessä kerätyt allekirjoitukset hylätään. Jo viemäsi kopiot eivät muutu.",
   "psbt_edit_signed_confirm": "Muokkaa ja hylkää allekirjoitukset",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Ei vielä lompakkoa — luo sellainen saadaksesi louhintapalkkiot omalle avaimellesi",
   "setup_wallet_address_loading": "Haetaan lompakon osoitetta…",
   "setup_wallet_locked_hint": "Lompakko on lukittu — avaa se louhiaksesi siihen",
-  "setup_wallet_recommended": "Suositus: louhi omaan lompakkoosi"
+  "setup_wallet_recommended": "Suositus: louhi omaan lompakkoosi",
+  "nodeless_wallet_nav": "Solmuton lompakko",
+  "settings_experimental": "Kokeelliset",
+  "settings_nodeless_wallet": "Solmuton lompakko (kokeellinen)",
+  "settings_nodeless_wallet_desc": "Electrum-pohjainen BTCX-lompakko, joka toimii ilman paikallista solmua. Lisää navigaatioon Solmuton lompakko -kohdan.",
+  "setup_plotting_address_invalid": "Anna kelvollinen plotausosoite ennen tallentamista"
 }

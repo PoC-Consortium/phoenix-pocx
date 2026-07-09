@@ -94,6 +94,11 @@ export const selectHasCustomFeeRate = createSelector(
   feeRate => feeRate !== null
 );
 
+export const selectNodelessWallet = createSelector(
+  selectSettingsState,
+  state => state.nodelessWallet
+);
+
 // ============================================================
 // Aggregator
 // ============================================================

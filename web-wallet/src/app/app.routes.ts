@@ -5,6 +5,7 @@ import {
   nodeSetupGuard,
   miningOnlyGuard,
   notMiningOnlyGuard,
+  notWalletOnlyGuard,
   mobileWalletGuard,
 } from './core/guards';
 
@@ -22,8 +23,10 @@ import {
  */
 export const routes: Routes = [
   // Node setup route (accessible before auth - uses auth layout for toolbar)
+  // Wallet-only mode has no node — the guard sends it to the wallet.
   {
     path: 'node',
+    canActivate: [notWalletOnlyGuard],
     loadComponent: () =>
       import('./layout/auth-layout/auth-layout.component').then(m => m.AuthLayoutComponent),
     children: [
@@ -80,7 +83,8 @@ export const routes: Routes = [
     ],
   },
 
-  // Mobile wallet routes (mobile mode only: nodeless BTCX wallet)
+  // Nodeless BTCX wallet routes (mobile mode, wallet-only mode, or desktop
+  // with the experimental nodeless-wallet setting — see mobileWalletGuard)
   {
     path: 'wallet',
     canActivate: [mobileWalletGuard],

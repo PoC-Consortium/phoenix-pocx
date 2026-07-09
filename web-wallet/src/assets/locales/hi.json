@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "इसके माध्यम से प्रसारित करें",
   "psbt_target_local": "स्थानीय नोड (प्रबंधित)",
   "psbt_target_local_hint": "इस मशीन पर bitcoind",
-  "psbt_target_electrum_hint": "दूरस्थ सर्वर के माध्यम से प्रसारित करें — स्थानीय नोड आवश्यक नहीं",
+  "psbt_target_electrum_hint": "कॉन्फ़िगर किया गया Electrum सर्वर आवश्यक है — पहले वॉलेट सेटिंग्स में एक जोड़ें",
+  "psbt_target_electrum_ready": "दूरस्थ सर्वर के माध्यम से प्रसारित करें — स्थानीय नोड आवश्यक नहीं",
   "psbt_edit_signed_title": "लेनदेन संपादित करें",
   "psbt_edit_signed_message": "संपादन से लेनदेन फिर से बनता है, इसलिए अब तक एकत्र हस्ताक्षर हटा दिए जाएंगे। आपके द्वारा पहले निर्यात की गई प्रतियां प्रभावित नहीं होतीं।",
   "psbt_edit_signed_confirm": "संपादित करें और हस्ताक्षर हटाएं",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "अभी कोई वॉलेट नहीं — अपनी कुंजी पर माइनिंग पुरस्कार पाने के लिए एक बनाएं",
   "setup_wallet_address_loading": "वॉलेट पता प्राप्त किया जा रहा है…",
   "setup_wallet_locked_hint": "वॉलेट लॉक है — इसमें माइन करने के लिए इसे अनलॉक करें",
-  "setup_wallet_recommended": "अनुशंसित: अपने वॉलेट में माइन करें"
+  "setup_wallet_recommended": "अनुशंसित: अपने वॉलेट में माइन करें",
+  "nodeless_wallet_nav": "नोडलेस वॉलेट",
+  "settings_experimental": "प्रायोगिक",
+  "settings_nodeless_wallet": "नोडलेस वॉलेट (प्रायोगिक)",
+  "settings_nodeless_wallet_desc": "Electrum-आधारित BTCX वॉलेट जो स्थानीय नोड के बिना काम करता है। नेविगेशन में नोडलेस वॉलेट प्रविष्टि जोड़ता है।",
+  "setup_plotting_address_invalid": "सहेजने से पहले एक मान्य प्लॉटिंग पता दर्ज करें"
 }

@@ -27,6 +27,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use phoenix_pocx_lib::btcx_wallet::config::DescriptorPolicy;
 use phoenix_pocx_lib::btcx_wallet::manager::open_wallet;
+use phoenix_pocx_lib::btcx_wallet::state::broadcast_tx_over_electrum;
 
 const ELECTRUM_URL: &str = "tcp://127.0.0.1:60401";
 const RPC_ADDR: &str = "127.0.0.1:18443";
@@ -252,4 +253,96 @@ fn regtest_end_to_end() {
     rpc(None, "setmocktime", serde_json::json!([0]));
     worker.shutdown();
     println!("regtest end-to-end smoke: OK (funded {funded}, after spend {after})");
+}
+
+/// Chain-only Electrum broadcast (Phase 6a): a raw transaction built and
+/// signed by the NODE's wallet — never broadcast by it — goes out through
+/// `broadcast_tx_over_electrum`, the seedless path behind the
+/// `btcx_broadcast_tx` Tauri command, and must land in the node's mempool.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_chain_only_broadcast() {
+    let params = &params_btcx::params::BTCX_REGTEST;
+
+    // Build a signed-but-unbroadcast spend with the node's miner wallet:
+    // walletcreatefundedpsbt + walletprocesspsbt + finalizepsbt yields the
+    // raw hex without the node ever relaying it.
+    let wallets = rpc(None, "listwallets", serde_json::json!([]));
+    let wallet_name = wallets[0]
+        .as_str()
+        .expect("a loaded miner wallet on the regtest node")
+        .to_string();
+    let dest = rpc(Some(&wallet_name), "getnewaddress", serde_json::json!([]))
+        .as_str()
+        .unwrap()
+        .to_string();
+    let mut output = serde_json::Map::new();
+    output.insert(dest.clone(), serde_json::json!(0.05));
+    let funded = rpc(
+        Some(&wallet_name),
+        "walletcreatefundedpsbt",
+        serde_json::json!([[], [output]]),
+    );
+    let processed = rpc(
+        Some(&wallet_name),
+        "walletprocesspsbt",
+        serde_json::json!([funded["psbt"]]),
+    );
+    assert_eq!(processed["complete"], true, "psbt should be fully signed");
+    let finalized = rpc(
+        Some(&wallet_name),
+        "finalizepsbt",
+        serde_json::json!([processed["psbt"]]),
+    );
+    let tx_hex = finalized["hex"]
+        .as_str()
+        .expect("finalizepsbt returns raw hex")
+        .to_string();
+    let expected_txid = rpc(None, "decoderawtransaction", serde_json::json!([tx_hex]))["txid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // Error taxonomy first, on the same tx: no server configured, then no
+    // server reachable (port 1 refuses fast).
+    let err = broadcast_tx_over_electrum(params, &[], &tx_hex).unwrap_err();
+    assert!(
+        err.contains("No Electrum server configured"),
+        "empty server list: {err}"
+    );
+    let err = broadcast_tx_over_electrum(params, &["tcp://127.0.0.1:1".to_string()], &tx_hex)
+        .unwrap_err();
+    assert!(
+        err.contains("No Electrum server reachable"),
+        "unreachable server: {err}"
+    );
+
+    // The real broadcast: through electrs, chain-only (no seed, no wallet).
+    let txid = broadcast_tx_over_electrum(params, &[ELECTRUM_URL.to_string()], &tx_hex)
+        .expect("chain-only Electrum broadcast");
+    assert_eq!(txid, expected_txid);
+
+    // The transaction must be in the NODE's mempool now (rpc() panics on a
+    // getmempoolentry error, i.e. if the tx never arrived).
+    let entry = rpc(None, "getmempoolentry", serde_json::json!([txid]));
+    assert!(entry["vsize"].as_u64().unwrap_or(0) > 0);
+
+    // Re-broadcasting the same tx is a no-op success, not an error.
+    let again = broadcast_tx_over_electrum(params, &[ELECTRUM_URL.to_string()], &tx_hex)
+        .expect("already-in-mempool broadcast is a no-op success");
+    assert_eq!(again, expected_txid);
+
+    // Confirm it so repeated runs start from a clean mempool, then leave
+    // the node's clock alone for whoever runs next.
+    let mediantime = rpc(None, "getblockchaininfo", serde_json::json!([]))["mediantime"]
+        .as_u64()
+        .unwrap();
+    rpc(
+        None,
+        "setmocktime",
+        serde_json::json!([now_secs().max(mediantime) + 3600]),
+    );
+    rpc(None, "generatetoaddress", serde_json::json!([1, dest]));
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    println!("chain-only Electrum broadcast smoke: OK ({txid})");
 }

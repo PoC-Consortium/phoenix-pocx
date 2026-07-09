@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Siarkan melalui",
   "psbt_target_local": "Node lokal (terkelola)",
   "psbt_target_local_hint": "bitcoind di mesin ini",
-  "psbt_target_electrum_hint": "Siarkan melalui server jarak jauh — tidak memerlukan node lokal",
+  "psbt_target_electrum_hint": "Memerlukan server Electrum yang dikonfigurasi — tambahkan satu di pengaturan dompet terlebih dahulu",
+  "psbt_target_electrum_ready": "Siarkan melalui server jarak jauh — tidak memerlukan node lokal",
   "psbt_edit_signed_title": "Edit Transaksi",
   "psbt_edit_signed_message": "Mengedit akan membuat ulang transaksi, sehingga tanda tangan yang telah terkumpul akan dibuang. Salinan yang sudah Anda ekspor tidak terpengaruh.",
   "psbt_edit_signed_confirm": "Edit & Buang Tanda Tangan",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Belum ada dompet — buat satu untuk menerima hadiah penambangan ke kunci Anda sendiri",
   "setup_wallet_address_loading": "Mengambil alamat dompet…",
   "setup_wallet_locked_hint": "Dompet terkunci — buka kunci untuk menambang ke dompet ini",
-  "setup_wallet_recommended": "Disarankan: menambang ke dompet Anda sendiri"
+  "setup_wallet_recommended": "Disarankan: menambang ke dompet Anda sendiri",
+  "nodeless_wallet_nav": "Dompet Tanpa Node",
+  "settings_experimental": "Eksperimental",
+  "settings_nodeless_wallet": "Dompet tanpa node (eksperimental)",
+  "settings_nodeless_wallet_desc": "Dompet BTCX berbasis Electrum yang bekerja tanpa node lokal. Menambahkan entri Dompet Tanpa Node ke navigasi.",
+  "setup_plotting_address_invalid": "Masukkan alamat plotting yang valid sebelum menyimpan"
 }

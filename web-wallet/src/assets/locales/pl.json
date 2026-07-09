@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Rozgłoś przez",
   "psbt_target_local": "Lokalny węzeł (zarządzany)",
   "psbt_target_local_hint": "bitcoind na tym komputerze",
-  "psbt_target_electrum_hint": "Rozgłoś przez zdalny serwer — lokalny węzeł nie jest wymagany",
+  "psbt_target_electrum_hint": "Wymaga skonfigurowanego serwera Electrum — najpierw dodaj go w ustawieniach portfela",
+  "psbt_target_electrum_ready": "Rozgłoś przez zdalny serwer — lokalny węzeł nie jest wymagany",
   "psbt_edit_signed_title": "Edytuj transakcję",
   "psbt_edit_signed_message": "Edycja tworzy transakcję od nowa, więc zebrane dotąd podpisy zostaną odrzucone. Wyeksportowane wcześniej kopie pozostaną nienaruszone.",
   "psbt_edit_signed_confirm": "Edytuj i odrzuć podpisy",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Nie ma jeszcze portfela — utwórz go, aby otrzymywać nagrody z kopania na własny klucz",
   "setup_wallet_address_loading": "Pobieranie adresu portfela…",
   "setup_wallet_locked_hint": "Portfel jest zablokowany — odblokuj go, aby kopać do niego",
-  "setup_wallet_recommended": "Zalecane: kop do własnego portfela"
+  "setup_wallet_recommended": "Zalecane: kop do własnego portfela",
+  "nodeless_wallet_nav": "Portfel bez węzła",
+  "settings_experimental": "Eksperymentalne",
+  "settings_nodeless_wallet": "Portfel bez węzła (eksperymentalny)",
+  "settings_nodeless_wallet_desc": "Portfel BTCX oparty na Electrum, działający bez lokalnego węzła. Dodaje pozycję Portfel bez węzła do nawigacji.",
+  "setup_plotting_address_invalid": "Przed zapisaniem wprowadź prawidłowy adres plotowania"
 }

@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "ブロードキャスト先",
   "psbt_target_local": "ローカルノード（管理対象）",
   "psbt_target_local_hint": "このマシン上のbitcoind",
-  "psbt_target_electrum_hint": "リモートサーバー経由でブロードキャスト — ローカルノードは不要です",
+  "psbt_target_electrum_hint": "設定済みの Electrum サーバーが必要です — まずウォレット設定で追加してください",
+  "psbt_target_electrum_ready": "リモートサーバー経由でブロードキャスト — ローカルノードは不要です",
   "psbt_edit_signed_title": "トランザクションを編集",
   "psbt_edit_signed_message": "編集するとトランザクションが再作成されるため、これまでに集めた署名は破棄されます。すでにエクスポートしたコピーには影響しません。",
   "psbt_edit_signed_confirm": "編集して署名を破棄",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "ウォレットがまだありません — 作成して自分の鍵でマイニング報酬を受け取りましょう",
   "setup_wallet_address_loading": "ウォレットアドレスを取得中…",
   "setup_wallet_locked_hint": "ウォレットはロックされています — ロックを解除するとウォレットへマイニングできます",
-  "setup_wallet_recommended": "推奨: 自分のウォレットへマイニング"
+  "setup_wallet_recommended": "推奨: 自分のウォレットへマイニング",
+  "nodeless_wallet_nav": "ノードレスウォレット",
+  "settings_experimental": "実験的機能",
+  "settings_nodeless_wallet": "ノードレスウォレット（実験的）",
+  "settings_nodeless_wallet_desc": "ローカルノードなしで動作する Electrum ベースの BTCX ウォレット。ナビゲーションにノードレスウォレットの項目を追加します。",
+  "setup_plotting_address_invalid": "保存する前に有効なプロッティングアドレスを入力してください"
 }

@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Емитуј преко",
   "psbt_target_local": "Локални чвор (управљани)",
   "psbt_target_local_hint": "bitcoind на овој машини",
-  "psbt_target_electrum_hint": "Емитовање преко удаљеног сервера — локални чвор није потребан",
+  "psbt_target_electrum_hint": "Захтева конфигурисан Electrum сервер — прво га додајте у подешавањима новчаника",
+  "psbt_target_electrum_ready": "Емитовање преко удаљеног сервера — локални чвор није потребан",
   "psbt_edit_signed_title": "Уреди трансакцију",
   "psbt_edit_signed_message": "Уређивање изнова креира трансакцију, па ће до сада прикупљени потписи бити одбачени. На већ извезене копије ово не утиче.",
   "psbt_edit_signed_confirm": "Уреди и одбаци потписе",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Још нема новчаника — направите га да бисте награде од рударења примали на сопствени кључ",
   "setup_wallet_address_loading": "Преузимање адресе новчаника…",
   "setup_wallet_locked_hint": "Новчаник је закључан — откључајте га да бисте рударили у њега",
-  "setup_wallet_recommended": "Препоручено: рударите у сопствени новчаник"
+  "setup_wallet_recommended": "Препоручено: рударите у сопствени новчаник",
+  "nodeless_wallet_nav": "Новчаник без чвора",
+  "settings_experimental": "Експериментално",
+  "settings_nodeless_wallet": "Новчаник без чвора (експериментално)",
+  "settings_nodeless_wallet_desc": "BTCX новчаник заснован на Electrum-у који ради без локалног чвора. Додаје ставку Новчаник без чвора у навигацију.",
+  "setup_plotting_address_invalid": "Унесите важећу адресу за плотирање пре чувања"
 }

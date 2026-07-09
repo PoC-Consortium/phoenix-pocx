@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Transmitir via",
   "psbt_target_local": "Nó local (gerenciado)",
   "psbt_target_local_hint": "bitcoind nesta máquina",
-  "psbt_target_electrum_hint": "Transmita por um servidor remoto — não requer nó local",
+  "psbt_target_electrum_hint": "Requer um servidor Electrum configurado — adicione um nas configurações da carteira primeiro",
+  "psbt_target_electrum_ready": "Transmita por um servidor remoto — não requer nó local",
   "psbt_edit_signed_title": "Editar transação",
   "psbt_edit_signed_message": "Editar recria a transação, então as assinaturas coletadas até agora serão descartadas. As cópias que você já exportou não são afetadas.",
   "psbt_edit_signed_confirm": "Editar e descartar assinaturas",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Ainda não há carteira — crie uma para receber as recompensas de mineração na sua própria chave",
   "setup_wallet_address_loading": "Obtendo endereço da carteira…",
   "setup_wallet_locked_hint": "A carteira está bloqueada — desbloqueie-a para minerar para ela",
-  "setup_wallet_recommended": "Recomendado: minere para a sua própria carteira"
+  "setup_wallet_recommended": "Recomendado: minere para a sua própria carteira",
+  "nodeless_wallet_nav": "Carteira sem nó",
+  "settings_experimental": "Experimental",
+  "settings_nodeless_wallet": "Carteira sem nó (experimental)",
+  "settings_nodeless_wallet_desc": "Carteira BTCX baseada em Electrum que funciona sem nó local. Adiciona uma entrada Carteira sem nó à navegação.",
+  "setup_plotting_address_invalid": "Insira um endereço de plotagem válido antes de salvar"
 }

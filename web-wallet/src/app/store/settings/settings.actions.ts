@@ -47,6 +47,7 @@ export const SettingsActions = createActionGroup({
     // Advanced
     'Toggle Debug Mode': emptyProps(),
     'Set Custom Fee Rate': props<{ feeRate: number | null }>(),
+    'Set Nodeless Wallet': props<{ enabled: boolean }>(),
 
     // Aggregator
     'Update Aggregator Settings': props<{ aggregator: Partial<AggregatorSettings> }>(),

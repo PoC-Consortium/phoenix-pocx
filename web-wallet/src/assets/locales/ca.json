@@ -953,7 +953,8 @@
   "psbt_broadcast_via": "Difon mitjançant",
   "psbt_target_local": "Node local (gestionat)",
   "psbt_target_local_hint": "bitcoind en aquesta màquina",
-  "psbt_target_electrum_hint": "Difon a través d'un servidor remot — no cal cap node local",
+  "psbt_target_electrum_hint": "Requereix un servidor Electrum configurat — primer afegiu-ne un a la configuració de la cartera",
+  "psbt_target_electrum_ready": "Difon a través d'un servidor remot — no cal cap node local",
   "psbt_edit_signed_title": "Edita la transacció",
   "psbt_edit_signed_message": "En editar es torna a crear la transacció, per la qual cosa les signatures recollides fins ara es descartaran. Les còpies que ja has exportat no es veuen afectades.",
   "psbt_edit_signed_confirm": "Edita i descarta les signatures",
@@ -1127,5 +1128,10 @@
   "setup_no_mobile_wallet_hint": "Encara no hi ha cartera — creeu-ne una per rebre les recompenses de mineria a la vostra pròpia clau",
   "setup_wallet_address_loading": "Obtenint l'adreça de la cartera…",
   "setup_wallet_locked_hint": "La cartera està bloquejada — desbloquegeu-la per minar-hi",
-  "setup_wallet_recommended": "Recomanat: mineu cap a la vostra pròpia cartera"
+  "setup_wallet_recommended": "Recomanat: mineu cap a la vostra pròpia cartera",
+  "nodeless_wallet_nav": "Cartera sense node",
+  "settings_experimental": "Experimental",
+  "settings_nodeless_wallet": "Cartera sense node (experimental)",
+  "settings_nodeless_wallet_desc": "Cartera BTCX basada en Electrum que funciona sense node local. Afegeix una entrada Cartera sense node a la navegació.",
+  "setup_plotting_address_invalid": "Introduïu una adreça de plotting vàlida abans de desar"
 }

@@ -250,20 +250,31 @@ fn is_dev() -> bool {
     cfg!(debug_assertions)
 }
 
-/// Get the launch mode (wallet, mining-only, or mobile)
-/// Desktop: "mining" if --mining-only or -m flag is passed, otherwise "wallet"
-/// Android: always "mobile" (nodeless BTCX wallet + mining, no local node)
+/// Get the launch mode (wallet, mining, mobile, or wallet-mobile)
+/// Desktop: "mining" if --mining-only or -m is passed, "wallet-mobile" if
+/// --wallet-only is passed (dev-testing the wallet-only flavor without a
+/// device), otherwise "wallet"
+/// Android: "mobile" (nodeless BTCX wallet + mining, no local node), or
+/// "wallet-mobile" when built with the `wallet-only` cargo feature (the
+/// wallet-only app flavor: nodeless BTCX wallet only, no mining either)
 #[tauri::command]
 fn get_launch_mode() -> String {
-    // Android is always mobile mode: mining plus the nodeless wallet.
-    // No local node support either way.
+    // Android is always nodeless: the wallet-only flavor is wallet-mobile,
+    // the full flavor is mobile (mining plus the nodeless wallet).
     #[cfg(target_os = "android")]
-    return "mobile".to_string();
+    {
+        #[cfg(feature = "wallet-only")]
+        return "wallet-mobile".to_string();
+        #[cfg(not(feature = "wallet-only"))]
+        return "mobile".to_string();
+    }
 
     #[cfg(not(target_os = "android"))]
     {
         if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
             "mining".to_string()
+        } else if std::env::args().any(|arg| arg == "--wallet-only") {
+            "wallet-mobile".to_string()
         } else {
             "wallet".to_string()
         }
@@ -919,6 +930,7 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_send,
             btcx_wallet::commands::btcx_wallet_bumpfee,
             btcx_wallet::commands::btcx_wallet_fee_estimates,
+            btcx_wallet::commands::btcx_broadcast_tx,
             // Nodeless BTCX wallet commands - Config & Sync
             btcx_wallet::commands::btcx_wallet_get_config,
             btcx_wallet::commands::btcx_wallet_set_config,
