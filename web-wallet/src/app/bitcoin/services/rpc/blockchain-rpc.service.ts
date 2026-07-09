@@ -204,6 +204,35 @@ export interface MempoolInfo {
 }
 
 /**
+ * A `scantxoutset` scanobject: a descriptor plus how many indices of a
+ * ranged descriptor to derive.
+ */
+export interface ScanTxOutSetObject {
+  desc: string;
+  range?: number | [number, number];
+}
+
+/**
+ * Result of `scantxoutset start`.
+ */
+export interface ScanTxOutSetResult {
+  success: boolean;
+  txouts: number;
+  height: number;
+  bestblock: string;
+  unspents: Array<{
+    txid: string;
+    vout: number;
+    scriptPubKey: string;
+    /** The matched descriptor with the derived index, incl. its origin path. */
+    desc: string;
+    amount: number;
+    height: number;
+  }>;
+  total_amount: number;
+}
+
+/**
  * BlockchainRpcService handles all blockchain-related RPC calls.
  *
  * This service wraps RpcClientService and provides typed methods for:
@@ -221,6 +250,16 @@ export class BlockchainRpcService {
    */
   async getBlockchainInfo(): Promise<BlockchainInfo> {
     return this.rpc.call<BlockchainInfo>('getblockchaininfo');
+  }
+
+  /**
+   * Scan the UTXO set for outputs matching the given descriptors — no
+   * wallet involved. The restore flow uses this to test whether legacy
+   * derivation branches hold coins BEFORE deciding to import them.
+   * Only one scan can run node-wide at a time.
+   */
+  async scanTxOutSet(scanObjects: ScanTxOutSetObject[]): Promise<ScanTxOutSetResult> {
+    return this.rpc.call<ScanTxOutSetResult>('scantxoutset', ['start', scanObjects]);
   }
 
   /**

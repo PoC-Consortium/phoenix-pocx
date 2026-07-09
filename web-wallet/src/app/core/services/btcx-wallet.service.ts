@@ -99,6 +99,29 @@ export interface BtcxDescriptorPolicy {
   coinType: number;
 }
 
+/** One probed derivation branch with history (`btcx_wallet_restore`). */
+export interface BtcxBranchHit {
+  policy: BtcxDescriptorPolicy;
+  /** Deepest external (receive) index with history, if any. */
+  deepestExternal: number | null;
+  /** Deepest internal (change) index with history, if any. */
+  deepestInternal: number | null;
+}
+
+/** What a restore (or re-probe) found and did. */
+export interface BtcxRestoreResult {
+  status: BtcxWalletStatus;
+  /** The branch the wallet opened with. */
+  selected: BtcxDescriptorPolicy;
+  /**
+   * Every probed branch with history, priority order. More than one entry
+   * means history also exists on branches this wallet does not open.
+   */
+  hits: BtcxBranchHit[];
+  /** True when NO branch had history — the wallet starts fresh. */
+  fresh: boolean;
+}
+
 /** Persisted wallet configuration (`btcx_wallet_get_config`). */
 export interface BtcxWalletConfig {
   network: BtcxNetwork;
@@ -313,20 +336,34 @@ export class BtcxWalletService {
   }
 
   /**
-   * Restore the wallet from an existing mnemonic. The backend probes which
-   * descriptor branch the seed's history lives on (needs a reachable
-   * Electrum server); read descriptorPolicy() afterwards for the branch it
-   * landed on. Throws on failure.
+   * Restore the wallet from an existing mnemonic. The backend probes EVERY
+   * descriptor branch the seed's history could live on (needs a reachable
+   * Electrum server) and opens the best hit; the result carries the full
+   * hit list and an honest fresh verdict. Throws on failure.
    */
-  async restore(mnemonic: string, passphrase?: string): Promise<BtcxWalletStatus> {
-    const status = await invoke<BtcxWalletStatus>('btcx_wallet_restore', {
+  async restore(mnemonic: string, passphrase?: string): Promise<BtcxRestoreResult> {
+    const result = await invoke<BtcxRestoreResult>('btcx_wallet_restore', {
       mnemonic,
       passphrase: passphrase || null,
     });
-    this._status.set(status);
+    this._status.set(result.status);
     await this.refreshConfig();
     await this.refreshAll();
-    return status;
+    return result;
+  }
+
+  /**
+   * Re-run the restore probe over the already-imported seed — the "scan
+   * again" affordance behind a fresh-restore verdict (the server could
+   * have been lagging). Switches to a found branch only when the current
+   * branch has no history of its own. Throws on failure.
+   */
+  async reprobe(): Promise<BtcxRestoreResult> {
+    const result = await invoke<BtcxRestoreResult>('btcx_wallet_reprobe');
+    this._status.set(result.status);
+    await this.refreshConfig();
+    await this.refreshAll();
+    return result;
   }
 
   /** Unlock a passphrase-encrypted seed and open the wallet. Throws on failure. */
