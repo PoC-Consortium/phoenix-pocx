@@ -118,6 +118,6 @@ jobs:
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Phoenix-PoCX-Miner-Android-ARM64-test
+          name: Phoenix-PoCX-Android-ARM64-test
           path: ${{ steps.find-apk.outputs.apk_path }}
           retention-days: 14

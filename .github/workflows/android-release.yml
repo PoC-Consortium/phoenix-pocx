@@ -139,7 +139,7 @@ jobs:
           VERSION="${TAG#v}"
           APK_FILE="${{ steps.verify.outputs.apk_path }}"
 
-          NEW_NAME="Phoenix-PoCX-Miner-${VERSION}-Android-ARM64.apk"
+          NEW_NAME="Phoenix-PoCX-${VERSION}-Android-ARM64.apk"
           cp "$APK_FILE" "$NEW_NAME"
 
           echo "Uploading $NEW_NAME to release $TAG"
