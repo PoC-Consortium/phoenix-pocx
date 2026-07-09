@@ -4,20 +4,26 @@ import { ElectronService } from './electron.service';
 /**
  * AppModeService manages the application launch mode.
  *
- * The app can be launched in two modes:
+ * The app can be launched in three modes:
  * - 'wallet' (default): Full wallet functionality with sidenav
  * - 'mining': Mining-only mode with simplified UI
+ * - 'mobile': Mining + nodeless BTCX wallet (Android)
  *
- * Mining-only mode is activated by:
- * - Passing --mining-only or -m flag when launching the desktop application
- * - Running on Android (always mining-only, no local node support)
+ * Mining-only mode is activated by passing --mining-only or -m when
+ * launching the desktop application. Android always launches in mobile
+ * mode (no local node support); mobile mode may use the /miner routes
+ * and the mobile wallet routes, but never the Core-RPC-backed desktop
+ * wallet routes.
  */
 @Injectable({ providedIn: 'root' })
 export class AppModeService {
   private readonly electronService = inject(ElectronService);
 
-  /** Whether the app is in mining-only mode */
+  /** Whether the app is in mining-only mode (desktop --mining-only launch) */
   readonly isMiningOnly = signal(false);
+
+  /** Whether the app is in mobile mode (wallet + mining, Android) */
+  readonly isMobileMode = signal(false);
 
   /** Whether running on a mobile platform (Android) - no local node support */
   readonly isMobile = signal(false);
@@ -44,10 +50,12 @@ export class AppModeService {
           this.isMobile.set(true);
         }
 
-        // Get launch mode (always 'mining' on Android)
+        // Get launch mode ('mobile' on Android, 'mining' for --mining-only)
         const mode = await invoke<string>('get_launch_mode');
         if (mode === 'mining') {
           this.isMiningOnly.set(true);
+        } else if (mode === 'mobile') {
+          this.isMobileMode.set(true);
         }
       } catch (error) {
         console.error('Failed to get launch mode:', error);

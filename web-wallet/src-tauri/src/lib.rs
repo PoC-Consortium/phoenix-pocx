@@ -250,14 +250,15 @@ fn is_dev() -> bool {
     cfg!(debug_assertions)
 }
 
-/// Get the launch mode (wallet or mining-only)
-/// Returns "mining" if --mining-only or -m flag is passed, otherwise "wallet"
-/// On Android, always returns "mining" (no node support on mobile)
+/// Get the launch mode (wallet, mining-only, or mobile)
+/// Desktop: "mining" if --mining-only or -m flag is passed, otherwise "wallet"
+/// Android: always "mobile" (nodeless BTCX wallet + mining, no local node)
 #[tauri::command]
 fn get_launch_mode() -> String {
-    // Android is always mining-only (no local node support)
+    // Android is always mobile mode: mining plus the nodeless wallet.
+    // No local node support either way.
     #[cfg(target_os = "android")]
-    return "mining".to_string();
+    return "mobile".to_string();
 
     #[cfg(not(target_os = "android"))]
     {

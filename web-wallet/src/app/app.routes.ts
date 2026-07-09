@@ -5,6 +5,7 @@ import {
   nodeSetupGuard,
   miningOnlyGuard,
   notMiningOnlyGuard,
+  mobileWalletGuard,
 } from './core/guards';
 
 /**
@@ -77,6 +78,14 @@ export const routes: Routes = [
           ),
       },
     ],
+  },
+
+  // Mobile wallet routes (mobile mode only: nodeless BTCX wallet)
+  {
+    path: 'wallet',
+    canActivate: [mobileWalletGuard],
+    loadChildren: () =>
+      import('./features/mobile-wallet/mobile-wallet.routes').then(m => m.MOBILE_WALLET_ROUTES),
   },
 
   // Auth routes (public - redirect if already logged in)
