@@ -7,6 +7,8 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService, LANGUAGES, Language } from '../../core/i18n';
 import { MiningService } from '../../mining/services';
+import { AppModeService } from '../../core/services/app-mode.service';
+import { MobileNavComponent } from '../../shared/components/mobile-nav/mobile-nav.component';
 
 /**
  * MiningLayoutComponent provides a simplified layout for mining-only mode.
@@ -27,6 +29,7 @@ import { MiningService } from '../../mining/services';
     MatIconModule,
     MatMenuModule,
     MatTooltipModule,
+    MobileNavComponent,
     I18nPipe,
   ],
   template: `
@@ -115,6 +118,11 @@ import { MiningService } from '../../mining/services';
       <div class="mining-content">
         <router-outlet></router-outlet>
       </div>
+
+      <!-- Bottom navigation (mobile mode only: wallet + mining coexist) -->
+      @if (appMode.isMobileMode()) {
+        <app-mobile-nav />
+      }
     </div>
   `,
   styles: [
@@ -318,6 +326,7 @@ import { MiningService } from '../../mining/services';
 export class MiningLayoutComponent {
   readonly i18n = inject(I18nService);
   readonly miningService = inject(MiningService);
+  readonly appMode = inject(AppModeService);
 
   languages: Language[] = LANGUAGES;
 
