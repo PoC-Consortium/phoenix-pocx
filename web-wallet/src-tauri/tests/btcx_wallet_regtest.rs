@@ -26,8 +26,8 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use phoenix_pocx_lib::btcx_wallet::commands::{
-    create_wallet_impl, current_address_of, restore_wallet_impl, select_wallet_impl,
-    tx_display_address,
+    create_wallet_impl, current_address_of, rename_wallet_impl, restore_wallet_impl,
+    select_wallet_impl, tx_display_address,
 };
 use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy, WalletNetwork};
 use phoenix_pocx_lib::btcx_wallet::manager::{
@@ -784,4 +784,111 @@ fn regtest_chain_only_broadcast() {
     mine_block(&dest);
     rpc(None, "setmocktime", serde_json::json!([0]));
     println!("chain-only Electrum broadcast smoke: OK ({txid})");
+}
+
+/// The wallet rename flow (feedback round 6), live: a funded named wallet
+/// is closed, renamed (`rename_wallet_impl`, the seam behind
+/// `btcx_wallet_rename` — registry move + data-dir rename), and reopens
+/// under the new name with its balance intact. Also the guardrails: the
+/// OPEN wallet is refused, a case-insensitive name collision is refused,
+/// an invalid name is refused, and the active-wallet pointer follows a
+/// selected-but-closed wallet across its rename.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_rename_wallet_preserves_funds() {
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+    // Never touch the developer's real OS keychain from a test.
+    std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+    let state = phoenix_pocx_lib::btcx_wallet::create_btcx_wallet_state();
+    state
+        .update_config(|c| {
+            c.network = WalletNetwork::Regtest;
+            c.set_servers(WalletNetwork::Regtest, vec![ELECTRUM_URL.to_string()]);
+        })
+        .unwrap();
+
+    // A FRESH mnemonic every run — the shared regtest chain must not leak
+    // history from earlier runs.
+    let seed_dir = tempfile::tempdir().unwrap();
+    let mut scratch = seedstore::SeedStore::open(seed_dir.path(), None).unwrap();
+    let mnemonic = scratch.create_seed(None, 24).unwrap();
+
+    // 1. Create + fund "payroll" (BIP-84).
+    let status = create_wallet_impl(&state, None, &mnemonic, None, Some("payroll".into()), None)
+        .expect("create payroll");
+    assert_eq!(status.wallet_name, "payroll");
+    let addr = state.backend().unwrap().wallet_new_address().unwrap();
+    fund_and_mine(&addr, 0.25);
+    wait_for_balance(&state, 25_000_000, "payroll after funding");
+
+    // 2. Renaming the OPEN wallet is refused (switch-first, like delete).
+    let err = rename_wallet_impl(&state, "payroll", "salaries").unwrap_err();
+    assert!(
+        err.contains("close it first"),
+        "open-wallet rename must be refused: {err}"
+    );
+
+    // 3. A second wallet (same mnemonic, taproot branch) becomes the open
+    //    one; "payroll" is now registered-but-closed.
+    let status = create_wallet_impl(
+        &state,
+        None,
+        &mnemonic,
+        None,
+        Some("other".into()),
+        Some(DescriptorKindCfg::Bip86),
+    )
+    .expect("create other");
+    assert_eq!(status.wallet_name, "other");
+
+    // 4. Collision (case-insensitive) and invalid names are refused.
+    let err = rename_wallet_impl(&state, "payroll", "OTHER").unwrap_err();
+    assert!(err.contains("already exists"), "collision: {err}");
+    let err = rename_wallet_impl(&state, "payroll", "bad name!").unwrap_err();
+    assert!(err.contains("may only contain"), "invalid name: {err}");
+
+    // 5. The real rename: registry entry moves, data dir moves.
+    rename_wallet_impl(&state, "payroll", "salaries").expect("rename payroll -> salaries");
+    let config = state.get_config();
+    let names = config.wallet_names(WalletNetwork::Regtest);
+    assert!(names.contains(&"salaries".to_string()), "{names:?}");
+    assert!(!names.contains(&"payroll".to_string()), "{names:?}");
+    let old_root = phoenix_pocx_lib::btcx_wallet::BtcxWalletConfig::wallet_root(
+        WalletNetwork::Regtest,
+        "payroll",
+    );
+    let new_root = phoenix_pocx_lib::btcx_wallet::BtcxWalletConfig::wallet_root(
+        WalletNetwork::Regtest,
+        "salaries",
+    );
+    assert!(!old_root.exists(), "old dir must be gone");
+    assert!(
+        new_root.join(seedstore::SEED_FILE).exists(),
+        "seed must live under the new dir"
+    );
+    // The pointer still names the open wallet, untouched by the rename.
+    assert_eq!(config.active_wallet_name(), "other");
+
+    // 6. Reopen under the new name: the moved store carries the funds.
+    let status = select_wallet_impl(&state, None, "salaries").expect("open renamed wallet");
+    assert_eq!(status.wallet_name, "salaries");
+    wait_for_balance(&state, 25_000_000, "salaries after rename + reopen");
+
+    // 7. Pointer-follow: a SELECTED-but-closed wallet keeps the selection
+    //    across its rename (an absent runtime lifts the open-wallet block).
+    state.close_runtime();
+    rename_wallet_impl(&state, "salaries", "salaries-2026").expect("rename the selected wallet");
+    assert_eq!(state.get_config().active_wallet_name(), "salaries-2026");
+    let status = select_wallet_impl(&state, None, "salaries-2026").expect("reopen");
+    assert_eq!(status.wallet_name, "salaries-2026");
+    wait_for_balance(&state, 25_000_000, "salaries-2026 after second rename");
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    state.close_runtime();
+    std::env::remove_var("PHOENIX_DATA_DIR");
+    std::env::remove_var("PACT_DISABLE_KEYRING");
+    println!("wallet rename smoke: OK (payroll -> salaries -> salaries-2026, funds intact)");
 }

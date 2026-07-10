@@ -571,6 +571,103 @@ pub async fn btcx_wallet_delete(
     .await
 }
 
+/// The full rename flow (validate → refuse open → data-dir rename →
+/// registry move), shared by the `btcx_wallet_rename` command and the
+/// regtest integration tests (which run it without an `AppHandle`).
+///
+/// The registry only updates AFTER the directory rename succeeded, so a
+/// failed move leaves everything consistent under the old name.
+pub fn rename_wallet_impl(
+    state: &SharedBtcxWalletState,
+    name: &str,
+    new_name: &str,
+) -> Result<(), String> {
+    config::validate_wallet_name(name)?;
+    config::validate_wallet_name(new_name)?;
+    if name == new_name {
+        return Err("The new name is the same as the current name".into());
+    }
+    let config = state.get_config();
+    let network = config.network;
+    let Some(meta) = config.wallet_meta(network, name) else {
+        return Err(format!("No wallet named '{name}' on {}", network.as_str()));
+    };
+    if config.active_wallet_name() == name && state.is_open() {
+        return Err("Cannot rename the open wallet — close it first".into());
+    }
+
+    // Case-insensitive uniqueness, same rule as create/restore — EXCEPT a
+    // case-only rename of this same wallet (`Johnny` → `johnny`), which is
+    // the same path on the case-insensitive filesystems the stores live on.
+    let lower_new = new_name.to_ascii_lowercase();
+    let case_only = name.to_ascii_lowercase() == lower_new;
+    if !case_only {
+        if let Some(existing) = config
+            .wallet_names(network)
+            .into_iter()
+            .find(|n| n.to_ascii_lowercase() == lower_new)
+        {
+            return Err(format!(
+                "A wallet named '{existing}' already exists on {}",
+                network.as_str()
+            ));
+        }
+        // A leftover on-disk store (e.g. restored from `.trash` by hand) is
+        // refused too — renaming onto it would mix unrelated wallets.
+        if BtcxWalletConfig::wallet_root(network, new_name)
+            .join(seedstore::SEED_FILE)
+            .exists()
+        {
+            return Err(format!(
+                "A wallet already exists on disk at '{new_name}' — pick another name",
+            ));
+        }
+    }
+
+    // The cached seed store may reference the old directory — drop it.
+    state.drop_seed_passphrase();
+
+    let old_root = BtcxWalletConfig::wallet_root(network, name);
+    let new_root = BtcxWalletConfig::wallet_root(network, new_name);
+    if old_root.exists() {
+        std::fs::rename(&old_root, &new_root).map_err(|e| {
+            format!(
+                "moving {} to {}: {e}",
+                old_root.display(),
+                new_root.display()
+            )
+        })?;
+        log::info!("btcx wallet '{name}' renamed to '{new_name}'");
+    }
+
+    // Registry move; the active-wallet pointer follows the wallet it
+    // referenced (a non-open wallet can still be the selected one — and the
+    // `default` fallback counts: an absent pointer names `default` too).
+    let was_selected = config.active_wallet_name() == name;
+    state.update_config(|c| {
+        c.remove_wallet_meta(network, name);
+        c.set_wallet_meta(network, new_name, meta);
+        if was_selected {
+            c.set_active_wallet(network, new_name);
+        }
+    })?;
+    Ok(())
+}
+
+/// Rename a registered wallet: the data dir moves to the new name and the
+/// registry entry (plus the active-wallet pointer, if it referenced the
+/// old name) follows. Same name rules as create; refuses the OPEN wallet
+/// (switch first — the delete flow's pattern).
+#[tauri::command]
+pub async fn btcx_wallet_rename(
+    name: String,
+    new_name: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<(), String> {
+    let state = state.inner().clone();
+    blocking(move || rename_wallet_impl(&state, &name, &new_name)).await
+}
+
 // ============================================================================
 // Wallet Operations
 // ============================================================================

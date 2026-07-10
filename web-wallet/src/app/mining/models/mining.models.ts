@@ -236,6 +236,41 @@ export const PREDEFINED_POOLS: PredefinedPool[] = [
   },
 ];
 
+/** A configured pool's forging address, as offered by the assignment pages. */
+export interface PoolAddressOption {
+  poolName: string;
+  label: string;
+  address: string;
+}
+
+/**
+ * Flatten the configured chains' pool forging addresses for the
+ * forging-address dropdown (desktop forging-assignment page + mobile wallet
+ * assignment page). A chain whose persisted `poolAddresses` is empty — a
+ * config written before the field existed, or a pool added without the
+ * wizard's predefined-pool seeding — falls back to the PREDEFINED_POOLS
+ * registry matched by endpoint (host + port), so a known pool always offers
+ * its published forging address.
+ */
+export function poolAddressOptionsForChains(
+  chains: ChainConfig[] | null | undefined
+): PoolAddressOption[] {
+  const options: PoolAddressOption[] = [];
+  for (const chain of chains ?? []) {
+    let addresses = (chain.poolAddresses ?? []).filter(pa => pa.address);
+    if (addresses.length === 0) {
+      const known = PREDEFINED_POOLS.find(
+        p => p.rpcHost === chain.rpcHost && p.rpcPort === chain.rpcPort
+      );
+      addresses = known?.poolAddresses ?? [];
+    }
+    for (const pa of addresses) {
+      options.push({ poolName: chain.name, label: pa.label, address: pa.address });
+    }
+  }
+  return options;
+}
+
 export interface DriveConfig {
   path: string;
   enabled: boolean;

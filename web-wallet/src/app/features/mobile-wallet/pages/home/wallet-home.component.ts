@@ -1,4 +1,15 @@
-import { Component, inject, signal, computed, effect, OnInit } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -8,7 +19,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe } from '../../../../core/i18n';
-import { BtcxPipe, TimeAgoPipe } from '../../../../shared/pipes';
+import { BtcxPipe } from '../../../../shared/pipes';
 import { ContactsStoreService } from '../../../../shared/services';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
 import { BtcxWalletService, BtcxChainInfo } from '../../../../core/services/btcx-wallet.service';
@@ -50,7 +61,6 @@ import {
     DecimalPipe,
     BtcxPipe,
     I18nPipe,
-    TimeAgoPipe,
     TxRowComponent,
   ],
   template: `
@@ -136,24 +146,7 @@ import {
                 <span class="label">{{ 'network_capacity' | i18n }}</span>
                 <span class="value">{{ networkCapacity() }}</span>
               </div>
-              <div class="info-item">
-                <span class="label">{{ 'last_block_time' | i18n }}</span>
-                <span class="value">
-                  @if (chain(); as info) {
-                    {{ info.headerTime | timeAgo }}
-                  } @else {
-                    —
-                  }
-                </span>
-              </div>
             </div>
-
-            @if (wallet.walletActive() && !wallet.hasSynced()) {
-              <div class="sync-row">
-                <mat-spinner diameter="14"></mat-spinner>
-                <span>{{ 'mwallet_waiting_first_sync' | i18n }}</span>
-              </div>
-            }
           </div>
         }
 
@@ -223,13 +216,11 @@ import {
             <mat-icon>arrow_downward</mat-icon>
             {{ 'receive' | i18n }}
           </button>
-          <button mat-raised-button routerLink="/wallet/history">
-            <mat-icon>history</mat-icon>
-            {{ 'transactions' | i18n }}
-          </button>
         </div>
 
-        <!-- Recent transactions -->
+        <!-- Recent transactions: fills the viewport height left by the
+             cards above (as many rows as fit, min 3 / max 10 — measured
+             with a ResizeObserver, so rotation/resize recomputes). -->
         <div class="card recent-card">
           <div class="card-title plain">
             <mat-icon>history</mat-icon>
@@ -238,11 +229,13 @@ import {
           @if (recentTransactions().length === 0) {
             <p class="hint-text no-tx">{{ 'no_transactions' | i18n }}</p>
           } @else {
-            @for (tx of recentTransactions(); track tx.txid) {
-              <div class="tx-item" routerLink="/wallet/history">
-                <app-mwallet-tx-row [tx]="tx" />
-              </div>
-            }
+            <div class="tx-list" #txList>
+              @for (tx of recentTransactions(); track tx.txid) {
+                <div class="tx-item" routerLink="/wallet/history">
+                  <app-mwallet-tx-row [tx]="tx" />
+                </div>
+              }
+            </div>
             <div class="view-all-row">
               <a routerLink="/wallet/history">{{ 'mwallet_view_all' | i18n }}</a>
             </div>
@@ -265,12 +258,23 @@ import {
   `,
   styles: [
     `
+      /* Fill the wallet-content column so the recent list can flex into
+         the leftover viewport height (the home fits the screen). */
+      :host {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
       .page {
         /* Density: tighter than the generic 16px page rhythm — the home
            stacks several cards, so the saved space adds up. */
         padding: 12px;
         display: flex;
         flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
         gap: 12px;
         max-width: 480px;
         width: 100%;
@@ -328,10 +332,11 @@ import {
         }
       }
 
-      /* Three compact stats: Height | Network Capacity | Last block. */
+      /* Two compact stats: Height | Network Capacity (last-block time
+         moved into the header's Electrum popover in feedback round 6). */
       .info-grid {
         display: grid;
-        grid-template-columns: repeat(3, auto);
+        grid-template-columns: repeat(2, auto);
         justify-content: space-between;
         gap: 8px 12px;
       }
@@ -433,18 +438,6 @@ import {
         width: 100%;
       }
 
-      /* Waiting-for-first-sync spinner (the only footer state left). */
-      .sync-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid rgba(255, 255, 255, 0.2);
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.75);
-      }
-
       .empty-card {
         text-align: center;
 
@@ -465,16 +458,32 @@ import {
         }
       }
 
+      /* Flex-fill: basis 0 so the card's height comes from the leftover
+         viewport space (never from its own rows), min-height keeps the
+         3-row floor readable when the cards above take most of the
+         screen (then the page scrolls slightly instead). */
       .recent-card {
         padding: 16px 16px 8px;
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 240px;
+        overflow: hidden;
 
         .card-title {
           margin-bottom: 6px;
+          flex-shrink: 0;
         }
 
         .no-tx {
           margin: 8px 0 12px;
         }
+      }
+
+      .tx-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
       }
 
       .tx-item {
@@ -490,6 +499,7 @@ import {
         display: flex;
         justify-content: flex-end;
         padding: 8px 0 6px;
+        flex-shrink: 0;
 
         a {
           font-size: 13px;
@@ -539,10 +549,11 @@ import {
     `,
   ],
 })
-export class WalletHomeComponent implements OnInit {
+export class WalletHomeComponent implements OnInit, OnDestroy {
   readonly wallet = inject(BtcxWalletService);
   private readonly mining = inject(MiningService);
   private readonly contactsStore = inject(ContactsStoreService);
+  private readonly zone = inject(NgZone);
 
   readonly balance = computed(() => this.wallet.balance());
   readonly pendingSat = computed(() => {
@@ -551,8 +562,24 @@ export class WalletHomeComponent implements OnInit {
     return b.trustedPendingSat + b.untrustedPendingSat;
   });
 
-  /** Recent activity preview — the newest 5 entries. */
-  readonly recentTransactions = computed(() => this.wallet.transactions().slice(0, 5));
+  // --- Recent list viewport fill (round 6) -------------------------------
+  // The card flex-fills the height left by the cards above (flex-basis 0,
+  // so its height never depends on its own rows); a ResizeObserver on the
+  // row container derives how many rows fit. Row height is measured from
+  // the first rendered row (full addresses wrap, so it isn't a constant),
+  // falling back to a typical row before anything rendered.
+  private static readonly MIN_ROWS = 3;
+  private static readonly MAX_ROWS = 10;
+  private static readonly FALLBACK_ROW_PX = 64;
+
+  private readonly txList = viewChild<ElementRef<HTMLElement>>('txList');
+  private readonly visibleTxCount = signal(WalletHomeComponent.MIN_ROWS);
+  private resizeObserver: ResizeObserver | null = null;
+
+  /** Recent activity preview — as many newest entries as fit the screen. */
+  readonly recentTransactions = computed(() =>
+    this.wallet.transactions().slice(0, this.visibleTxCount())
+  );
 
   /**
    * Chain tip snapshot (height, base target, header time). Fetched once on
@@ -579,6 +606,37 @@ export class WalletHomeComponent implements OnInit {
         void this.refreshChain();
       }
     });
+
+    // (Re)attach the ResizeObserver whenever the row container (re)appears —
+    // it lives inside @if/@for branches, so it comes and goes.
+    effect(() => {
+      const list = this.txList()?.nativeElement ?? null;
+      this.resizeObserver?.disconnect();
+      if (!list) return;
+      this.resizeObserver ??= new ResizeObserver(() => {
+        // ResizeObserver isn't zone-patched — re-enter for change detection.
+        this.zone.run(() => this.measureVisibleRows());
+      });
+      this.resizeObserver.observe(list);
+      this.measureVisibleRows();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+  }
+
+  /** floor(listHeight / rowHeight), clamped to MIN_ROWS..MAX_ROWS. */
+  private measureVisibleRows(): void {
+    const list = this.txList()?.nativeElement;
+    if (!list) return;
+    const first = list.querySelector<HTMLElement>('.tx-item');
+    const rowHeight = first?.getBoundingClientRect().height || WalletHomeComponent.FALLBACK_ROW_PX;
+    const fit = Math.floor(list.clientHeight / rowHeight);
+    this.visibleTxCount.set(
+      Math.min(WalletHomeComponent.MAX_ROWS, Math.max(WalletHomeComponent.MIN_ROWS, fit))
+    );
   }
 
   ngOnInit(): void {

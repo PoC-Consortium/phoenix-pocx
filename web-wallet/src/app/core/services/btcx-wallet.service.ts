@@ -631,6 +631,17 @@ export class BtcxWalletService {
     await this.refreshStatus();
   }
 
+  /**
+   * Rename a registered wallet: registry entry + data dir move together
+   * (active-wallet pointer follows if it referenced the old name). Refuses
+   * the open wallet — switch first, like delete. Throws on failure.
+   */
+  async rename(name: string, newName: string): Promise<void> {
+    await invoke('btcx_wallet_rename', { name, newName });
+    await this.refreshConfig();
+    await this.refreshStatus();
+  }
+
   // ============================================================================
   // Wallet Operations
   // ============================================================================

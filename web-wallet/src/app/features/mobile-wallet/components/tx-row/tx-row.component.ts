@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { I18nPipe } from '../../../../core/i18n';
-import { BtcxPipe, HashTruncatePipe } from '../../../../shared/pipes';
+import { BtcxPipe } from '../../../../shared/pipes';
 import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
 import { BlockExplorerService } from '../../../../shared/services/block-explorer.service';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
@@ -27,17 +27,9 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
 @Component({
   selector: 'app-mwallet-tx-row',
   standalone: true,
-  imports: [
-    MatButtonModule,
-    MatIconModule,
-    MatMenuModule,
-    DatePipe,
-    BtcxPipe,
-    HashTruncatePipe,
-    I18nPipe,
-  ],
+  imports: [MatButtonModule, MatIconModule, MatMenuModule, DatePipe, BtcxPipe, I18nPipe],
   template: `
-    <div class="tx-row">
+    <div class="tx-row" [class.unconfirmed]="tx().confirmations === 0">
       <mat-icon
         class="tx-icon"
         [class.received]="tx().direction === 'received'"
@@ -47,34 +39,44 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
       </mat-icon>
 
       <div class="tx-main">
-        <span class="tx-direction">
-          {{ (tx().direction === 'received' ? 'mwallet_received' : 'mwallet_sent') | i18n }}
-        </span>
-        @if (tx().address; as address) {
-          <span class="tx-address mono">{{ address | hashTruncate: 12 : 6 }}</span>
-        }
-        <span class="tx-time">
-          @if (tx().timestamp; as timestamp) {
-            {{ timestamp * 1000 | date: 'short' }}
-          }
-        </span>
-      </div>
+        <div class="tx-top">
+          <span class="tx-direction">
+            {{ (tx().direction === 'received' ? 'mwallet_received' : 'mwallet_sent') | i18n }}
+          </span>
+          <span
+            class="tx-amount"
+            [class.received]="tx().direction === 'received'"
+            [class.sent]="tx().direction === 'sent'"
+          >
+            {{ tx().direction === 'received' ? '+' : '-' }}{{ tx().amountSat / 100000000 | btcx }}
+          </span>
+        </div>
 
-      <div class="tx-right">
-        <span
-          class="tx-amount"
-          [class.received]="tx().direction === 'received'"
-          [class.sent]="tx().direction === 'sent'"
-        >
-          {{ tx().direction === 'received' ? '+' : '-' }}{{ tx().amountSat / 100000000 | btcx }}
-        </span>
-        <span class="tx-conf" [class.unconfirmed]="tx().confirmations === 0">
-          @if (tx().confirmations === 0) {
-            {{ 'mwallet_unconfirmed' | i18n }}
-          } @else {
-            {{ 'mwallet_confirmations_n' | i18n: { count: tx().confirmations } }}
-          }
-        </span>
+        @if (tx().address; as address) {
+          <!-- FULL address, wrapping — the desktop transaction-list's
+               .address-text (monospace, word-break) -->
+          <span class="tx-address mono">{{ address }}</span>
+        }
+
+        <div class="tx-bottom">
+          <span class="tx-time">
+            @if (tx().timestamp; as timestamp) {
+              {{ timestamp * 1000 | date: 'short' }}
+            }
+          </span>
+          <!-- Status — the desktop transaction-list's semantics verbatim:
+               0 conf = "Pending", 1-5 = "{n} conf", >= 6 = "Confirmed";
+               unconfirmed rows pulse (the desktop row animation). -->
+          <span class="tx-status">
+            @if (tx().confirmations === 0) {
+              {{ 'pending' | i18n }}
+            } @else if (tx().confirmations < 6) {
+              {{ tx().confirmations }} {{ 'confirmations_short' | i18n }}
+            } @else {
+              {{ 'confirmed' | i18n }}
+            }
+          </span>
+        </div>
       </div>
 
       <button
@@ -113,8 +115,25 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
     `
       .tx-row {
         display: flex;
-        align-items: center;
-        gap: 12px;
+        align-items: flex-start;
+        gap: 10px;
+
+        /* Desktop transaction-list's unconfirmed row treatment. */
+        &.unconfirmed {
+          animation: tx-row-pulse 3s ease-in-out infinite;
+        }
+      }
+
+      @keyframes tx-row-pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
       }
 
       .tx-icon {
@@ -122,6 +141,7 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
         width: 20px;
         height: 20px;
         flex-shrink: 0;
+        margin-top: 1px;
 
         &.received {
           color: #4caf50;
@@ -137,47 +157,56 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
         flex-direction: column;
         flex: 1;
         min-width: 0;
+        gap: 1px;
+
+        .tx-top {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 12px;
+        }
 
         .tx-direction {
           font-size: 14px;
         }
 
-        .tx-address {
-          font-size: 11px;
-          color: rgba(0, 0, 0, 0.6);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .tx-time {
-          font-size: 11px;
-          color: rgba(0, 0, 0, 0.5);
-        }
-      }
-
-      .tx-right {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-
         .tx-amount {
           font-size: 13px;
           font-variant-numeric: tabular-nums;
           font-family: monospace;
+          white-space: nowrap;
 
           &.received {
             color: #2e7d32;
           }
         }
 
-        .tx-conf {
+        /* Full address (desktop's .address-text): monospace, wraps. */
+        .tx-address {
+          font-size: 11px;
+          color: rgba(0, 0, 0, 0.6);
+          word-break: break-all;
+          line-height: 1.35;
+        }
+
+        .tx-bottom {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .tx-time {
           font-size: 11px;
           color: rgba(0, 0, 0, 0.5);
+        }
 
-          &.unconfirmed {
-            color: #e65100;
-          }
+        /* Desktop's .status-badge: plain text, uniform color. */
+        .tx-status {
+          font-size: 11px;
+          font-weight: 500;
+          color: rgba(0, 0, 0, 0.6);
+          white-space: nowrap;
         }
       }
 
@@ -200,12 +229,15 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
           color: rgba(255, 255, 255, 0.6);
         }
 
-        .tx-main .tx-time,
-        .tx-right .tx-conf {
+        .tx-main .tx-time {
           color: rgba(255, 255, 255, 0.5);
         }
 
-        .tx-right .tx-amount.received {
+        .tx-main .tx-status {
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        .tx-main .tx-amount.received {
           color: #81c784;
         }
 

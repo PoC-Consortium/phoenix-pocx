@@ -108,7 +108,10 @@ const PREVIEW_VSIZE_VB = 141;
             <div class="summary-row">
               <span class="summary-label">{{ 'estimated_fee' | i18n }}</span>
               <span class="summary-value">
-                ~{{ estimatedFeeSat() / 100000000 | number: '1.8-8' }} BTCX
+                ~{{ estimatedFeeSat() / 100000000 | number: '1.8-8' }} BTCX ({{
+                  estimatedFeeSat() | number: '1.0-0'
+                }}
+                sats)
               </span>
             </div>
             <mat-divider></mat-divider>
@@ -129,6 +132,12 @@ const PREVIEW_VSIZE_VB = 141;
             <p class="hint-text">{{ 'mwallet_send_all_note' | i18n }}</p>
           }
           <p class="hint-text small">{{ 'mwallet_fee_estimated_note' | i18n }}</p>
+
+          <!-- Desktop confirm dialog's irreversibility note -->
+          <div class="warning-box">
+            <mat-icon>info</mat-icon>
+            <span>{{ 'transaction_irreversible' | i18n }}</span>
+          </div>
 
           @if (sendError()) {
             <p class="error-text">{{ 'mwallet_send_failed' | i18n }}: {{ sendError() }}</p>
@@ -262,6 +271,47 @@ const PREVIEW_VSIZE_VB = 141;
                 autocomplete="off"
               />
             </mat-form-field>
+          }
+
+          <!-- Live estimate (the desktop send page's .fee-summary line) -->
+          <div class="fee-summary">
+            <span class="fee-summary-label">{{ 'estimated_fee' | i18n }}:</span>
+            <span class="fee-summary-value">
+              {{ estimatedFeeSat() / 100000000 | number: '1.8-8' }} BTCX ({{
+                estimatedFeeSat() | number: '1.0-0'
+              }}
+              sats)
+            </span>
+          </div>
+
+          <!-- Inline summary (the desktop send page's summary section) -->
+          @if (effectiveAmountSat() > 0) {
+            <div class="summary-grid form-summary">
+              <div class="summary-row">
+                <span class="summary-label">{{ 'amount' | i18n }}</span>
+                <span class="summary-value">
+                  {{ effectiveAmountSat() / 100000000 | number: '1.8-8' }} BTCX
+                </span>
+              </div>
+              <div class="summary-row">
+                <span class="summary-label">{{ 'estimated_fee' | i18n }}</span>
+                <span class="summary-value">
+                  ~{{ estimatedFeeSat() / 100000000 | number: '1.8-8' }} BTCX
+                </span>
+              </div>
+              <mat-divider></mat-divider>
+              <div class="summary-row total">
+                <span class="summary-label">{{ 'total' | i18n }}</span>
+                <span class="summary-value" [class.error]="insufficient()">
+                  @if (sendAll) {
+                    {{ effectiveAmountSat() / 100000000 | number: '1.8-8' }} BTCX
+                  } @else {
+                    ~{{ (effectiveAmountSat() + estimatedFeeSat()) / 100000000 | number: '1.8-8' }}
+                    BTCX
+                  }
+                </span>
+              </div>
+            </div>
           }
 
           <div class="button-row">
@@ -414,6 +464,50 @@ const PREVIEW_VSIZE_VB = 141;
         }
       }
 
+      /* Live fee line (desktop send page's .fee-summary). */
+      .fee-summary {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 12px;
+        margin-bottom: 12px;
+
+        .fee-summary-label {
+          color: rgba(0, 0, 0, 0.6);
+          flex-shrink: 0;
+        }
+
+        .fee-summary-value {
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+
+      .form-summary {
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        padding-top: 10px;
+      }
+
+      /* Desktop confirm dialog's irreversibility note, mobile-sized. */
+      .warning-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: rgba(255, 152, 0, 0.1);
+        font-size: 12px;
+        margin-bottom: 12px;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: #f57c00;
+          flex-shrink: 0;
+        }
+      }
+
       .button-row {
         display: flex;
         justify-content: space-between;
@@ -445,6 +539,10 @@ const PREVIEW_VSIZE_VB = 141;
 
           &.small {
             font-size: 11px;
+          }
+
+          &.error {
+            color: #c62828;
           }
         }
 
@@ -530,8 +628,25 @@ const PREVIEW_VSIZE_VB = 141;
         }
 
         .hint-text,
-        .summary-row .summary-label {
+        .summary-row .summary-label,
+        .fee-summary .fee-summary-label {
           color: rgba(255, 255, 255, 0.6);
+        }
+
+        .form-summary {
+          border-top-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .warning-box {
+          background: rgba(255, 152, 0, 0.16);
+
+          mat-icon {
+            color: #ffb74d;
+          }
+        }
+
+        .summary-row .summary-value.error {
+          color: #ef9a9a;
         }
 
         .fee-option .fee-rate {

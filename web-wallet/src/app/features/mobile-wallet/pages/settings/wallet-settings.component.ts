@@ -9,20 +9,29 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
-import { TypedConfirmDialogComponent, TypedConfirmDialogData } from '../../../../shared/components';
+import {
+  NameDialogComponent,
+  NameDialogData,
+  TypedConfirmDialogComponent,
+  TypedConfirmDialogData,
+} from '../../../../shared/components';
 import {
   BtcxWalletService,
   BtcxNetwork,
   BtcxWalletSummary,
 } from '../../../../core/services/btcx-wallet.service';
 import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
+import { isInvalidWalletName, isWalletNameTaken } from '../../wallet-name';
 
-/** Width of the swipe-revealed delete action, px. */
-const REVEAL_PX = 56;
+/** Width of ONE swipe-revealed action button, px. */
+const ACTION_PX = 56;
+/** Width of the full reveal (pencil + trash), px. */
+const REVEAL_PX = 2 * ACTION_PX;
 /** Horizontal drag beyond this arms the reveal on release, px. */
-const REVEAL_THRESHOLD_PX = 28;
+const REVEAL_THRESHOLD_PX = 48;
 /** Movement below this stays a tap (no drag, no click suppression), px. */
 const DRAG_SLOP_PX = 8;
 
@@ -33,15 +42,22 @@ const DRAG_SLOP_PX = 8;
  * create/restore entries), network selection, Electrum server list editor
  * (per active network), and lock control (passphrase-encrypted seeds only).
  *
- * Deleting a wallet: swiping a row to the RIGHT (pointer events — touch
- * and mouse alike) reveals a trash action; the row's overflow button
- * toggles the same reveal, so the action is never swipe-only. The trash
- * opens a type-the-name-back confirmation matching the backend's
- * `btcx_wallet_delete(name, confirm_name)` contract (case-sensitive).
- * Deletes are trash-based: the backend MOVES the wallet's files to
- * `<network>/.trash/` — nothing is destroyed, and the seed always
- * recovers the funds. The ACTIVE wallet cannot be deleted (the backend
- * refuses the open wallet); the UI blocks it with a switch-first hint.
+ * Wallet row actions: swiping a row to the RIGHT (pointer events — touch
+ * and mouse alike) reveals TWO actions — a pencil (rename, backend
+ * `btcx_wallet_rename`) and a trash (delete). There is no per-row
+ * overflow icon; the non-swipe fallback is a visually-hidden (visible on
+ * focus) per-row "actions" button that opens a menu with switch/rename/
+ * delete — Tab + Enter reaches everything without a pointer.
+ *
+ * Rename opens a simple name-input dialog (shared NameDialogComponent)
+ * validated with the same client rules as create ([A-Za-z0-9_-]{1,32},
+ * case-insensitive uniqueness). Delete opens a type-the-name-back
+ * confirmation matching the backend's `btcx_wallet_delete(name,
+ * confirm_name)` contract (case-sensitive). Deletes are trash-based: the
+ * backend MOVES the wallet's files to `<network>/.trash/` — nothing is
+ * destroyed, and the seed always recovers the funds. The ACTIVE wallet can
+ * be neither renamed nor deleted (the backend refuses the open wallet);
+ * the UI blocks both with a switch-first hint.
  */
 @Component({
   selector: 'app-wallet-settings',
@@ -54,6 +70,7 @@ const DRAG_SLOP_PX = 8;
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
+    MatMenuModule,
     MatSelectModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
@@ -76,12 +93,26 @@ const DRAG_SLOP_PX = 8;
           <p class="hint-text">{{ 'mwallet_wallets_hint' | i18n }}</p>
 
           @for (w of wallet.wallets(); track w.name) {
-            <!-- Swipe-right reveals the trash action; the overflow button
-                 toggles the same reveal (never swipe-only). -->
+            <!-- Swipe-right reveals the pencil (rename) + trash (delete)
+                 actions. No permanent overflow icon: the keyboard/screen-
+                 reader path is the visually-hidden (visible on focus)
+                 actions button opening the same operations as a menu. -->
             <div class="wallet-row-wrap">
               <button
                 type="button"
-                class="row-delete"
+                class="row-action row-rename"
+                [class.visible]="revealed() === w.name"
+                [tabindex]="revealed() === w.name ? 0 : -1"
+                [attr.aria-hidden]="revealed() !== w.name"
+                [attr.aria-label]="'mwallet_rename_wallet' | i18n"
+                [disabled]="busy() || switching() !== null || deleting() !== null"
+                (click)="confirmRename(w)"
+              >
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button
+                type="button"
+                class="row-action row-delete"
                 [class.visible]="revealed() === w.name"
                 [tabindex]="revealed() === w.name ? 0 : -1"
                 [attr.aria-hidden]="revealed() !== w.name"
@@ -113,7 +144,9 @@ const DRAG_SLOP_PX = 8;
                 >
                 <div class="row-main">
                   <span class="row-name">{{ w.name }}</span>
-                  <span class="row-sub">
+                  <!-- Same badge family as the switcher menu: taproot
+                       purple, segwit neutral. -->
+                  <span class="row-badge" [class.segwit]="w.policy.kind !== 'bip86'">
                     {{
                       (w.policy.kind === 'bip86' ? 'mwallet_kind_taproot' : 'mwallet_kind_segwit')
                         | i18n
@@ -128,14 +161,34 @@ const DRAG_SLOP_PX = 8;
                 } @else if (w.isActive) {
                   <mat-icon class="row-check">check</mat-icon>
                 }
+
+                <!-- Keyboard/screen-reader fallback (no visible per-row
+                     icon): hidden until focused, opens the action menu. -->
                 <button
                   type="button"
-                  class="row-more"
-                  [attr.aria-label]="'mwallet_delete_wallet' | i18n"
-                  (click)="toggleReveal(w.name); $event.stopPropagation()"
+                  class="row-actions-a11y"
+                  [attr.aria-label]="w.name + ' — ' + ('mwallet_wallet_actions' | i18n)"
+                  [matMenuTriggerFor]="rowMenu"
+                  (click)="$event.stopPropagation()"
                 >
-                  <mat-icon>more_vert</mat-icon>
+                  <mat-icon>more_horiz</mat-icon>
                 </button>
+                <mat-menu #rowMenu="matMenu">
+                  @if (!w.isActive) {
+                    <button mat-menu-item (click)="switchTo(w)">
+                      <mat-icon>swap_horiz</mat-icon>
+                      <span>{{ 'mwallet_switch_wallet' | i18n }}</span>
+                    </button>
+                  }
+                  <button mat-menu-item (click)="confirmRename(w)">
+                    <mat-icon>edit</mat-icon>
+                    <span>{{ 'mwallet_rename_wallet' | i18n }}</span>
+                  </button>
+                  <button mat-menu-item (click)="confirmDelete(w)">
+                    <mat-icon>delete</mat-icon>
+                    <span>{{ 'mwallet_delete_wallet' | i18n }}</span>
+                  </button>
+                </mat-menu>
               </div>
             </div>
           }
@@ -246,25 +299,23 @@ const DRAG_SLOP_PX = 8;
       }
 
       /* Wallet management rows (the switcher's list, settings-card form).
-         Each row slides over a trash action revealed by a right swipe. */
+         Each row slides over TWO actions (pencil + trash) revealed by a
+         right swipe. */
       .wallet-row-wrap {
         position: relative;
         overflow: hidden;
         border-radius: 6px;
       }
 
-      .row-delete {
+      .row-action {
         position: absolute;
-        left: 0;
         top: 0;
         bottom: 0;
-        width: 56px; /* REVEAL_PX */
+        width: 56px; /* ACTION_PX */
         display: flex;
         align-items: center;
         justify-content: center;
         border: none;
-        border-radius: 6px 0 0 6px;
-        background: #c62828;
         color: white;
         cursor: pointer;
         opacity: 0;
@@ -283,6 +334,17 @@ const DRAG_SLOP_PX = 8;
         mat-spinner {
           --mdc-circular-progress-active-indicator-color: white;
         }
+      }
+
+      .row-rename {
+        left: 0;
+        border-radius: 6px 0 0 6px;
+        background: #1976d2;
+      }
+
+      .row-delete {
+        left: 56px; /* ACTION_PX */
+        background: #c62828;
       }
 
       .wallet-row {
@@ -315,7 +377,9 @@ const DRAG_SLOP_PX = 8;
           opacity: 0.6;
         }
 
-        .row-more {
+        /* A11y fallback: invisible (and click-transparent) until it takes
+           keyboard focus — no permanent per-row overflow icon. */
+        .row-actions-a11y {
           display: flex;
           align-items: center;
           justify-content: center;
@@ -326,8 +390,20 @@ const DRAG_SLOP_PX = 8;
           border-radius: 50%;
           background: transparent;
           cursor: pointer;
-          color: rgba(0, 0, 0, 0.4);
+          color: rgba(0, 0, 0, 0.5);
           flex-shrink: 0;
+          opacity: 0;
+          pointer-events: none;
+
+          &:focus {
+            opacity: 1;
+            pointer-events: auto;
+          }
+
+          &:focus-visible {
+            outline: 2px solid #1976d2;
+            outline-offset: 1px;
+          }
 
           mat-icon {
             font-size: 18px;
@@ -361,9 +437,21 @@ const DRAG_SLOP_PX = 8;
             white-space: nowrap;
           }
 
-          .row-sub {
-            font-size: 11px;
-            color: rgba(0, 0, 0, 0.5);
+          .row-badge {
+            align-self: flex-start;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #7b1fa2;
+            border: 1px solid currentColor;
+            border-radius: 8px;
+            padding: 0 6px;
+            margin-top: 2px;
+
+            &.segwit {
+              color: #546e7a;
+            }
           }
         }
 
@@ -453,16 +541,20 @@ const DRAG_SLOP_PX = 8;
             }
           }
 
-          .row-main .row-sub {
-            color: rgba(255, 255, 255, 0.5);
+          .row-main .row-badge {
+            color: #ce93d8;
+
+            &.segwit {
+              color: #90a4ae;
+            }
           }
 
           .row-check {
             color: #64b5f6;
           }
 
-          .row-more {
-            color: rgba(255, 255, 255, 0.45);
+          .row-actions-a11y {
+            color: rgba(255, 255, 255, 0.55);
           }
         }
       }
@@ -590,11 +682,6 @@ export class WalletSettingsComponent implements OnInit {
     this.dragActive = false;
   }
 
-  /** Accessible non-swipe fallback: the overflow button toggles the reveal. */
-  toggleReveal(name: string): void {
-    this.revealed.set(this.revealed() === name ? null : name);
-  }
-
   /** Row tap: close an open reveal first, otherwise switch to the wallet. */
   onRowClick(w: BtcxWalletSummary): void {
     if (this.suppressClick) {
@@ -654,6 +741,62 @@ export class WalletSettingsComponent implements OnInit {
     } finally {
       this.revealed.set(null);
       this.deleting.set(null);
+    }
+  }
+
+  // ==========================================================================
+  // Rename (registry + data-dir move; `btcx_wallet_rename`)
+  // ==========================================================================
+
+  /**
+   * Pencil tap: the ACTIVE wallet is blocked with a switch-first hint (the
+   * backend refuses the open wallet, same as delete); any other wallet gets
+   * a name-input dialog validated with the create flow's client rules.
+   */
+  confirmRename(w: BtcxWalletSummary): void {
+    if (this.deleting() !== null || this.switching() !== null) return;
+    if (w.isActive) {
+      this.notification.info(this.i18n.get('mwallet_rename_active_hint'));
+      return;
+    }
+    const others = this.wallet
+      .wallets()
+      .map(x => x.name)
+      .filter(n => n !== w.name);
+    const data: NameDialogData = {
+      title: this.i18n.get('mwallet_rename_wallet'),
+      inputLabel: this.i18n.get('wallet_name'),
+      initialValue: w.name,
+      hint: this.i18n.get('wallet_name_hint_local'),
+      confirmText: this.i18n.get('mwallet_rename_wallet'),
+      cancelText: this.i18n.get('cancel'),
+      validate: (value: string) => {
+        if (isInvalidWalletName(value)) return this.i18n.get('wallet_name_invalid_local');
+        // Case-insensitive uniqueness against the OTHER wallets — a
+        // case-only rename of this same wallet stays allowed (the backend
+        // treats it as the same directory).
+        if (isWalletNameTaken(value, others)) return this.i18n.get('wallet_name_conflict');
+        return null;
+      },
+    };
+    this.dialog
+      .open(NameDialogComponent, { data, width: '360px' })
+      .afterClosed()
+      .subscribe((newName: string | undefined) => {
+        if (newName === undefined || newName === w.name) return;
+        void this.doRename(w.name, newName);
+      });
+  }
+
+  private async doRename(name: string, newName: string): Promise<void> {
+    try {
+      await this.wallet.rename(name, newName);
+      this.notification.success(this.i18n.get('mwallet_renamed', { name: newName }));
+    } catch (err) {
+      console.error('Failed to rename wallet:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.revealed.set(null);
     }
   }
 

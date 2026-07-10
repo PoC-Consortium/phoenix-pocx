@@ -39,63 +39,70 @@ import { BtcxWalletService, BtcxNetwork } from '../../../core/services/btcx-wall
       }
 
       @for (server of servers; track $index) {
+        <!-- Two lines: URL full width on top, action buttons below with
+             the test-result badge to their right — a badge popping in
+             next to the URL used to break the row layout. -->
         <div class="server-row" [class.primary]="$index === 0">
-          @if ($index === 0) {
-            <mat-icon class="primary-icon" [matTooltip]="'electrum_primary_server' | i18n"
-              >star</mat-icon
-            >
-          } @else {
-            <span class="order-index">{{ $index + 1 }}</span>
-          }
-          <span class="server-url">{{ server }}</span>
+          <div class="server-line">
+            @if ($index === 0) {
+              <mat-icon class="primary-icon" [matTooltip]="'electrum_primary_server' | i18n"
+                >star</mat-icon
+              >
+            } @else {
+              <span class="order-index">{{ $index + 1 }}</span>
+            }
+            <span class="server-url">{{ server }}</span>
+          </div>
 
-          @if (testResults()[server]; as result) {
-            <span
-              class="test-result"
-              [class.ok]="result.ok"
-              [class.fail]="!result.ok"
-              [matTooltip]="result.detail"
-            >
-              {{ result.label }}
-            </span>
-          }
-
-          <span class="row-actions">
-            @if (showTest) {
+          <div class="actions-line">
+            <span class="row-actions">
+              @if (showTest) {
+                <button
+                  mat-icon-button
+                  [disabled]="disabled || testing() === server"
+                  (click)="testServer(server)"
+                  [matTooltip]="'electrum_test_connection' | i18n"
+                >
+                  <mat-icon [class.spin]="testing() === server">network_check</mat-icon>
+                </button>
+              }
               <button
                 mat-icon-button
-                [disabled]="disabled || testing() === server"
-                (click)="testServer(server)"
-                [matTooltip]="'electrum_test_connection' | i18n"
+                [disabled]="disabled || $index === 0"
+                (click)="move($index, -1)"
+                [matTooltip]="'move_up' | i18n"
               >
-                <mat-icon [class.spin]="testing() === server">network_check</mat-icon>
+                <mat-icon>arrow_upward</mat-icon>
               </button>
+              <button
+                mat-icon-button
+                [disabled]="disabled || $index === servers.length - 1"
+                (click)="move($index, 1)"
+                [matTooltip]="'move_down' | i18n"
+              >
+                <mat-icon>arrow_downward</mat-icon>
+              </button>
+              <button
+                mat-icon-button
+                [disabled]="disabled"
+                (click)="remove($index)"
+                [matTooltip]="'electrum_remove_server' | i18n"
+              >
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </span>
+
+            @if (testResults()[server]; as result) {
+              <span
+                class="test-result"
+                [class.ok]="result.ok"
+                [class.fail]="!result.ok"
+                [matTooltip]="result.detail"
+              >
+                {{ result.label }}
+              </span>
             }
-            <button
-              mat-icon-button
-              [disabled]="disabled || $index === 0"
-              (click)="move($index, -1)"
-              [matTooltip]="'move_up' | i18n"
-            >
-              <mat-icon>arrow_upward</mat-icon>
-            </button>
-            <button
-              mat-icon-button
-              [disabled]="disabled || $index === servers.length - 1"
-              (click)="move($index, 1)"
-              [matTooltip]="'move_down' | i18n"
-            >
-              <mat-icon>arrow_downward</mat-icon>
-            </button>
-            <button
-              mat-icon-button
-              [disabled]="disabled"
-              (click)="remove($index)"
-              [matTooltip]="'electrum_remove_server' | i18n"
-            >
-              <mat-icon>delete_outline</mat-icon>
-            </button>
-          </span>
+          </div>
         </div>
       } @empty {
         <p class="empty-hint">{{ 'electrum_no_servers_hint' | i18n }}</p>
@@ -144,14 +151,19 @@ import { BtcxWalletService, BtcxNetwork } from '../../../core/services/btcx-wall
 
       .server-row {
         display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 2px 4px 2px 10px;
+        flex-direction: column;
+        padding: 6px 4px 2px 10px;
         background: rgba(0, 0, 0, 0.04);
         border-radius: 6px;
 
         &.primary {
           background: rgba(33, 150, 243, 0.08);
+        }
+
+        .server-line {
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
 
         .primary-icon {
@@ -177,7 +189,14 @@ import { BtcxWalletService, BtcxNetwork } from '../../../core/services/btcx-wall
           flex: 1;
         }
 
+        .actions-line {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
         .test-result {
+          margin-left: auto;
           font-size: 11px;
           padding: 2px 6px;
           border-radius: 4px;

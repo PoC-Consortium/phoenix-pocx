@@ -604,7 +604,7 @@ mod tests {
         // Right size, wrong magic.
         let mut payload = vec![0u8; 44];
         payload[..4].copy_from_slice(b"NOPE");
-        let bad = ScriptBuf::new_op_return(&PushBytesBuf::try_from(payload).unwrap());
+        let bad = ScriptBuf::new_op_return(PushBytesBuf::try_from(payload).unwrap());
         assert_eq!(parse_marker_output(&bad), None);
     }
 
