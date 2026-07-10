@@ -230,6 +230,28 @@ pub fn select_restore_policy(hits: &[BranchHit]) -> (DescriptorPolicy, bool) {
     }
 }
 
+/// Pick the branch for a restore that FORCES a descriptor family (the
+/// mobile "create both wallets" flow): the first hit of that family in
+/// candidate priority order (so a BTCX-coin-type hit wins over a legacy
+/// coin-0 one), or the family's fresh default at the BTCX coin type when
+/// no probed branch of it has history. The second value is the honest
+/// "fresh" verdict — scoped to the forced family, not to the whole probe.
+pub fn select_restore_policy_for_kind(
+    hits: &[BranchHit],
+    kind: DescriptorKindCfg,
+) -> (DescriptorPolicy, bool) {
+    match hits.iter().find(|hit| hit.policy.kind == kind) {
+        Some(hit) => (hit.policy, false),
+        None => (
+            DescriptorPolicy {
+                kind,
+                coin_type: COIN_BTCX,
+            },
+            true,
+        ),
+    }
+}
+
 /// Electrum-backed probe over ALL candidates: per candidate, ONE batched
 /// scripthash-history call covering the first
 /// [`PROBE_EXTERNAL_ADDRESSES`] external plus [`PROBE_INTERNAL_ADDRESSES`]
@@ -389,6 +411,47 @@ mod tests {
         assert_eq!(hits[0].policy, policy(DescriptorKindCfg::Bip84, 0));
         assert_eq!(hits[0].deepest_external, None);
         assert_eq!(hits[0].deepest_internal, Some(2));
+    }
+
+    #[test]
+    fn select_restore_policy_for_kind_forces_the_family() {
+        // Hits on BIP-84/BTCX and BIP-86/coin-0: forcing BIP-86 must pick
+        // the taproot hit (even though it is lower priority overall), and
+        // forcing BIP-84 keeps the winner.
+        let hit = |policy| BranchHit {
+            policy,
+            deepest_external: Some(0),
+            deepest_internal: None,
+        };
+        let hits = [
+            hit(policy(DescriptorKindCfg::Bip84, COIN_BTCX)),
+            hit(policy(DescriptorKindCfg::Bip86, 0)),
+        ];
+
+        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86);
+        assert_eq!(selected, policy(DescriptorKindCfg::Bip86, 0));
+        assert!(!fresh);
+
+        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip84);
+        assert_eq!(selected, policy(DescriptorKindCfg::Bip84, COIN_BTCX));
+        assert!(!fresh);
+
+        // Within a family, candidate priority order breaks ties: the
+        // BTCX-coin-type branch wins over the legacy coin-0 one.
+        let hits = [
+            hit(policy(DescriptorKindCfg::Bip86, COIN_BTCX)),
+            hit(policy(DescriptorKindCfg::Bip86, 0)),
+        ];
+        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86);
+        assert_eq!(selected, policy(DescriptorKindCfg::Bip86, COIN_BTCX));
+        assert!(!fresh);
+
+        // No hit of the forced family anywhere: fresh default of THAT
+        // family at the BTCX coin type, with an honest fresh verdict.
+        let hits = [hit(policy(DescriptorKindCfg::Bip84, COIN_BTCX))];
+        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86);
+        assert_eq!(selected, policy(DescriptorKindCfg::Bip86, COIN_BTCX));
+        assert!(fresh);
     }
 
     #[test]
