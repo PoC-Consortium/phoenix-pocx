@@ -230,6 +230,8 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         overflow: auto;
         display: flex;
         flex-direction: column;
+        /* Don't chain a boundary scroll to the document (overscroll glitch). */
+        overscroll-behavior: contain;
       }
 
       :host-context(.dark-theme) {
