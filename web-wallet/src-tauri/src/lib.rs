@@ -938,6 +938,7 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_select,
             btcx_wallet::commands::btcx_wallet_close,
             btcx_wallet::commands::btcx_wallet_delete,
+            btcx_wallet::commands::btcx_wallet_rename,
             // Nodeless BTCX wallet commands - Operations
             btcx_wallet::commands::btcx_wallet_new_address,
             btcx_wallet::commands::btcx_wallet_current_address,
