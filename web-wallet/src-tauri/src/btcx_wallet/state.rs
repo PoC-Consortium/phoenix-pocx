@@ -133,7 +133,11 @@ pub fn create_btcx_wallet_state() -> SharedBtcxWalletState {
 impl BtcxWalletState {
     /// The seed-cache key of the currently selected wallet.
     fn seed_key(config: &BtcxWalletConfig) -> String {
-        format!("{}/{}", config.network.as_str(), config.active_wallet_name())
+        format!(
+            "{}/{}",
+            config.network.as_str(),
+            config.active_wallet_name()
+        )
     }
 
     /// Run `f` on the ACTIVE wallet's seed store, opening it on first use.
@@ -426,11 +430,9 @@ impl BtcxWalletState {
         // obfuscation wraps auto-read and must present like an unencrypted
         // Core wallet (no padlock).
         let seed_encrypted = seed_status.seed_exists
-            && std::fs::read_to_string(
-                config.active_wallet_root().join(seedstore::SEED_FILE),
-            )
-            .map(|contents| seed_needs_passphrase(&contents))
-            .unwrap_or(false);
+            && std::fs::read_to_string(config.active_wallet_root().join(seedstore::SEED_FILE))
+                .map(|contents| seed_needs_passphrase(&contents))
+                .unwrap_or(false);
 
         Ok(BtcxWalletStatus {
             seed,

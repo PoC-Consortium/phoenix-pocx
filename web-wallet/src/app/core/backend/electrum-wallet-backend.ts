@@ -1,8 +1,5 @@
 import { WalletTransaction, UTXO } from '../../bitcoin/services/rpc/wallet-rpc.service';
-import {
-  BtcxWalletService,
-  BtcxWalletTx,
-} from '../services/btcx-wallet.service';
+import { BtcxWalletService, BtcxWalletTx } from '../services/btcx-wallet.service';
 import { invoke } from '@tauri-apps/api/core';
 import {
   WalletBackend,

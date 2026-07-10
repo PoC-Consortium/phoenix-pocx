@@ -257,10 +257,7 @@ pub fn analyze(psbt_base64: &str) -> Result<PsbtAnalyzeDto, String> {
 
     let fee_sat = psbt.fee().ok().map(|f| f.to_sat());
     let estimated_vsize = if next == "extractor" {
-        psbt.clone()
-            .extract_tx()
-            .ok()
-            .map(|tx| tx.vsize() as u64)
+        psbt.clone().extract_tx().ok().map(|tx| tx.vsize() as u64)
     } else {
         None
     };

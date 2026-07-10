@@ -12,9 +12,7 @@ use keys_btcx::WalletSeed;
 use seedstore::SeedStore;
 use wallet_btcx::WalletTxInfo;
 
-use super::config::{
-    self, BtcxWalletConfig, DescriptorPolicy, WalletNetwork, TRASH_SUBDIR,
-};
+use super::config::{self, BtcxWalletConfig, DescriptorPolicy, WalletNetwork, TRASH_SUBDIR};
 use super::manager::{self, BranchHit};
 use super::state::{BtcxWalletStatus, SharedBtcxWalletState};
 
@@ -99,8 +97,8 @@ fn import_into_named_wallet(
     policy: DescriptorPolicy,
 ) -> Result<(), String> {
     let root = BtcxWalletConfig::wallet_root(network, name);
-    let mut store = SeedStore::open(&root, None)
-        .map_err(|e| format!("Failed to open seed store: {e:#}"))?;
+    let mut store =
+        SeedStore::open(&root, None).map_err(|e| format!("Failed to open seed store: {e:#}"))?;
     store
         .import_seed(mnemonic, passphrase)
         .map(|_| ())
@@ -433,10 +431,7 @@ pub async fn btcx_wallet_select(
         let config = state.get_config();
         let network = config.network;
         if config.wallet_meta(network, &name).is_none() {
-            return Err(format!(
-                "No wallet named '{name}' on {}",
-                network.as_str()
-            ));
+            return Err(format!("No wallet named '{name}' on {}", network.as_str()));
         }
         if config.active_wallet_name() != name {
             state.close_runtime();
@@ -506,9 +501,8 @@ pub async fn btcx_wallet_delete(
                 n += 1;
                 dest = trash.join(format!("{name}-{ts}-{n}"));
             }
-            std::fs::rename(&root, &dest).map_err(|e| {
-                format!("moving {} to {}: {e}", root.display(), dest.display())
-            })?;
+            std::fs::rename(&root, &dest)
+                .map_err(|e| format!("moving {} to {}: {e}", root.display(), dest.display()))?;
             log::info!("btcx wallet '{name}' moved to {}", dest.display());
         }
         state.update_config(|c| c.remove_wallet_meta(network, &name))?;
@@ -803,10 +797,8 @@ pub async fn btcx_wallet_revoke_assignment(
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<super::assignments::RevokeAssignmentDto, String> {
     let state = state.inner().clone();
-    blocking(move || {
-        super::assignments::revoke_assignment(&state, &plot_address, fee_rate_sat_vb)
-    })
-    .await
+    blocking(move || super::assignments::revoke_assignment(&state, &plot_address, fee_rate_sat_vb))
+        .await
 }
 
 /// Assignment status of `plot_address`, derived from its Electrum script
@@ -944,7 +936,9 @@ pub async fn btcx_electrum_probe(
         let backend = electrum_btcx::ElectrumBackend::new(params, url.trim())
             .map_err(|e| format!("{e:#}"))?;
         let started = std::time::Instant::now();
-        let (height, _) = backend.tip().map_err(|e| format!("Server unreachable: {e:#}"))?;
+        let (height, _) = backend
+            .tip()
+            .map_err(|e| format!("Server unreachable: {e:#}"))?;
         backend
             .verify_chain()
             .map_err(|e| format!("Wrong chain or unusable server: {e:#}"))?;
@@ -1029,7 +1023,10 @@ mod tests {
             .update_config(|c| {
                 c.network = WalletNetwork::Regtest;
                 // Unreachable on purpose — creation is an offline operation.
-                c.set_servers(WalletNetwork::Regtest, vec!["tcp://127.0.0.1:1".to_string()]);
+                c.set_servers(
+                    WalletNetwork::Regtest,
+                    vec!["tcp://127.0.0.1:1".to_string()],
+                );
             })
             .unwrap();
 
@@ -1056,7 +1053,10 @@ mod tests {
         )
         .unwrap();
         let opened = state.open_runtime(None).unwrap();
-        assert!(opened, "runtime must open with an unreachable server (lazy dial)");
+        assert!(
+            opened,
+            "runtime must open with an unreachable server (lazy dial)"
+        );
 
         let status = state.status().unwrap();
         assert_eq!(status.wallet_name, "mywallet");

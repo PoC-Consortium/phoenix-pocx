@@ -357,7 +357,10 @@ pub fn migrate_legacy_layout_at(
     if !root_seed.exists() {
         return Ok(false);
     }
-    log::info!("btcx wallet: migrating legacy single-wallet layout under {}", root.display());
+    log::info!(
+        "btcx wallet: migrating legacy single-wallet layout under {}",
+        root.display()
+    );
 
     let networks = [
         WalletNetwork::Mainnet,
@@ -560,7 +563,14 @@ mod tests {
     fn wallet_name_validation() {
         // Mixed case is VALID (Core parity: saved as stated); uniqueness is
         // handled case-insensitively at creation instead.
-        for good in ["default", "a", "my-wallet_2", "Johnny", "UPPER", &"x".repeat(32)] {
+        for good in [
+            "default",
+            "a",
+            "my-wallet_2",
+            "Johnny",
+            "UPPER",
+            &"x".repeat(32),
+        ] {
             assert!(validate_wallet_name(good).is_ok(), "{good}");
         }
         for bad in [
@@ -595,16 +605,25 @@ mod tests {
         config.set_active_wallet(WalletNetwork::Mainnet, "savings");
         assert_eq!(config.active_wallet_name(), "savings");
         assert_eq!(config.wallet_names(WalletNetwork::Mainnet), vec!["savings"]);
-        assert_eq!(config.wallet_meta(WalletNetwork::Mainnet, "savings"), Some(meta));
-        assert!(config
-            .wallet_db_path()
-            .ends_with(PathBuf::from("mainnet").join("savings").join("wallet").join("btcx.sqlite")));
+        assert_eq!(
+            config.wallet_meta(WalletNetwork::Mainnet, "savings"),
+            Some(meta)
+        );
+        assert!(config.wallet_db_path().ends_with(
+            PathBuf::from("mainnet")
+                .join("savings")
+                .join("wallet")
+                .join("btcx.sqlite")
+        ));
 
         // JSON round trip keeps the registry.
         let json = serde_json::to_string(&config).unwrap();
         let parsed: BtcxWalletConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.active_wallet_name(), "savings");
-        assert_eq!(parsed.wallet_meta(WalletNetwork::Mainnet, "savings"), Some(meta));
+        assert_eq!(
+            parsed.wallet_meta(WalletNetwork::Mainnet, "savings"),
+            Some(meta)
+        );
 
         // Removing the wallet also clears the selection back to default.
         config.remove_wallet_meta(WalletNetwork::Mainnet, "savings");
@@ -622,7 +641,11 @@ mod tests {
         let root = dir.path();
         std::fs::write(root.join(seedstore::SEED_FILE), SEED_BYTES).unwrap();
         std::fs::create_dir_all(root.join("regtest").join("wallet")).unwrap();
-        std::fs::write(root.join("regtest").join("wallet").join("btcx.sqlite"), b"db").unwrap();
+        std::fs::write(
+            root.join("regtest").join("wallet").join("btcx.sqlite"),
+            b"db",
+        )
+        .unwrap();
 
         let mut config = BtcxWalletConfig {
             network: WalletNetwork::Regtest,

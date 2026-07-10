@@ -91,7 +91,9 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || walletNameConflict() || walletNameInvalid() || creating()"
+                  [disabled]="
+                    !walletName || walletNameConflict() || walletNameInvalid() || creating()
+                  "
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -226,7 +228,9 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
           @if (currentStep() === 4) {
             <div class="step-content">
               <p class="info-text">
-                {{ (isRemote() ? 'wallet_encryption_info_local' : 'wallet_encryption_info') | i18n }}
+                {{
+                  (isRemote() ? 'wallet_encryption_info_local' : 'wallet_encryption_info') | i18n
+                }}
               </p>
 
               <mat-checkbox [(ngModel)]="useWalletEncryption" class="encryption-checkbox">

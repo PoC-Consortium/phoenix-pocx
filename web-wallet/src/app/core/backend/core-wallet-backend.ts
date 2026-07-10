@@ -1,4 +1,8 @@
-import { WalletRpcService, WalletTransaction, UTXO } from '../../bitcoin/services/rpc/wallet-rpc.service';
+import {
+  WalletRpcService,
+  WalletTransaction,
+  UTXO,
+} from '../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../bitcoin/services/rpc/blockchain-rpc.service';
 import {
   WalletBackend,
@@ -50,11 +54,7 @@ export class CoreWalletBackend implements WalletBackend {
     return this.walletRpc.listTransactions(walletName, '*', count, skip);
   }
 
-  async getNewAddress(
-    walletName: string,
-    label = '',
-    type?: CoreAddressType
-  ): Promise<string> {
+  async getNewAddress(walletName: string, label = '', type?: CoreAddressType): Promise<string> {
     return this.walletRpc.getNewAddress(walletName, label, type);
   }
 

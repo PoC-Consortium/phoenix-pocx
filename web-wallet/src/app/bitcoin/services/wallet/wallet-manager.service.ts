@@ -233,7 +233,11 @@ export class WalletManagerService {
         isEncrypted: w.seedEncrypted,
         // Selector semantics: undefined = no unlock needed, 0 = locked,
         // >0 = unlocked. Keyring-encrypted seeds auto-unlock → undefined.
-        unlockedUntil: w.seedLocked ? 0 : w.seedEncrypted && w.isOpen ? SESSION_UNLOCK_SECONDS : undefined,
+        unlockedUntil: w.seedLocked
+          ? 0
+          : w.seedEncrypted && w.isOpen
+            ? SESSION_UNLOCK_SECONDS
+            : undefined,
       }));
     }
 
