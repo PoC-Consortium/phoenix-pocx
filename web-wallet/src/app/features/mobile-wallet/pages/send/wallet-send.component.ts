@@ -362,11 +362,17 @@ const PREVIEW_VSIZE_VB = 141;
         line-height: 1.3;
         height: auto;
 
+        /* Material wraps the projected content in .mdc-button__label, so the
+           flex column above cannot stack the two spans — make them blocks
+           and keep the rate on one line: "Slow" / "1 sat/vB". */
         .fee-label {
+          display: block;
           font-size: 12px;
         }
 
         .fee-rate {
+          display: block;
+          white-space: nowrap;
           font-size: 10px;
           color: rgba(0, 0, 0, 0.5);
         }
@@ -582,9 +588,10 @@ export class WalletSendComponent implements OnInit {
 
   toggleSendAll(): void {
     this.sendAll = !this.sendAll;
-    if (this.sendAll) {
-      this.amount = null;
-    }
+    // Fill the (now read-only) field with what will be swept — leaving it
+    // empty made MAX look like a no-op. Display only: the actual send uses
+    // the sendAll flag, the fee comes out of the swept amount.
+    this.amount = this.sendAll ? this.spendableSat() / 100_000_000 : null;
   }
 
   presetRate(preset: FeePreset): number | null {
