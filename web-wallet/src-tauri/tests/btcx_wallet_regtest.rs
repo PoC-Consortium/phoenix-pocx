@@ -25,12 +25,15 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use phoenix_pocx_lib::btcx_wallet::commands::tx_display_address;
+use phoenix_pocx_lib::btcx_wallet::commands::{
+    create_wallet_impl, restore_wallet_impl, select_wallet_impl, tx_display_address,
+};
 use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy, WalletNetwork};
 use phoenix_pocx_lib::btcx_wallet::manager::{
     candidate_spks, open_wallet, probe_all_branches, select_restore_policy,
 };
 use phoenix_pocx_lib::btcx_wallet::state::broadcast_tx_over_electrum;
+use phoenix_pocx_lib::btcx_wallet::SharedBtcxWalletState;
 
 const ELECTRUM_URL: &str = "tcp://127.0.0.1:60401";
 const RPC_ADDR: &str = "127.0.0.1:18443";
@@ -121,6 +124,28 @@ fn now_secs() -> u64 {
         .as_secs()
 }
 
+/// Nudge the node's clock past the PoC deadline and mine one block to
+/// `miner_addr`. The mock time must beat EVERY consensus clock: the
+/// median-time-past rule AND PoCX's monotonic tip-timestamp rule — each
+/// mined block escalates the tip timestamp by ~1h, so after a few blocks
+/// `now + 3600` alone falls behind the tip (`time-too-old`). The tip's
+/// `time` from getblockchaininfo covers that.
+fn mine_block(miner_addr: &str) {
+    let info = rpc(None, "getblockchaininfo", serde_json::json!([]));
+    let mediantime = info["mediantime"].as_u64().unwrap();
+    let tip_time = info["time"].as_u64().unwrap_or(mediantime);
+    rpc(
+        None,
+        "setmocktime",
+        serde_json::json!([now_secs().max(mediantime).max(tip_time) + 3600]),
+    );
+    rpc(
+        None,
+        "generatetoaddress",
+        serde_json::json!([1, miner_addr]),
+    );
+}
+
 #[test]
 #[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
 fn regtest_end_to_end() {
@@ -180,25 +205,13 @@ fn regtest_end_to_end() {
         .as_str()
         .unwrap()
         .to_string();
-    let mediantime = rpc(None, "getblockchaininfo", serde_json::json!([]))["mediantime"]
-        .as_u64()
-        .unwrap();
     let fund_txid = rpc(
         Some(&wallet_name),
         "sendtoaddress",
         serde_json::json!([address, 0.5]),
     );
     println!("funded {address} with 0.5 BTCX: {fund_txid}");
-    rpc(
-        None,
-        "setmocktime",
-        serde_json::json!([now_secs().max(mediantime) + 3600]),
-    );
-    rpc(
-        None,
-        "generatetoaddress",
-        serde_json::json!([1, miner_addr]),
-    );
+    mine_block(&miner_addr);
 
     // The worker's next pass folds the confirmed funding in.
     let mut funded = 0u64;
@@ -227,11 +240,7 @@ fn regtest_end_to_end() {
     println!("sent 0.1 BTCX back to the miner: {spend_txid}");
 
     // Confirm the spend and watch the balance drop by amount + fee.
-    rpc(
-        None,
-        "generatetoaddress",
-        serde_json::json!([1, miner_addr]),
-    );
+    mine_block(&miner_addr);
     let mut after = funded;
     for _ in 0..30 {
         worker.poke();
@@ -277,19 +286,7 @@ fn regtest_end_to_end() {
         .wallet_send_all(&miner_addr, electrum_btcx::SendFee::RatePerKvb(2000))
         .unwrap();
     assert_eq!(sweep_txid.len(), 64, "sweep txid: {sweep_txid}");
-    let mediantime = rpc(None, "getblockchaininfo", serde_json::json!([]))["mediantime"]
-        .as_u64()
-        .unwrap();
-    rpc(
-        None,
-        "setmocktime",
-        serde_json::json!([now_secs().max(mediantime) + 3600]),
-    );
-    rpc(
-        None,
-        "generatetoaddress",
-        serde_json::json!([1, miner_addr]),
-    );
+    mine_block(&miner_addr);
     let mut swept = after;
     for _ in 0..30 {
         worker.poke();
@@ -377,25 +374,13 @@ fn regtest_restore_probe_selects_funded_branch() {
         .as_str()
         .unwrap()
         .to_string();
-    let mediantime = rpc(None, "getblockchaininfo", serde_json::json!([]))["mediantime"]
-        .as_u64()
-        .unwrap();
     let fund_txid = rpc(
         Some(&wallet_name),
         "sendtoaddress",
         serde_json::json!([address, 0.25]),
     );
     println!("funded BIP-86/BTCX {address} with 0.25 BTCX: {fund_txid}");
-    rpc(
-        None,
-        "setmocktime",
-        serde_json::json!([now_secs().max(mediantime) + 3600]),
-    );
-    rpc(
-        None,
-        "generatetoaddress",
-        serde_json::json!([1, miner_addr]),
-    );
+    mine_block(&miner_addr);
 
     // Wait for electrs to index the confirmed funding.
     let mut indexed = false;
@@ -432,6 +417,181 @@ fn regtest_restore_probe_selects_funded_branch() {
         selected.coin_type,
         hits.len()
     );
+}
+
+/// Fund `address` from the node's miner wallet and confirm it with one
+/// mined block (PoCX regtest needs the clock nudged past the deadline).
+fn fund_and_mine(address: &str, amount_btcx: f64) {
+    let wallets = rpc(None, "listwallets", serde_json::json!([]));
+    let wallet_name = wallets[0]
+        .as_str()
+        .expect("a loaded miner wallet on the regtest node")
+        .to_string();
+    let miner_addr = rpc(Some(&wallet_name), "getnewaddress", serde_json::json!([]))
+        .as_str()
+        .unwrap()
+        .to_string();
+    let txid = rpc(
+        Some(&wallet_name),
+        "sendtoaddress",
+        serde_json::json!([address, amount_btcx]),
+    );
+    println!("funded {address} with {amount_btcx} BTCX: {txid}");
+    mine_block(&miner_addr);
+}
+
+/// Poke the open wallet's sync worker until its total balance reaches
+/// `expected_sat` (or the attempts run out — then assert loudly).
+fn wait_for_balance(state: &SharedBtcxWalletState, expected_sat: u64, what: &str) {
+    let mut balance = u64::MAX;
+    for _ in 0..30 {
+        state.poke().unwrap();
+        std::thread::sleep(Duration::from_secs(1));
+        balance = state
+            .backend()
+            .unwrap()
+            .wallet_balance()
+            .unwrap_or_default();
+        if balance == expected_sat {
+            return;
+        }
+    }
+    panic!("{what}: expected {expected_sat} sat, still {balance} sat");
+}
+
+/// The mobile multi-wallet feature, live: two NAMED wallets over the SAME
+/// mnemonic — "alpha" on BIP-84 (`rpocx1q...`) and "beta" on BIP-86
+/// (`rpocx1p...`) — switching between them with independent balances, and
+/// the dual-restore flow: after funding both branches, one plain restore
+/// (opens the BIP-84 winner and reports BOTH hits) plus one kind-forced
+/// restore (opens the BIP-86 branch), exactly what the mobile "create both
+/// wallets" flow drives through `btcx_wallet_restore`.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_named_dual_kind_wallets() {
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+    // Never touch the developer's real OS keychain from a test.
+    std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+    let state = phoenix_pocx_lib::btcx_wallet::create_btcx_wallet_state();
+    state
+        .update_config(|c| {
+            c.network = WalletNetwork::Regtest;
+            c.set_servers(WalletNetwork::Regtest, vec![ELECTRUM_URL.to_string()]);
+        })
+        .unwrap();
+
+    // A FRESH mnemonic every run — the shared regtest chain must not leak
+    // history from earlier runs into the probe.
+    let seed_dir = tempfile::tempdir().unwrap();
+    let mut scratch = seedstore::SeedStore::open(seed_dir.path(), None).unwrap();
+    let mnemonic = scratch.create_seed(None, 24).unwrap();
+
+    // 1. Wallet A: named create, default kind → BIP-84, rpocx1q addresses.
+    let status = create_wallet_impl(&state, None, &mnemonic, None, Some("alpha".into()), None)
+        .expect("create alpha");
+    assert_eq!(status.wallet_name, "alpha");
+    assert!(status.wallet_active);
+    let alpha_addr = state.backend().unwrap().wallet_new_address().unwrap();
+    assert!(
+        alpha_addr.starts_with("rpocx1q"),
+        "BIP-84 wallet must hand out rpocx1q... addresses, got {alpha_addr}"
+    );
+
+    // 2. Wallet B: SAME mnemonic, named create with kind=bip86 → taproot,
+    //    rpocx1p addresses. Two wallets over one seed is legal — each has
+    //    its own data dir and descriptor branch.
+    let status = create_wallet_impl(
+        &state,
+        None,
+        &mnemonic,
+        None,
+        Some("beta".into()),
+        Some(DescriptorKindCfg::Bip86),
+    )
+    .expect("create beta");
+    assert_eq!(status.wallet_name, "beta");
+    let beta_addr = state.backend().unwrap().wallet_new_address().unwrap();
+    assert!(
+        beta_addr.starts_with("rpocx1p"),
+        "BIP-86 wallet must hand out rpocx1p... addresses, got {beta_addr}"
+    );
+
+    // 3. Fund each branch with a DIFFERENT amount and watch the balances
+    //    stay independent across switches (one open wallet at a time).
+    let status = select_wallet_impl(&state, None, "alpha").expect("switch to alpha");
+    assert_eq!(status.wallet_name, "alpha");
+    fund_and_mine(&alpha_addr, 0.3);
+    wait_for_balance(&state, 30_000_000, "alpha after funding");
+
+    let status = select_wallet_impl(&state, None, "beta").expect("switch to beta");
+    assert_eq!(status.wallet_name, "beta");
+    fund_and_mine(&beta_addr, 0.2);
+    wait_for_balance(&state, 20_000_000, "beta after funding");
+
+    // Switching back re-opens alpha's own store with alpha's own balance.
+    select_wallet_impl(&state, None, "alpha").expect("switch back to alpha");
+    wait_for_balance(&state, 30_000_000, "alpha after switching back");
+
+    // 4. Dual-restore flow, as the mobile UI drives it. First the plain
+    //    restore: BOTH funded branches must be reported, the BIP-84 one
+    //    opens (priority order), and its balance is alpha's.
+    let result = restore_wallet_impl(&state, None, &mnemonic, None, Some("gamma".into()), None)
+        .expect("plain restore");
+    assert!(!result.fresh);
+    assert_eq!(
+        result.hits.len(),
+        2,
+        "both funded branches must be reported: {:?}",
+        result.hits
+    );
+    assert_eq!(
+        result.selected,
+        DescriptorPolicy::default(),
+        "priority order opens BIP-84 / BTCX"
+    );
+    assert_eq!(result.status.wallet_name, "gamma");
+    wait_for_balance(&state, 30_000_000, "gamma (restored BIP-84 branch)");
+
+    // Then the second, kind-forced restore — the "create both wallets"
+    // button: same mnemonic, new name, kind=bip86 → the taproot branch.
+    let result = restore_wallet_impl(
+        &state,
+        None,
+        &mnemonic,
+        None,
+        Some("gamma-taproot".into()),
+        Some(DescriptorKindCfg::Bip86),
+    )
+    .expect("kind-forced restore");
+    assert!(!result.fresh);
+    assert_eq!(result.selected.kind, DescriptorKindCfg::Bip86);
+    assert_eq!(result.selected.coin_type, keys_btcx::COIN_BTCX);
+    assert_eq!(result.status.wallet_name, "gamma-taproot");
+    wait_for_balance(&state, 20_000_000, "gamma-taproot (restored BIP-86 branch)");
+    let gamma_taproot_addr = state.backend().unwrap().wallet_new_address().unwrap();
+    assert!(
+        gamma_taproot_addr.starts_with("rpocx1p"),
+        "restored BIP-86 wallet must hand out rpocx1p... addresses, got {gamma_taproot_addr}"
+    );
+
+    // 5. The registry lists all four named wallets on regtest.
+    let config = state.get_config();
+    let names = config.wallet_names(WalletNetwork::Regtest);
+    for name in ["alpha", "beta", "gamma", "gamma-taproot"] {
+        assert!(
+            names.contains(&name.to_string()),
+            "missing {name}: {names:?}"
+        );
+    }
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    state.close_runtime();
+    std::env::remove_var("PHOENIX_DATA_DIR");
+    std::env::remove_var("PACT_DISABLE_KEYRING");
+    println!("named dual-kind wallets smoke: OK (alpha/beta/gamma/gamma-taproot)");
 }
 
 /// Chain-only Electrum broadcast (Phase 6a): a raw transaction built and
@@ -513,15 +673,7 @@ fn regtest_chain_only_broadcast() {
 
     // Confirm it so repeated runs start from a clean mempool, then leave
     // the node's clock alone for whoever runs next.
-    let mediantime = rpc(None, "getblockchaininfo", serde_json::json!([]))["mediantime"]
-        .as_u64()
-        .unwrap();
-    rpc(
-        None,
-        "setmocktime",
-        serde_json::json!([now_secs().max(mediantime) + 3600]),
-    );
-    rpc(None, "generatetoaddress", serde_json::json!([1, dest]));
+    mine_block(&dest);
     rpc(None, "setmocktime", serde_json::json!([0]));
     println!("chain-only Electrum broadcast smoke: OK ({txid})");
 }
