@@ -640,6 +640,17 @@ export class BtcxWalletService {
     return invoke<string>('btcx_wallet_new_address');
   }
 
+  /**
+   * CURRENT receive address — the lowest-index revealed-but-unused
+   * external address, revealing a fresh one only when none is outstanding
+   * (BDK next-unused semantics, the desktop receive page's behavior).
+   * Entering the receive page uses this so repeated visits never burn
+   * addresses; only the explicit button calls `newAddress()`.
+   */
+  async currentAddress(): Promise<string> {
+    return invoke<string>('btcx_wallet_current_address');
+  }
+
   /** Refresh the balance breakdown from the background-synced cache. */
   async refreshBalance(): Promise<BtcxBalance | null> {
     try {
