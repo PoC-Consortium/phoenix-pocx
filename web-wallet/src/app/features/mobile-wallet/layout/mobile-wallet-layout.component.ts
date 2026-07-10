@@ -4,28 +4,56 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService, LANGUAGES, Language } from '../../../core/i18n';
 import { BtcxWalletService, BtcxWalletSummary } from '../../../core/services/btcx-wallet.service';
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
+import { BtcxPipe } from '../../../shared/pipes';
 import { NotificationService } from '../../../shared/services';
 import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile-nav.component';
+
+/** One drawer navigation entry (the desktop main-layout's NavItem, slim). */
+interface NavItem {
+  path: string;
+  icon: string;
+  labelKey: string;
+  /** Exact route match for the active highlight (the home entry). */
+  exact?: boolean;
+  /** Needs an open wallet runtime; stays visible but does not navigate. */
+  needsWallet?: boolean;
+}
+
+/** One titled drawer group (the desktop main-layout's NavGroup). */
+interface NavGroup {
+  id: string;
+  titleKey: string;
+  items: NavItem[];
+}
 
 /**
  * MobileWalletLayoutComponent - layout for the mobile wallet routes.
  *
- * Mirrors MiningLayoutComponent's minimal header (logo, name, language)
- * plus a network badge and wallet settings shortcut, with the shared
- * bottom navigation to switch between wallet and mining.
+ * The header mirrors the desktop toolbar's arrangement: hamburger on the
+ * far left (opening the navigation drawer), status (network badge +
+ * Electrum dot) next to it, and the wallet switcher chip on the RIGHT next
+ * to the settings gear and language selector, separated by the same
+ * `.toolbar-separator` idiom.
  *
- * Once a wallet exists, the static app name gives way to the wallet
- * switcher chip — the mobile-compact mirror of the desktop toolbar's
- * wallet selector (wallet icon + active name + dropdown arrow, opening a
- * menu of the current network's wallets plus create/restore entries).
- * Selecting a row closes the open wallet and opens the tapped one (the
- * backend's one-open-wallet-at-a-time flow, same as desktop remote mode).
+ * The drawer is the desktop main-layout sidenav, mobile-sized: same
+ * gradient, same grouped nav lists (a standalone home entry, a
+ * transactions group, a mining group) with icons and active-route
+ * highlight, and a footer pinned to the bottom (settings — the desktop
+ * footer minus logout, which the mobile wallet does not have).
+ *
+ * The wallet switcher chip is the desktop toolbar's wallet selector,
+ * compact: wallet icon + active name + dropdown arrow, opening a menu of
+ * the current network's wallets plus create/restore entries. Selecting a
+ * row closes the open wallet and opens the tapped one (the backend's
+ * one-open-wallet-at-a-time flow, same as desktop remote mode).
  */
 @Component({
   selector: 'app-mobile-wallet-layout',
@@ -36,133 +64,405 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
     MatButtonModule,
     MatIconModule,
     MatDividerModule,
+    MatListModule,
     MatMenuModule,
     MatProgressSpinnerModule,
+    MatSidenavModule,
     MatTooltipModule,
     MobileNavComponent,
+    BtcxPipe,
     I18nPipe,
   ],
   template: `
-    <div class="wallet-layout">
-      <mat-toolbar class="wallet-toolbar">
-        <div class="toolbar-content">
-          <div class="toolbar-left">
-            <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="logo" />
+    <mat-sidenav-container class="wallet-layout">
+      <!-- Navigation drawer (the desktop main-layout sidenav, mobile-sized) -->
+      <mat-sidenav #drawer mode="over" class="drawer" [fixedInViewport]="false">
+        <div class="drawer-header">
+          <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="drawer-logo" />
+          <span class="drawer-title">Phoenix PoCX</span>
+          <button mat-icon-button class="drawer-close" (click)="drawer.close()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
 
-            @if (wallet.hasSeed()) {
-              <!-- Wallet switcher chip (desktop toolbar's wallet selector) -->
+        @if (wallet.hasSeed()) {
+          <div class="drawer-wallet-info">
+            <div class="drawer-wallet-name">{{ wallet.walletName() }}</div>
+            <div class="drawer-wallet-balance">
+              {{ (wallet.balance()?.totalSat ?? 0) / 100000000 | btcx }} BTCX
+            </div>
+          </div>
+        }
+
+        <div class="drawer-scroll">
+          <!-- Home (standalone, like the desktop Dashboard entry) -->
+          <mat-nav-list class="nav-section">
+            <a
+              mat-list-item
+              routerLink="/wallet"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: true }"
+              (click)="drawer.close()"
+            >
+              <mat-icon matListItemIcon>account_balance_wallet</mat-icon>
+              <span matListItemTitle>{{ 'mwallet_title' | i18n }}</span>
+            </a>
+          </mat-nav-list>
+
+          @for (group of navGroups; track group.id) {
+            <div class="nav-group">
+              <div class="nav-group-title">{{ group.titleKey | i18n }}</div>
+              <mat-nav-list class="nav-section">
+                @for (item of group.items; track item.path) {
+                  @let disabled = item.needsWallet && !wallet.walletActive();
+                  <a
+                    mat-list-item
+                    [routerLink]="disabled ? null : item.path"
+                    routerLinkActive="active"
+                    [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+                    [class.nav-disabled]="disabled"
+                    (click)="!disabled && drawer.close()"
+                  >
+                    <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+                    <span matListItemTitle>{{ item.labelKey | i18n }}</span>
+                  </a>
+                }
+              </mat-nav-list>
+            </div>
+          }
+        </div>
+
+        <!-- Footer pinned to the bottom (desktop sidenav-footer, minus logout) -->
+        <div class="drawer-footer">
+          <mat-nav-list class="nav-section">
+            <a
+              mat-list-item
+              routerLink="/wallet/settings"
+              routerLinkActive="active"
+              (click)="drawer.close()"
+            >
+              <mat-icon matListItemIcon>settings</mat-icon>
+              <span matListItemTitle>{{ 'settings' | i18n }}</span>
+            </a>
+          </mat-nav-list>
+        </div>
+      </mat-sidenav>
+
+      <mat-sidenav-content class="wallet-shell">
+        <mat-toolbar class="wallet-toolbar">
+          <div class="toolbar-content">
+            <div class="toolbar-left">
+              <!-- Hamburger (desktop toolbar's sidenav toggle) -->
               <button
                 mat-button
-                class="wallet-chip"
-                [matMenuTriggerFor]="walletMenu"
-                (menuOpened)="onWalletMenuOpened()"
+                class="action-button icon-button"
+                (click)="drawer.toggle()"
+                [matTooltip]="'toggle_menu' | i18n"
               >
-                <div class="wallet-chip-content">
-                  <mat-icon class="wallet-icon">account_balance_wallet</mat-icon>
-                  <span class="wallet-chip-name">{{ wallet.walletName() }}</span>
-                  <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
-                </div>
+                <mat-icon class="secondary-text">menu</mat-icon>
               </button>
 
-              <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
-                @for (w of wallet.wallets(); track w.name) {
-                  <button
-                    mat-menu-item
-                    class="wallet-row"
-                    [disabled]="switching() !== null"
-                    (click)="switchTo(w)"
-                  >
-                    <div class="wallet-row-content">
-                      <mat-icon class="wallet-row-icon" [class.active]="w.isActive"
-                        >account_balance_wallet</mat-icon
-                      >
-                      <span class="wallet-row-name">{{ w.name }}</span>
-                      @if (w.policy.kind === 'bip86') {
-                        <span class="wallet-row-badge">{{ 'mwallet_taproot_badge' | i18n }}</span>
-                      }
-                      @if (w.seedEncrypted && w.seedLocked) {
-                        <mat-icon class="wallet-row-lock">lock</mat-icon>
-                      }
-                      @if (switching() === w.name) {
-                        <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
-                      } @else if (w.isActive) {
-                        <mat-icon class="wallet-row-check">check</mat-icon>
-                      }
-                    </div>
+              <div class="toolbar-separator"></div>
+
+              <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="logo" />
+
+              @if (!wallet.hasSeed()) {
+                <span class="app-name">{{ 'mwallet_title' | i18n }}</span>
+              }
+
+              @if (wallet.network() !== 'mainnet') {
+                <span class="network-badge">{{ wallet.network() | i18n }}</span>
+              }
+
+              <span
+                class="conn-dot"
+                [class.healthy]="electrumStatus.overall() === 'healthy'"
+                [class.degraded]="electrumStatus.overall() === 'degraded'"
+                [class.down]="electrumStatus.overall() === 'down'"
+                [matTooltip]="connTooltip()"
+              ></span>
+            </div>
+
+            <div class="toolbar-right">
+              @if (wallet.hasSeed()) {
+                <!-- Wallet switcher chip (desktop toolbar's wallet selector) -->
+                <button
+                  mat-button
+                  class="action-button wallet-chip"
+                  [matMenuTriggerFor]="walletMenu"
+                  (menuOpened)="onWalletMenuOpened()"
+                >
+                  <div class="wallet-chip-content">
+                    <mat-icon class="wallet-icon">account_balance_wallet</mat-icon>
+                    <span class="wallet-chip-name">{{ wallet.walletName() }}</span>
+                    <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
+                  </div>
+                </button>
+
+                <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
+                  @for (w of wallet.wallets(); track w.name) {
+                    <button
+                      mat-menu-item
+                      class="wallet-row"
+                      [disabled]="switching() !== null"
+                      (click)="switchTo(w)"
+                    >
+                      <div class="wallet-row-content">
+                        <mat-icon class="wallet-row-icon" [class.active]="w.isActive"
+                          >account_balance_wallet</mat-icon
+                        >
+                        <span class="wallet-row-name">{{ w.name }}</span>
+                        @if (w.policy.kind === 'bip86') {
+                          <span class="wallet-row-badge">{{ 'mwallet_taproot_badge' | i18n }}</span>
+                        }
+                        @if (w.seedEncrypted && w.seedLocked) {
+                          <mat-icon class="wallet-row-lock">lock</mat-icon>
+                        }
+                        @if (switching() === w.name) {
+                          <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
+                        } @else if (w.isActive) {
+                          <mat-icon class="wallet-row-check">check</mat-icon>
+                        }
+                      </div>
+                    </button>
+                  }
+                  <mat-divider></mat-divider>
+                  <button mat-menu-item routerLink="/wallet/create">
+                    <mat-icon>add</mat-icon>
+                    <span>{{ 'mwallet_create_wallet' | i18n }}</span>
+                  </button>
+                  <button mat-menu-item routerLink="/wallet/restore">
+                    <mat-icon>restore</mat-icon>
+                    <span>{{ 'mwallet_restore_wallet' | i18n }}</span>
+                  </button>
+                </mat-menu>
+
+                <div class="toolbar-separator"></div>
+              }
+
+              <button
+                mat-button
+                class="action-button icon-button"
+                [routerLink]="['/wallet/settings']"
+                [matTooltip]="'mwallet_settings_title' | i18n"
+              >
+                <mat-icon class="secondary-text">settings</mat-icon>
+              </button>
+
+              <div class="toolbar-separator"></div>
+
+              <button mat-button [matMenuTriggerFor]="langMenu" class="action-button lang-button">
+                <span class="lang-name-text">{{ i18n.currentLanguageName() }}</span>
+                <mat-icon class="lang-icon secondary-text">language</mat-icon>
+              </button>
+
+              <mat-menu #langMenu="matMenu">
+                @for (lang of languages; track lang.code) {
+                  <button mat-menu-item (click)="setLanguage(lang)">
+                    {{ lang.nativeName }}
                   </button>
                 }
-                <mat-divider></mat-divider>
-                <button mat-menu-item routerLink="/wallet/create">
-                  <mat-icon>add</mat-icon>
-                  <span>{{ 'mwallet_create_wallet' | i18n }}</span>
-                </button>
-                <button mat-menu-item routerLink="/wallet/restore">
-                  <mat-icon>restore</mat-icon>
-                  <span>{{ 'mwallet_restore_wallet' | i18n }}</span>
-                </button>
               </mat-menu>
-            } @else {
-              <span class="app-name">{{ 'mwallet_title' | i18n }}</span>
-            }
-
-            @if (wallet.network() !== 'mainnet') {
-              <span class="network-badge">{{ wallet.network() | i18n }}</span>
-            }
-
-            <span
-              class="conn-dot"
-              [class.healthy]="electrumStatus.overall() === 'healthy'"
-              [class.degraded]="electrumStatus.overall() === 'degraded'"
-              [class.down]="electrumStatus.overall() === 'down'"
-              [matTooltip]="connTooltip()"
-            ></span>
+            </div>
           </div>
+        </mat-toolbar>
 
-          <div class="toolbar-right">
-            <button
-              mat-button
-              class="action-button icon-button"
-              [routerLink]="['/wallet/settings']"
-              [matTooltip]="'mwallet_settings_title' | i18n"
-            >
-              <mat-icon class="secondary-text">settings</mat-icon>
-            </button>
-
-            <div class="toolbar-separator"></div>
-
-            <button mat-button [matMenuTriggerFor]="langMenu" class="action-button lang-button">
-              <span class="lang-name-text">{{ i18n.currentLanguageName() }}</span>
-              <mat-icon class="lang-icon secondary-text">language</mat-icon>
-            </button>
-
-            <mat-menu #langMenu="matMenu">
-              @for (lang of languages; track lang.code) {
-                <button mat-menu-item (click)="setLanguage(lang)">
-                  {{ lang.nativeName }}
-                </button>
-              }
-            </mat-menu>
-          </div>
+        <div class="wallet-content">
+          <router-outlet></router-outlet>
         </div>
-      </mat-toolbar>
 
-      <div class="wallet-content">
-        <router-outlet></router-outlet>
-      </div>
-
-      <app-mobile-nav />
-    </div>
+        <app-mobile-nav />
+      </mat-sidenav-content>
+    </mat-sidenav-container>
   `,
   styles: [
     `
       .wallet-layout {
-        display: flex;
-        flex-direction: column;
         /* Visible viewport minus the Android status-bar padding on <body>:
            100vh fallback, 100dvh override — plain 100vh overflows on
            Android WebView and clips the bottom navigation. */
         height: calc(100vh - var(--android-safe-top, 0px));
         height: calc(100dvh - var(--android-safe-top, 0px));
+        background: #eaf0f6;
+      }
+
+      /* Drawer — the desktop main-layout sidenav, mobile-sized. */
+      .drawer {
+        width: 250px;
+        background: linear-gradient(180deg, #1e3a5f 0%, #2d5a87 100%);
+        color: white;
+        overflow-x: hidden;
+
+        ::ng-deep .mat-drawer-inner-container {
+          display: flex;
+          flex-direction: column;
+          overflow-x: hidden;
+        }
+
+        --mat-list-list-item-label-text-color: rgba(255, 255, 255, 0.9);
+        --mat-list-list-item-hover-label-text-color: white;
+        --mat-list-list-item-focus-label-text-color: white;
+        --mat-list-list-item-leading-icon-color: rgba(255, 255, 255, 0.9);
+        --mat-list-list-item-hover-leading-icon-color: white;
+        --mat-list-list-item-focus-leading-icon-color: white;
+        --mat-list-active-indicator-color: rgba(255, 255, 255, 0.15);
+        --mat-list-list-item-one-line-container-height: 44px;
+        --mat-list-list-item-label-text-size: 14px;
+      }
+
+      .drawer-header {
+        position: relative;
+        display: flex;
+        align-items: center;
+        height: 56px;
+        padding: 0 16px;
+        gap: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-shrink: 0;
+        box-sizing: border-box;
+      }
+
+      .drawer-logo {
+        width: 28px;
+        height: 28px;
+      }
+
+      .drawer-title {
+        flex: 1;
+        font-size: 15px;
+        font-weight: 600;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .drawer-close {
+        color: rgba(255, 255, 255, 0.7);
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        mat-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+      }
+
+      .drawer-wallet-info {
+        padding: 12px 16px;
+        background: rgba(0, 0, 0, 0.2);
+        text-align: center;
+        flex-shrink: 0;
+
+        .drawer-wallet-name {
+          font-size: 12px;
+          opacity: 0.8;
+          margin-bottom: 2px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .drawer-wallet-balance {
+          font-size: 16px;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+
+      .drawer-scroll {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-top: 4px;
+      }
+
+      .nav-group {
+        margin-top: 4px;
+      }
+
+      .nav-group-title {
+        display: flex;
+        align-items: center;
+        height: 32px;
+        padding-left: 20px;
+        margin-top: 8px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.5);
+        letter-spacing: 0.5px;
+      }
+
+      .nav-section {
+        padding: 0;
+
+        a.mat-mdc-list-item {
+          height: 44px;
+          margin: 1px 12px;
+          border-radius: 0 22px 22px 0;
+          margin-right: 16px;
+
+          &:hover {
+            background: rgba(255, 255, 255, 0.1);
+          }
+
+          &.active {
+            background: rgba(255, 255, 255, 0.15);
+            --mat-list-list-item-label-text-color: white;
+            --mat-list-list-item-leading-icon-color: white;
+          }
+
+          .mat-icon {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+          }
+
+          .mdc-list-item__primary-text {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+          }
+
+          &.nav-disabled {
+            cursor: default;
+
+            &:hover {
+              background: transparent;
+            }
+
+            .mat-icon,
+            .mdc-list-item__primary-text {
+              color: rgba(255, 255, 255, 0.35);
+            }
+          }
+        }
+      }
+
+      .drawer-footer {
+        margin-top: auto;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 8px 0;
+        flex-shrink: 0;
+        --mat-list-list-item-label-text-color: rgba(255, 255, 255, 0.7);
+        --mat-list-list-item-leading-icon-color: rgba(255, 255, 255, 0.7);
+        --mat-list-list-item-one-line-container-height: 40px;
+
+        a.mat-mdc-list-item {
+          height: 40px;
+        }
+      }
+
+      .wallet-shell {
+        display: flex;
+        flex-direction: column;
         background: #eaf0f6;
       }
 
@@ -174,6 +474,7 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         height: 56px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         flex-shrink: 0;
+        z-index: 2;
       }
 
       .toolbar-content {
@@ -188,26 +489,29 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         display: flex;
         align-items: center;
         height: 100%;
-        padding-left: 16px;
-        gap: 12px;
+        gap: 10px;
+        min-width: 0;
       }
 
       .logo {
         width: 28px;
         height: 28px;
+        flex-shrink: 0;
       }
 
       .app-name {
         font-size: 16px;
         font-weight: 500;
         color: rgba(0, 0, 0, 0.87);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       /* Wallet switcher chip — the desktop toolbar's .wallet-button, compact. */
       .wallet-chip {
         min-width: 0;
-        padding: 0 4px;
-        margin-left: -8px;
+        padding: 0 8px;
       }
 
       .wallet-chip-content {
@@ -226,7 +530,7 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
           font-size: 15px;
           font-weight: 500;
           color: rgba(0, 0, 0, 0.87);
-          max-width: 120px;
+          max-width: 96px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -310,6 +614,8 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         border: 1px solid currentColor;
         border-radius: 10px;
         padding: 1px 8px;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .conn-dot {
@@ -334,12 +640,14 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         display: flex;
         align-items: center;
         height: 100%;
+        flex-shrink: 0;
       }
 
       .toolbar-separator {
         height: 56px;
         width: 1px;
         background: rgba(0, 0, 0, 0.12);
+        flex-shrink: 0;
       }
 
       .action-button {
@@ -400,8 +708,13 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
       }
 
       :host-context(.dark-theme) {
-        .wallet-layout {
+        .wallet-layout,
+        .wallet-shell {
           background: #303030;
+        }
+
+        .drawer {
+          background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
         }
 
         .wallet-toolbar {
@@ -447,6 +760,33 @@ export class MobileWalletLayoutComponent implements OnInit {
   private readonly router = inject(Router);
 
   languages: Language[] = LANGUAGES;
+
+  /**
+   * Drawer groups — the desktop main-layout's navGroups, mapped to the
+   * mobile routes: transactions (activity/send/receive/contacts, desktop's
+   * transactions group minus the Core-only PSBT builder) and mining
+   * (dashboard + forging assignment, exactly desktop's mining group).
+   */
+  readonly navGroups: NavGroup[] = [
+    {
+      id: 'transactions',
+      titleKey: 'transactions',
+      items: [
+        { path: '/wallet/history', icon: 'compare_arrows', labelKey: 'mwallet_history_title' },
+        { path: '/wallet/send', icon: 'send', labelKey: 'send', needsWallet: true },
+        { path: '/wallet/receive', icon: 'call_received', labelKey: 'receive', needsWallet: true },
+        { path: '/wallet/contacts', icon: 'contacts', labelKey: 'contacts' },
+      ],
+    },
+    {
+      id: 'mining',
+      titleKey: 'mining',
+      items: [
+        { path: '/miner', icon: 'hardware', labelKey: 'mining' },
+        { path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' },
+      ],
+    },
+  ];
 
   /** Name of the wallet a switch is in flight for, or null. */
   readonly switching = signal<string | null>(null);
