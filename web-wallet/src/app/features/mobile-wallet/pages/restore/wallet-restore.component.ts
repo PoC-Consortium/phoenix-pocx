@@ -167,6 +167,13 @@ import {
               (changed)="onMnemonicChanged($event)"
             ></app-mnemonic-entry>
 
+            <!-- Wallet name — its own labeled section so the pre-filled
+                 default is a conscious choice, not something to overlook. -->
+            <h3 class="name-heading">
+              <mat-icon class="name-icon">badge</mat-icon>
+              {{ 'wallet_name' | i18n }}
+            </h3>
+            <p class="hint-text small">{{ 'mwallet_name_hint' | i18n }}</p>
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
               <input
@@ -272,6 +279,19 @@ import {
         color: #c62828;
         font-size: 13px;
         margin: 0 0 12px;
+      }
+
+      .name-heading {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .name-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: #1976d2;
+        }
       }
 
       .notice-box {

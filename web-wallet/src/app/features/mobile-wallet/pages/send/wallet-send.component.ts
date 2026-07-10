@@ -1,7 +1,7 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -79,7 +79,7 @@ const PREVIEW_VSIZE_VB = 141;
           </div>
           <div class="button-row">
             <button mat-stroked-button routerLink="/wallet/history">
-              {{ 'mwallet_history_title' | i18n }}
+              {{ 'transactions' | i18n }}
             </button>
             <button mat-raised-button color="primary" (click)="reset()">
               {{ 'send_another' | i18n }}
@@ -551,6 +551,7 @@ export class WalletSendComponent implements OnInit {
   private readonly clipboard = inject(ClipboardService);
   private readonly contactsStore = inject(ContactsStoreService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   /** Address book entries of the wallet's network (picker suffix). */
   readonly contacts = computed(() => this.contactsStore.forNetwork(this.wallet.network()));
@@ -605,11 +606,16 @@ export class WalletSendComponent implements OnInit {
     }
   }
 
+  /**
+   * Header back: review steps back to the form; the form goes to the
+   * Dashboard (/wallet) — never history-back, so deep entries (e.g. a
+   * contacts "send to" hand-off) still land somewhere coherent.
+   */
   onBack(): void {
     if (this.stage() === 'review') {
       this.stage.set('form');
     } else {
-      history.back();
+      void this.router.navigate(['/wallet']);
     }
   }
 

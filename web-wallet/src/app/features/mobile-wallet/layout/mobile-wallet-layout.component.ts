@@ -95,7 +95,7 @@ interface NavGroup {
         }
 
         <div class="drawer-scroll">
-          <!-- Home (standalone, like the desktop Dashboard entry) -->
+          <!-- Home (standalone, the desktop Dashboard entry) -->
           <mat-nav-list class="nav-section">
             <a
               mat-list-item
@@ -104,8 +104,8 @@ interface NavGroup {
               [routerLinkActiveOptions]="{ exact: true }"
               (click)="drawer.close()"
             >
-              <mat-icon matListItemIcon>account_balance_wallet</mat-icon>
-              <span matListItemTitle>{{ 'mwallet_title' | i18n }}</span>
+              <mat-icon matListItemIcon>dashboard</mat-icon>
+              <span matListItemTitle>{{ 'dashboard' | i18n }}</span>
             </a>
           </mat-nav-list>
 
@@ -763,16 +763,17 @@ export class MobileWalletLayoutComponent implements OnInit {
 
   /**
    * Drawer groups — the desktop main-layout's navGroups, mapped to the
-   * mobile routes: transactions (activity/send/receive/contacts, desktop's
-   * transactions group minus the Core-only PSBT builder) and mining
-   * (dashboard + forging assignment, exactly desktop's mining group).
+   * mobile routes: transactions (transactions/send/receive/contacts,
+   * desktop's transactions group minus the Core-only PSBT builder) and
+   * mining (forging assignment only — the Mining section itself lives in
+   * the bottom navigation, so the drawer does not repeat it).
    */
   readonly navGroups: NavGroup[] = [
     {
       id: 'transactions',
       titleKey: 'transactions',
       items: [
-        { path: '/wallet/history', icon: 'compare_arrows', labelKey: 'mwallet_history_title' },
+        { path: '/wallet/history', icon: 'compare_arrows', labelKey: 'transactions' },
         { path: '/wallet/send', icon: 'send', labelKey: 'send', needsWallet: true },
         { path: '/wallet/receive', icon: 'call_received', labelKey: 'receive', needsWallet: true },
         { path: '/wallet/contacts', icon: 'contacts', labelKey: 'contacts' },
@@ -781,10 +782,7 @@ export class MobileWalletLayoutComponent implements OnInit {
     {
       id: 'mining',
       titleKey: 'mining',
-      items: [
-        { path: '/miner', icon: 'hardware', labelKey: 'mining' },
-        { path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' },
-      ],
+      items: [{ path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' }],
     },
   ];
 

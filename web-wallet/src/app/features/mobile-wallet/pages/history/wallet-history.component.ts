@@ -41,7 +41,7 @@ const PAGE_SIZE = 25;
         <button mat-icon-button routerLink="/wallet">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <h2>{{ 'mwallet_history_title' | i18n }}</h2>
+        <h2>{{ 'transactions' | i18n }}</h2>
         <span class="spacer"></span>
         <button
           mat-icon-button

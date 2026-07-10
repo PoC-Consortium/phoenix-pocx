@@ -2,6 +2,7 @@ import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
@@ -25,11 +26,19 @@ import type {
   AssignmentStatus,
 } from '../../../../bitcoin/services/rpc/mining-rpc.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { MiningService } from '../../../../mining/services';
 
 /** One fee choice — the desktop forging-assignment page's FeeOption, slim. */
 interface FeeOption {
   label: string;
   feeRate: number | null;
+}
+
+/** A configured pool's forging address — the desktop page's PoolAddressOption. */
+interface PoolAddressOption {
+  poolName: string;
+  label: string;
+  address: string;
 }
 
 /**
@@ -54,6 +63,7 @@ interface FeeOption {
   imports: [
     FormsModule,
     RouterModule,
+    MatAutocompleteModule,
     MatButtonModule,
     MatIconModule,
     MatDividerModule,
@@ -186,16 +196,39 @@ interface FeeOption {
               @if (canCreate(s.state)) {
                 <mat-divider class="section-divider"></mat-divider>
 
+                <!-- Combo: free text + the configured pools' published
+                     forging addresses (desktop's forging-address dropdown,
+                     sourced from the mining chain configs) -->
                 <mat-form-field appearance="outline" class="full-width slim-field">
-                  <mat-label>{{ 'forging_address' | i18n }}</mat-label>
+                  <mat-label>
+                    {{
+                      (poolAddressOptions().length > 0
+                        ? 'select_or_enter_forging_address'
+                        : 'forging_address'
+                      ) | i18n
+                    }}
+                  </mat-label>
                   <input
                     matInput
+                    [matAutocomplete]="forgingAuto"
                     [(ngModel)]="forgingAddress"
                     (ngModelChange)="validateForgingAddress()"
                     autocomplete="off"
                     autocapitalize="none"
                     spellcheck="false"
                   />
+                  <mat-autocomplete #forgingAuto="matAutocomplete">
+                    @for (opt of poolAddressOptions(); track opt.address) {
+                      <mat-option [value]="opt.address">
+                        <div class="pool-option">
+                          <span class="pool-option-name">{{ opt.label || opt.poolName }}</span>
+                          <span class="pool-option-address">
+                            {{ opt.address | hashTruncate: 14 : 8 }}
+                          </span>
+                        </div>
+                      </mat-option>
+                    }
+                  </mat-autocomplete>
                   @if (forgingValid()) {
                     <mat-icon matSuffix class="suffix-valid">check_circle</mat-icon>
                   }
@@ -510,6 +543,23 @@ interface FeeOption {
         }
       }
 
+      /* Pool entries of the forging-address combo (desktop's dropdown rows). */
+      .pool-option {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.3;
+
+        .pool-option-name {
+          font-size: 14px;
+        }
+
+        .pool-option-address {
+          font-size: 11px;
+          font-family: monospace;
+          color: rgba(0, 0, 0, 0.55);
+        }
+      }
+
       /* Fee section — desktop's fee chips, mobile-sized. */
       .fee-section {
         margin: 12px 0 4px;
@@ -563,22 +613,30 @@ interface FeeOption {
             background: rgba(25, 118, 210, 0.08);
           }
 
+          /* Material wraps the projected content in .mdc-button__label, so
+             the flex column above cannot stack the two spans — make them
+             blocks and keep the rate on one line: "Slow" / "1 sat/vB"
+             (the same fix the send page's fee chips carry). */
           .fee-label {
+            display: block;
             font-size: 12px;
             font-weight: 500;
           }
 
           .fee-rate {
+            display: block;
+            white-space: nowrap;
             font-size: 10px;
             color: rgba(0, 0, 0, 0.55);
             font-variant-numeric: tabular-nums;
           }
 
           .custom-icon {
+            display: block;
+            margin: 0 auto;
             font-size: 14px;
             width: 14px;
             height: 14px;
-            margin: 0;
             color: rgba(0, 0, 0, 0.55);
           }
         }
@@ -643,6 +701,7 @@ interface FeeOption {
 })
 export class WalletAssignmentComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
+  private readonly mining = inject(MiningService);
   private readonly contactsStore = inject(ContactsStoreService);
   private readonly i18n = inject(I18nService);
   private readonly notifications = inject(NotificationService);
@@ -658,6 +717,25 @@ export class WalletAssignmentComponent implements OnInit {
   readonly forgingError = signal<{ key: string; params?: Record<string, string> } | null>(null);
 
   readonly contacts = computed(() => this.contactsStore.forNetwork(this.wallet.network()));
+
+  /**
+   * Forging addresses published by the configured pool chains, offered in
+   * the forging-address combo — the desktop forging-assignment page's
+   * poolAddressOptions, sourced from the same mining chain configs
+   * (ChainConfig.poolAddresses). Free-text entry remains available.
+   */
+  readonly poolAddressOptions = computed<PoolAddressOption[]>(() => {
+    const chains = this.mining.config()?.chains ?? [];
+    const options: PoolAddressOption[] = [];
+    for (const chain of chains) {
+      for (const pa of chain.poolAddresses ?? []) {
+        if (pa.address) {
+          options.push({ poolName: chain.name, label: pa.label, address: pa.address });
+        }
+      }
+    }
+    return options;
+  });
 
   plotAddress = '';
   forgingAddress = '';
@@ -678,6 +756,10 @@ export class WalletAssignmentComponent implements OnInit {
 
   ngOnInit(): void {
     this.contactsStore.load();
+    // Load the mining state so the pool combobox sees the chain configs.
+    void this.mining.getState().catch(err => {
+      console.warn('Failed to load mining state for pool addresses:', err);
+    });
     void this.init();
   }
 

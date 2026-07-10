@@ -136,28 +136,24 @@ import {
                 <span class="label">{{ 'network_capacity' | i18n }}</span>
                 <span class="value">{{ networkCapacity() }}</span>
               </div>
-            </div>
-
-            <!-- Footer: last block time (+ wallet sync freshness) -->
-            <div class="sync-row">
-              @if (wallet.walletActive() && !wallet.hasSynced()) {
-                <mat-spinner diameter="14"></mat-spinner>
-                <span>{{ 'mwallet_waiting_first_sync' | i18n }}</span>
-              } @else {
-                <mat-icon class="sync-icon synced">check_circle</mat-icon>
-                <span>
-                  {{ 'last_block_time' | i18n }}:
+              <div class="info-item">
+                <span class="label">{{ 'last_block_time' | i18n }}</span>
+                <span class="value">
                   @if (chain(); as info) {
                     {{ info.headerTime | timeAgo }}
                   } @else {
                     —
                   }
-                  @if (wallet.walletActive() && wallet.syncAgeSecs() !== null) {
-                    · {{ 'mwallet_sync_age' | i18n: { seconds: wallet.syncAgeSecs() ?? 0 } }}
-                  }
                 </span>
-              }
+              </div>
             </div>
+
+            @if (wallet.walletActive() && !wallet.hasSynced()) {
+              <div class="sync-row">
+                <mat-spinner diameter="14"></mat-spinner>
+                <span>{{ 'mwallet_waiting_first_sync' | i18n }}</span>
+              </div>
+            }
           </div>
         }
 
@@ -229,7 +225,7 @@ import {
           </button>
           <button mat-raised-button routerLink="/wallet/history">
             <mat-icon>history</mat-icon>
-            {{ 'mwallet_history_title' | i18n }}
+            {{ 'transactions' | i18n }}
           </button>
         </div>
 
@@ -270,10 +266,12 @@ import {
   styles: [
     `
       .page {
-        padding: 16px;
+        /* Density: tighter than the generic 16px page rhythm — the home
+           stacks several cards, so the saved space adds up. */
+        padding: 12px;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 12px;
         max-width: 480px;
         width: 100%;
         margin: 0 auto;
@@ -290,7 +288,7 @@ import {
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        padding: 20px;
+        padding: 16px;
 
         h2 {
           margin: 0 0 8px;
@@ -317,7 +315,7 @@ import {
         gap: 8px;
         font-size: 15px;
         font-weight: 500;
-        margin-bottom: 14px;
+        margin-bottom: 10px;
 
         mat-icon {
           font-size: 20px;
@@ -330,10 +328,12 @@ import {
         }
       }
 
+      /* Three compact stats: Height | Network Capacity | Last block. */
       .info-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-        gap: 12px 16px;
+        grid-template-columns: repeat(3, auto);
+        justify-content: space-between;
+        gap: 8px 12px;
       }
 
       .info-item {
@@ -342,14 +342,15 @@ import {
         min-width: 0;
 
         .label {
-          font-size: 11px;
+          font-size: 10px;
           text-transform: uppercase;
           letter-spacing: 0.4px;
           color: rgba(255, 255, 255, 0.7);
+          white-space: nowrap;
         }
 
         .value {
-          font-size: 15px;
+          font-size: 14px;
           font-weight: 500;
           font-variant-numeric: tabular-nums;
           white-space: nowrap;
@@ -361,7 +362,7 @@ import {
         justify-content: flex-end;
         align-items: baseline;
         gap: 8px;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
         white-space: nowrap;
 
         .amount {
@@ -432,25 +433,16 @@ import {
         width: 100%;
       }
 
+      /* Waiting-for-first-sync spinner (the only footer state left). */
       .sync-row {
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-top: 14px;
-        padding-top: 12px;
+        margin-top: 10px;
+        padding-top: 10px;
         border-top: 1px solid rgba(255, 255, 255, 0.2);
         font-size: 12px;
         color: rgba(255, 255, 255, 0.75);
-
-        .sync-icon {
-          font-size: 16px;
-          width: 16px;
-          height: 16px;
-
-          &.synced {
-            color: #69f0ae;
-          }
-        }
       }
 
       .empty-card {
