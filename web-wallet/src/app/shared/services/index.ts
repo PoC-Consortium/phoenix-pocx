@@ -12,3 +12,6 @@ export { ThemeService } from './theme.service';
 export { BlockExplorerService } from './block-explorer.service';
 
 export { WalletUnlockService } from './wallet-unlock.service';
+
+export { ContactsStoreService } from './contacts-store.service';
+export type { Contact } from './contacts-store.service';

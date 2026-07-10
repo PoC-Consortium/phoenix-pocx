@@ -33,8 +33,7 @@ describe('WalletSendComponent (MAX / send-all)', () => {
       walletActive: signal(true),
       initialize: () => Promise.resolve(),
       refreshBalance: () => Promise.resolve(BALANCE),
-      fetchFeeEstimates: () =>
-        Promise.resolve({ minSatPerVb: 1, fast: 3, normal: 2, slow: 1 }),
+      fetchFeeEstimates: () => Promise.resolve({ minSatPerVb: 1, fast: 3, normal: 2, slow: 1 }),
       send: (request: BtcxSendRequest) => {
         sendCalls.push(request);
         return Promise.resolve('a'.repeat(64));

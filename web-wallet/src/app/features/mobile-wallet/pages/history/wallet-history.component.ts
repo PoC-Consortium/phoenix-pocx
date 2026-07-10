@@ -7,6 +7,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe } from '../../../../core/i18n';
+import { HashTruncatePipe } from '../../../../shared/pipes';
 import { ClipboardService } from '../../../../shared/services';
 import { BlockExplorerService } from '../../../../shared/services/block-explorer.service';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
@@ -36,6 +37,7 @@ const PAGE_SIZE = 25;
     MatTooltipModule,
     DatePipe,
     DecimalPipe,
+    HashTruncatePipe,
     I18nPipe,
   ],
   template: `
@@ -79,7 +81,7 @@ const PAGE_SIZE = 25;
                     {{ (tx.direction === 'received' ? 'mwallet_received' : 'mwallet_sent') | i18n }}
                   </span>
                   @if (tx.address) {
-                    <span class="tx-address mono">{{ abbr(tx.address) }}</span>
+                    <span class="tx-address mono">{{ tx.address | hashTruncate: 12 : 6 }}</span>
                   }
                   <span class="tx-time">
                     @if (tx.timestamp) {
@@ -483,11 +485,6 @@ export class WalletHistoryComponent implements OnInit {
 
   toggleDetail(tx: BtcxWalletTx): void {
     this.expandedTxid.set(this.expandedTxid() === tx.txid ? null : tx.txid);
-  }
-
-  /** Middle-truncate an address for the row: pocx1qab…xyz123. */
-  abbr(address: string): string {
-    return address.length <= 20 ? address : `${address.slice(0, 12)}…${address.slice(-6)}`;
   }
 
   openInExplorer(txid: string): void {

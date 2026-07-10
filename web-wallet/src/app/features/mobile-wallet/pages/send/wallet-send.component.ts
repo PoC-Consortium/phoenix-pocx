@@ -1,16 +1,18 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { ClipboardService } from '../../../../shared/services';
+import { HashTruncatePipe } from '../../../../shared/pipes';
+import { ClipboardService, Contact, ContactsStoreService } from '../../../../shared/services';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import {
   BtcxWalletService,
@@ -45,10 +47,12 @@ const PREVIEW_VSIZE_VB = 141;
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
+    MatMenuModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatDividerModule,
     DecimalPipe,
+    HashTruncatePipe,
     I18nPipe,
   ],
   template: `
@@ -160,7 +164,30 @@ const PREVIEW_VSIZE_VB = 141;
             @if (addressValid()) {
               <mat-icon matSuffix class="suffix-valid">check_circle</mat-icon>
             }
+            @if (contacts().length > 0) {
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                [matMenuTriggerFor]="contactsMenu"
+                [matTooltip]="'select_contact' | i18n"
+              >
+                <mat-icon>contacts</mat-icon>
+              </button>
+            }
           </mat-form-field>
+          <mat-menu #contactsMenu="matMenu">
+            @for (contact of contacts(); track contact.id) {
+              <button mat-menu-item (click)="selectContact(contact)">
+                <div class="contact-option">
+                  <span class="contact-option-name">{{ contact.name }}</span>
+                  <span class="contact-option-address">
+                    {{ contact.address | hashTruncate: 14 : 8 }}
+                  </span>
+                </div>
+              </button>
+            }
+          </mat-menu>
           @let addrErr = addressError();
           @if (addrErr) {
             <p class="error-text">{{ addrErr.key | i18n: addrErr.params }}</p>
@@ -431,6 +458,22 @@ const PREVIEW_VSIZE_VB = 141;
         word-break: break-all;
       }
 
+      .contact-option {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.3;
+
+        .contact-option-name {
+          font-size: 14px;
+        }
+
+        .contact-option-address {
+          font-size: 11px;
+          font-family: monospace;
+          color: rgba(0, 0, 0, 0.55);
+        }
+      }
+
       .success-card {
         text-align: center;
 
@@ -506,6 +549,11 @@ export class WalletSendComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly i18n = inject(I18nService);
   private readonly clipboard = inject(ClipboardService);
+  private readonly contactsStore = inject(ContactsStoreService);
+  private readonly route = inject(ActivatedRoute);
+
+  /** Address book entries of the wallet's network (picker suffix). */
+  readonly contacts = computed(() => this.contactsStore.forNetwork(this.wallet.network()));
 
   readonly presets: FeePreset[] = [
     { labelKey: 'fee_slow', target: 144 },
@@ -531,11 +579,20 @@ export class WalletSendComponent implements OnInit {
   readonly spendableSat = computed(() => this.wallet.balance()?.spendableSat ?? 0);
 
   ngOnInit(): void {
+    // Prefill from ?address= (contacts "send to", same as desktop).
+    const prefill = this.route.snapshot.queryParamMap.get('address');
+    if (prefill) {
+      this.address = prefill;
+    }
+    this.contactsStore.load();
     void this.init();
   }
 
   private async init(): Promise<void> {
     await this.wallet.initialize();
+    if (this.address) {
+      this.validateAddress();
+    }
     if (this.wallet.walletActive()) {
       await this.wallet.refreshBalance();
       try {
@@ -584,6 +641,11 @@ export class WalletSendComponent implements OnInit {
         }
         break;
     }
+  }
+
+  selectContact(contact: Contact): void {
+    this.address = contact.address;
+    this.validateAddress();
   }
 
   toggleSendAll(): void {
