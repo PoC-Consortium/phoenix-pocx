@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
+import { DecimalPipe } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,11 +11,16 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService, LANGUAGES, Language } from '../../../core/i18n';
-import { BtcxWalletService, BtcxWalletSummary } from '../../../core/services/btcx-wallet.service';
+import {
+  BtcxWalletService,
+  BtcxWalletSummary,
+  BtcxChainInfo,
+} from '../../../core/services/btcx-wallet.service';
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
-import { BtcxPipe } from '../../../shared/pipes';
+import { BtcxPipe, TimeAgoPipe } from '../../../shared/pipes';
 import { NotificationService } from '../../../shared/services';
 import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile-nav.component';
+import { ElectrumServerListComponent } from '../../../shared/components/electrum-server-list/electrum-server-list.component';
 
 /** One drawer navigation entry (the desktop main-layout's NavItem, slim). */
 interface NavItem {
@@ -70,8 +76,11 @@ interface NavGroup {
     MatSidenavModule,
     MatTooltipModule,
     MobileNavComponent,
+    ElectrumServerListComponent,
     BtcxPipe,
+    TimeAgoPipe,
     I18nPipe,
+    DecimalPipe,
   ],
   template: `
     <mat-sidenav-container class="wallet-layout">
@@ -164,8 +173,6 @@ interface NavGroup {
 
               <div class="toolbar-separator"></div>
 
-              <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="logo" />
-
               @if (!wallet.hasSeed()) {
                 <span class="app-name">{{ 'mwallet_title' | i18n }}</span>
               }
@@ -174,13 +181,67 @@ interface NavGroup {
                 <span class="network-badge">{{ wallet.network() | i18n }}</span>
               }
 
-              <span
-                class="conn-dot"
-                [class.healthy]="electrumStatus.overall() === 'healthy'"
-                [class.degraded]="electrumStatus.overall() === 'degraded'"
-                [class.down]="electrumStatus.overall() === 'down'"
-                [matTooltip]="connTooltip()"
-              ></span>
+              <!-- Electrum indicator (the desktop toolbar's remote-mode
+                   indicator: bolt icon + status popover) -->
+              <div
+                class="status-indicator clickable"
+                [matTooltip]="electrumTooltip()"
+                [matMenuTriggerFor]="electrumMenu"
+                (menuOpened)="onElectrumMenuOpened()"
+              >
+                <mat-icon
+                  [class.electrum-healthy]="electrumStatus.overall() === 'healthy'"
+                  [class.electrum-degraded]="electrumStatus.overall() === 'degraded'"
+                  [class.electrum-down]="electrumStatus.overall() === 'down'"
+                  [class.electrum-connecting]="electrumStatus.overall() === 'connecting'"
+                  >bolt</mat-icon
+                >
+              </div>
+              <mat-menu #electrumMenu="matMenu" class="electrum-menu">
+                <div class="electrum-popover" (click)="$event.stopPropagation()">
+                  <div class="electrum-popover-title">
+                    {{ 'electrum_servers' | i18n }}
+                  </div>
+
+                  <!-- Aggregate status (desktop keeps this in the hover
+                       tooltip; touch has no hover, so it lives here) -->
+                  <div class="electrum-summary-row">
+                    <span
+                      class="dot"
+                      [class.ok]="electrumStatus.overall() === 'healthy'"
+                      [class.degraded]="electrumStatus.overall() === 'degraded'"
+                      [class.down]="electrumStatus.overall() === 'down'"
+                    ></span>
+                    <span class="summary-text">
+                      {{ 'electrum_status_' + electrumStatus.overall() | i18n }}
+                    </span>
+                    @if (electrumStatus.height(); as height) {
+                      <span class="summary-meta">#{{ height | number }}</span>
+                    }
+                  </div>
+
+                  <app-electrum-server-list [servers]="electrumStatus.servers()" />
+
+                  @let age = electrumStatus.syncAgeSecs();
+                  @if (age !== null || chain() !== null) {
+                    <mat-divider class="electrum-popover-divider"></mat-divider>
+                    @if (age !== null) {
+                      <div class="electrum-footer-row">
+                        <span class="footer-label">{{ 'mwallet_last_update' | i18n }}</span>
+                        <span class="footer-value">
+                          {{ 'electrum_synced_ago' | i18n: { seconds: age } }}
+                        </span>
+                      </div>
+                    }
+                    @if (chain(); as info) {
+                      <div class="electrum-footer-row">
+                        <span class="footer-label">{{ 'last_block_time' | i18n }}</span>
+                        <span class="footer-value">{{ info.headerTime | timeAgo }}</span>
+                      </div>
+                    }
+                  }
+                </div>
+              </mat-menu>
             </div>
 
             <div class="toolbar-right">
@@ -214,6 +275,10 @@ interface NavGroup {
                         <span class="wallet-row-name">{{ w.name }}</span>
                         @if (w.policy.kind === 'bip86') {
                           <span class="wallet-row-badge">{{ 'mwallet_taproot_badge' | i18n }}</span>
+                        } @else {
+                          <span class="wallet-row-badge segwit">{{
+                            'mwallet_segwit_badge' | i18n
+                          }}</span>
                         }
                         @if (w.seedEncrypted && w.seedLocked) {
                           <mat-icon class="wallet-row-lock">lock</mat-icon>
@@ -466,13 +531,18 @@ interface NavGroup {
         background: #eaf0f6;
       }
 
+      /* Phoenix-gradient header (round 6): the desktop wallet's toolbar is
+         plain white — the Phoenix identity gradient lives on its sidenav
+         (main-layout), which the drawer and dashboard cards here already
+         mirror. The mobile toolbar carries the same gradient so every
+         wallet page's header reads as desktop-Phoenix. */
       .wallet-toolbar {
         position: relative;
-        background-color: white !important;
-        color: rgba(0, 0, 0, 0.87) !important;
+        background: linear-gradient(90deg, #1e3a5f 0%, #2d5a87 100%) !important;
+        color: white !important;
         padding: 0;
         height: 56px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         flex-shrink: 0;
         z-index: 2;
       }
@@ -493,16 +563,10 @@ interface NavGroup {
         min-width: 0;
       }
 
-      .logo {
-        width: 28px;
-        height: 28px;
-        flex-shrink: 0;
-      }
-
       .app-name {
         font-size: 16px;
         font-weight: 500;
-        color: rgba(0, 0, 0, 0.87);
+        color: white;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -523,13 +587,13 @@ interface NavGroup {
           font-size: 20px;
           width: 20px;
           height: 20px;
-          color: rgba(0, 0, 0, 0.54);
+          color: rgba(255, 255, 255, 0.8);
         }
 
         .wallet-chip-name {
           font-size: 15px;
           font-weight: 500;
-          color: rgba(0, 0, 0, 0.87);
+          color: white;
           max-width: 96px;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -540,7 +604,7 @@ interface NavGroup {
           font-size: 18px;
           width: 18px;
           height: 18px;
-          color: rgba(0, 0, 0, 0.54);
+          color: rgba(255, 255, 255, 0.8);
           margin: 0;
         }
       }
@@ -580,6 +644,11 @@ interface NavGroup {
           border-radius: 8px;
           padding: 0 6px;
           flex-shrink: 0;
+
+          /* BIP-84 sibling of the taproot badge: same family, neutral hue. */
+          &.segwit {
+            color: #546e7a;
+          }
         }
 
         .wallet-row-lock {
@@ -610,7 +679,7 @@ interface NavGroup {
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        color: #e65100;
+        color: #ffb74d;
         border: 1px solid currentColor;
         border-radius: 10px;
         padding: 1px 8px;
@@ -618,21 +687,121 @@ interface NavGroup {
         flex-shrink: 0;
       }
 
-      .conn-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: rgba(0, 0, 0, 0.26); /* connecting/unknown */
+      /* Electrum indicator (the desktop toolbar's .status-indicator),
+         sized as a touch target and tinted for the gradient surface. */
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 56px;
         flex-shrink: 0;
 
-        &.healthy {
-          background: #4caf50;
+        mat-icon {
+          font-size: 22px;
+          width: 22px;
+          height: 22px;
+          color: rgba(255, 255, 255, 0.45);
+          transition: color 0.2s ease;
+
+          &.electrum-healthy {
+            color: #4caf50;
+          }
+
+          &.electrum-degraded {
+            color: #ff9800;
+          }
+
+          &.electrum-down {
+            color: #e53935;
+          }
+
+          &.electrum-connecting {
+            color: rgba(255, 255, 255, 0.45);
+          }
         }
-        &.degraded {
-          background: #ff9800;
+
+        &.clickable {
+          cursor: pointer;
         }
-        &.down {
-          background: #f44336;
+      }
+
+      /* Electrum popover (desktop toolbar's .electrum-popover + the
+         summary/footer rows touch needs, since it has no hover tooltip). */
+      .electrum-popover {
+        padding: 8px 16px 12px;
+        min-width: 260px;
+        max-width: 92vw;
+
+        /* inherit + opacity: the overlay panel is theme-colored, and
+           :host-context can't reach overlay content from this layout. */
+        .electrum-popover-title {
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: inherit;
+          opacity: 0.65;
+          margin-bottom: 8px;
+        }
+      }
+
+      .electrum-summary-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 0 6px;
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          background: rgba(0, 0, 0, 0.25);
+
+          &.ok {
+            background: #4caf50;
+          }
+          &.degraded {
+            background: #ff9800;
+          }
+          &.down {
+            background: #e53935;
+          }
+        }
+
+        .summary-text {
+          flex: 1;
+          font-size: 12px;
+        }
+
+        .summary-meta {
+          font-size: 11px;
+          color: inherit;
+          opacity: 0.55;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+
+      .electrum-popover-divider {
+        margin: 6px 0;
+      }
+
+      .electrum-footer-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 2px 0;
+        font-size: 11px;
+
+        .footer-label {
+          color: inherit;
+          opacity: 0.55;
+        }
+
+        .footer-value {
+          font-variant-numeric: tabular-nums;
         }
       }
 
@@ -646,7 +815,7 @@ interface NavGroup {
       .toolbar-separator {
         height: 56px;
         width: 1px;
-        background: rgba(0, 0, 0, 0.12);
+        background: rgba(255, 255, 255, 0.15);
         flex-shrink: 0;
       }
 
@@ -671,12 +840,12 @@ interface NavGroup {
       }
 
       .secondary-text {
-        color: rgba(0, 0, 0, 0.54);
+        color: rgba(255, 255, 255, 0.85);
       }
 
       .lang-button {
         .lang-name-text {
-          color: rgba(0, 0, 0, 0.87);
+          color: white;
           display: inline;
         }
 
@@ -717,36 +886,9 @@ interface NavGroup {
           background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
         }
 
+        /* Same treatment, the dark sidenav gradient (desktop main-layout). */
         .wallet-toolbar {
-          background-color: #424242 !important;
-          color: white !important;
-        }
-
-        .app-name {
-          color: white;
-        }
-
-        .wallet-chip-content {
-          .wallet-icon,
-          .dropdown-arrow {
-            color: rgba(255, 255, 255, 0.7);
-          }
-
-          .wallet-chip-name {
-            color: white;
-          }
-        }
-
-        .secondary-text {
-          color: rgba(255, 255, 255, 0.7);
-        }
-
-        .toolbar-separator {
-          background: rgba(255, 255, 255, 0.12);
-        }
-
-        .network-badge {
-          color: #ffb74d;
+          background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%) !important;
         }
       }
     `,
@@ -789,9 +931,26 @@ export class MobileWalletLayoutComponent implements OnInit {
   /** Name of the wallet a switch is in flight for, or null. */
   readonly switching = signal<string | null>(null);
 
+  /**
+   * Chain tip snapshot for the Electrum popover's "last block" row —
+   * fetched when the popover opens (no polling of our own).
+   */
+  readonly chain = signal<BtcxChainInfo | null>(null);
+
   ngOnInit(): void {
     // Lazy init: only mobile wallet routes touch the btcx wallet backend
     void this.wallet.initialize();
+  }
+
+  /** Popover open: fresh server snapshots + tip header (last block time). */
+  onElectrumMenuOpened(): void {
+    void this.electrumStatus.refreshServers();
+    if (this.wallet.hasElectrumServer()) {
+      void this.wallet
+        .chainInfo()
+        .then(info => this.chain.set(info))
+        .catch(err => console.warn('Failed to fetch chain info:', err));
+    }
   }
 
   /** Refresh the registry snapshot whenever the switcher opens. */
@@ -818,8 +977,8 @@ export class MobileWalletLayoutComponent implements OnInit {
     }
   }
 
-  /** Tooltip of the connection dot: status text plus synced height. */
-  connTooltip(): string {
+  /** Tooltip of the Electrum indicator (the desktop toolbar's, slim). */
+  electrumTooltip(): string {
     const parts = [this.i18n.get(`electrum_status_${this.electrumStatus.overall()}`)];
     const height = this.electrumStatus.height();
     if (height !== null) parts.push(`#${height}`);
