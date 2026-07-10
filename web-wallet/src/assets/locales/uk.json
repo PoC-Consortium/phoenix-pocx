@@ -1140,7 +1140,6 @@
   "settings_experimental": "Експериментальні",
   "settings_nodeless_wallet": "Гаманець без вузла (експериментально)",
   "settings_nodeless_wallet_desc": "BTCX-гаманець на основі Electrum, що працює без локального вузла. Додає пункт «Гаманець без вузла» до навігації.",
-  "setup_plotting_address_invalid": "Перед збереженням введіть дійсну адресу плоттингу",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

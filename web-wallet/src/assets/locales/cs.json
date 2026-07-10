@@ -1140,7 +1140,6 @@
   "settings_experimental": "Experimentální",
   "settings_nodeless_wallet": "Peněženka bez uzlu (experimentální)",
   "settings_nodeless_wallet_desc": "BTCX peněženka založená na Electrum, která funguje bez lokálního uzlu. Přidá do navigace položku Peněženka bez uzlu.",
-  "setup_plotting_address_invalid": "Před uložením zadejte platnou adresu plotování",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

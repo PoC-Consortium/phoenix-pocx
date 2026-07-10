@@ -1140,7 +1140,6 @@
   "settings_experimental": "Eksperymentalne",
   "settings_nodeless_wallet": "Portfel bez węzła (eksperymentalny)",
   "settings_nodeless_wallet_desc": "Portfel BTCX oparty na Electrum, działający bez lokalnego węzła. Dodaje pozycję Portfel bez węzła do nawigacji.",
-  "setup_plotting_address_invalid": "Przed zapisaniem wprowadź prawidłowy adres plotowania",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",
