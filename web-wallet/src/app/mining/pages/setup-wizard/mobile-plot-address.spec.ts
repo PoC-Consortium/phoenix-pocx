@@ -6,6 +6,7 @@ describe('resolveMobilePlotAddressSelection', () => {
     configuredPlottingAddress: '',
     seedState: 'unlocked',
     walletActive: true,
+    walletCanMine: true,
   };
 
   it('picks the wallet address on a fresh setup with a usable wallet (one-click path)', () => {
@@ -55,5 +56,9 @@ describe('resolveMobilePlotAddressSelection', () => {
 
   it('requires the runtime to be open, not just an unlocked seed', () => {
     expect(resolveMobilePlotAddressSelection({ ...base, walletActive: false })).toBe('custom');
+  });
+
+  it('falls back to custom when the active wallet is taproot (cannot provide a mining address)', () => {
+    expect(resolveMobilePlotAddressSelection({ ...base, walletCanMine: false })).toBe('custom');
   });
 });

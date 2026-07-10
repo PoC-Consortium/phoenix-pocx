@@ -12,7 +12,9 @@ use keys_btcx::WalletSeed;
 use seedstore::SeedStore;
 use wallet_btcx::WalletTxInfo;
 
-use super::config::{self, BtcxWalletConfig, DescriptorPolicy, WalletNetwork, TRASH_SUBDIR};
+use super::config::{
+    self, BtcxWalletConfig, DescriptorKindCfg, DescriptorPolicy, WalletNetwork, TRASH_SUBDIR,
+};
 use super::manager::{self, BranchHit};
 use super::state::{BtcxWalletStatus, SharedBtcxWalletState};
 
@@ -119,38 +121,59 @@ fn import_into_named_wallet(
     Ok(())
 }
 
+/// The full create flow (resolve name → import → open runtime → status),
+/// shared by the `btcx_wallet_create` command and the regtest integration
+/// tests (which run it without an `AppHandle`).
+pub fn create_wallet_impl(
+    state: &SharedBtcxWalletState,
+    app: Option<AppHandle>,
+    mnemonic: &str,
+    passphrase: Option<&str>,
+    name: Option<String>,
+    kind: Option<DescriptorKindCfg>,
+) -> Result<BtcxWalletStatus, String> {
+    let config = state.get_config();
+    let network = config.network;
+    let name = resolve_new_wallet_name(&config, network, name)?;
+    let policy = DescriptorPolicy {
+        kind: kind.unwrap_or(DescriptorKindCfg::Bip84),
+        ..DescriptorPolicy::default()
+    };
+    import_into_named_wallet(state, network, &name, mnemonic, passphrase, policy)?;
+    // No Electrum server configured yet is fine — the runtime opens
+    // later, when one is (Ok(false)).
+    state.open_runtime(app)?;
+    state.status()
+}
+
 /// Create a wallet from a (freshly generated, user-confirmed) mnemonic.
 /// An optional passphrase encrypts the seed at rest (it is NOT a BIP39
 /// word-25 — derivation always uses an empty BIP39 passphrase, so the
-/// mnemonic alone always recovers the funds). New wallets derive BIP-84 at
-/// the BTCX coin type. Refuses to overwrite an existing seed. `name` picks
-/// the named wallet to create (default: the active wallet — the mobile
-/// flow); the created wallet becomes the active one.
+/// mnemonic alone always recovers the funds). New wallets derive at the
+/// BTCX coin type on the `kind` branch — BIP-84 unless the caller
+/// explicitly asks for BIP-86 (the mobile create flow's advanced address-
+/// type choice). Refuses to overwrite an existing seed. `name` picks the
+/// named wallet to create (default: the active wallet — the mobile flow);
+/// the created wallet becomes the active one.
 #[tauri::command]
 pub async fn btcx_wallet_create(
     mnemonic: String,
     passphrase: Option<String>,
     name: Option<String>,
+    kind: Option<DescriptorKindCfg>,
     app: AppHandle,
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<BtcxWalletStatus, String> {
     let state = state.inner().clone();
     blocking(move || {
-        let config = state.get_config();
-        let network = config.network;
-        let name = resolve_new_wallet_name(&config, network, name)?;
-        import_into_named_wallet(
+        create_wallet_impl(
             &state,
-            network,
-            &name,
+            Some(app),
             &mnemonic,
             passphrase.as_deref(),
-            DescriptorPolicy::default(),
-        )?;
-        // No Electrum server configured yet is fine — the runtime opens
-        // later, when one is (Ok(false)).
-        state.open_runtime(Some(app))?;
-        state.status()
+            name,
+            kind,
+        )
     })
     .await
 }
@@ -180,11 +203,11 @@ pub struct BtcxRestoreResult {
 /// history lives.
 fn open_after_probe(
     state: &SharedBtcxWalletState,
-    app: AppHandle,
+    app: Option<AppHandle>,
     hits: &[BranchHit],
     selected: DescriptorPolicy,
 ) -> Result<(), String> {
-    state.open_runtime(Some(app))?;
+    state.open_runtime(app)?;
     if let Some(hit) = hits.iter().find(|h| h.policy == selected) {
         let reach = state.with_entry(|entry| {
             manager::ensure_probe_reach(entry, hit).map_err(|e| format!("{e:#}"))
@@ -196,6 +219,42 @@ fn open_after_probe(
     Ok(())
 }
 
+/// The full restore flow (resolve name → probe → import → open runtime),
+/// shared by the `btcx_wallet_restore` command and the regtest integration
+/// tests (which run it without an `AppHandle`). See the command docs for
+/// the `kind` semantics.
+pub fn restore_wallet_impl(
+    state: &SharedBtcxWalletState,
+    app: Option<AppHandle>,
+    mnemonic: &str,
+    passphrase: Option<&str>,
+    name: Option<String>,
+    kind: Option<DescriptorKindCfg>,
+) -> Result<BtcxRestoreResult, String> {
+    // Validate + derive + resolve the name first: nothing is written if
+    // the phrase is bad, the name is taken, or the probe cannot run.
+    let config = state.get_config();
+    let network = config.network;
+    let name = resolve_new_wallet_name(&config, network, name)?;
+    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+    let chain = state.probe_chain()?;
+    let hits = manager::probe_all_branches(&seed, &chain)
+        .map_err(|e| format!("Restore probing failed: {e:#}"))?;
+    let (selected, fresh) = match kind {
+        Some(kind) => manager::select_restore_policy_for_kind(&hits, kind),
+        None => manager::select_restore_policy(&hits),
+    };
+
+    import_into_named_wallet(state, network, &name, mnemonic, passphrase, selected)?;
+    open_after_probe(state, app, &hits, selected)?;
+    Ok(BtcxRestoreResult {
+        status: state.status()?,
+        selected,
+        hits,
+        fresh,
+    })
+}
+
 /// Restore the wallet from an existing mnemonic. Probes ALL descriptor
 /// branches the seed's history could live on (BIP-84/86 × BTCX-coin-type/
 /// legacy coin-0 — see `manager`) against the configured Electrum server
@@ -203,42 +262,33 @@ fn open_after_probe(
 /// reports every hit plus an honest fresh verdict. Requires a configured,
 /// reachable Electrum server — restoring blind could silently hide legacy
 /// funds.
+///
+/// `kind` (optional, additive) FORCES the descriptor family the wallet
+/// opens with: the highest-priority hit of that family wins, or — when no
+/// probed branch of that family has history — the fresh default at the
+/// BTCX coin type. The mobile "create both wallets" flow calls restore a
+/// second time with the OTHER family's kind so a seed with history on both
+/// BIP-84 and BIP-86 ends up as two named wallets over the same mnemonic.
+/// Without `kind` the behavior is exactly the pre-existing one.
 #[tauri::command]
 pub async fn btcx_wallet_restore(
     mnemonic: String,
     passphrase: Option<String>,
     name: Option<String>,
+    kind: Option<DescriptorKindCfg>,
     app: AppHandle,
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<BtcxRestoreResult, String> {
     let state = state.inner().clone();
     blocking(move || {
-        // Validate + derive + resolve the name first: nothing is written if
-        // the phrase is bad, the name is taken, or the probe cannot run.
-        let config = state.get_config();
-        let network = config.network;
-        let name = resolve_new_wallet_name(&config, network, name)?;
-        let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
-        let chain = state.probe_chain()?;
-        let hits = manager::probe_all_branches(&seed, &chain)
-            .map_err(|e| format!("Restore probing failed: {e:#}"))?;
-        let (selected, fresh) = manager::select_restore_policy(&hits);
-
-        import_into_named_wallet(
+        restore_wallet_impl(
             &state,
-            network,
-            &name,
+            Some(app),
             &mnemonic,
             passphrase.as_deref(),
-            selected,
-        )?;
-        open_after_probe(&state, app, &hits, selected)?;
-        Ok(BtcxRestoreResult {
-            status: state.status()?,
-            selected,
-            hits,
-            fresh,
-        })
+            name,
+            kind,
+        )
     })
     .await
 }
@@ -297,7 +347,7 @@ pub async fn btcx_wallet_reprobe(
             })?;
         }
 
-        open_after_probe(&state, app, &hits, selected)?;
+        open_after_probe(&state, Some(app), &hits, selected)?;
         Ok(BtcxRestoreResult {
             status: state.status()?,
             selected,
@@ -418,6 +468,31 @@ pub fn btcx_wallet_list(
     Ok(out)
 }
 
+/// The full select flow (validate → close old runtime → switch → open),
+/// shared by the `btcx_wallet_select` command and the regtest integration
+/// tests (which run it without an `AppHandle`).
+pub fn select_wallet_impl(
+    state: &SharedBtcxWalletState,
+    app: Option<AppHandle>,
+    name: &str,
+) -> Result<BtcxWalletStatus, String> {
+    config::validate_wallet_name(name)?;
+    let config = state.get_config();
+    let network = config.network;
+    if config.wallet_meta(network, name).is_none() {
+        return Err(format!("No wallet named '{name}' on {}", network.as_str()));
+    }
+    if config.active_wallet_name() != name {
+        state.close_runtime();
+        state.drop_seed_passphrase();
+        state.update_config(|c| c.set_active_wallet(network, name))?;
+    }
+    // Ok(false) (locked seed / no server) is a valid selected-but-closed
+    // state — the status tells the UI which.
+    state.open_runtime(app)?;
+    state.status()
+}
+
 /// Select (and open, when possible) another registered wallet of the
 /// active network. Closes the previous wallet's runtime and drops its held
 /// passphrase.
@@ -428,24 +503,7 @@ pub async fn btcx_wallet_select(
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<BtcxWalletStatus, String> {
     let state = state.inner().clone();
-    blocking(move || {
-        config::validate_wallet_name(&name)?;
-        let config = state.get_config();
-        let network = config.network;
-        if config.wallet_meta(network, &name).is_none() {
-            return Err(format!("No wallet named '{name}' on {}", network.as_str()));
-        }
-        if config.active_wallet_name() != name {
-            state.close_runtime();
-            state.drop_seed_passphrase();
-            state.update_config(|c| c.set_active_wallet(network, &name))?;
-        }
-        // Ok(false) (locked seed / no server) is a valid selected-but-closed
-        // state — the status tells the UI which.
-        state.open_runtime(Some(app))?;
-        state.status()
-    })
-    .await
+    blocking(move || select_wallet_impl(&state, Some(app), &name)).await
 }
 
 /// Close the active wallet's runtime WITHOUT switching the selection (the

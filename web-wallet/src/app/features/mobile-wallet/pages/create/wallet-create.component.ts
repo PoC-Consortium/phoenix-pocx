@@ -7,9 +7,11 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatRadioModule } from '@angular/material/radio';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { sanitizeReturnTo } from '../../return-to';
+import { isInvalidWalletName, isWalletNameTaken, suggestWalletName } from '../../wallet-name';
 
 type CreateStep = 'phrase' | 'verify' | 'protect';
 
@@ -18,7 +20,10 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
  *
  * 1. phrase:  generate + display the 24 words with a write-it-down gate
  * 2. verify:  confirm a few words from the written backup
- * 3. protect: optional at-rest passphrase, then create
+ * 3. protect: wallet name (pre-filled with the next free default, desktop
+ *             naming rules), optional at-rest passphrase, and a collapsed
+ *             ADVANCED address-type choice (BIP-84 segwit default /
+ *             BIP-86 taproot), then create
  *
  * No skippable-backup shortcuts: the acknowledge checkbox and the word
  * check are both required before the seed is committed.
@@ -39,6 +44,7 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MatRadioModule,
     I18nPipe,
   ],
   template: `
@@ -125,6 +131,26 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
         </div>
       } @else {
         <div class="card">
+          <h3>{{ 'wallet_name' | i18n }}</h3>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
+            <input
+              matInput
+              [(ngModel)]="walletName"
+              (ngModelChange)="onWalletNameChange()"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+            @if (walletNameConflict()) {
+              <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
+            } @else if (walletNameInvalid()) {
+              <mat-error>{{ 'wallet_name_invalid_local' | i18n }}</mat-error>
+            } @else {
+              <mat-hint>{{ 'wallet_name_hint_local' | i18n }}</mat-hint>
+            }
+          </mat-form-field>
+
           <h3>{{ 'mwallet_passphrase_title' | i18n }}</h3>
           <p class="hint-text">{{ 'mwallet_passphrase_hint' | i18n }}</p>
 
@@ -142,6 +168,27 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
             @if (passphraseConfirm && passphrase !== passphraseConfirm) {
               <p class="error-text">{{ 'mwallet_passphrase_mismatch' | i18n }}</p>
             }
+          }
+
+          <!-- Advanced (collapsed): address type — BIP-84 default, BIP-86 taproot -->
+          <button type="button" class="advanced-toggle" (click)="showAdvanced.set(!showAdvanced())">
+            <mat-icon>{{ showAdvanced() ? 'expand_less' : 'expand_more' }}</mat-icon>
+            {{ 'mwallet_advanced' | i18n }}
+          </button>
+          @if (showAdvanced()) {
+            <div class="advanced-section">
+              <p class="hint-text small">{{ 'mwallet_address_type' | i18n }}</p>
+              <mat-radio-group class="kind-group" [(ngModel)]="kind">
+                <mat-radio-button value="bip84">
+                  <span class="kind-label">{{ 'mwallet_kind_segwit' | i18n }}</span>
+                  <span class="kind-desc">{{ 'mwallet_kind_segwit_desc' | i18n }}</span>
+                </mat-radio-button>
+                <mat-radio-button value="bip86">
+                  <span class="kind-label">{{ 'mwallet_kind_taproot' | i18n }}</span>
+                  <span class="kind-desc">{{ 'mwallet_kind_taproot_desc' | i18n }}</span>
+                </mat-radio-button>
+              </mat-radio-group>
+            </div>
           }
 
           @if (createError()) {
@@ -210,6 +257,53 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
         color: rgba(0, 0, 0, 0.6);
         font-size: 13px;
         margin: 0 0 16px;
+
+        &.small {
+          font-size: 12px;
+          margin: 0 0 8px;
+        }
+      }
+
+      .advanced-toggle {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: none;
+        border: none;
+        padding: 4px 0;
+        margin: 4px 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: rgba(0, 0, 0, 0.6);
+        cursor: pointer;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+      }
+
+      .advanced-section {
+        margin: 4px 0 12px;
+      }
+
+      .kind-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+
+        .kind-label {
+          display: block;
+          font-size: 13px;
+          font-weight: 500;
+        }
+
+        .kind-desc {
+          display: block;
+          font-size: 12px;
+          color: rgba(0, 0, 0, 0.55);
+        }
       }
 
       .warning-text {
@@ -296,6 +390,14 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
           color: rgba(255, 255, 255, 0.6);
         }
 
+        .advanced-toggle {
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        .kind-group .kind-desc {
+          color: rgba(255, 255, 255, 0.55);
+        }
+
         .warning-text {
           color: rgba(255, 255, 255, 0.8);
           background: rgba(255, 183, 77, 0.12);
@@ -328,7 +430,18 @@ export class WalletCreateComponent implements OnInit {
   passphrase = '';
   passphraseConfirm = '';
 
+  /** Wallet name — pre-filled with the next free default; desktop rules. */
+  walletName = '';
+  readonly walletNameConflict = signal(false);
+  readonly walletNameInvalid = signal(false);
+
+  /** Advanced section (collapsed): descriptor family for the new wallet. */
+  readonly showAdvanced = signal(false);
+  kind: 'bip84' | 'bip86' = 'bip84';
+
   private mnemonic = '';
+  /** Registry names for suggestion + case-insensitive conflict checks. */
+  private existingNames: string[] = [];
 
   readonly allChecksFilled = computed(() => this.checks().every(c => c.entered.trim().length > 0));
 
@@ -339,12 +452,22 @@ export class WalletCreateComponent implements OnInit {
   private async generate(): Promise<void> {
     try {
       await this.wallet.initialize();
+      this.existingNames = (await this.wallet.refreshWallets()).map(w => w.name);
+      if (!this.walletName) {
+        this.walletName = suggestWalletName(this.existingNames);
+      }
       this.mnemonic = await this.wallet.generateMnemonic();
       this.words.set(this.mnemonic.split(' '));
     } catch (err) {
       console.error('Failed to generate mnemonic:', err);
       this.createError.set(`${err}`);
     }
+  }
+
+  /** Mirror the Rust-side naming rules before the commit (desktop parity). */
+  onWalletNameChange(): void {
+    this.walletNameConflict.set(isWalletNameTaken(this.walletName, this.existingNames));
+    this.walletNameInvalid.set(isInvalidWalletName(this.walletName));
   }
 
   startVerify(): void {
@@ -370,6 +493,7 @@ export class WalletCreateComponent implements OnInit {
   }
 
   canCreate(): boolean {
+    if (this.walletNameConflict() || this.walletNameInvalid()) return false;
     if (!this.passphrase) return true;
     return this.passphrase === this.passphraseConfirm;
   }
@@ -379,7 +503,9 @@ export class WalletCreateComponent implements OnInit {
     this.creating.set(true);
     this.createError.set(null);
     try {
-      await this.wallet.create(this.mnemonic, this.passphrase || undefined);
+      // An emptied name field falls back to the suggested default.
+      const name = this.walletName.trim() || suggestWalletName(this.existingNames);
+      await this.wallet.create(this.mnemonic, this.passphrase || undefined, name, this.kind);
       this.mnemonic = '';
       this.words.set([]);
       // Chain back into the flow that launched us (e.g. mining setup)

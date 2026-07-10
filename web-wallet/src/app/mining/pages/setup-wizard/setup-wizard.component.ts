@@ -494,6 +494,9 @@ interface ChainModalData {
                     <div class="radio-label-sub address-full">
                       {{ walletAddress() || ('setup_no_wallet_connected' | i18n) }}
                     </div>
+                  } @else if (btcxWallet.walletActive() && walletIsTaproot()) {
+                    <!-- Mobile: taproot wallet - cannot provide a mining address -->
+                    <div class="radio-label-sub">{{ 'setup_wallet_taproot_hint' | i18n }}</div>
                   } @else if (btcxWallet.walletActive()) {
                     <!-- Mobile: address handed out by the nodeless BTCX wallet -->
                     <div class="radio-label-sub address-full">
@@ -2806,9 +2809,15 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly walletUnlockPassphrase = signal('');
   readonly walletUnlocking = signal(false);
   readonly walletUnlockError = signal(false);
-  /** "Use wallet address" is selectable unless mobile mode has no open wallet. */
+  /**
+   * The ACTIVE nodeless wallet derives BIP-86 taproot addresses — which
+   * cannot receive mining rewards (plot addresses are the P2WPKH form).
+   * The wizard's honest hint tells the user to switch to a segwit wallet.
+   */
+  readonly walletIsTaproot = computed(() => this.btcxWallet.descriptorPolicy()?.kind === 'bip86');
+  /** "Use wallet address" is selectable unless mobile mode has no usable (open, non-taproot) wallet. */
   readonly useWalletAddressDisabled = computed(
-    () => this.appMode.isMobileMode() && !this.btcxWallet.walletActive()
+    () => this.appMode.isMobileMode() && (!this.btcxWallet.walletActive() || this.walletIsTaproot())
   );
   readonly compressionLevel = signal('1');
   readonly escalation = signal(1); // default 1, min 1
@@ -3105,7 +3114,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     if (this.nodeService.isRemote()) {
       try {
         await this.btcxWallet.initialize();
-        if (this.btcxWallet.walletActive()) {
+        // A taproot (BIP-86) wallet's addresses can't mine — leave the
+        // field on its "no wallet" text instead of fetching one.
+        if (this.btcxWallet.walletActive() && !this.walletIsTaproot()) {
           const address = await this.btcxWallet.newAddress();
           this.walletAddress.set(address);
         }
@@ -3191,6 +3202,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       configuredPlottingAddress: this.customPlottingAddress(),
       seedState: this.btcxWallet.seedState(),
       walletActive: this.btcxWallet.walletActive(),
+      walletCanMine: !this.walletIsTaproot(),
     });
     if (selection === 'wallet') {
       this.useCustomAddress.set(false);
@@ -3211,7 +3223,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
    */
   private async fetchMobileWalletAddress(): Promise<void> {
     if (this.walletAddressLoading() || this.walletAddress()) return;
-    if (!this.btcxWallet.walletActive()) return;
+    if (!this.btcxWallet.walletActive() || this.walletIsTaproot()) return;
 
     this.walletAddressLoading.set(true);
     try {

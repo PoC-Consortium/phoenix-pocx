@@ -321,6 +321,7 @@ export class BtcxWalletService {
   private readonly _balance = signal<BtcxBalance | null>(null);
   private readonly _transactions = signal<BtcxWalletTx[]>([]);
   private readonly _config = signal<BtcxWalletConfig | null>(null);
+  private readonly _wallets = signal<BtcxWalletSummary[]>([]);
   private readonly _lastSync = signal<BtcxSyncEvent | null>(null);
   private readonly _isLoading = signal(false);
   private readonly _error = signal<string | null>(null);
@@ -338,6 +339,8 @@ export class BtcxWalletService {
   readonly balance = this._balance.asReadonly();
   readonly transactions = this._transactions.asReadonly();
   readonly config = this._config.asReadonly();
+  /** Registered wallets of the active network (refreshWallets snapshot). */
+  readonly wallets = this._wallets.asReadonly();
   readonly lastSync = this._lastSync.asReadonly();
   readonly isLoading = this._isLoading.asReadonly();
   readonly error = this._error.asReadonly();
@@ -474,13 +477,21 @@ export class BtcxWalletService {
   /**
    * Create the wallet from a (freshly generated, user-confirmed) mnemonic.
    * The optional passphrase encrypts the seed at rest only — the mnemonic
-   * alone always recovers the funds. Throws on failure.
+   * alone always recovers the funds. `kind` picks the descriptor family
+   * (default BIP-84; 'bip86' = taproot, the create flow's advanced
+   * address-type choice). Throws on failure.
    */
-  async create(mnemonic: string, passphrase?: string, name?: string): Promise<BtcxWalletStatus> {
+  async create(
+    mnemonic: string,
+    passphrase?: string,
+    name?: string,
+    kind?: BtcxDescriptorPolicy['kind']
+  ): Promise<BtcxWalletStatus> {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_create', {
       mnemonic,
       passphrase: passphrase || null,
       name: name ?? null,
+      kind: kind ?? null,
     });
     this._status.set(status);
     await this.refreshConfig();
@@ -492,13 +503,22 @@ export class BtcxWalletService {
    * Restore the wallet from an existing mnemonic. The backend probes EVERY
    * descriptor branch the seed's history could live on (needs a reachable
    * Electrum server) and opens the best hit; the result carries the full
-   * hit list and an honest fresh verdict. Throws on failure.
+   * hit list and an honest fresh verdict. `kind` FORCES the descriptor
+   * family instead: the best hit of that family (or its fresh BTCX-coin-
+   * type default) — the second call of the "create both wallets" flow.
+   * Throws on failure.
    */
-  async restore(mnemonic: string, passphrase?: string, name?: string): Promise<BtcxRestoreResult> {
+  async restore(
+    mnemonic: string,
+    passphrase?: string,
+    name?: string,
+    kind?: BtcxDescriptorPolicy['kind']
+  ): Promise<BtcxRestoreResult> {
     const result = await invoke<BtcxRestoreResult>('btcx_wallet_restore', {
       mnemonic,
       passphrase: passphrase || null,
       name: name ?? null,
+      kind: kind ?? null,
     });
     this._status.set(result.status);
     await this.refreshConfig();
@@ -551,6 +571,22 @@ export class BtcxWalletService {
   /** List the registered wallets of the active network. Throws on failure. */
   async list(): Promise<BtcxWalletSummary[]> {
     return invoke<BtcxWalletSummary[]>('btcx_wallet_list');
+  }
+
+  /**
+   * Refresh the `wallets` signal from the registry — the mobile wallet
+   * switcher's and settings page's shared list. Errors resolve to an empty
+   * list (e.g. desktop-managed mode where the backend is untouched).
+   */
+  async refreshWallets(): Promise<BtcxWalletSummary[]> {
+    try {
+      const list = await this.list();
+      this._wallets.set(list);
+      return list;
+    } catch (err) {
+      console.error('Failed to list btcx wallets:', err);
+      return this._wallets();
+    }
   }
 
   /**
@@ -674,11 +710,15 @@ export class BtcxWalletService {
   // Configuration & Sync
   // ============================================================================
 
-  /** Refresh the persisted wallet configuration. */
+  /** Refresh the persisted wallet configuration (and the registry view). */
   async refreshConfig(): Promise<BtcxWalletConfig | null> {
     try {
       const config = await invoke<BtcxWalletConfig>('btcx_wallet_get_config');
       this._config.set(config);
+      // The wallets signal is the registry's per-network view — every
+      // path that can change it (create/restore/select/delete/network
+      // switch) already refreshes the config, so ride the same seam.
+      await this.refreshWallets();
       return config;
     } catch (err) {
       console.error('Failed to get btcx wallet config:', err);
