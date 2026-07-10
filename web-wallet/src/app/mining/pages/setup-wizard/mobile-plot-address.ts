@@ -18,6 +18,11 @@ export interface MobilePlotAddressContext {
   seedState: BtcxSeedState;
   /** Whether the nodeless wallet runtime is open (can hand out addresses). */
   walletActive: boolean;
+  /**
+   * Whether the ACTIVE wallet's addresses can mine: BIP-84 (segwit v0)
+   * yes, BIP-86 (taproot) no — plot addresses are the P2WPKH form.
+   */
+  walletCanMine: boolean;
 }
 
 /**
@@ -28,14 +33,15 @@ export interface MobilePlotAddressContext {
  *   bound to the account id they were created for.
  * - Otherwise, on a fresh setup with a usable wallet, the wallet's own
  *   address is the suggested one-click path.
- * - Locked or missing wallets fall back to 'custom' until they become
- *   usable (the wizard offers inline unlock / create-wallet affordances).
+ * - Locked, missing, or taproot wallets (BIP-86 can't provide a mining
+ *   address) fall back to 'custom' until a usable wallet is active (the
+ *   wizard offers inline unlock / create-wallet / switch-wallet hints).
  */
 export function resolveMobilePlotAddressSelection(
   ctx: MobilePlotAddressContext
 ): PlotAddressSelection {
   if (ctx.configuredPlottingAddress) return 'custom';
   if (!ctx.firstRun) return 'custom';
-  if (ctx.walletActive && ctx.seedState === 'unlocked') return 'wallet';
+  if (ctx.walletActive && ctx.seedState === 'unlocked' && ctx.walletCanMine) return 'wallet';
   return 'custom';
 }
