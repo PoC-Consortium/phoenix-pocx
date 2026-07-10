@@ -128,6 +128,7 @@
   "click_to_copy": "Klik untuk menyalin",
   "mwallet_assignment_no_funded": "Dompet ini belum memiliki alamat dengan dana. Alamat plot harus memiliki setidaknya satu koin sebelum dapat ditugaskan.",
   "mwallet_load_more": "Muat lebih banyak",
+  "mwallet_view_all": "Lihat semua",
   "mwallet_wallet_not_open": "Dompet tidak terbuka. Buka kuncinya terlebih dahulu di beranda dompet.",
   "view_in_explorer": "Lihat di penjelajah",
   "close": "Tutup",

@@ -128,6 +128,7 @@
   "click_to_copy": "Klik om te kopiëren",
   "mwallet_assignment_no_funded": "Deze portemonnee heeft nog geen adres met tegoed. Het plot-adres moet minstens één munt bevatten voordat het kan worden toegewezen.",
   "mwallet_load_more": "Meer laden",
+  "mwallet_view_all": "Alles weergeven",
   "mwallet_wallet_not_open": "De portemonnee is niet geopend. Ontgrendel deze eerst op het startscherm van de portemonnee.",
   "view_in_explorer": "Bekijk in verkenner",
   "close": "Sluiten",

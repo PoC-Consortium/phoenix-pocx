@@ -667,6 +667,9 @@ export interface MinerScanProgress {
  */
 export const GENESIS_BASE_TARGET = 4398046511104; // 2^42
 
+/** BTCX consensus block time in seconds (2-minute blocks). */
+export const BTCX_BLOCK_TIME_SECONDS = 120;
+
 /**
  * Calculate network capacity from base target and block time
  *
@@ -688,6 +691,22 @@ export function calculateNetworkCapacityTib(baseTarget: number, blockTimeSeconds
   const capacityTib = capacityBytes / Math.pow(1024, 4);
 
   return capacityTib;
+}
+
+/**
+ * Format a NETWORK capacity in TiB the way the dashboard's network card
+ * shows it: binary units with 3 decimals, scaling up to PiB/EiB. (Plot
+ * capacities use {@link formatCapacity}, which scales down to GiB/MiB.)
+ */
+export function formatNetworkCapacityTib(capacityTib: number): string {
+  const tibPerEib = Math.pow(1024, 2);
+  if (capacityTib >= tibPerEib) {
+    return `${(capacityTib / tibPerEib).toFixed(3)} EiB`;
+  }
+  if (capacityTib >= 1024) {
+    return `${(capacityTib / 1024).toFixed(3)} PiB`;
+  }
+  return `${capacityTib.toFixed(3)} TiB`;
 }
 
 /**

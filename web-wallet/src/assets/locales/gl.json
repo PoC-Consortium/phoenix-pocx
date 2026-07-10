@@ -128,6 +128,7 @@
   "click_to_copy": "Fai clic para copiar",
   "mwallet_assignment_no_funded": "Esta carteira aínda non ten ningún enderezo con fondos. O enderezo de plot debe conter polo menos unha moeda antes de poder ser asignado.",
   "mwallet_load_more": "Cargar máis",
+  "mwallet_view_all": "Ver todo",
   "mwallet_wallet_not_open": "A carteira non está aberta. Desbloquéaa primeiro na pantalla de inicio da carteira.",
   "view_in_explorer": "Ver no explorador",
   "close": "Pechar",

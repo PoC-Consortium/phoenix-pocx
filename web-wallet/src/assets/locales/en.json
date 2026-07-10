@@ -129,6 +129,7 @@
   "click_to_copy": "Click to copy",
   "mwallet_assignment_no_funded": "This wallet has no funded address yet. The plot address must hold at least one coin before it can be assigned.",
   "mwallet_load_more": "Load more",
+  "mwallet_view_all": "View all",
   "mwallet_wallet_not_open": "The wallet is not open. Unlock it on the wallet home first.",
   "view_in_explorer": "View in explorer",
   "coinbase": "Coinbase",

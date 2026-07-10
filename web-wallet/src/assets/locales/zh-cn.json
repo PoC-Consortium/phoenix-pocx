@@ -128,6 +128,7 @@
   "click_to_copy": "点击复制",
   "mwallet_assignment_no_funded": "此钱包还没有已注资的地址。绘图地址必须至少持有一枚币才能进行指派。",
   "mwallet_load_more": "加载更多",
+  "mwallet_view_all": "查看全部",
   "mwallet_wallet_not_open": "钱包未打开。请先在钱包主页解锁。",
   "view_in_explorer": "在浏览器中查看",
   "close": "关闭",

@@ -128,6 +128,7 @@
   "click_to_copy": "クリックしてコピー",
   "mwallet_assignment_no_funded": "このウォレットにはまだ資金のあるアドレスがありません。プロットアドレスは割り当てる前に少なくとも1枚のコインを保有している必要があります。",
   "mwallet_load_more": "さらに読み込む",
+  "mwallet_view_all": "すべて表示",
   "mwallet_wallet_not_open": "ウォレットが開いていません。まずウォレットのホームでロックを解除してください。",
   "view_in_explorer": "エクスプローラーで表示",
   "close": "閉じる",

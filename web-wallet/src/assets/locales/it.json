@@ -128,6 +128,7 @@
   "click_to_copy": "Clicca per copiare",
   "mwallet_assignment_no_funded": "Questo portafoglio non ha ancora un indirizzo con fondi. L'indirizzo di plot deve contenere almeno una moneta prima di poter essere assegnato.",
   "mwallet_load_more": "Carica altro",
+  "mwallet_view_all": "Vedi tutto",
   "mwallet_wallet_not_open": "Il portafoglio non è aperto. Sbloccalo prima dalla schermata iniziale del portafoglio.",
   "view_in_explorer": "Visualizza nell'explorer",
   "close": "Chiudi",

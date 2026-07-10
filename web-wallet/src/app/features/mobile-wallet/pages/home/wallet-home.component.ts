@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -8,8 +8,14 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe } from '../../../../core/i18n';
-import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { BtcxPipe, TimeAgoPipe } from '../../../../shared/pipes';
+import { BtcxWalletService, BtcxChainInfo } from '../../../../core/services/btcx-wallet.service';
 import { MiningService } from '../../../../mining/services';
+import {
+  BTCX_BLOCK_TIME_SECONDS,
+  calculateNetworkCapacityTib,
+  formatNetworkCapacityTib,
+} from '../../../../mining/models/mining.models';
 
 /**
  * WalletHomeComponent - the mobile wallet landing page.
@@ -17,7 +23,11 @@ import { MiningService } from '../../../../mining/services';
  * Branches on the wallet status:
  * - seed 'none'      -> onboarding entry (create / restore)
  * - seed 'locked'    -> unlock form
- * - seed 'unlocked'  -> balance breakdown, sync status, actions;
+ * - seed 'unlocked'  -> Phoenix-dashboard-style cards: network info
+ *                       (height, capacity, last block — from
+ *                       btcx_chain_info, refreshed off the sync event),
+ *                       balance breakdown, actions, recent transactions,
+ *                       and entry points for assignments and contacts;
  *                       empty state when no Electrum server is configured
  *
  * While mining is not configured yet, an unlocked wallet also shows a hint
@@ -36,7 +46,9 @@ import { MiningService } from '../../../../mining/services';
     MatInputModule,
     MatProgressSpinnerModule,
     DecimalPipe,
+    BtcxPipe,
     I18nPipe,
+    TimeAgoPipe,
   ],
   template: `
     <div class="page">
@@ -99,46 +111,92 @@ import { MiningService } from '../../../../mining/services';
           </button>
         </div>
       } @else {
-        <!-- Balance -->
-        <div class="card balance-card">
-          <span class="balance-label">{{ 'mwallet_spendable' | i18n }}</span>
-          <span class="balance-value">
-            {{ (balance()?.spendableSat ?? 0) / 100000000 | number: '1.8-8' }}
-            <span class="balance-unit">BTCX</span>
-          </span>
-
-          <div class="balance-details">
-            @if (pendingSat() > 0) {
-              <div class="detail-row">
-                <span>{{ 'pending' | i18n }}</span>
-                <span>{{ pendingSat() / 100000000 | number: '1.8-8' }}</span>
+        <!-- Network info (Phoenix dashboard card) -->
+        @if (wallet.hasElectrumServer()) {
+          <div class="card gradient-card network-card">
+            <div class="card-title">
+              <mat-icon>link</mat-icon>
+              {{ 'bitcoin_pocx_network' | i18n }}
+            </div>
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="label">{{ 'height' | i18n }}</span>
+                <span class="value">
+                  @if (chain(); as info) {
+                    {{ info.height | number }}
+                  } @else {
+                    —
+                  }
+                </span>
               </div>
-            }
-            @if ((balance()?.immatureSat ?? 0) > 0) {
-              <div class="detail-row">
-                <span>{{ 'mwallet_immature' | i18n }}</span>
-                <span>{{ (balance()?.immatureSat ?? 0) / 100000000 | number: '1.8-8' }}</span>
+              <div class="info-item">
+                <span class="label">{{ 'network_capacity' | i18n }}</span>
+                <span class="value">{{ networkCapacity() }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">{{ 'last_block_time' | i18n }}</span>
+                <span class="value">
+                  @if (chain(); as info) {
+                    {{ info.headerTime | timeAgo }}
+                  } @else {
+                    —
+                  }
+                </span>
+              </div>
+            </div>
+
+            <!-- Wallet sync status -->
+            @if (wallet.walletActive()) {
+              <div class="sync-row">
+                @if (wallet.hasSynced()) {
+                  <mat-icon class="sync-icon synced">check_circle</mat-icon>
+                  <span>
+                    {{ 'block_height' | i18n }}: {{ wallet.syncedHeight() ?? 0 }}
+                    @if (wallet.syncAgeSecs() !== null) {
+                      · {{ 'mwallet_sync_age' | i18n: { seconds: wallet.syncAgeSecs() ?? 0 } }}
+                    }
+                  </span>
+                } @else {
+                  <mat-spinner diameter="14"></mat-spinner>
+                  <span>{{ 'mwallet_waiting_first_sync' | i18n }}</span>
+                }
               </div>
             }
           </div>
+        }
 
-          <!-- Sync status -->
-          @if (wallet.walletActive()) {
-            <div class="sync-row">
-              @if (wallet.hasSynced()) {
-                <mat-icon class="sync-icon synced">check_circle</mat-icon>
-                <span>
-                  {{ 'block_height' | i18n }}: {{ wallet.syncedHeight() ?? 0 }}
-                  @if (wallet.syncAgeSecs() !== null) {
-                    · {{ 'mwallet_sync_age' | i18n: { seconds: wallet.syncAgeSecs() ?? 0 } }}
-                  }
-                </span>
-              } @else {
-                <mat-spinner diameter="14"></mat-spinner>
-                <span>{{ 'mwallet_waiting_first_sync' | i18n }}</span>
-              }
+        <!-- Balance (Phoenix dashboard card) -->
+        <div class="card gradient-card balance-card">
+          <div class="card-title">
+            <mat-icon>account_balance_wallet</mat-icon>
+            {{ 'total_balance' | i18n }}
+          </div>
+          <div class="total-balance">
+            <span class="amount">{{ (balance()?.totalSat ?? 0) / 100000000 | btcx }}</span>
+            <span class="unit">BTCX</span>
+          </div>
+          <div class="balance-breakdown">
+            <div class="breakdown-item">
+              <span class="label">{{ 'mwallet_spendable' | i18n }}</span>
+              <span class="value spendable">
+                {{ (balance()?.spendableSat ?? 0) / 100000000 | btcx }} BTCX
+              </span>
             </div>
-          }
+            @if (pendingSat() > 0) {
+              <div class="breakdown-item">
+                <span class="label">{{ 'pending' | i18n }}</span>
+                <span class="value pending"> {{ pendingSat() / 100000000 | btcx }} BTCX </span>
+              </div>
+            }
+            @if ((balance()?.immatureSat ?? 0) > 0) {
+              <div class="breakdown-item">
+                <span class="label">{{ 'mwallet_immature' | i18n }}</span>
+                <span class="value immature">
+                  {{ (balance()?.immatureSat ?? 0) / 100000000 | btcx }} BTCX
+                </span>
+              </div>
+            }
+          </div>
         </div>
 
         <!-- No Electrum server configured -->
@@ -177,6 +235,57 @@ import { MiningService } from '../../../../mining/services';
             <mat-icon>history</mat-icon>
             {{ 'mwallet_history_title' | i18n }}
           </button>
+        </div>
+
+        <!-- Recent transactions -->
+        <div class="card recent-card">
+          <div class="card-title plain">
+            <mat-icon>history</mat-icon>
+            {{ 'recent_transactions' | i18n }}
+          </div>
+          @if (recentTransactions().length === 0) {
+            <p class="hint-text no-tx">{{ 'no_transactions' | i18n }}</p>
+          } @else {
+            @for (tx of recentTransactions(); track tx.txid) {
+              <div class="tx-row" routerLink="/wallet/history">
+                <mat-icon
+                  class="tx-icon"
+                  [class.received]="tx.direction === 'received'"
+                  [class.sent]="tx.direction === 'sent'"
+                >
+                  {{ tx.direction === 'received' ? 'arrow_downward' : 'arrow_upward' }}
+                </mat-icon>
+                <div class="tx-main">
+                  <span class="tx-direction">
+                    {{ (tx.direction === 'received' ? 'mwallet_received' : 'mwallet_sent') | i18n }}
+                  </span>
+                  @if (tx.timestamp) {
+                    <span class="tx-time">{{ tx.timestamp | timeAgo }}</span>
+                  }
+                </div>
+                <span class="tx-amount" [class.received]="tx.direction === 'received'">
+                  {{ tx.direction === 'received' ? '+' : '-' }}{{ tx.amountSat / 100000000 | btcx }}
+                </span>
+              </div>
+            }
+            <div class="view-all-row">
+              <a routerLink="/wallet/history">{{ 'mwallet_view_all' | i18n }}</a>
+            </div>
+          }
+        </div>
+
+        <!-- Assignments & contacts entry points -->
+        <div class="card nav-card">
+          <div class="nav-row" routerLink="/wallet/assignment">
+            <mat-icon class="nav-icon">assignment</mat-icon>
+            <span class="nav-label">{{ 'forging_assignment' | i18n }}</span>
+            <mat-icon class="chevron">chevron_right</mat-icon>
+          </div>
+          <div class="nav-row" routerLink="/wallet/contacts">
+            <mat-icon class="nav-icon">contacts</mat-icon>
+            <span class="nav-label">{{ 'contacts' | i18n }}</span>
+            <mat-icon class="chevron">chevron_right</mat-icon>
+          </div>
         </div>
 
         <!-- Mining nudge: only until mining is configured -->
@@ -231,6 +340,111 @@ import { MiningService } from '../../../../mining/services';
         }
       }
 
+      /* Phoenix dashboard card look (desktop dashboard's info cards). */
+      .gradient-card {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        color: white;
+      }
+
+      .card-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 500;
+        margin-bottom: 14px;
+
+        mat-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+
+        &.plain mat-icon {
+          color: #42a5f5;
+        }
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        gap: 12px 16px;
+      }
+
+      .info-item {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+
+        .label {
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: rgba(255, 255, 255, 0.7);
+        }
+
+        .value {
+          font-size: 15px;
+          font-weight: 500;
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+        }
+      }
+
+      .total-balance {
+        display: flex;
+        justify-content: flex-end;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 12px;
+        white-space: nowrap;
+
+        .amount {
+          font-size: 28px;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .unit {
+          font-size: 15px;
+          color: rgba(255, 255, 255, 0.8);
+        }
+      }
+
+      .balance-breakdown {
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+        padding-top: 10px;
+
+        .breakdown-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 3px 0;
+          white-space: nowrap;
+
+          .label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+          }
+
+          .value {
+            font-size: 13px;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+
+            &.spendable {
+              color: #69f0ae;
+            }
+            &.pending {
+              color: #ffb74d;
+            }
+            &.immature {
+              color: #90caf9;
+            }
+          }
+        }
+      }
+
       .hint-text {
         color: rgba(0, 0, 0, 0.6);
         font-size: 13px;
@@ -253,54 +467,15 @@ import { MiningService } from '../../../../mining/services';
         width: 100%;
       }
 
-      .balance-card {
-        display: flex;
-        flex-direction: column;
-      }
-
-      .balance-label {
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: rgba(0, 0, 0, 0.5);
-      }
-
-      .balance-value {
-        font-size: 28px;
-        font-weight: 500;
-        margin: 4px 0 8px;
-        font-variant-numeric: tabular-nums;
-
-        .balance-unit {
-          font-size: 14px;
-          color: rgba(0, 0, 0, 0.5);
-        }
-      }
-
-      .balance-details {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-      }
-
-      .detail-row {
-        display: flex;
-        justify-content: space-between;
-        font-size: 13px;
-        color: rgba(0, 0, 0, 0.6);
-        font-variant-numeric: tabular-nums;
-      }
-
       .sync-row {
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-top: 12px;
+        margin-top: 14px;
         padding-top: 12px;
-        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
         font-size: 12px;
-        color: rgba(0, 0, 0, 0.6);
+        color: rgba(255, 255, 255, 0.75);
 
         .sync-icon {
           font-size: 16px;
@@ -308,7 +483,7 @@ import { MiningService } from '../../../../mining/services';
           height: 16px;
 
           &.synced {
-            color: #4caf50;
+            color: #69f0ae;
           }
         }
       }
@@ -333,6 +508,116 @@ import { MiningService } from '../../../../mining/services';
         }
       }
 
+      .recent-card {
+        padding: 16px 16px 8px;
+
+        .card-title {
+          margin-bottom: 6px;
+        }
+
+        .no-tx {
+          margin: 8px 0 12px;
+        }
+      }
+
+      .tx-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        cursor: pointer;
+
+        &:not(:last-of-type) {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+      }
+
+      .tx-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+
+        &.received {
+          color: #4caf50;
+        }
+        &.sent {
+          color: #1976d2;
+        }
+      }
+
+      .tx-main {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+
+        .tx-direction {
+          font-size: 13px;
+        }
+
+        .tx-time {
+          font-size: 11px;
+          color: rgba(0, 0, 0, 0.5);
+        }
+      }
+
+      .tx-amount {
+        font-size: 12px;
+        font-family: monospace;
+        font-variant-numeric: tabular-nums;
+
+        &.received {
+          color: #2e7d32;
+        }
+      }
+
+      .view-all-row {
+        display: flex;
+        justify-content: flex-end;
+        padding: 8px 0 6px;
+
+        a {
+          font-size: 13px;
+          font-weight: 500;
+          color: #1976d2;
+          text-decoration: none;
+          cursor: pointer;
+        }
+      }
+
+      .nav-card {
+        padding: 4px 0;
+      }
+
+      .nav-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        cursor: pointer;
+
+        &:not(:last-child) {
+          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .nav-icon {
+          color: #42a5f5;
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+
+        .nav-label {
+          flex: 1;
+          font-size: 14px;
+        }
+
+        .chevron {
+          color: rgba(0, 0, 0, 0.3);
+        }
+      }
+
       .mine-hint-card {
         h3 {
           margin-top: 0;
@@ -348,24 +633,43 @@ import { MiningService } from '../../../../mining/services';
           background: #424242;
         }
 
+        .gradient-card {
+          background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        }
+
         .hint-text,
-        .option-hint,
-        .balance-label,
-        .detail-row,
-        .sync-row {
+        .option-hint {
           color: rgba(255, 255, 255, 0.6);
-        }
-
-        .balance-value .balance-unit {
-          color: rgba(255, 255, 255, 0.5);
-        }
-
-        .sync-row {
-          border-top-color: rgba(255, 255, 255, 0.12);
         }
 
         .empty-card .empty-icon {
           color: rgba(255, 255, 255, 0.3);
+        }
+
+        .tx-row:not(:last-of-type) {
+          border-bottom-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .tx-main .tx-time {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .tx-amount.received {
+          color: #81c784;
+        }
+
+        .view-all-row a {
+          color: #64b5f6;
+        }
+
+        .nav-row {
+          &:not(:last-child) {
+            border-bottom-color: rgba(255, 255, 255, 0.08);
+          }
+
+          .chevron {
+            color: rgba(255, 255, 255, 0.3);
+          }
         }
       }
     `,
@@ -382,6 +686,16 @@ export class WalletHomeComponent implements OnInit {
     return b.trustedPendingSat + b.untrustedPendingSat;
   });
 
+  /** Recent activity preview — the newest 5 entries. */
+  readonly recentTransactions = computed(() => this.wallet.transactions().slice(0, 5));
+
+  /**
+   * Chain tip snapshot (height, base target, header time). Fetched once on
+   * entry and re-fetched when the background sync event reports a new
+   * height — no polling of our own.
+   */
+  readonly chain = signal<BtcxChainInfo | null>(null);
+
   unlockPassphrase = '';
   readonly unlocking = signal(false);
   readonly unlockError = signal(false);
@@ -391,9 +705,50 @@ export class WalletHomeComponent implements OnInit {
   private readonly miningStateLoaded = signal(false);
   readonly showMiningHint = computed(() => this.miningStateLoaded() && !this.mining.isConfigured());
 
+  constructor() {
+    // Ride the btcx-wallet:sync event: refresh the tip snapshot when the
+    // synced height moves past what we last fetched.
+    effect(() => {
+      const height = this.wallet.lastSync()?.height;
+      if (height !== undefined && height !== this.chain()?.height) {
+        void this.refreshChain();
+      }
+    });
+  }
+
   ngOnInit(): void {
-    void this.wallet.initialize();
+    void this.wallet.initialize().then(() => {
+      if (this.wallet.hasElectrumServer()) {
+        void this.refreshChain();
+      }
+    });
     void this.mining.getState().then(() => this.miningStateLoaded.set(true));
+  }
+
+  private refreshing = false;
+  private async refreshChain(): Promise<void> {
+    if (this.refreshing || !this.wallet.hasElectrumServer()) return;
+    this.refreshing = true;
+    try {
+      this.chain.set(await this.wallet.chainInfo());
+    } catch (err) {
+      console.warn('Failed to fetch chain info:', err);
+    } finally {
+      this.refreshing = false;
+    }
+  }
+
+  /**
+   * Network capacity derived from the tip's base target with the same
+   * formula and units the desktop dashboard uses (mining.models /
+   * blockchain-state.service).
+   */
+  networkCapacity(): string {
+    const baseTarget = this.chain()?.baseTarget ?? 0;
+    if (!baseTarget) return '—';
+    return formatNetworkCapacityTib(
+      calculateNetworkCapacityTib(baseTarget, BTCX_BLOCK_TIME_SECONDS)
+    );
   }
 
   async unlock(): Promise<void> {

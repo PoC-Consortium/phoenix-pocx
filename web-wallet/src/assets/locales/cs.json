@@ -128,6 +128,7 @@
   "click_to_copy": "Kliknete pro kopirovani",
   "mwallet_assignment_no_funded": "Tato peněženka zatím nemá žádnou adresu s prostředky. Plot adresa musí obsahovat alespoň jednu minci, než ji lze přiřadit.",
   "mwallet_load_more": "Načíst další",
+  "mwallet_view_all": "Zobrazit vše",
   "mwallet_wallet_not_open": "Peněženka není otevřená. Nejprve ji odemkněte na domovské obrazovce peněženky.",
   "view_in_explorer": "Zobrazit v prohlizeci",
   "close": "Zavřít",

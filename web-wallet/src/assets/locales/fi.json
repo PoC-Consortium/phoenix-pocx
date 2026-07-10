@@ -128,6 +128,7 @@
   "click_to_copy": "Napsauta kopioidaksesi",
   "mwallet_assignment_no_funded": "Tässä lompakossa ei ole vielä osoitetta, jolla on varoja. Plot-osoitteessa on oltava vähintään yksi kolikko ennen kuin sen voi delegoida.",
   "mwallet_load_more": "Lataa lisää",
+  "mwallet_view_all": "Näytä kaikki",
   "mwallet_wallet_not_open": "Lompakko ei ole auki. Avaa sen lukitus ensin lompakon aloitusnäytöltä.",
   "view_in_explorer": "Nayta selaimessa",
   "close": "Sulje",

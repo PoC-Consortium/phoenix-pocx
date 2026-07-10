@@ -128,6 +128,7 @@
   "click_to_copy": "Kopyalamak için tıklayın",
   "mwallet_assignment_no_funded": "Bu cüzdanda henüz fonlanmış bir adres yok. Plot adresi atanabilmesi için en az bir coin içermelidir.",
   "mwallet_load_more": "Daha fazla yükle",
+  "mwallet_view_all": "Tümünü görüntüle",
   "mwallet_wallet_not_open": "Cüzdan açık değil. Önce cüzdan ana ekranından kilidini açın.",
   "view_in_explorer": "Gezginde görüntüle",
   "close": "Kapat",

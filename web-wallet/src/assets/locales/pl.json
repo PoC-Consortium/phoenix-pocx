@@ -128,6 +128,7 @@
   "click_to_copy": "Kliknij aby skopiowac",
   "mwallet_assignment_no_funded": "Ten portfel nie ma jeszcze adresu ze środkami. Adres plotu musi zawierać co najmniej jedną monetę, zanim będzie można go przypisać.",
   "mwallet_load_more": "Załaduj więcej",
+  "mwallet_view_all": "Zobacz wszystkie",
   "mwallet_wallet_not_open": "Portfel nie jest otwarty. Najpierw odblokuj go na ekranie głównym portfela.",
   "view_in_explorer": "Zobacz w eksploratorze",
   "close": "Zamknij",

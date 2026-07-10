@@ -128,6 +128,7 @@
   "click_to_copy": "Clic para copiar",
   "mwallet_assignment_no_funded": "Esta billetera aún no tiene ninguna dirección con fondos. La dirección de plot debe contener al menos una moneda antes de poder ser asignada.",
   "mwallet_load_more": "Cargar más",
+  "mwallet_view_all": "Ver todo",
   "mwallet_wallet_not_open": "La billetera no está abierta. Desbloquéela primero en la pantalla de inicio de la billetera.",
   "view_in_explorer": "Ver en el explorador",
   "close": "Cerrar",

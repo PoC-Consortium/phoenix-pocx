@@ -128,6 +128,7 @@
   "click_to_copy": "Click pentru a copia",
   "mwallet_assignment_no_funded": "Acest portofel nu are încă nicio adresă cu fonduri. Adresa de plot trebuie să dețină cel puțin o monedă înainte de a putea fi atribuită.",
   "mwallet_load_more": "Încarcă mai multe",
+  "mwallet_view_all": "Vezi tot",
   "mwallet_wallet_not_open": "Portofelul nu este deschis. Deblocați-l mai întâi pe ecranul principal al portofelului.",
   "view_in_explorer": "Vizualizează în explorator",
   "close": "Închide",

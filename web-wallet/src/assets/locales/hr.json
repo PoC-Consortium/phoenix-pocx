@@ -128,6 +128,7 @@
   "click_to_copy": "Kliknite za kopiranje",
   "mwallet_assignment_no_funded": "Ovaj novčanik još nema adresu sa sredstvima. Plot adresa mora sadržavati barem jedan novčić prije nego što se može dodijeliti.",
   "mwallet_load_more": "Učitaj više",
+  "mwallet_view_all": "Prikaži sve",
   "mwallet_wallet_not_open": "Novčanik nije otvoren. Najprije ga otključajte na početnom zaslonu novčanika.",
   "view_in_explorer": "Prikazi u pregledniku",
   "close": "Zatvori",

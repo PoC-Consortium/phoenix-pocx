@@ -128,6 +128,7 @@
   "click_to_copy": "Spustelekite kopijuoti",
   "mwallet_assignment_no_funded": "Šioje piniginėje dar nėra adreso su lėšomis. Plot adresas turi turėti bent vieną monetą, kad jį būtų galima priskirti.",
   "mwallet_load_more": "Įkelti daugiau",
+  "mwallet_view_all": "Rodyti viską",
   "mwallet_wallet_not_open": "Piniginė neatidaryta. Pirmiausia atrakinkite ją piniginės pradžios ekrane.",
   "view_in_explorer": "Perziureti narsykleje",
   "close": "Uždaryti",
