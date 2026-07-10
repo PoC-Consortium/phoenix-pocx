@@ -8,8 +8,8 @@ import { AppModeService } from '../../../core/services/app-mode.service';
  * MobileNavComponent - bottom navigation for the nodeless wallet layouts.
  *
  * Mobile mode (Android): lets wallet and mining coexist — two tabs,
- * Mining (/miner) and Wallet (/wallet). Rendered by MiningLayoutComponent
- * (mobile mode only) and MobileWalletLayoutComponent.
+ * Wallet (/wallet) first, then Mining (/miner). Rendered by
+ * MiningLayoutComponent (mobile mode only) and MobileWalletLayoutComponent.
  *
  * Wallet-only mode: the wallet is the only section, so the nav renders
  * nothing at all.
@@ -24,6 +24,10 @@ import { AppModeService } from '../../../core/services/app-mode.service';
   template: `
     @if (!appMode.isWalletOnly()) {
       <nav class="mobile-nav">
+        <a routerLink="/wallet" routerLinkActive="active" class="nav-item">
+          <mat-icon>account_balance_wallet</mat-icon>
+          <span class="nav-label">{{ 'mwallet_title' | i18n }}</span>
+        </a>
         @if (appMode.isMobileMode()) {
           <a routerLink="/miner" routerLinkActive="active" class="nav-item">
             <mat-icon>hardware</mat-icon>
@@ -35,10 +39,6 @@ import { AppModeService } from '../../../core/services/app-mode.service';
             <span class="nav-label">{{ 'dashboard' | i18n }}</span>
           </a>
         }
-        <a routerLink="/wallet" routerLinkActive="active" class="nav-item">
-          <mat-icon>account_balance_wallet</mat-icon>
-          <span class="nav-label">{{ 'mwallet_title' | i18n }}</span>
-        </a>
       </nav>
     }
   `,

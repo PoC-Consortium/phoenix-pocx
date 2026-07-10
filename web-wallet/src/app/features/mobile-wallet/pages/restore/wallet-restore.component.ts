@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,6 +7,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
+import { MnemonicEntryComponent } from '../../../../shared/components';
+import type { MnemonicEntryState } from '../../../../shared/components';
 import {
   BtcxWalletService,
   BtcxRestoreResult,
@@ -16,6 +18,10 @@ import { sanitizeReturnTo } from '../../return-to';
 
 /**
  * WalletRestoreComponent - restore-from-mnemonic flow.
+ *
+ * The phrase is entered through the shared MnemonicEntryComponent (the
+ * desktop import-wallet grid): 12/24-word selector, per-word BIP39
+ * autocomplete and validation, checksum warning.
  *
  * The backend probes EVERY descriptor branch the seed's history could live
  * on (BIP-84/86 x BTCX-coin-type/legacy coin-0') against the configured
@@ -41,6 +47,7 @@ import { sanitizeReturnTo } from '../../return-to';
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MnemonicEntryComponent,
     I18nPipe,
   ],
   template: `
@@ -110,22 +117,10 @@ import { sanitizeReturnTo } from '../../return-to';
               {{ 'mwallet_server_settings' | i18n }}
             </button>
           } @else {
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'passphrase' | i18n }}</mat-label>
-              <textarea
-                matInput
-                rows="3"
-                [(ngModel)]="phrase"
-                autocomplete="off"
-                autocapitalize="none"
-                spellcheck="false"
-              ></textarea>
-              <mat-hint>{{ 'mwallet_restore_word_count' | i18n: { count: wordCount() } }}</mat-hint>
-            </mat-form-field>
-
-            @if (wordCount() > 0 && !validWordCount()) {
-              <p class="error-text">{{ 'mwallet_restore_invalid_count' | i18n }}</p>
-            }
+            <app-mnemonic-entry
+              [disabled]="restoring()"
+              (changed)="onMnemonicChanged($event)"
+            ></app-mnemonic-entry>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ 'mwallet_passphrase_optional' | i18n }}</mat-label>
@@ -143,7 +138,7 @@ import { sanitizeReturnTo } from '../../return-to';
               mat-raised-button
               color="primary"
               class="full-width"
-              [disabled]="!validWordCount() || restoring()"
+              [disabled]="!mnemonicValid() || restoring()"
               (click)="restore()"
             >
               @if (restoring()) {
@@ -236,10 +231,6 @@ import { sanitizeReturnTo } from '../../return-to';
         width: 100%;
       }
 
-      textarea {
-        font-family: monospace;
-      }
-
       .success-card {
         text-align: center;
 
@@ -277,8 +268,12 @@ export class WalletRestoreComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  phrase = '';
   passphrase = '';
+
+  /** Lower-cased, space-joined phrase from the shared entry grid. */
+  private mnemonic = '';
+  readonly mnemonicValid = signal(false);
+  @ViewChild(MnemonicEntryComponent) private mnemonicEntry?: MnemonicEntryComponent;
 
   readonly restoring = signal(false);
   readonly restored = signal(false);
@@ -318,23 +313,20 @@ export class WalletRestoreComponent implements OnInit {
     void this.wallet.initialize();
   }
 
-  wordCount(): number {
-    return this.phrase.trim().split(/\s+/).filter(Boolean).length;
-  }
-
-  validWordCount(): boolean {
-    const count = this.wordCount();
-    return count === 12 || count === 24;
+  onMnemonicChanged(state: MnemonicEntryState): void {
+    this.mnemonic = state.mnemonic;
+    this.mnemonicValid.set(state.valid);
   }
 
   async restore(): Promise<void> {
-    if (!this.validWordCount() || this.restoring()) return;
+    if (!this.mnemonicValid() || this.restoring()) return;
     this.restoring.set(true);
     this.restoreError.set(null);
     try {
-      const normalized = this.phrase.trim().toLowerCase().split(/\s+/).join(' ');
-      const result = await this.wallet.restore(normalized, this.passphrase || undefined);
-      this.phrase = '';
+      const result = await this.wallet.restore(this.mnemonic, this.passphrase || undefined);
+      this.mnemonic = '';
+      this.mnemonicValid.set(false);
+      this.mnemonicEntry?.reset();
       this.passphrase = '';
       this.result.set(result);
       this.restored.set(true);

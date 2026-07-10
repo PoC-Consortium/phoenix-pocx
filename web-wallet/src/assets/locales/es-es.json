@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "No se pudo obtener una dirección",
   "mwallet_backup_ack": "He anotado las 12 palabras",
   "mwallet_backup_title": "Anote su frase de recuperación",
-  "mwallet_backup_warning": "Estas 12 palabras son la única copia de seguridad de su billetera. Anótelas en papel y guárdelas sin conexión. Cualquiera que las conozca puede gastar sus fondos.",
+  "mwallet_backup_warning": "Estas 24 palabras son la única copia de seguridad de su billetera. Anótelas en papel y guárdelas sin conexión. Cualquiera que las conozca puede gastar sus fondos.",
   "mwallet_branch_legacy": "heredada (coin type 0')",
   "mwallet_confirmations_n": "{count} confirmaciones",
   "mwallet_create_failed": "No se pudo crear la billetera",

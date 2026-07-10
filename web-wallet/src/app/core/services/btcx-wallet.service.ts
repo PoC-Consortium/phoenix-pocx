@@ -456,7 +456,7 @@ export class BtcxWalletService {
   }
 
   /**
-   * Generate a fresh 12-word BIP39 mnemonic WITHOUT persisting it — for the
+   * Generate a fresh 24-word BIP39 mnemonic WITHOUT persisting it — for the
    * show-and-confirm onboarding flow. Commit it with create().
    */
   async generateMnemonic(): Promise<string> {

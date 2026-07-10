@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Nu s-a putut obține o adresă",
   "mwallet_backup_ack": "Am notat cele 12 cuvinte",
   "mwallet_backup_title": "Notați fraza de recuperare",
-  "mwallet_backup_warning": "Aceste 12 cuvinte sunt singura copie de rezervă a portofelului. Notați-le pe hârtie și păstrați-le offline. Oricine le cunoaște vă poate cheltui fondurile.",
+  "mwallet_backup_warning": "Aceste 24 de cuvinte sunt singura copie de rezervă a portofelului. Notați-le pe hârtie și păstrați-le offline. Oricine le cunoaște vă poate cheltui fondurile.",
   "mwallet_branch_legacy": "veche (coin type 0')",
   "mwallet_confirmations_n": "{count} confirmări",
   "mwallet_create_failed": "Portofelul nu a putut fi creat",

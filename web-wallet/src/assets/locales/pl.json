@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Nie udało się pobrać adresu",
   "mwallet_backup_ack": "Zapisałem 12 słów",
   "mwallet_backup_title": "Zapisz swoją frazę odzyskiwania",
-  "mwallet_backup_warning": "Te 12 słów to jedyna kopia zapasowa portfela. Zapisz je na papierze i przechowuj offline. Każdy, kto je zna, może wydać Twoje środki.",
+  "mwallet_backup_warning": "Te 24 słowa to jedyna kopia zapasowa portfela. Zapisz je na papierze i przechowuj offline. Każdy, kto je zna, może wydać Twoje środki.",
   "mwallet_branch_legacy": "starsza (coin type 0')",
   "mwallet_confirmations_n": "{count} potwierdzeń",
   "mwallet_create_failed": "Nie udało się utworzyć portfela",

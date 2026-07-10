@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Nije moguće dohvatiti adresu",
   "mwallet_backup_ack": "Zapisao sam 12 riječi",
   "mwallet_backup_title": "Zapišite svoju frazu za oporavak",
-  "mwallet_backup_warning": "Ovih 12 riječi jedina su sigurnosna kopija vašeg novčanika. Zapišite ih na papir i čuvajte izvan mreže. Svatko tko ih zna može potrošiti vaša sredstva.",
+  "mwallet_backup_warning": "Ove 24 riječi jedina su sigurnosna kopija vašeg novčanika. Zapišite ih na papir i čuvajte izvan mreže. Svatko tko ih zna može potrošiti vaša sredstva.",
   "mwallet_branch_legacy": "naslijeđena (coin type 0')",
   "mwallet_confirmations_n": "{count} potvrda",
   "mwallet_create_failed": "Novčanik nije moguće kreirati",

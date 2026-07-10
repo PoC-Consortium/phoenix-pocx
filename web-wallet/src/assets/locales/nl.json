@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Kon geen adres ophalen",
   "mwallet_backup_ack": "Ik heb de 12 woorden opgeschreven",
   "mwallet_backup_title": "Schrijf uw herstelzin op",
-  "mwallet_backup_warning": "Deze 12 woorden zijn de enige back-up van uw portemonnee. Schrijf ze op papier en bewaar ze offline. Iedereen die ze kent kan uw tegoed uitgeven.",
+  "mwallet_backup_warning": "Deze 24 woorden zijn de enige back-up van uw portemonnee. Schrijf ze op papier en bewaar ze offline. Iedereen die ze kent kan uw tegoed uitgeven.",
   "mwallet_branch_legacy": "legacy (coin type 0')",
   "mwallet_confirmations_n": "{count} bevestigingen",
   "mwallet_create_failed": "Kon de portemonnee niet aanmaken",

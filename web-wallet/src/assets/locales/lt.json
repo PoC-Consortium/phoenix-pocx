@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Nepavyko gauti adreso",
   "mwallet_backup_ack": "Užsirašiau 12 žodžių",
   "mwallet_backup_title": "Užsirašykite savo atkūrimo frazę",
-  "mwallet_backup_warning": "Šie 12 žodžių yra vienintelė jūsų piniginės atsarginė kopija. Užsirašykite juos ant popieriaus ir laikykite neprisijungę. Bet kas, kas juos žino, gali išleisti jūsų lėšas.",
+  "mwallet_backup_warning": "Šie 24 žodžiai yra vienintelė jūsų piniginės atsarginė kopija. Užsirašykite juos ant popieriaus ir laikykite neprisijungę. Bet kas, kas juos žino, gali išleisti jūsų lėšas.",
   "mwallet_branch_legacy": "senoji (coin type 0')",
   "mwallet_confirmations_n": "{count} patvirtinimų",
   "mwallet_create_failed": "Nepavyko sukurti piniginės",

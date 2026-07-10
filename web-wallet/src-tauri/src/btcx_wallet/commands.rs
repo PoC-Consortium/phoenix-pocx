@@ -37,13 +37,15 @@ pub fn btcx_wallet_status(
     state.status()
 }
 
-/// Generate a fresh 12-word BIP39 mnemonic WITHOUT persisting it — for the
+/// Generate a fresh 24-word BIP39 mnemonic WITHOUT persisting it — for the
 /// show-and-confirm onboarding flow; commit it with `btcx_wallet_create`.
+/// 24 words (256-bit entropy) for parity with the desktop Phoenix create
+/// flow; restore keeps accepting both 12- and 24-word phrases.
 #[tauri::command]
 pub fn btcx_wallet_generate_mnemonic(
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<String, String> {
-    state.with_seed(|s| s.generate_mnemonic(12).map_err(|e| format!("{e:#}")))
+    state.with_seed(|s| s.generate_mnemonic(24).map_err(|e| format!("{e:#}")))
 }
 
 /// Resolve + validate the wallet name of a create/restore: an explicit

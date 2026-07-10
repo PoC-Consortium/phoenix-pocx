@@ -127,9 +127,11 @@ fn regtest_end_to_end() {
     let dir = tempfile::tempdir().unwrap();
 
     // 1. Fresh seed (never-plaintext at rest) → wallet seed → bdk wallet.
+    //    24 words — the app's create default (`btcx_wallet_generate_mnemonic`);
+    //    the restore-probe test below keeps exercising 12-word seeds.
     let mut store = seedstore::SeedStore::open(dir.path(), None).unwrap();
-    let mnemonic = store.create_seed(None, 12).unwrap();
-    assert_eq!(mnemonic.split_whitespace().count(), 12);
+    let mnemonic = store.create_seed(None, 24).unwrap();
+    assert_eq!(mnemonic.split_whitespace().count(), 24);
     let seed = keys_btcx::WalletSeed::from_mnemonic(&mnemonic, "").unwrap();
 
     let db = dir
@@ -268,6 +270,8 @@ fn regtest_restore_probe_selects_funded_branch() {
     let params = &params_btcx::params::BTCX_REGTEST;
     let dir = tempfile::tempdir().unwrap();
 
+    // 12 words on purpose: restore must keep accepting 12-word seeds even
+    // though create now defaults to 24.
     let mut store = seedstore::SeedStore::open(dir.path(), None).unwrap();
     let mnemonic = store.create_seed(None, 12).unwrap();
     let seed = keys_btcx::WalletSeed::from_mnemonic(&mnemonic, "").unwrap();

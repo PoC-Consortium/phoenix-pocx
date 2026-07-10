@@ -26,6 +26,12 @@ pub const DEFAULT_WALLET: &str = "default";
 /// never removed (`btcx_wallet_delete`).
 pub const TRASH_SUBDIR: &str = ".trash";
 
+/// Baked-in default mainnet Electrum server (`ssl://host:port`, the same
+/// URL convention `electrum-btcx` dials) so a fresh install works out of
+/// the box. Seeded whenever the mainnet list is empty — see
+/// [`BtcxWalletConfig::seed_default_servers`].
+pub const DEFAULT_MAINNET_ELECTRUM: &str = "ssl://electrs.bitcoin-po.cx:50002";
+
 /// Network the nodeless wallet runs on. Maps 1:1 onto the static
 /// `params_btcx` BTCX chain parameters.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -110,8 +116,20 @@ pub struct WalletMeta {
     pub created_at: Option<u64>,
 }
 
+/// The `electrum_servers` map of a FRESH config: mainnet starts with the
+/// baked-in public server, the other networks stay empty (regtest/testnet
+/// servers are inherently local/user-specific).
+fn default_electrum_servers() -> BTreeMap<String, Vec<String>> {
+    let mut map = BTreeMap::new();
+    map.insert(
+        WalletNetwork::Mainnet.as_str().to_string(),
+        vec![DEFAULT_MAINNET_ELECTRUM.to_string()],
+    );
+    map
+}
+
 /// Nodeless wallet configuration stored in `btcx_wallet_config.json`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BtcxWalletConfig {
     /// Active network (mainnet, testnet, regtest).
@@ -122,8 +140,10 @@ pub struct BtcxWalletConfig {
     /// `ssl://host:port`), keyed by network name so switching networks
     /// never wipes the other network's servers. Ordered: the FIRST entry is
     /// the wallet's home/primary server, the rest are failover views.
-    /// Mainnet defaults to EMPTY until public BTCX Electrum servers exist.
-    #[serde(default)]
+    /// Mainnet starts with [`DEFAULT_MAINNET_ELECTRUM`]; a saved config's
+    /// lists are never overridden (an EMPTY mainnet list is re-seeded on
+    /// load, see [`Self::seed_default_servers`]).
+    #[serde(default = "default_electrum_servers")]
     pub electrum_servers: BTreeMap<String, Vec<String>>,
 
     /// Whether the nodeless wallet feature is active (a seed was created or
@@ -145,6 +165,21 @@ pub struct BtcxWalletConfig {
     /// The selected wallet per network name (missing = `DEFAULT_WALLET`).
     #[serde(default)]
     pub active_wallet: BTreeMap<String, String>,
+}
+
+impl Default for BtcxWalletConfig {
+    /// Fresh config: mainnet, inactive, with the baked-in default mainnet
+    /// Electrum server (matches the serde field defaults).
+    fn default() -> Self {
+        Self {
+            network: WalletNetwork::default(),
+            electrum_servers: default_electrum_servers(),
+            active: false,
+            descriptors: BTreeMap::new(),
+            wallets: BTreeMap::new(),
+            active_wallet: BTreeMap::new(),
+        }
+    }
 }
 
 /// Validate a wallet name: it becomes a directory name, so it is restricted
@@ -186,11 +221,30 @@ impl BtcxWalletConfig {
         config_dir.join(CONFIG_FILE)
     }
 
-    /// Load config from disk, or default if not found/unreadable.
+    /// Load config from disk, or default if not found/unreadable. The
+    /// default mainnet server is (re-)seeded if the mainnet list is empty.
     pub fn load() -> Self {
-        match fs::read_to_string(Self::config_path()) {
+        let mut config: Self = match fs::read_to_string(Self::config_path()) {
             Ok(contents) => serde_json::from_str(&contents).unwrap_or_default(),
             Err(_) => Self::default(),
+        };
+        config.seed_default_servers();
+        config
+    }
+
+    /// Ensure mainnet has at least the baked-in default server. Runs on
+    /// every load: existing non-empty lists are NEVER touched (custom
+    /// ordering and extra servers survive), but an empty mainnet list —
+    /// whether never configured or deliberately cleared — is re-seeded so
+    /// the app works out of the box. Clearing the list therefore only
+    /// lasts for the running session, a deliberate trade-off.
+    pub fn seed_default_servers(&mut self) {
+        let mainnet = self
+            .electrum_servers
+            .entry(WalletNetwork::Mainnet.as_str().to_string())
+            .or_default();
+        if mainnet.is_empty() {
+            mainnet.push(DEFAULT_MAINNET_ELECTRUM.to_string());
         }
     }
 
@@ -460,17 +514,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_config_is_mainnet_inactive_with_no_servers() {
+    fn default_config_is_mainnet_inactive_with_default_server() {
         let config = BtcxWalletConfig::default();
         assert_eq!(config.network, WalletNetwork::Mainnet);
         assert!(!config.active);
-        assert!(
-            config.servers().is_empty(),
-            "mainnet must default to an empty server list until public servers exist"
+        assert_eq!(
+            config.servers(),
+            vec![DEFAULT_MAINNET_ELECTRUM.to_string()],
+            "a fresh config must work out of the box on mainnet"
         );
+        assert!(config.servers_for(WalletNetwork::Testnet).is_empty());
+        assert!(config.servers_for(WalletNetwork::Regtest).is_empty());
         assert_eq!(config.policy(), DescriptorPolicy::default());
         assert_eq!(config.policy().coin_type, keys_btcx::COIN_BTCX);
         assert_eq!(config.policy().kind, DescriptorKindCfg::Bip84);
+    }
+
+    #[test]
+    fn seed_default_servers_fills_empty_mainnet_only() {
+        // Missing mainnet key (e.g. older saved config): seeded.
+        let mut config = BtcxWalletConfig::default();
+        config.electrum_servers.clear();
+        config.seed_default_servers();
+        assert_eq!(config.servers(), vec![DEFAULT_MAINNET_ELECTRUM.to_string()]);
+
+        // Present-but-empty mainnet list (deliberately cleared): re-seeded
+        // on load by design — the app should work out of the box.
+        config.set_servers(WalletNetwork::Mainnet, vec![]);
+        config.seed_default_servers();
+        assert_eq!(config.servers(), vec![DEFAULT_MAINNET_ELECTRUM.to_string()]);
+
+        // A custom list is NEVER touched (order and entries survive).
+        let custom = vec![
+            "ssl://my.own.server:50002".to_string(),
+            DEFAULT_MAINNET_ELECTRUM.to_string(),
+        ];
+        config.set_servers(WalletNetwork::Mainnet, custom.clone());
+        config.seed_default_servers();
+        assert_eq!(config.servers(), custom);
+
+        // Other networks are left alone.
+        assert!(config.servers_for(WalletNetwork::Testnet).is_empty());
+        assert!(config.servers_for(WalletNetwork::Regtest).is_empty());
     }
 
     #[test]
@@ -534,7 +619,14 @@ mod tests {
         let parsed: BtcxWalletConfig = serde_json::from_str(r#"{"network":"testnet"}"#).unwrap();
         assert_eq!(parsed.network, WalletNetwork::Testnet);
         assert!(!parsed.active);
+        // Active network is testnet — no baked-in server there...
         assert!(parsed.servers().is_empty());
+        // ...but the missing electrumServers key defaulted to the seeded
+        // mainnet list.
+        assert_eq!(
+            parsed.servers_for(WalletNetwork::Mainnet),
+            vec![DEFAULT_MAINNET_ELECTRUM.to_string()]
+        );
     }
 
     #[test]

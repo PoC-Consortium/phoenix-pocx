@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Gagal mendapatkan alamat",
   "mwallet_backup_ack": "Saya telah menulis 12 kata tersebut",
   "mwallet_backup_title": "Tulis frasa pemulihan Anda",
-  "mwallet_backup_warning": "12 kata ini adalah satu-satunya cadangan dompet Anda. Tulis di kertas dan simpan secara offline. Siapa pun yang mengetahuinya dapat membelanjakan dana Anda.",
+  "mwallet_backup_warning": "24 kata ini adalah satu-satunya cadangan dompet Anda. Tulis di kertas dan simpan secara offline. Siapa pun yang mengetahuinya dapat membelanjakan dana Anda.",
   "mwallet_branch_legacy": "lama (coin type 0')",
   "mwallet_confirmations_n": "{count} konfirmasi",
   "mwallet_create_failed": "Gagal membuat dompet",

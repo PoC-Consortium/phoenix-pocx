@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Osoitteen haku epäonnistui",
   "mwallet_backup_ack": "Olen kirjoittanut 12 sanaa muistiin",
   "mwallet_backup_title": "Kirjoita palautuslauseesi muistiin",
-  "mwallet_backup_warning": "Nämä 12 sanaa ovat lompakkosi ainoa varmuuskopio. Kirjoita ne paperille ja säilytä ne verkon ulkopuolella. Kuka tahansa, joka tuntee ne, voi käyttää varasi.",
+  "mwallet_backup_warning": "Nämä 24 sanaa ovat lompakkosi ainoa varmuuskopio. Kirjoita ne paperille ja säilytä ne verkon ulkopuolella. Kuka tahansa, joka tuntee ne, voi käyttää varasi.",
   "mwallet_branch_legacy": "vanha (coin type 0')",
   "mwallet_confirmations_n": "{count} vahvistusta",
   "mwallet_create_failed": "Lompakon luonti epäonnistui",

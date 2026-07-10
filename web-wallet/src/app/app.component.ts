@@ -47,7 +47,11 @@ import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confi
     `
       :host {
         display: block;
-        height: 100vh;
+        /* Viewport height minus the Android status-bar padding on <body>.
+           100vh fallback first; 100dvh where supported so mobile browser
+           UI / system bars don't push the bottom navigation off-screen. */
+        height: calc(100vh - var(--android-safe-top, 0px));
+        height: calc(100dvh - var(--android-safe-top, 0px));
         overflow: hidden;
       }
 
@@ -112,8 +116,9 @@ export class AppComponent implements OnInit, OnDestroy {
     // Add platform class to body for platform-specific styling (e.g., Android safe area)
     this.initPlatformClass();
 
-    // If in mining-only or mobile mode, redirect to miner route immediately
-    // (mining remains the default landing; mobile mode also has /wallet).
+    // Landing route per mode: mining-only lands on /miner; mobile mode
+    // lands on /wallet (mining stays one tab away — its auto-start runs
+    // app-level in initNodeService, not from the mining page).
     // Wallet-only mode has no miner: everything lands on /wallet.
     if (this.appModeService.isWalletOnly()) {
       if (!this.router.url.startsWith('/wallet')) {
@@ -127,7 +132,7 @@ export class AppComponent implements OnInit, OnDestroy {
         !currentUrl.startsWith('/node') &&
         !currentUrl.startsWith('/wallet')
       ) {
-        this.router.navigate(['/miner']);
+        this.router.navigate([this.appModeService.isMobileMode() ? '/wallet' : '/miner']);
       }
     }
 
