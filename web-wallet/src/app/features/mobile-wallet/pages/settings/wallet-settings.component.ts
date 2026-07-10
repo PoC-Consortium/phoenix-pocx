@@ -71,6 +71,7 @@ import { ElectrumServersEditorComponent } from '../../../../shared/components/el
           [servers]="wallet.electrumServers()"
           [network]="wallet.network()"
           [disabled]="busy()"
+          [showTest]="true"
           (serversChange)="saveServers($event)"
         />
       </div>

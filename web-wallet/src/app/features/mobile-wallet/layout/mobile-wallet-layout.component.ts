@@ -7,6 +7,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService, LANGUAGES, Language } from '../../../core/i18n';
 import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
+import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
 import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile-nav.component';
 
 /**
@@ -40,6 +41,14 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
             @if (wallet.network() !== 'mainnet') {
               <span class="network-badge">{{ wallet.network() | i18n }}</span>
             }
+
+            <span
+              class="conn-dot"
+              [class.healthy]="electrumStatus.overall() === 'healthy'"
+              [class.degraded]="electrumStatus.overall() === 'degraded'"
+              [class.down]="electrumStatus.overall() === 'down'"
+              [matTooltip]="connTooltip()"
+            ></span>
           </div>
 
           <div class="toolbar-right">
@@ -132,6 +141,24 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         border: 1px solid currentColor;
         border-radius: 10px;
         padding: 1px 8px;
+      }
+
+      .conn-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.26); /* connecting/unknown */
+        flex-shrink: 0;
+
+        &.healthy {
+          background: #4caf50;
+        }
+        &.degraded {
+          background: #ff9800;
+        }
+        &.down {
+          background: #f44336;
+        }
       }
 
       .toolbar-right {
@@ -233,12 +260,21 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
 export class MobileWalletLayoutComponent implements OnInit {
   readonly i18n = inject(I18nService);
   readonly wallet = inject(BtcxWalletService);
+  readonly electrumStatus = inject(ElectrumStatusService);
 
   languages: Language[] = LANGUAGES;
 
   ngOnInit(): void {
     // Lazy init: only mobile wallet routes touch the btcx wallet backend
     void this.wallet.initialize();
+  }
+
+  /** Tooltip of the connection dot: status text plus synced height. */
+  connTooltip(): string {
+    const parts = [this.i18n.get(`electrum_status_${this.electrumStatus.overall()}`)];
+    const height = this.electrumStatus.height();
+    if (height !== null) parts.push(`#${height}`);
+    return parts.join(' · ');
   }
 
   setLanguage(lang: Language): void {

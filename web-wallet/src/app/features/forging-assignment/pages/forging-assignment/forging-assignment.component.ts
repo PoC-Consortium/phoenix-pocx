@@ -1336,9 +1336,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       try {
         const utxos = await this.walletService.listUnspent(0);
         const unique = [...new Set(utxos.map(u => u.address).filter(a => !!a))];
-        this.walletAddresses.set(
-          unique.map(address => ({ address, label: '', isSegwitV0: true }))
-        );
+        this.walletAddresses.set(unique.map(address => ({ address, label: '', isSegwitV0: true })));
       } catch (error) {
         console.error('Failed to load wallet addresses:', error);
       }

@@ -486,11 +486,7 @@ export class BtcxWalletService {
    * Electrum server) and opens the best hit; the result carries the full
    * hit list and an honest fresh verdict. Throws on failure.
    */
-  async restore(
-    mnemonic: string,
-    passphrase?: string,
-    name?: string
-  ): Promise<BtcxRestoreResult> {
+  async restore(mnemonic: string, passphrase?: string, name?: string): Promise<BtcxRestoreResult> {
     const result = await invoke<BtcxRestoreResult>('btcx_wallet_restore', {
       mnemonic,
       passphrase: passphrase || null,

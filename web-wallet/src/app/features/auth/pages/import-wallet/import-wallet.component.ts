@@ -97,7 +97,9 @@ import {
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || walletNameConflict() || walletNameInvalid() || importing()"
+                  [disabled]="
+                    !walletName || walletNameConflict() || walletNameInvalid() || importing()
+                  "
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -199,7 +201,9 @@ import {
           @if (currentStep() === 3 && !imported()) {
             <div class="step-content">
               <p class="info-text">
-                {{ (isRemote() ? 'wallet_encryption_info_local' : 'wallet_encryption_info') | i18n }}
+                {{
+                  (isRemote() ? 'wallet_encryption_info_local' : 'wallet_encryption_info') | i18n
+                }}
               </p>
 
               <mat-checkbox [(ngModel)]="useWalletEncryption" class="encryption-checkbox">

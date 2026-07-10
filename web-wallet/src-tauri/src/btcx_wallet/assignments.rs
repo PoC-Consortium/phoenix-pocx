@@ -52,18 +52,14 @@ pub fn forging_delays(network: WalletNetwork) -> (u32, u32) {
 /// address (`pocx`/`tpocx`/`rpocx` HRP — the `bitcoin` crate's `Address`
 /// only knows bc/tb/bcrt).
 fn p2wpkh_address(network: WalletNetwork, program: &[u8; 20]) -> Result<String, String> {
-    let hrp = bech32::Hrp::parse(network.params().bech32_hrp)
-        .map_err(|e| format!("chain HRP: {e}"))?;
+    let hrp =
+        bech32::Hrp::parse(network.params().bech32_hrp).map_err(|e| format!("chain HRP: {e}"))?;
     bech32::segwit::encode_v0(hrp, program).map_err(|e| format!("address encoding: {e}"))
 }
 
 /// The 20-byte witness program of a P2WPKH address on `network` — errors on
 /// anything else (assignments are defined over P2WPKH per consensus).
-fn p2wpkh_program(
-    network: WalletNetwork,
-    address: &str,
-    what: &str,
-) -> Result<[u8; 20], String> {
+fn p2wpkh_program(network: WalletNetwork, address: &str, what: &str) -> Result<[u8; 20], String> {
     let spk = network
         .params()
         .parse_address(address.trim())
@@ -506,7 +502,12 @@ fn derive_status(
                     // ASSIGNING-then-immediate-revoke invalid, mirror that.
                     let assigned_active = assign
                         .height
-                        .map(|h| event.height.map(|eh| eh >= h + assign_delay).unwrap_or(tip >= h + assign_delay))
+                        .map(|h| {
+                            event
+                                .height
+                                .map(|eh| eh >= h + assign_delay)
+                                .unwrap_or(tip >= h + assign_delay)
+                        })
                         .unwrap_or(false);
                     if assigned_active {
                         *revoke = Some(event.clone());

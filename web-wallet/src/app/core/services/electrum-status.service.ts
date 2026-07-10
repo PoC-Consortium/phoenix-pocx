@@ -1,9 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import {
-  BtcxWalletService,
-  BtcxOverallHealth,
-  BtcxServerHealth,
-} from './btcx-wallet.service';
+import { BtcxWalletService, BtcxOverallHealth, BtcxServerHealth } from './btcx-wallet.service';
 import { NodeService } from '../../node/services/node.service';
 
 /** How often the passive health snapshots refresh while no sync events flow. */
@@ -55,9 +51,7 @@ export class ElectrumStatusService {
     const homeState = byUrl.get(configured[0]) ?? 'untested';
     if (homeState === 'healthy') return 'healthy';
     if (homeState === 'down') {
-      return configured.slice(1).some(url => byUrl.get(url) === 'healthy')
-        ? 'degraded'
-        : 'down';
+      return configured.slice(1).some(url => byUrl.get(url) === 'healthy') ? 'degraded' : 'down';
     }
     // Home untested — nothing has talked to it yet this run.
     return 'connecting';

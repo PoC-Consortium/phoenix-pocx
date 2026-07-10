@@ -1381,9 +1381,7 @@ export class TransactionDetailComponent implements OnInit {
 
     try {
       // Routed through the mode's backend (Core RPC or the local BDK wallet).
-      const newTxid = await this.backendRouter
-        .wallet()
-        .bumpFee(walletName, txid, options.feeRate);
+      const newTxid = await this.backendRouter.wallet().bumpFee(walletName, txid, options.feeRate);
 
       this.notification.success(
         this.i18n.get('bump_fee_success').replace('{txid}', newTxid.substring(0, 16) + '...')

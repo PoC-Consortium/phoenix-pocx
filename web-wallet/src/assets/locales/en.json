@@ -1140,7 +1140,6 @@
   "settings_experimental": "Experimental",
   "settings_nodeless_wallet": "Nodeless wallet (experimental)",
   "settings_nodeless_wallet_desc": "Electrum-backed BTCX wallet that works without a local node. Adds a Nodeless Wallet entry to the navigation.",
-  "setup_plotting_address_invalid": "Enter a valid plotting address before saving",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

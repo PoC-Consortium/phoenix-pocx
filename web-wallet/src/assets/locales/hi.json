@@ -1140,7 +1140,6 @@
   "settings_experimental": "प्रायोगिक",
   "settings_nodeless_wallet": "नोडलेस वॉलेट (प्रायोगिक)",
   "settings_nodeless_wallet_desc": "Electrum-आधारित BTCX वॉलेट जो स्थानीय नोड के बिना काम करता है। नेविगेशन में नोडलेस वॉलेट प्रविष्टि जोड़ता है।",
-  "setup_plotting_address_invalid": "सहेजने से पहले एक मान्य प्लॉटिंग पता दर्ज करें",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

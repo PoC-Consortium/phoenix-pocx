@@ -1140,7 +1140,6 @@
   "settings_experimental": "Експериментално",
   "settings_nodeless_wallet": "Новчаник без чвора (експериментално)",
   "settings_nodeless_wallet_desc": "BTCX новчаник заснован на Electrum-у који ради без локалног чвора. Додаје ставку Новчаник без чвора у навигацију.",
-  "setup_plotting_address_invalid": "Унесите важећу адресу за плотирање пре чувања",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

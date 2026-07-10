@@ -1140,7 +1140,6 @@
   "settings_experimental": "Deneysel",
   "settings_nodeless_wallet": "Düğümsüz cüzdan (deneysel)",
   "settings_nodeless_wallet_desc": "Yerel düğüm olmadan çalışan Electrum tabanlı BTCX cüzdanı. Gezinmeye Düğümsüz Cüzdan girişi ekler.",
-  "setup_plotting_address_invalid": "Kaydetmeden önce geçerli bir çizim adresi girin",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

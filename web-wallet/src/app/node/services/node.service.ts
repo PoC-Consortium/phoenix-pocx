@@ -298,7 +298,10 @@ export class NodeService {
    * and `btcx_wallet_config.json` (network + Electrum servers). Always use
    * this for remote-mode saves so the two networks can never split-brain.
    */
-  async saveRemoteConfig(network: NodeConfig['network'], electrumServers: string[]): Promise<boolean> {
+  async saveRemoteConfig(
+    network: NodeConfig['network'],
+    electrumServers: string[]
+  ): Promise<boolean> {
     const saved = await this.saveConfig({ ...this._config(), mode: 'remote', network });
     if (!saved) return false;
     try {

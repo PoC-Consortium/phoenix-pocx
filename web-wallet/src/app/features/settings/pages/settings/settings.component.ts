@@ -840,132 +840,134 @@ function withListenPort(listenAddress: string, port: number): string {
                      BDK wallet is one fixed BIP-84 descriptor and cannot
                      adopt foreign keys) -->
                 @if (nodeMode() !== 'remote') {
-                <div class="wif-import-section">
-                  <h3 class="section-title">{{ 'import_wif_wpkh' | i18n }}</h3>
-                  <p class="section-description">
-                    {{ 'import_wif_description' | i18n }}
-                    @if (activeWalletName) {
-                      <strong>"{{ activeWalletName }}"</strong>
-                    }
-                  </p>
+                  <div class="wif-import-section">
+                    <h3 class="section-title">{{ 'import_wif_wpkh' | i18n }}</h3>
+                    <p class="section-description">
+                      {{ 'import_wif_description' | i18n }}
+                      @if (activeWalletName) {
+                        <strong>"{{ activeWalletName }}"</strong>
+                      }
+                    </p>
 
-                  <div class="wif-form">
-                    <div class="wif-input-row">
-                      <mat-form-field appearance="outline" class="wif-field">
-                        <mat-label>{{ 'wif_private_key' | i18n }}</mat-label>
-                        <input
-                          matInput
-                          [type]="wifShowKey() ? 'text' : 'password'"
-                          [value]="wifInput()"
-                          (input)="onWifInputChange($event)"
-                          placeholder="5... / K... / L... / c..."
-                          autocomplete="off"
-                        />
-                        <button
-                          mat-icon-button
-                          matSuffix
-                          (click)="wifShowKey.set(!wifShowKey())"
-                          [matTooltip]="wifShowKey() ? ('hide_key' | i18n) : ('show_key' | i18n)"
-                        >
-                          <mat-icon>{{ wifShowKey() ? 'visibility_off' : 'visibility' }}</mat-icon>
-                        </button>
-                      </mat-form-field>
-                    </div>
-
-                    <mat-form-field appearance="outline" class="label-field">
-                      <mat-label>{{ 'address_label_optional' | i18n }}</mat-label>
-                      <input
-                        matInput
-                        [value]="wifLabel()"
-                        (input)="wifLabel.set($any($event.target).value)"
-                        [placeholder]="'address_label_placeholder' | i18n"
-                      />
-                    </mat-form-field>
-
-                    <div class="wif-rescan-section">
-                      <p class="wif-rescan-label">{{ 'watch_only_rescan_label' | i18n }}</p>
-                      <mat-radio-group
-                        class="wif-rescan-group"
-                        [value]="wifRescanKind()"
-                        (change)="wifRescanKind.set($event.value)"
-                        [disabled]="isImportingWif()"
-                      >
-                        <mat-radio-button value="now">
-                          {{ 'watch_only_rescan_now' | i18n }}
-                        </mat-radio-button>
-                        <mat-radio-button value="date">
-                          {{ 'watch_only_rescan_date' | i18n }}
-                        </mat-radio-button>
-                        <mat-radio-button value="genesis">
-                          {{ 'watch_only_rescan_genesis' | i18n }}
-                        </mat-radio-button>
-                      </mat-radio-group>
-
-                      @if (wifRescanKind() === 'date') {
-                        <mat-form-field appearance="outline" class="wif-rescan-date-field">
-                          <mat-label>{{ 'watch_only_rescan_date_label' | i18n }}</mat-label>
+                    <div class="wif-form">
+                      <div class="wif-input-row">
+                        <mat-form-field appearance="outline" class="wif-field">
+                          <mat-label>{{ 'wif_private_key' | i18n }}</mat-label>
                           <input
                             matInput
-                            type="date"
-                            [(ngModel)]="wifRescanDateInput"
-                            [disabled]="isImportingWif()"
+                            [type]="wifShowKey() ? 'text' : 'password'"
+                            [value]="wifInput()"
+                            (input)="onWifInputChange($event)"
+                            placeholder="5... / K... / L... / c..."
+                            autocomplete="off"
                           />
+                          <button
+                            mat-icon-button
+                            matSuffix
+                            (click)="wifShowKey.set(!wifShowKey())"
+                            [matTooltip]="wifShowKey() ? ('hide_key' | i18n) : ('show_key' | i18n)"
+                          >
+                            <mat-icon>{{
+                              wifShowKey() ? 'visibility_off' : 'visibility'
+                            }}</mat-icon>
+                          </button>
                         </mat-form-field>
-                      }
-
-                      @if (wifRescanKind() === 'now') {
-                        <p class="wif-rescan-warning">
-                          <mat-icon>warning</mat-icon>
-                          {{ 'watch_only_rescan_warning_now' | i18n }}
-                        </p>
-                      }
-                    </div>
-
-                    @if (wifError()) {
-                      <div class="wif-error">
-                        <mat-icon>error</mat-icon>
-                        <span>{{ wifError() }}</span>
                       </div>
-                    }
 
-                    @if (wifPreview()) {
-                      <div class="wif-preview">
-                        <div class="preview-row">
-                          <span class="preview-label">{{ 'address' | i18n }}:</span>
-                          <code class="preview-value">{{ wifPreview()!.address }}</code>
+                      <mat-form-field appearance="outline" class="label-field">
+                        <mat-label>{{ 'address_label_optional' | i18n }}</mat-label>
+                        <input
+                          matInput
+                          [value]="wifLabel()"
+                          (input)="wifLabel.set($any($event.target).value)"
+                          [placeholder]="'address_label_placeholder' | i18n"
+                        />
+                      </mat-form-field>
+
+                      <div class="wif-rescan-section">
+                        <p class="wif-rescan-label">{{ 'watch_only_rescan_label' | i18n }}</p>
+                        <mat-radio-group
+                          class="wif-rescan-group"
+                          [value]="wifRescanKind()"
+                          (change)="wifRescanKind.set($event.value)"
+                          [disabled]="isImportingWif()"
+                        >
+                          <mat-radio-button value="now">
+                            {{ 'watch_only_rescan_now' | i18n }}
+                          </mat-radio-button>
+                          <mat-radio-button value="date">
+                            {{ 'watch_only_rescan_date' | i18n }}
+                          </mat-radio-button>
+                          <mat-radio-button value="genesis">
+                            {{ 'watch_only_rescan_genesis' | i18n }}
+                          </mat-radio-button>
+                        </mat-radio-group>
+
+                        @if (wifRescanKind() === 'date') {
+                          <mat-form-field appearance="outline" class="wif-rescan-date-field">
+                            <mat-label>{{ 'watch_only_rescan_date_label' | i18n }}</mat-label>
+                            <input
+                              matInput
+                              type="date"
+                              [(ngModel)]="wifRescanDateInput"
+                              [disabled]="isImportingWif()"
+                            />
+                          </mat-form-field>
+                        }
+
+                        @if (wifRescanKind() === 'now') {
+                          <p class="wif-rescan-warning">
+                            <mat-icon>warning</mat-icon>
+                            {{ 'watch_only_rescan_warning_now' | i18n }}
+                          </p>
+                        }
+                      </div>
+
+                      @if (wifError()) {
+                        <div class="wif-error">
+                          <mat-icon>error</mat-icon>
+                          <span>{{ wifError() }}</span>
                         </div>
-                      </div>
-                    }
+                      }
 
-                    <div class="wif-actions">
-                      <button
-                        mat-stroked-button
-                        (click)="validateWif()"
-                        [disabled]="!wifInput() || isValidatingWif() || isImportingWif()"
-                      >
-                        @if (isValidatingWif()) {
-                          <mat-spinner diameter="18"></mat-spinner>
-                        } @else {
-                          <mat-icon>preview</mat-icon>
-                        }
-                        {{ 'preview_address' | i18n }}
-                      </button>
-                      <button
-                        mat-raised-button
-                        color="warn"
-                        (click)="importWif()"
-                        [disabled]="!wifPreview() || isImportingWif() || !canImportWif()"
-                      >
-                        @if (isImportingWif()) {
-                          <mat-spinner diameter="18"></mat-spinner>
-                        } @else {
-                          <mat-icon>key</mat-icon>
-                        }
-                        {{ 'import_to_wallet' | i18n }}
-                      </button>
+                      @if (wifPreview()) {
+                        <div class="wif-preview">
+                          <div class="preview-row">
+                            <span class="preview-label">{{ 'address' | i18n }}:</span>
+                            <code class="preview-value">{{ wifPreview()!.address }}</code>
+                          </div>
+                        </div>
+                      }
+
+                      <div class="wif-actions">
+                        <button
+                          mat-stroked-button
+                          (click)="validateWif()"
+                          [disabled]="!wifInput() || isValidatingWif() || isImportingWif()"
+                        >
+                          @if (isValidatingWif()) {
+                            <mat-spinner diameter="18"></mat-spinner>
+                          } @else {
+                            <mat-icon>preview</mat-icon>
+                          }
+                          {{ 'preview_address' | i18n }}
+                        </button>
+                        <button
+                          mat-raised-button
+                          color="warn"
+                          (click)="importWif()"
+                          [disabled]="!wifPreview() || isImportingWif() || !canImportWif()"
+                        >
+                          @if (isImportingWif()) {
+                            <mat-spinner diameter="18"></mat-spinner>
+                          } @else {
+                            <mat-icon>key</mat-icon>
+                          }
+                          {{ 'import_to_wallet' | i18n }}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
                 }
               </div>
             </div>
@@ -2191,9 +2193,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         const network = this.remoteNetwork();
         const saved = await this.nodeService.saveRemoteConfig(network, this.remoteServers());
         if (!saved) {
-          this.notification.error(
-            this.nodeService.error() ?? 'Failed to save configuration'
-          );
+          this.notification.error(this.nodeService.error() ?? 'Failed to save configuration');
           return;
         }
         this.store.dispatch(SettingsActions.setNetwork({ network }));

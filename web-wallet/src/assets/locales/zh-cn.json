@@ -1140,7 +1140,6 @@
   "settings_experimental": "实验性功能",
   "settings_nodeless_wallet": "无节点钱包（实验性）",
   "settings_nodeless_wallet_desc": "基于 Electrum 的 BTCX 钱包，无需本地节点即可使用。在导航中添加无节点钱包入口。",
-  "setup_plotting_address_invalid": "保存前请输入有效的绘图地址",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

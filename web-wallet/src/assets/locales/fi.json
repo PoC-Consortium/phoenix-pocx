@@ -1140,7 +1140,6 @@
   "settings_experimental": "Kokeelliset",
   "settings_nodeless_wallet": "Solmuton lompakko (kokeellinen)",
   "settings_nodeless_wallet_desc": "Electrum-pohjainen BTCX-lompakko, joka toimii ilman paikallista solmua. Lisää navigaatioon Solmuton lompakko -kohdan.",
-  "setup_plotting_address_invalid": "Anna kelvollinen plotausosoite ennen tallentamista",
   "node_setup_remote_title": "Remote Node (Electrum)",
   "node_setup_remote_desc": "No local blockchain — the wallet connects to Electrum servers and stores wallets locally on this computer. Solo mining is unavailable; pool mining works.",
   "node_remote_node": "Remote (Electrum)",

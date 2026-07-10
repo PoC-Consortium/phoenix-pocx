@@ -6,10 +6,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe } from '../../../core/i18n';
-import {
-  BtcxWalletService,
-  BtcxNetwork,
-} from '../../../core/services/btcx-wallet.service';
+import { BtcxWalletService, BtcxNetwork } from '../../../core/services/btcx-wallet.service';
 
 /**
  * ElectrumServersEditorComponent — the ordered Electrum endpoint list
@@ -44,9 +41,7 @@ import {
       @for (server of servers; track $index) {
         <div class="server-row" [class.primary]="$index === 0">
           @if ($index === 0) {
-            <mat-icon
-              class="primary-icon"
-              [matTooltip]="'electrum_primary_server' | i18n"
+            <mat-icon class="primary-icon" [matTooltip]="'electrum_primary_server' | i18n"
               >star</mat-icon
             >
           } @else {
@@ -283,9 +278,7 @@ export class ElectrumServersEditorComponent {
 
   newServer = '';
   readonly testing = signal<string | null>(null);
-  readonly testResults = signal<Record<string, { ok: boolean; label: string; detail: string }>>(
-    {}
-  );
+  readonly testResults = signal<Record<string, { ok: boolean; label: string; detail: string }>>({});
 
   newServerValid(): boolean {
     const url = this.newServer.trim();
