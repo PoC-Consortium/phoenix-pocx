@@ -131,7 +131,13 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
         </div>
       } @else {
         <div class="card">
-          <h3>{{ 'wallet_name' | i18n }}</h3>
+          <!-- Wallet name — its own labeled section so the pre-filled
+               default is a conscious choice, not something to overlook. -->
+          <h3 class="name-heading">
+            <mat-icon class="name-icon">badge</mat-icon>
+            {{ 'wallet_name' | i18n }}
+          </h3>
+          <p class="hint-text">{{ 'mwallet_name_hint' | i18n }}</p>
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
             <input
@@ -261,6 +267,19 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
         &.small {
           font-size: 12px;
           margin: 0 0 8px;
+        }
+      }
+
+      .name-heading {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+
+        .name-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: #1976d2;
         }
       }
 
