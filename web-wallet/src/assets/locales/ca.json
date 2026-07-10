@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "La desviació del rellotge encara no s'ha comprovat",
   "clock_drift_warning": "Avisa quan el rellotge del sistema es desviï",
   "click_to_copy": "Fes clic per copiar",
+  "mwallet_load_more": "Carrega'n més",
   "view_in_explorer": "Veure a l'explorador",
   "close": "Tanca",
   "coinbase": "Coinbase",

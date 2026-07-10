@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "La desviación del reloj aún no se ha comprobado",
   "clock_drift_warning": "Avisar cuando el reloj del sistema se desvíe",
   "click_to_copy": "Clic para copiar",
+  "mwallet_load_more": "Cargar más",
   "view_in_explorer": "Ver en el explorador",
   "close": "Cerrar",
   "coinbase": "Coinbase",

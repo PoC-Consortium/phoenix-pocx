@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Відхилення годинника ще не перевірено",
   "clock_drift_warning": "Попереджати про відхилення системного годинника",
   "click_to_copy": "Натисніть для копіювання",
+  "mwallet_load_more": "Завантажити ще",
   "view_in_explorer": "Переглянути в оглядачі",
   "close": "Закрити",
   "coinbase": "Coinbase",

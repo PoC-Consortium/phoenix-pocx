@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Отклонението на часовника още не е проверено",
   "clock_drift_warning": "Предупреди при отклонение на системния часовник",
   "click_to_copy": "Кликнете за копиране",
+  "mwallet_load_more": "Зареди още",
   "view_in_explorer": "Преглед в експлорера",
   "close": "Затвори",
   "coinbase": "Coinbase",

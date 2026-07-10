@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Отклонение часов ещё не проверено",
   "clock_drift_warning": "Предупреждать при отклонении системных часов",
   "click_to_copy": "Нажмите для копирования",
+  "mwallet_load_more": "Загрузить ещё",
   "view_in_explorer": "Открыть в обозревателе",
   "close": "Закрыть",
   "coinbase": "Coinbase",

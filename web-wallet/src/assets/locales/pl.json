@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Odchylenie zegara nie zostało jeszcze sprawdzone",
   "clock_drift_warning": "Ostrzegaj, gdy zegar systemowy odchyla się",
   "click_to_copy": "Kliknij aby skopiowac",
+  "mwallet_load_more": "Załaduj więcej",
   "view_in_explorer": "Zobacz w eksploratorze",
   "close": "Zamknij",
   "coinbase": "Coinbase",

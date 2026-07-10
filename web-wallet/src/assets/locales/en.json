@@ -127,6 +127,7 @@
   "clock_drift_warning": "Warn when system clock drifts",
   "close": "Close",
   "click_to_copy": "Click to copy",
+  "mwallet_load_more": "Load more",
   "view_in_explorer": "View in explorer",
   "coinbase": "Coinbase",
   "compression": "Compression",

@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "クロックずれはまだ確認されていません",
   "clock_drift_warning": "システムクロックがずれた時に警告",
   "click_to_copy": "クリックしてコピー",
+  "mwallet_load_more": "さらに読み込む",
   "view_in_explorer": "エクスプローラーで表示",
   "close": "閉じる",
   "coinbase": "コインベース",

@@ -25,9 +25,8 @@ interface BtcxUtxoDto {
 
 /**
  * Map one BDK wallet transaction onto the Core-style list entry the UI
- * renders. Fields with no Electrum equivalent (`address`, `label`,
- * `blockhash`) stay absent — templates null-guard them. Exported for unit
- * testing.
+ * renders. Fields with no Electrum equivalent (`label`, `blockhash`) stay
+ * absent — templates null-guard them. Exported for unit testing.
  */
 export function mapBtcxTxToWalletTransaction(tx: BtcxWalletTx): WalletTransaction {
   const sign = tx.direction === 'sent' ? -1 : 1;
@@ -39,6 +38,8 @@ export function mapBtcxTxToWalletTransaction(tx: BtcxWalletTx): WalletTransactio
     txid: tx.txid,
     time: tx.timestamp ?? 0,
     timereceived: tx.timestamp ?? 0,
+    // Display address derived backend-side from the tx outputs.
+    address: tx.address ?? undefined,
     // BDK sends always signal RBF (ENABLE_RBF_NO_LOCKTIME).
     bip125_replaceable: tx.direction === 'sent' && tx.confirmations === 0 ? 'yes' : 'no',
   };

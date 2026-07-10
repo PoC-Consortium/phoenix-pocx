@@ -69,6 +69,8 @@ export interface BtcxWalletTxDto {
   vsize: number;
   confirmations: number;
   timestamp: number | null;
+  /** Display address derived from the outputs; absent when underivable. */
+  address?: string;
 }
 
 /** A wallet transaction, mapped to camelCase for the UI. */
@@ -85,6 +87,11 @@ export interface BtcxWalletTx {
   confirmations: number;
   /** Block time (confirmed) or first-seen time (mempool), unix seconds. */
   timestamp: number | null;
+  /**
+   * Display address: the counterparty output on sends, our receiving
+   * address on receives; null when underivable (e.g. OP_RETURN-only).
+   */
+  address: string | null;
 }
 
 /** Fee estimates in decimal sat/vB (`btcx_wallet_fee_estimates`). */
@@ -299,6 +306,7 @@ export function mapWalletTx(dto: BtcxWalletTxDto): BtcxWalletTx {
     vsize: dto.vsize,
     confirmations: dto.confirmations,
     timestamp: dto.timestamp ?? null,
+    address: dto.address ?? null,
   };
 }
 

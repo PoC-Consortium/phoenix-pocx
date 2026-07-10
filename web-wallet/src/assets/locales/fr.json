@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Le décalage d'horloge n'a pas encore été vérifié",
   "clock_drift_warning": "Avertir lorsque l'horloge système dérive",
   "click_to_copy": "Cliquez pour copier",
+  "mwallet_load_more": "Charger plus",
   "view_in_explorer": "Voir dans l'explorateur",
   "close": "Fermer",
   "coinbase": "Coinbase",

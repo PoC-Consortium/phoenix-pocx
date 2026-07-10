@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Zeitabweichung noch nicht geprueft",
   "clock_drift_warning": "Warnen, wenn die Systemuhr abweicht",
   "click_to_copy": "Klicken zum Kopieren",
+  "mwallet_load_more": "Mehr laden",
   "view_in_explorer": "Im Explorer anzeigen",
   "close": "Schließen",
   "coinbase": "Coinbase",

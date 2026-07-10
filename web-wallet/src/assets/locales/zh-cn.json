@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "尚未检查时钟偏差",
   "clock_drift_warning": "系统时钟偏差时发出警告",
   "click_to_copy": "点击复制",
+  "mwallet_load_more": "加载更多",
   "view_in_explorer": "在浏览器中查看",
   "close": "关闭",
   "coinbase": "Coinbase",

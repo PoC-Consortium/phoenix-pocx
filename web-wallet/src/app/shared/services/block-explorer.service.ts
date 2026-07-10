@@ -24,10 +24,12 @@ export class BlockExplorerService {
   });
 
   /**
-   * Get the base explorer URL for the current network
+   * Get the base explorer URL for a network. Defaults to the settings
+   * store's network; callers whose network lives elsewhere (the mobile
+   * btcx wallet) pass theirs explicitly.
    */
-  private getBaseUrl(): string {
-    const net = this.network();
+  private getBaseUrl(network?: string): string {
+    const net = network ?? this.network();
     if (net === 'mainnet') {
       return 'https://explorer.bitcoin-pocx.org';
     }
@@ -35,36 +37,36 @@ export class BlockExplorerService {
     return 'https://explorer.testnet.bitcoin-pocx.org/testnet';
   }
 
-  private getBlockUrl(hash: string): string {
-    return `${this.getBaseUrl()}/block/${hash}`;
+  private getBlockUrl(hash: string, network?: string): string {
+    return `${this.getBaseUrl(network)}/block/${hash}`;
   }
 
-  private getTransactionUrl(txid: string): string {
-    return `${this.getBaseUrl()}/tx/${txid}`;
+  private getTransactionUrl(txid: string, network?: string): string {
+    return `${this.getBaseUrl(network)}/tx/${txid}`;
   }
 
-  private getAddressUrl(address: string): string {
-    return `${this.getBaseUrl()}/address/${address}`;
+  private getAddressUrl(address: string, network?: string): string {
+    return `${this.getBaseUrl(network)}/address/${address}`;
   }
 
   /**
    * Open a block in the system browser
    */
-  openBlock(hash: string): void {
-    void this.electron.openExternal(this.getBlockUrl(hash));
+  openBlock(hash: string, network?: string): void {
+    void this.electron.openExternal(this.getBlockUrl(hash, network));
   }
 
   /**
    * Open a transaction in the system browser
    */
-  openTransaction(txid: string): void {
-    void this.electron.openExternal(this.getTransactionUrl(txid));
+  openTransaction(txid: string, network?: string): void {
+    void this.electron.openExternal(this.getTransactionUrl(txid, network));
   }
 
   /**
    * Open an address in the system browser
    */
-  openAddress(address: string): void {
-    void this.electron.openExternal(this.getAddressUrl(address));
+  openAddress(address: string, network?: string): void {
+    void this.electron.openExternal(this.getAddressUrl(address, network));
   }
 }

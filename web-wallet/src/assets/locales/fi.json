@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Kellopoikkeamaa ei ole vielä tarkistettu",
   "clock_drift_warning": "Varoita, kun järjestelmän kello poikkeaa",
   "click_to_copy": "Napsauta kopioidaksesi",
+  "mwallet_load_more": "Lataa lisää",
   "view_in_explorer": "Nayta selaimessa",
   "close": "Sulje",
   "coinbase": "Coinbase",

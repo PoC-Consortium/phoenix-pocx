@@ -126,6 +126,7 @@
   "clock_drift_tooltip_unknown": "Odchylka hodin zatím nebyla zkontrolována",
   "clock_drift_warning": "Upozornit při odchylce systémových hodin",
   "click_to_copy": "Kliknete pro kopirovani",
+  "mwallet_load_more": "Načíst další",
   "view_in_explorer": "Zobrazit v prohlizeci",
   "close": "Zavřít",
   "coinbase": "Coinbase",
