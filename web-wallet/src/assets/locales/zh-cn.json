@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "获取地址失败",
   "mwallet_backup_ack": "我已记下这12个单词",
   "mwallet_backup_title": "记下您的恢复短语",
-  "mwallet_backup_warning": "这12个单词是您钱包的唯一备份。请写在纸上并离线保存。任何知道它们的人都可以花费您的资金。",
+  "mwallet_backup_warning": "这24个单词是您钱包的唯一备份。请写在纸上并离线保存。任何知道它们的人都可以花费您的资金。",
   "mwallet_branch_legacy": "旧版（coin type 0'）",
   "mwallet_confirmations_n": "{count} 个确认",
   "mwallet_create_failed": "创建钱包失败",

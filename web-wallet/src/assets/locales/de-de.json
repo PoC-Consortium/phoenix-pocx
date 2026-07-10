@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Adresse konnte nicht abgerufen werden",
   "mwallet_backup_ack": "Ich habe die 12 Wörter aufgeschrieben",
   "mwallet_backup_title": "Schreibe deine Wiederherstellungsphrase auf",
-  "mwallet_backup_warning": "Diese 12 Wörter sind die einzige Sicherung deines Wallets. Schreibe sie auf Papier und bewahre sie offline auf. Jeder, der sie kennt, kann dein Guthaben ausgeben.",
+  "mwallet_backup_warning": "Diese 24 Wörter sind die einzige Sicherung deines Wallets. Schreibe sie auf Papier und bewahre sie offline auf. Jeder, der sie kennt, kann dein Guthaben ausgeben.",
   "mwallet_branch_legacy": "Legacy (Coin-Type 0')",
   "mwallet_confirmations_n": "{count} Bestätigungen",
   "mwallet_create_failed": "Wallet konnte nicht erstellt werden",

@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Falha ao obter um endereço",
   "mwallet_backup_ack": "Anotei as 12 palavras",
   "mwallet_backup_title": "Anote sua frase de recuperação",
-  "mwallet_backup_warning": "Estas 12 palavras são o único backup da sua carteira. Anote-as em papel e guarde-as offline. Qualquer pessoa que as conheça pode gastar seus fundos.",
+  "mwallet_backup_warning": "Estas 24 palavras são o único backup da sua carteira. Anote-as em papel e guarde-as offline. Qualquer pessoa que as conheça pode gastar seus fundos.",
   "mwallet_branch_legacy": "legado (coin type 0')",
   "mwallet_confirmations_n": "{count} confirmações",
   "mwallet_create_failed": "Falha ao criar a carteira",

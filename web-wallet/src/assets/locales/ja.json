@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "アドレスの取得に失敗しました",
   "mwallet_backup_ack": "12語を書き留めました",
   "mwallet_backup_title": "リカバリーフレーズを書き留めてください",
-  "mwallet_backup_warning": "この12語はウォレットの唯一のバックアップです。紙に書き留めてオフラインで保管してください。これらを知っている人は誰でもあなたの資金を使うことができます。",
+  "mwallet_backup_warning": "この24語はウォレットの唯一のバックアップです。紙に書き留めてオフラインで保管してください。これらを知っている人は誰でもあなたの資金を使うことができます。",
   "mwallet_branch_legacy": "レガシー（coin type 0'）",
   "mwallet_confirmations_n": "{count} 承認",
   "mwallet_create_failed": "ウォレットの作成に失敗しました",

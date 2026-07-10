@@ -16,7 +16,7 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
 /**
  * WalletCreateComponent - create-wallet onboarding flow.
  *
- * 1. phrase:  generate + display the 12 words with a write-it-down gate
+ * 1. phrase:  generate + display the 24 words with a write-it-down gate
  * 2. verify:  confirm a few words from the written backup
  * 3. protect: optional at-rest passphrase, then create
  *

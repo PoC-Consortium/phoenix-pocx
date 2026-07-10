@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Adres alınamadı",
   "mwallet_backup_ack": "12 kelimeyi yazdım",
   "mwallet_backup_title": "Kurtarma ifadenizi yazın",
-  "mwallet_backup_warning": "Bu 12 kelime cüzdanınızın tek yedeğidir. Kağıda yazın ve çevrimdışı saklayın. Bunları bilen herkes fonlarınızı harcayabilir.",
+  "mwallet_backup_warning": "Bu 24 kelime cüzdanınızın tek yedeğidir. Kağıda yazın ve çevrimdışı saklayın. Bunları bilen herkes fonlarınızı harcayabilir.",
   "mwallet_branch_legacy": "eski (coin type 0')",
   "mwallet_confirmations_n": "{count} onay",
   "mwallet_create_failed": "Cüzdan oluşturulamadı",

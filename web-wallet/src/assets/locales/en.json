@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Failed to get an address",
   "mwallet_backup_ack": "I have written down the 12 words",
   "mwallet_backup_title": "Write down your recovery phrase",
-  "mwallet_backup_warning": "These 12 words are the only backup of your wallet. Write them down on paper and keep them offline. Anyone who knows them can spend your funds.",
+  "mwallet_backup_warning": "These 24 words are the only backup of your wallet. Write them down on paper and keep them offline. Anyone who knows them can spend your funds.",
   "mwallet_branch_legacy": "legacy (coin type 0')",
   "mwallet_confirmations_n": "{count} confirmations",
   "mwallet_create_failed": "Failed to create the wallet",

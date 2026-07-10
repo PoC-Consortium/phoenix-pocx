@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Impossibile ottenere un indirizzo",
   "mwallet_backup_ack": "Ho annotato le 12 parole",
   "mwallet_backup_title": "Annota la tua frase di recupero",
-  "mwallet_backup_warning": "Queste 12 parole sono l'unico backup del tuo portafoglio. Annotale su carta e conservale offline. Chiunque le conosca può spendere i tuoi fondi.",
+  "mwallet_backup_warning": "Queste 24 parole sono l'unico backup del tuo portafoglio. Annotale su carta e conservale offline. Chiunque le conosca può spendere i tuoi fondi.",
   "mwallet_branch_legacy": "legacy (coin type 0')",
   "mwallet_confirmations_n": "{count} conferme",
   "mwallet_create_failed": "Impossibile creare il portafoglio",

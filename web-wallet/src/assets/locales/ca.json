@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "No s'ha pogut obtenir una adreça",
   "mwallet_backup_ack": "He anotat les 12 paraules",
   "mwallet_backup_title": "Anoteu la vostra frase de recuperació",
-  "mwallet_backup_warning": "Aquestes 12 paraules són l'única còpia de seguretat de la vostra cartera. Anoteu-les en paper i guardeu-les fora de línia. Qualsevol que les conegui pot gastar els vostres fons.",
+  "mwallet_backup_warning": "Aquestes 24 paraules són l'única còpia de seguretat de la vostra cartera. Anoteu-les en paper i guardeu-les fora de línia. Qualsevol que les conegui pot gastar els vostres fons.",
   "mwallet_branch_legacy": "antiga (coin type 0')",
   "mwallet_confirmations_n": "{count} confirmacions",
   "mwallet_create_failed": "No s'ha pogut crear la cartera",

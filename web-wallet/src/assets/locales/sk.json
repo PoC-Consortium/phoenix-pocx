@@ -1071,7 +1071,7 @@
   "mwallet_address_failed": "Nepodarilo sa získať adresu",
   "mwallet_backup_ack": "Zapísal som si 12 slov",
   "mwallet_backup_title": "Zapíšte si svoju obnovovaciu frázu",
-  "mwallet_backup_warning": "Týchto 12 slov je jedinou zálohou vašej peňaženky. Zapíšte si ich na papier a uchovávajte offline. Ktokoľvek ich pozná, môže minúť vaše prostriedky.",
+  "mwallet_backup_warning": "Týchto 24 slov je jedinou zálohou vašej peňaženky. Zapíšte si ich na papier a uchovávajte offline. Ktokoľvek ich pozná, môže minúť vaše prostriedky.",
   "mwallet_branch_legacy": "staršia (coin type 0')",
   "mwallet_confirmations_n": "{count} potvrdení",
   "mwallet_create_failed": "Peňaženku sa nepodarilo vytvoriť",
