@@ -33,8 +33,8 @@ import { NodeService } from '../../node';
 import { MiningService } from '../../mining/services';
 import { ClockDriftService } from '../../core/services/clock-drift.service';
 import { ElectrumStatusService } from '../../core/services/electrum-status.service';
-import { DecimalPipe } from '@angular/common';
 import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-dialog/clock-drift-dialog.component';
+import { ElectrumServerListComponent } from '../../shared/components/electrum-server-list/electrum-server-list.component';
 
 /**
  * Shared toolbar component matching original Phoenix wallet design.
@@ -53,7 +53,7 @@ import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-d
     MatDividerModule,
     MatProgressSpinnerModule,
     I18nPipe,
-    DecimalPipe,
+    ElectrumServerListComponent,
   ],
   template: `
     <mat-toolbar class="toolbar">
@@ -120,36 +120,7 @@ import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-d
                   <div class="electrum-popover-title">
                     {{ 'electrum_servers' | i18n }}
                   </div>
-                  @for (server of electrumStatus.servers(); track server.url) {
-                    <div class="electrum-server-row">
-                      <span
-                        class="dot"
-                        [class.ok]="server.state === 'healthy'"
-                        [class.down]="server.state === 'down'"
-                        [class.untested]="server.state === 'untested'"
-                      ></span>
-                      <span class="url">{{ server.url }}</span>
-                      <span class="meta">
-                        @if (server.role === 'wallet') {
-                          <mat-icon
-                            class="home-icon"
-                            [matTooltip]="'electrum_primary_server' | i18n"
-                            >star</mat-icon
-                          >
-                        }
-                        @if (server.latency_ms !== undefined) {
-                          {{ server.latency_ms | number: '1.0-0' }}ms
-                        }
-                      </span>
-                    </div>
-                    @if (server.last_error && server.state === 'down') {
-                      <div class="electrum-server-error">{{ server.last_error }}</div>
-                    }
-                  } @empty {
-                    <div class="electrum-server-row">
-                      <span class="url">{{ 'electrum_no_servers_hint' | i18n }}</span>
-                    </div>
-                  }
+                  <app-electrum-server-list [servers]="electrumStatus.servers()" />
                 </div>
               </mat-menu>
             }
@@ -610,75 +581,22 @@ import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-d
         cursor: pointer;
       }
 
+      /* Server rows live in the shared app-electrum-server-list. */
       .electrum-popover {
         padding: 8px 16px 12px;
         min-width: 300px;
         max-width: 420px;
 
+        /* inherit + opacity: the overlay panel is theme-colored, and
+           :host-context can't reach overlay content from this toolbar. */
         .electrum-popover-title {
           font-size: 12px;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
-          color: rgba(0, 0, 0, 0.6);
+          color: inherit;
+          opacity: 0.65;
           margin-bottom: 8px;
-        }
-
-        .electrum-server-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 4px 0;
-
-          .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            flex-shrink: 0;
-            background: rgba(0, 0, 0, 0.25);
-
-            &.ok {
-              background: #4caf50;
-            }
-
-            &.down {
-              background: #e53935;
-            }
-
-            &.untested {
-              background: rgba(0, 0, 0, 0.25);
-            }
-          }
-
-          .url {
-            font-family: monospace;
-            font-size: 12px;
-            word-break: break-all;
-            flex: 1;
-          }
-
-          .meta {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 11px;
-            color: rgba(0, 0, 0, 0.5);
-            white-space: nowrap;
-
-            .home-icon {
-              font-size: 14px;
-              width: 14px;
-              height: 14px;
-              color: #1976d2;
-            }
-          }
-        }
-
-        .electrum-server-error {
-          font-size: 11px;
-          color: #c62828;
-          margin: 0 0 4px 16px;
-          word-break: break-word;
         }
       }
 
