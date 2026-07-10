@@ -1,10 +1,12 @@
-import { Injectable, inject, signal, computed, OnDestroy } from '@angular/core';
+import { Injectable, inject, signal, computed, effect, untracked, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable, Subject, Subscription, interval, takeUntil } from 'rxjs';
 import { WalletRpcService, WalletTransaction, UTXO, AddressInfo } from '../rpc/wallet-rpc.service';
 import { WalletManagerService, MultisigInfo } from './wallet-manager.service';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 import { TransactionStateService } from '../transaction-state.service';
 import { NodeService } from '../../../node/services/node.service';
+import { BackendRouterService } from '../../../core/backend/backend-router.service';
+import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
 
 /**
  * Wallet state for the active wallet
@@ -50,6 +52,8 @@ export class WalletService implements OnDestroy {
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly transactionState = inject(TransactionStateService);
   private readonly nodeService = inject(NodeService);
+  private readonly backendRouter = inject(BackendRouterService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly destroy$ = new Subject<void>();
 
   // State using Angular signals
@@ -105,12 +109,16 @@ export class WalletService implements OnDestroy {
         this.startAutoRefresh();
         this._activeMultisig.set(null);
         this._activeWatchOnly.set(false);
-        void this.walletManager.getMultisigInfo(wallet).then(info => {
-          // Guard against the wallet having changed again while listing descriptors
-          if (this.walletManager.activeWallet === wallet) {
-            this._activeMultisig.set(info);
-          }
-        });
+        // Multisig is a Core-descriptor concept — the local BDK wallet is
+        // always single-sig BIP-84.
+        if (!this.nodeService.isRemote()) {
+          void this.walletManager.getMultisigInfo(wallet).then(info => {
+            // Guard against the wallet having changed again while listing descriptors
+            if (this.walletManager.activeWallet === wallet) {
+              this._activeMultisig.set(info);
+            }
+          });
+        }
       } else {
         this.stopAutoRefresh();
         this.resetState();
@@ -121,6 +129,17 @@ export class WalletService implements OnDestroy {
 
     // Reset state when node starts to clear stale network-specific data
     this.nodeService.nodeStarting$.subscribe(() => this.resetState());
+
+    // Remote mode is event-driven, not polled: every `btcx-wallet:sync`
+    // emission (height or health change; the worker ticks at 15s with
+    // scripthash subscriptions) refreshes the cached views. The 30s
+    // interval never starts in remote (see startAutoRefresh).
+    effect(() => {
+      const sync = this.btcxWallet.lastSync();
+      if (sync && this.nodeService.isRemote() && this.walletManager.activeWallet) {
+        untracked(() => void this.refresh());
+      }
+    });
   }
 
   // ============================================================
@@ -132,8 +151,10 @@ export class WalletService implements OnDestroy {
    * Silently skips if RPC credentials are not yet available.
    */
   async refresh(): Promise<void> {
-    // Skip if not authenticated (credentials not loaded yet)
-    if (!this.cookieAuth.isAuthenticated) return;
+    const remote = this.nodeService.isRemote();
+    // Core: skip while RPC credentials are not yet available.
+    // Remote: skip while the local wallet runtime is not open.
+    if (remote ? !this.btcxWallet.walletActive() : !this.cookieAuth.isAuthenticated) return;
 
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
@@ -142,21 +163,22 @@ export class WalletService implements OnDestroy {
     this._lastError.set(null);
 
     try {
+      const backend = this.backendRouter.wallet();
+
       // Fetch balance
-      const balances = await this.walletRpc.getBalances(walletName);
+      const balances = await backend.getBalances(walletName);
+      this._balance.set(balances.trusted);
+      this._unconfirmedBalance.set(balances.untrustedPending);
+      this._immatureBalance.set(balances.immature);
 
-      this._balance.set(balances.mine.trusted);
-      this._unconfirmedBalance.set(balances.mine.untrusted_pending);
-      this._immatureBalance.set(balances.mine.immature);
-
-      // Fetch wallet info for tx count
-      const info = await this.walletRpc.getWalletInfo(walletName);
-      this._txCount.set(info.txcount);
-      this._activeWatchOnly.set(info.private_keys_enabled === false);
+      // Fetch wallet details for tx count / watch-only
+      const details = await backend.getWalletDetails(walletName);
+      this._txCount.set(details.txCount);
+      this._activeWatchOnly.set(details.watchOnly);
 
       // Fetch recent transactions (100 for chart history, sorted newest first)
-      const transactions = await this.walletRpc.listTransactions(walletName, '*', 100);
-      const recentTxs = transactions.sort((a, b) => b.time - a.time);
+      const transactions = await backend.listTransactions(walletName, 100);
+      const recentTxs = [...transactions].sort((a, b) => b.time - a.time);
       this._recentTransactions.set(recentTxs);
       this.recentTransactionsSubject.next(recentTxs); // Keep observable in sync
 
@@ -191,6 +213,10 @@ export class WalletService implements OnDestroy {
    * Called when a wallet becomes active.
    */
   startAutoRefresh(intervalMs = 30000): void {
+    // Remote mode never polls — refreshes ride the `btcx-wallet:sync`
+    // event (see the constructor effect).
+    if (this.nodeService.isRemote()) return;
+
     // Skip if already polling at the same interval
     if (this.isAutoRefreshing && this.refreshInterval === intervalMs && this.refreshSubscription) {
       return;
@@ -241,7 +267,7 @@ export class WalletService implements OnDestroy {
     type?: 'legacy' | 'p2sh-segwit' | 'bech32' | 'bech32m'
   ): Promise<string> {
     const walletName = this.requireActiveWallet();
-    return this.walletRpc.getNewAddress(walletName, label, type);
+    return this.backendRouter.wallet().getNewAddress(walletName, label, type);
   }
 
   /**
@@ -270,7 +296,7 @@ export class WalletService implements OnDestroy {
   async sendToAddress(address: string, amount: number, options: SendOptions = {}): Promise<string> {
     const walletName = this.requireActiveWallet();
 
-    const txid = await this.walletRpc.sendToAddress(walletName, address, amount, {
+    const txid = await this.backendRouter.wallet().sendToAddress(walletName, address, amount, {
       comment: options.comment,
       subtractFeeFromAmount: options.subtractFeeFromAmount,
       replaceable: options.replaceable ?? true,
@@ -307,7 +333,11 @@ export class WalletService implements OnDestroy {
    */
   async getTransactions(count = 100, skip = 0, label = '*'): Promise<WalletTransaction[]> {
     const walletName = this.requireActiveWallet();
-    return this.walletRpc.listTransactions(walletName, label, count, skip);
+    if (label !== '*') {
+      // Label filtering is a Core keypool feature — Core path only.
+      return this.walletRpc.listTransactions(walletName, label, count, skip);
+    }
+    return this.backendRouter.wallet().listTransactions(walletName, count, skip);
   }
 
   /**
@@ -329,6 +359,10 @@ export class WalletService implements OnDestroy {
    */
   async listUnspent(minconf = 1, maxconf = 9999999): Promise<UTXO[]> {
     const walletName = this.requireActiveWallet();
+    if (this.nodeService.isRemote()) {
+      const utxos = await this.backendRouter.wallet().listUnspent(walletName);
+      return utxos.filter(u => u.confirmations >= minconf && u.confirmations <= maxconf);
+    }
     return this.walletRpc.listUnspent(walletName, minconf, maxconf);
   }
 

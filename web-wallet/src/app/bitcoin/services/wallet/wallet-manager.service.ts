@@ -3,7 +3,8 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { WalletRpcService, WalletInfo, ImportResult } from '../rpc/wallet-rpc.service';
 import { BlockchainRpcService, ScanTxOutSetObject } from '../rpc/blockchain-rpc.service';
 import { DescriptorService, WalletDescriptors } from './descriptor.service';
-import { BTCX_COIN_TYPE } from '../../../core/services/btcx-wallet.service';
+import { BTCX_COIN_TYPE, BtcxWalletService } from '../../../core/services/btcx-wallet.service';
+import { NodeService } from '../../../node/services/node.service';
 
 /**
  * Wallet creation options
@@ -150,6 +151,8 @@ export class WalletManagerService {
   private readonly walletRpc = inject(WalletRpcService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly descriptorService = inject(DescriptorService);
+  private readonly btcxWallet = inject(BtcxWalletService);
+  private readonly nodeService = inject(NodeService);
 
   private readonly loadedWalletsSubject = new BehaviorSubject<string[]>([]);
   private readonly activeWalletSubject = new BehaviorSubject<string | null>(null);
@@ -183,26 +186,57 @@ export class WalletManagerService {
   // ============================================================
 
   /**
-   * Refresh the list of loaded wallets from Bitcoin Core
+   * Refresh the list of loaded wallets — from Bitcoin Core, or (remote
+   * mode) the local store's OPEN wallet (at most one).
    */
   async refreshLoadedWallets(): Promise<string[]> {
+    if (this.nodeService.isRemote()) {
+      const status = await this.btcxWallet.refreshStatus();
+      const wallets = status?.walletActive ? [status.walletName] : [];
+      this.loadedWalletsSubject.next(wallets);
+      return wallets;
+    }
     const wallets = await this.walletRpc.listWallets();
     this.loadedWalletsSubject.next(wallets);
     return wallets;
   }
 
   /**
-   * List all wallets in the wallet directory (loaded and unloaded)
+   * List all wallets in the wallet directory (loaded and unloaded) —
+   * remote mode lists the local named-wallet registry.
    */
   async listAllWallets(): Promise<string[]> {
+    if (this.nodeService.isRemote()) {
+      const list = await this.btcxWallet.list();
+      return list.map(w => w.name);
+    }
     const result = await this.walletRpc.listWalletDir();
     return result.wallets.map(w => w.name);
   }
 
   /**
-   * Get wallet summaries for UI display
+   * Get wallet summaries for UI display. Remote mode maps the local
+   * registry (`btcx_wallet_list`) onto the same summary shape the wallet
+   * selector renders for Core wallets.
    */
   async getWalletSummaries(): Promise<WalletSummary[]> {
+    if (this.nodeService.isRemote()) {
+      const list = await this.btcxWallet.list();
+      // Keep the loaded-wallets subject in step (at most one open wallet).
+      this.loadedWalletsSubject.next(list.filter(w => w.isOpen).map(w => w.name));
+      return list.map(w => ({
+        name: w.name,
+        isLoaded: w.isOpen,
+        balance: w.balanceSat !== undefined ? w.balanceSat / 100_000_000 : undefined,
+        isDescriptor: true,
+        isWatchOnly: false,
+        isEncrypted: w.seedEncrypted,
+        // Selector semantics: undefined = no unlock needed, 0 = locked,
+        // >0 = unlocked. Keyring-encrypted seeds auto-unlock → undefined.
+        unlockedUntil: w.seedLocked ? 0 : w.seedEncrypted && w.isOpen ? SESSION_UNLOCK_SECONDS : undefined,
+      }));
+    }
+
     const allWallets = await this.listAllWallets();
     const loadedWallets = await this.refreshLoadedWallets();
 
@@ -577,13 +611,18 @@ export class WalletManagerService {
   // ============================================================
 
   /**
-   * Load a wallet
+   * Load a wallet. Remote mode selects (and opens) the named local wallet
+   * — the previous one closes, Core-`loadwallet`-style semantics.
    */
   async loadWallet(walletName: string, loadOnStartup?: boolean): Promise<void> {
     this.isLoadingSubject.next(true);
 
     try {
-      await this.walletRpc.loadWallet(walletName, loadOnStartup);
+      if (this.nodeService.isRemote()) {
+        await this.btcxWallet.select(walletName);
+      } else {
+        await this.walletRpc.loadWallet(walletName, loadOnStartup);
+      }
       await this.refreshLoadedWallets();
 
       // If no active wallet, set this as active
@@ -599,13 +638,18 @@ export class WalletManagerService {
   }
 
   /**
-   * Unload a wallet
+   * Unload a wallet. Remote mode closes the open local wallet's runtime
+   * (selection survives; reopening needs no restore).
    */
   async unloadWallet(walletName: string): Promise<void> {
     this.isLoadingSubject.next(true);
 
     try {
-      await this.walletRpc.unloadWallet(walletName);
+      if (this.nodeService.isRemote()) {
+        await this.btcxWallet.close();
+      } else {
+        await this.walletRpc.unloadWallet(walletName);
+      }
       await this.refreshLoadedWallets();
 
       // If this was the active wallet, clear it or select another
@@ -690,6 +734,14 @@ export class WalletManagerService {
     passphrase: string,
     timeoutSeconds: number
   ): Promise<void> {
+    if (this.nodeService.isRemote()) {
+      // Local wallet: the passphrase decrypts the seed; the timeout concept
+      // does not apply (held until lock/close).
+      await this.btcxWallet.select(walletName);
+      await this.btcxWallet.unlock(passphrase);
+      this.walletsChangedSubject.next();
+      return;
+    }
     await this.walletRpc.walletPassphrase(walletName, passphrase, timeoutSeconds);
     this.walletsChangedSubject.next();
   }
@@ -708,6 +760,11 @@ export class WalletManagerService {
    * Lock an encrypted wallet
    */
   async lockWallet(walletName: string): Promise<void> {
+    if (this.nodeService.isRemote()) {
+      await this.btcxWallet.lock();
+      this.walletsChangedSubject.next();
+      return;
+    }
     await this.walletRpc.walletLock(walletName);
     this.walletsChangedSubject.next();
   }

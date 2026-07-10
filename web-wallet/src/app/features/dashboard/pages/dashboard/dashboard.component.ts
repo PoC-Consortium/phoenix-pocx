@@ -26,6 +26,7 @@ import {
   WalletTransaction,
   WalletRpcService,
 } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
+import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
@@ -951,6 +952,7 @@ export class DashboardComponent implements AfterViewInit {
   readonly walletService = inject(WalletService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletRpc = inject(WalletRpcService);
+  private readonly backendRouter = inject(BackendRouterService);
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
   private readonly notification = inject(NotificationService);
@@ -1348,17 +1350,13 @@ export class DashboardComponent implements AfterViewInit {
     if (!walletName) return;
 
     try {
-      const bumpOptions: { confTarget?: number; feeRate?: number } = {};
-      if (options.feeRate !== undefined) {
-        bumpOptions.feeRate = options.feeRate;
-      } else if (options.confTarget !== undefined) {
-        bumpOptions.confTarget = options.confTarget;
-      }
-
-      const result = await this.walletRpc.bumpFee(walletName, txid, bumpOptions);
+      // Routed through the mode's backend (Core RPC or the local BDK wallet).
+      const newTxid = await this.backendRouter
+        .wallet()
+        .bumpFee(walletName, txid, options.feeRate);
 
       this.notification.success(
-        this.i18n.get('bump_fee_success').replace('{txid}', result.txid.substring(0, 16) + '...')
+        this.i18n.get('bump_fee_success').replace('{txid}', newTxid.substring(0, 16) + '...')
       );
 
       // Refresh wallet service for balance and transaction updates
@@ -1390,6 +1388,12 @@ export class DashboardComponent implements AfterViewInit {
   private async executeAbandon(txid: string): Promise<void> {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
+
+    if (this.backendRouter.isRemote()) {
+      // abandontransaction is a Core wallet concept with no BDK analog.
+      this.notification.error(this.i18n.get('feature_unavailable_remote'));
+      return;
+    }
 
     try {
       await this.walletRpc.abandonTransaction(walletName, txid);

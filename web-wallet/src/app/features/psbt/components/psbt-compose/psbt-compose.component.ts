@@ -21,6 +21,8 @@ import { WalletRpcService, UTXO } from '../../../../bitcoin/services/rpc/wallet-
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
+import { NodeService } from '../../../../node/services/node.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import type { ComposeOutput, PsbtDocument } from '../../psbt.models';
 
 interface FeeChip {
@@ -1302,7 +1304,12 @@ export class PsbtComposeComponent implements OnInit {
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
   private readonly store = inject(Store);
+  private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
+
+  /** Remote (Electrum) mode: client-side compose, basic options only. */
+  readonly isRemote = this.nodeService.isRemote;
 
   /** Emits the funded PSBT (base64) once created */
   readonly created = output<{ psbt: string; fee: number }>();
@@ -1597,7 +1604,7 @@ export class PsbtComposeComponent implements OnInit {
     if (!walletName) return;
     this.loadingUtxos.set(true);
     try {
-      const utxos = await this.walletRpc.listUnspent(walletName, 0);
+      const utxos = await this.walletService.listUnspent(0);
       utxos.sort((a, b) => b.amount - a.amount);
       this.utxos.set(utxos.filter(u => u.spendable));
       this.utxoPage.set(0);
@@ -1620,12 +1627,22 @@ export class PsbtComposeComponent implements OnInit {
   async loadFeeEstimates(): Promise<void> {
     this.loadingFees.set(true);
     try {
-      for (const chip of this.feeChips) {
-        if (chip.custom) continue;
-        const result = await this.blockchainRpc.estimateSmartFee(chip.blocks);
-        if (result.feerate) {
-          // BTC/kvB → sat/vB, one decimal
-          chip.rate = Math.round((result.feerate * 1e8) / 100) / 10;
+      if (this.isRemote()) {
+        const estimates = await this.btcxWallet.fetchFeeEstimates();
+        const bySpeed = [estimates.slow, estimates.normal, estimates.fast];
+        this.feeChips.forEach((chip, i) => {
+          if (chip.custom) return;
+          const rate = bySpeed[i];
+          chip.rate = rate != null ? Math.round(rate * 10) / 10 : null;
+        });
+      } else {
+        for (const chip of this.feeChips) {
+          if (chip.custom) continue;
+          const result = await this.blockchainRpc.estimateSmartFee(chip.blocks);
+          if (result.feerate) {
+            // BTC/kvB → sat/vB, one decimal
+            chip.rate = Math.round((result.feerate * 1e8) / 100) / 10;
+          }
         }
       }
       const hasEstimates = this.feeChips.some(c => !c.custom && c.rate !== null);
@@ -1766,6 +1783,32 @@ export class PsbtComposeComponent implements OnInit {
     this.createError.set(null);
 
     try {
+      if (this.isRemote()) {
+        // Client-side compose supports the basics: recipients + fee rate
+        // (RBF always on). Coin control, OP_RETURN data, locktime, custom
+        // change and subtract-fee need Core's walletcreatefundedpsbt.
+        if (
+          this.manualCoins() ||
+          (this.showData() && this.dataHex.trim()) ||
+          this.useLocktime() ||
+          this.subtractFeeIndex() !== null ||
+          (!this.autoChange() && this.changeAddress.trim())
+        ) {
+          this.createError.set(this.i18n.get('psbt_compose_advanced_unavailable_remote'));
+          return;
+        }
+        const psbt = await this.btcxWallet.createFundedPsbt(
+          this.outputs().map(o => ({
+            address: o.address.trim(),
+            amountSat: Math.round((o.amount as number) * 1e8),
+          })),
+          this.effectiveFeeRate() ?? undefined
+        );
+        const doc = await this.btcxWallet.psbtDecode(psbt);
+        this.created.emit({ psbt, fee: (doc.feeSat ?? 0) / 1e8 });
+        return;
+      }
+
       const outputs: Array<Record<string, number | string>> = this.outputs().map(o => ({
         [o.address.trim()]: o.amount as number,
       }));

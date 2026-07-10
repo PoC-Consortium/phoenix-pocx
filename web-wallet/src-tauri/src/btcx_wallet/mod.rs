@@ -26,15 +26,25 @@
 //! ## Data layout (all under the app data dir)
 //!
 //! - `btcx_wallet_config.json` — network, per-network Electrum servers,
-//!   per-network descriptor policy, active flag.
-//! - `btcx-wallet/seed.mnemonic` — the seed, never plaintext (see
-//!   `seedstore`). ONE seed serves every network.
-//! - `btcx-wallet/<network>/wallet/btcx.sqlite` — the per-network bdk
-//!   wallet store.
+//!   the named-wallet registry (per-wallet descriptor policy), the active
+//!   wallet per network, active flag.
+//! - `btcx-wallet/<network>/<name>/seed.mnemonic` — one seed PER named
+//!   wallet, never plaintext (see `seedstore`).
+//! - `btcx-wallet/<network>/<name>/wallet/btcx.sqlite` — that wallet's bdk
+//!   store.
+//! - `btcx-wallet/<network>/.trash/<name>-<ts>/` — deleted wallets are
+//!   moved here, never removed.
+//!
+//! The pre-multi-wallet layout (ONE root seed at `btcx-wallet/seed.mnemonic`
+//! shared by per-network stores at `btcx-wallet/<network>/wallet/`) is
+//! migrated on startup — each network's store becomes its `default` wallet
+//! (see `config::migrate_legacy_layout_at`).
 
+pub mod assignments;
 pub mod commands;
 pub mod config;
 pub mod manager;
+pub mod psbt;
 pub mod state;
 
 pub use config::BtcxWalletConfig;

@@ -99,12 +99,6 @@ export interface SettingsState {
   debugMode: boolean;
   customFeeRate: number | null;
 
-  /**
-   * Experimental: expose the nodeless (Electrum-backed) BTCX wallet on
-   * desktop. Default OFF — desktop UX is unchanged until enabled.
-   */
-  nodelessWallet: boolean;
-
   // Aggregator
   aggregator: AggregatorSettings;
 }
@@ -156,7 +150,6 @@ export const initialSettingsState: SettingsState = {
 
   debugMode: false,
   customFeeRate: null,
-  nodelessWallet: false,
 
   aggregator: { ...defaultAggregatorSettings },
 };

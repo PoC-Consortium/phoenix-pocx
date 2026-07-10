@@ -1,7 +1,8 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { Subject } from 'rxjs';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { BtcxWalletService } from '../../core/services/btcx-wallet.service';
 import {
   NodeConfig,
   NodeStatus,
@@ -30,6 +31,8 @@ import {
   providedIn: 'root',
 })
 export class NodeService {
+  private readonly btcxWallet = inject(BtcxWalletService);
+
   // Event emitted before node starts — services subscribe to reset network-specific state
   private readonly _nodeStarting = new Subject<void>();
   readonly nodeStarting$ = this._nodeStarting.asObservable();
@@ -66,6 +69,11 @@ export class NodeService {
   // Computed values (mode values are lowercase to match Rust serde serialization)
   readonly isManaged = computed(() => this._config().mode === 'managed');
   readonly isExternal = computed(() => this._config().mode === 'external');
+  /**
+   * Remote mode: no local bitcoind at all — the wallet runs over Electrum
+   * (the nodeless btcx stack). THE signal every remote-mode branch keys on.
+   */
+  readonly isRemote = computed(() => this._config().mode === 'remote');
   readonly isRunning = computed(() => this._status().running);
   readonly isInstalled = computed(() => this._status().installed);
   readonly isSynced = computed(() => this._status().synced);
@@ -280,6 +288,25 @@ export class NodeService {
     } catch (err) {
       console.error('Failed to save node config:', err);
       this._error.set(`Failed to save config: ${err}`);
+      return false;
+    }
+  }
+
+  /**
+   * Save the remote-mode configuration across BOTH config files in one
+   * call: `node_config.json` (mode + network — the mode's source of truth)
+   * and `btcx_wallet_config.json` (network + Electrum servers). Always use
+   * this for remote-mode saves so the two networks can never split-brain.
+   */
+  async saveRemoteConfig(network: NodeConfig['network'], electrumServers: string[]): Promise<boolean> {
+    const saved = await this.saveConfig({ ...this._config(), mode: 'remote', network });
+    if (!saved) return false;
+    try {
+      await this.btcxWallet.setConfig({ network, electrumServers, active: true });
+      return true;
+    } catch (err) {
+      console.error('Failed to save btcx wallet config:', err);
+      this._error.set(`Failed to save Electrum configuration: ${err}`);
       return false;
     }
   }

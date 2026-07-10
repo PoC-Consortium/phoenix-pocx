@@ -37,6 +37,8 @@ import { Store } from '@ngrx/store';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
+import { NodeService } from '../../../../node/services/node.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 
 interface FeeOption {
   label: string;
@@ -1043,6 +1045,11 @@ export class SendComponent implements OnInit, OnDestroy {
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
+  private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
+
+  /** Remote (Electrum) mode: local BDK wallet, Electrum fee estimates. */
+  readonly isRemote = this.nodeService.isRemote;
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -1122,11 +1129,22 @@ export class SendComponent implements OnInit, OnDestroy {
   async loadFeeEstimates(): Promise<void> {
     this.isLoadingFees.set(true);
     try {
-      for (const option of this.feeOptions) {
-        const result = await this.blockchainRpc.estimateSmartFee(option.blocks);
-        if (result.feerate) {
-          // feerate is in BTC/kvB, convert to sat/vB (one decimal)
-          option.feeRate = Math.round((result.feerate * 100000000) / 100) / 10;
+      if (this.isRemote()) {
+        const estimates = await this.btcxWallet.fetchFeeEstimates();
+        const bySpeed = [estimates.slow, estimates.normal, estimates.fast, null];
+        this.feeOptions.forEach((option, i) => {
+          const rate = bySpeed[i];
+          if (rate != null) {
+            option.feeRate = Math.round(rate * 10) / 10;
+          }
+        });
+      } else {
+        for (const option of this.feeOptions) {
+          const result = await this.blockchainRpc.estimateSmartFee(option.blocks);
+          if (result.feerate) {
+            // feerate is in BTC/kvB, convert to sat/vB (one decimal)
+            option.feeRate = Math.round((result.feerate * 100000000) / 100) / 10;
+          }
         }
       }
       // Default to custom 1 sat/vB if no estimates available, normal otherwise
@@ -1297,6 +1315,20 @@ export class SendComponent implements OnInit, OnDestroy {
   }
 
   private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
+    if (this.isRemote()) {
+      // Local wallet: only a passphrase-encrypted seed can be locked.
+      const status = await this.btcxWallet.refreshStatus();
+      if (status?.seed !== 'locked') return true;
+      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
+        width: '400px',
+        data: { walletName, timeout: 60 },
+      });
+      const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
+      if (!result) return false; // user cancelled
+      await this.btcxWallet.unlock(result.passphrase);
+      return true;
+    }
+
     const info = await this.walletRpc.getWalletInfo(walletName);
     if (info.unlocked_until === undefined || info.unlocked_until > 0) {
       return true; // not encrypted, or already unlocked
@@ -1332,17 +1364,13 @@ export class SendComponent implements OnInit, OnDestroy {
           ? (this.customFeeRate ?? undefined)
           : (this.selectedFeeOption?.feeRate ?? undefined);
 
-      const txid = await this.walletRpc.sendToAddress(
-        walletName,
-        this.recipientAddress,
-        this.amount,
-        {
-          subtractFeeFromAmount: this.subtractFee,
-          replaceable: this.enableRbf,
-          confTarget: this.selectedFeeOption?.blocks ?? 6,
-          feeRate,
-        }
-      );
+      // Routed through the mode's backend (Core RPC or the local BDK wallet).
+      const txid = await this.walletService.sendToAddress(this.recipientAddress, this.amount, {
+        subtractFeeFromAmount: this.subtractFee,
+        replaceable: this.enableRbf,
+        confTarget: this.selectedFeeOption?.blocks ?? 6,
+        feeRate,
+      });
 
       this.sentTxid.set(txid);
       this.showSuccess.set(true);

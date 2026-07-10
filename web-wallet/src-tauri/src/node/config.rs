@@ -20,6 +20,9 @@ pub enum NodeMode {
     Managed,
     /// User runs their own external node
     External,
+    /// No local node at all — the wallet runs over Electrum servers
+    /// (the nodeless btcx_wallet stack). Node lifecycle commands error.
+    Remote,
 }
 
 /// Network type for Bitcoin-PoCX

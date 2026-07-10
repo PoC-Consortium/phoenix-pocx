@@ -32,6 +32,8 @@ import { Network } from '../../store/settings/settings.state';
 import { NodeService } from '../../node';
 import { MiningService } from '../../mining/services';
 import { ClockDriftService } from '../../core/services/clock-drift.service';
+import { ElectrumStatusService } from '../../core/services/electrum-status.service';
+import { DecimalPipe } from '@angular/common';
 import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-dialog/clock-drift-dialog.component';
 
 /**
@@ -51,6 +53,7 @@ import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-d
     MatDividerModule,
     MatProgressSpinnerModule,
     I18nPipe,
+    DecimalPipe,
   ],
   template: `
     <mat-toolbar class="toolbar">
@@ -94,6 +97,61 @@ import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-d
               >
                 <mat-icon [class.active]="nodeService.isRunning()">share</mat-icon>
               </div>
+            }
+
+            <!-- Electrum Indicator (remote mode: replaces the node icon) -->
+            @if (nodeService.isRemote()) {
+              <div
+                class="status-indicator clickable"
+                [matTooltip]="electrumTooltip()"
+                [matMenuTriggerFor]="electrumMenu"
+                (menuOpened)="electrumStatus.refreshServers()"
+              >
+                <mat-icon
+                  [class.electrum-healthy]="electrumStatus.overall() === 'healthy'"
+                  [class.electrum-degraded]="electrumStatus.overall() === 'degraded'"
+                  [class.electrum-down]="electrumStatus.overall() === 'down'"
+                  [class.electrum-connecting]="electrumStatus.overall() === 'connecting'"
+                  >bolt</mat-icon
+                >
+              </div>
+              <mat-menu #electrumMenu="matMenu" class="electrum-menu">
+                <div class="electrum-popover" (click)="$event.stopPropagation()">
+                  <div class="electrum-popover-title">
+                    {{ 'electrum_servers' | i18n }}
+                  </div>
+                  @for (server of electrumStatus.servers(); track server.url) {
+                    <div class="electrum-server-row">
+                      <span
+                        class="dot"
+                        [class.ok]="server.state === 'healthy'"
+                        [class.down]="server.state === 'down'"
+                        [class.untested]="server.state === 'untested'"
+                      ></span>
+                      <span class="url">{{ server.url }}</span>
+                      <span class="meta">
+                        @if (server.role === 'wallet') {
+                          <mat-icon
+                            class="home-icon"
+                            [matTooltip]="'electrum_primary_server' | i18n"
+                            >star</mat-icon
+                          >
+                        }
+                        @if (server.latency_ms !== undefined) {
+                          {{ server.latency_ms | number: '1.0-0' }}ms
+                        }
+                      </span>
+                    </div>
+                    @if (server.last_error && server.state === 'down') {
+                      <div class="electrum-server-error">{{ server.last_error }}</div>
+                    }
+                  } @empty {
+                    <div class="electrum-server-row">
+                      <span class="url">{{ 'electrum_no_servers_hint' | i18n }}</span>
+                    </div>
+                  }
+                </div>
+              </mat-menu>
             }
 
             <!-- Miner Indicator (only if mining configured) -->
@@ -525,11 +583,103 @@ import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-d
           &.clock-critical {
             color: #e53935;
           }
+
+          &.electrum-healthy {
+            color: #4caf50;
+          }
+
+          &.electrum-degraded {
+            color: #ff9800;
+          }
+
+          &.electrum-down {
+            color: #e53935;
+          }
+
+          &.electrum-connecting {
+            color: rgba(0, 0, 0, 0.38);
+          }
+        }
+
+        &.clickable {
+          cursor: pointer;
         }
       }
 
       .clock-drift-indicator.clickable {
         cursor: pointer;
+      }
+
+      .electrum-popover {
+        padding: 8px 16px 12px;
+        min-width: 300px;
+        max-width: 420px;
+
+        .electrum-popover-title {
+          font-size: 12px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: rgba(0, 0, 0, 0.6);
+          margin-bottom: 8px;
+        }
+
+        .electrum-server-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 4px 0;
+
+          .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: rgba(0, 0, 0, 0.25);
+
+            &.ok {
+              background: #4caf50;
+            }
+
+            &.down {
+              background: #e53935;
+            }
+
+            &.untested {
+              background: rgba(0, 0, 0, 0.25);
+            }
+          }
+
+          .url {
+            font-family: monospace;
+            font-size: 12px;
+            word-break: break-all;
+            flex: 1;
+          }
+
+          .meta {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: rgba(0, 0, 0, 0.5);
+            white-space: nowrap;
+
+            .home-icon {
+              font-size: 14px;
+              width: 14px;
+              height: 14px;
+              color: #1976d2;
+            }
+          }
+        }
+
+        .electrum-server-error {
+          font-size: 11px;
+          color: #c62828;
+          margin: 0 0 4px 16px;
+          word-break: break-word;
+        }
       }
 
       /* Responsive */
@@ -590,7 +740,21 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   readonly nodeService = inject(NodeService);
   readonly miningService = inject(MiningService);
   readonly clockDrift = inject(ClockDriftService);
+  readonly electrumStatus = inject(ElectrumStatusService);
   private readonly destroy$ = new Subject<void>();
+
+  /** Tooltip of the remote-mode Electrum indicator. */
+  electrumTooltip(): string {
+    const overall = this.electrumStatus.overall();
+    const parts = [this.i18n.get(`electrum_status_${overall}`)];
+    const primary = this.electrumStatus.primaryServer();
+    if (primary) parts.push(primary);
+    const height = this.electrumStatus.height();
+    if (height !== null) parts.push(`#${height}`);
+    const age = this.electrumStatus.syncAgeSecs();
+    if (age !== null) parts.push(this.i18n.get('electrum_synced_ago', { seconds: age }));
+    return parts.join(' · ');
+  }
 
   // Inputs
   showSidenavToggle = input<boolean>(true);

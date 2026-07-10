@@ -10,6 +10,7 @@ import { PlatformService } from './core/services/platform.service';
 import { AppUpdateService } from './core/services/app-update.service';
 import { ClockDriftService } from './core/services/clock-drift.service';
 import { CookieAuthService } from './core/auth/cookie-auth.service';
+import { BtcxWalletService } from './core/services/btcx-wallet.service';
 import { MiningService } from './mining/services';
 import { NodeService } from './node';
 import { AggregatorService } from './aggregator/services/aggregator.service';
@@ -83,6 +84,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly appUpdateService = inject(AppUpdateService);
   private readonly clockDriftService = inject(ClockDriftService);
   private readonly cookieAuth = inject(CookieAuthService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly dialog = inject(MatDialog);
   private readonly miningService = inject(MiningService);
   private readonly nodeService = inject(NodeService);
@@ -228,6 +230,13 @@ export class AppComponent implements OnInit, OnDestroy {
             this.cookieAuth.refreshCredentials()
           );
         }
+
+        // Remote (Electrum) mode: no node to start — bring up the local
+        // wallet stack instead (sync-event listeners + status/config), so
+        // the event-driven chain/wallet state services get their signal.
+        if (this.nodeService.isRemote()) {
+          await this.btcxWallet.initialize();
+        }
       }
     } catch (err) {
       console.error('Error during node startup:', err);
@@ -247,14 +256,18 @@ export class AppComponent implements OnInit, OnDestroy {
       .autoStartMining()
       .catch(err => console.error('Mining auto-start failed:', err));
 
-    // Start periodic status refresh (every 30 seconds)
-    this.nodeStatusInterval = setInterval(async () => {
-      try {
-        await this.nodeService.refreshNodeStatus();
-      } catch {
-        // Silently ignore status refresh errors
-      }
-    }, 30000);
+    // Start periodic status refresh (every 30 seconds). Remote mode has no
+    // local node process to watch — its connectivity rides the
+    // `btcx-wallet:sync` events instead.
+    if (!this.nodeService.isRemote()) {
+      this.nodeStatusInterval = setInterval(async () => {
+        try {
+          await this.nodeService.refreshNodeStatus();
+        } catch {
+          // Silently ignore status refresh errors
+        }
+      }, 30000);
+    }
   }
 
   /**

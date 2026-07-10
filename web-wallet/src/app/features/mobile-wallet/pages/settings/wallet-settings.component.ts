@@ -11,6 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxNetwork } from '../../../../core/services/btcx-wallet.service';
+import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 
 /**
  * WalletSettingsComponent - mobile wallet settings.
@@ -32,6 +33,7 @@ import { BtcxWalletService, BtcxNetwork } from '../../../../core/services/btcx-w
     MatProgressSpinnerModule,
     MatTooltipModule,
     I18nPipe,
+    ElectrumServersEditorComponent,
   ],
   template: `
     <div class="page">
@@ -65,43 +67,12 @@ import { BtcxWalletService, BtcxNetwork } from '../../../../core/services/btcx-w
         <h3>{{ 'mwallet_electrum_servers' | i18n }}</h3>
         <p class="hint-text">{{ 'mwallet_electrum_hint' | i18n }}</p>
 
-        @for (server of wallet.electrumServers(); track server) {
-          <div class="server-row">
-            <span class="server-url">{{ server }}</span>
-            <button
-              mat-icon-button
-              [disabled]="busy()"
-              (click)="removeServer(server)"
-              [matTooltip]="'mwallet_remove_server' | i18n"
-            >
-              <mat-icon>delete_outline</mat-icon>
-            </button>
-          </div>
-        }
-
-        <div class="add-row">
-          <mat-form-field appearance="outline" class="server-field">
-            <mat-label>{{ 'mwallet_server_url' | i18n }}</mat-label>
-            <input
-              matInput
-              [(ngModel)]="newServer"
-              placeholder="ssl://host:port"
-              autocomplete="off"
-              autocapitalize="none"
-              spellcheck="false"
-              (keyup.enter)="addServer()"
-            />
-          </mat-form-field>
-          <button
-            mat-stroked-button
-            class="add-button"
-            [disabled]="!newServerValid() || busy()"
-            (click)="addServer()"
-          >
-            <mat-icon>add</mat-icon>
-            {{ 'add' | i18n }}
-          </button>
-        </div>
+        <app-electrum-servers-editor
+          [servers]="wallet.electrumServers()"
+          [network]="wallet.network()"
+          [disabled]="busy()"
+          (serversChange)="saveServers($event)"
+        />
       </div>
 
       <!-- Lock (passphrase-encrypted seeds only) -->
@@ -221,15 +192,8 @@ export class WalletSettingsComponent implements OnInit {
   readonly networks: BtcxNetwork[] = ['mainnet', 'testnet', 'regtest'];
   readonly busy = signal(false);
 
-  newServer = '';
-
   ngOnInit(): void {
     void this.wallet.initialize();
-  }
-
-  newServerValid(): boolean {
-    const url = this.newServer.trim();
-    return /^(tcp|ssl):\/\/[^\s/]+:\d+$/.test(url);
   }
 
   async setNetwork(network: BtcxNetwork): Promise<void> {
@@ -245,25 +209,7 @@ export class WalletSettingsComponent implements OnInit {
     }
   }
 
-  async addServer(): Promise<void> {
-    if (!this.newServerValid() || this.busy()) return;
-    const url = this.newServer.trim();
-    const servers = this.wallet.electrumServers();
-    if (servers.includes(url)) {
-      this.newServer = '';
-      return;
-    }
-    await this.saveServers([...servers, url]);
-    this.newServer = '';
-  }
-
-  async removeServer(server: string): Promise<void> {
-    if (this.busy()) return;
-    const servers = this.wallet.electrumServers().filter(s => s !== server);
-    await this.saveServers(servers);
-  }
-
-  private async saveServers(electrumServers: string[]): Promise<void> {
+  async saveServers(electrumServers: string[]): Promise<void> {
     this.busy.set(true);
     try {
       await this.wallet.setConfig({ electrumServers });

@@ -10,7 +10,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
 import { Store } from '@ngrx/store';
 import { Subject, takeUntil } from 'rxjs';
-import { selectNodelessWallet } from '../../store/settings/settings.selectors';
 import { I18nPipe } from '../../core/i18n';
 import { BalanceDisplayComponent } from '../../shared';
 import { WalletManagerService } from '../../bitcoin/services/wallet/wallet-manager.service';
@@ -18,6 +17,7 @@ import { WalletService } from '../../bitcoin/services/wallet/wallet.service';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { AggregatorService } from '../../aggregator/services/aggregator.service';
 import { AppUpdateService } from '../../core/services/app-update.service';
+import { NodeService } from '../../node/services/node.service';
 
 interface NavItem {
   path: string;
@@ -441,6 +441,7 @@ interface NavGroup {
 export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly breakpointObserver = inject(BreakpointObserver);
+  private readonly nodeService = inject(NodeService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
   private readonly aggregatorService = inject(AggregatorService);
@@ -448,9 +449,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(Store);
   private readonly destroy$ = new Subject<void>();
-
-  /** Experimental: the nodeless (Electrum-backed) wallet nav entry */
-  private readonly nodelessWallet = this.store.selectSignal(selectNodelessWallet);
 
   isMobile = signal(false);
   currentWalletName = signal('No Wallet');
@@ -497,17 +495,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       { path: '/contacts', icon: 'contacts', labelKey: 'contacts' },
     ];
 
-    // Experimental nodeless wallet (Electrum-backed, no local node) —
-    // default OFF, so the desktop nav is unchanged until enabled in settings
-    if (this.nodelessWallet()) {
-      transactionItems.push({
-        path: '/wallet',
-        icon: 'account_balance_wallet',
-        labelKey: 'nodeless_wallet_nav',
-      });
-    }
-
-    return [
+    const groups: NavGroup[] = [
       {
         id: 'transactions',
         titleKey: 'transactions',
@@ -518,15 +506,22 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
         titleKey: 'mining',
         items: miningItems,
       },
-      {
+    ];
+
+    // Blocks explorer and peers need full-node RPC (getblock/getpeerinfo)
+    // — Electrum has no equivalent, so remote mode hides the group.
+    if (!this.nodeService.isRemote()) {
+      groups.push({
         id: 'network',
         titleKey: 'network',
         items: [
           { path: '/blocks', icon: 'apps', labelKey: 'blocks' },
           { path: '/peers', icon: 'device_hub', labelKey: 'peers' },
         ],
-      },
-    ];
+      });
+    }
+
+    return groups;
   });
 
   ngOnInit(): void {

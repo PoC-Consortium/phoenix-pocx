@@ -2848,15 +2848,23 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     aggregatorEnabled: false,
   });
 
-  /** Solo tab is disabled on mobile or when a solo chain already exists (and not editing one) */
+  /**
+   * Solo tab is disabled on mobile, in remote (Electrum) node mode — solo
+   * mining needs a local node for block templates/submission — or when a
+   * solo chain already exists (and not editing one).
+   */
   readonly soloTabDisabled = computed(() => {
     if (this.appMode.isMobile()) return true;
+    if (this.nodeService.isRemote()) return true;
     if (this.editingChain()?.chainType === 'solo') return false; // Allow editing existing solo
     return this.chainConfigs().some(c => c.chainType === 'solo');
   });
 
   readonly soloTabDisabledReason = computed(() => {
     if (this.appMode.isMobile()) return this.i18n.get('setup_solo_not_available_mobile') || '';
+    if (this.nodeService.isRemote()) {
+      return this.i18n.get('setup_solo_not_available_remote') || '';
+    }
     if (this.soloTabDisabled()) return 'Solo chain already configured';
     return '';
   });
@@ -3090,6 +3098,22 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     // Mobile mode sources the address from the nodeless BTCX wallet instead
     // (initMobileWalletAddress); the Core-RPC wallet does not exist there.
     if (this.appMode.isMobileMode()) return;
+
+    // Desktop remote (Electrum) mode: same local wallet as mobile — one
+    // capped-handout receive address (persists into the mining config on
+    // Save, so later visits never ask the wallet again).
+    if (this.nodeService.isRemote()) {
+      try {
+        await this.btcxWallet.initialize();
+        if (this.btcxWallet.walletActive()) {
+          const address = await this.btcxWallet.newAddress();
+          this.walletAddress.set(address);
+        }
+      } catch (error) {
+        console.error('Failed to load remote wallet address:', error);
+      }
+      return;
+    }
 
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
@@ -3367,8 +3391,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   // Step 1: Chain management
   showChainModal(): void {
     this.editingChain.set(null);
-    // Default to 'pool' on mobile since solo requires local node
-    const defaultMode = this.appMode.isMobile() ? 'pool' : 'solo';
+    // Default to 'pool' on mobile and in remote mode — solo requires a local node
+    const defaultMode = this.appMode.isMobile() || this.nodeService.isRemote() ? 'pool' : 'solo';
     this.chainModalData.set({
       mode: defaultMode,
       chainName: '',
@@ -3826,7 +3850,22 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     };
 
     const walletName = this.walletManager.activeWallet;
-    if (walletName) {
+    if (this.nodeService.isRemote()) {
+      // Remote: "is mine" has no cheap analog (no getaddressinfo) — the
+      // assignment state still comes from the client-side Electrum
+      // derivation, which is what actually matters for plotting to a
+      // foreign address.
+      try {
+        const assignmentStatus = (await this.btcxWallet.getAssignment(address)) as {
+          has_assignment: boolean;
+          state: string;
+        };
+        result.hasAssignment =
+          assignmentStatus.has_assignment && assignmentStatus.state === 'ASSIGNED';
+      } catch {
+        result.hasAssignment = false;
+      }
+    } else if (walletName) {
       try {
         const walletInfo = await this.walletRpc.getAddressInfo(walletName, address);
         result.isMine = walletInfo.ismine;

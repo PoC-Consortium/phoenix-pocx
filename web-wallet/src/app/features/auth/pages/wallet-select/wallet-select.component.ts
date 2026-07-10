@@ -16,6 +16,8 @@ import {
 import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { AppUpdateService } from '../../../../core/services/app-update.service';
 import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
+import { NodeService } from '../../../../node/services/node.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 
 /**
  * WalletSelectComponent displays available wallets and options to create/import.
@@ -65,11 +67,18 @@ import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.s
               <p>{{ connectionError() }}</p>
               <div class="connection-help">
                 <p>{{ 'please_ensure' | i18n }}:</p>
-                <ul>
-                  <li>Bitcoin-PoCX is running</li>
-                  <li>RPC server is enabled</li>
-                  <li>Cookie authentication is accessible</li>
-                </ul>
+                @if (isRemote()) {
+                  <ul>
+                    <li>{{ 'electrum_help_server_configured' | i18n }}</li>
+                    <li>{{ 'electrum_help_server_reachable' | i18n }}</li>
+                  </ul>
+                } @else {
+                  <ul>
+                    <li>Bitcoin-PoCX is running</li>
+                    <li>RPC server is enabled</li>
+                    <li>Cookie authentication is accessible</li>
+                  </ul>
+                }
               </div>
               <div class="error-actions">
                 <button mat-raised-button color="primary" (click)="retryConnection()">
@@ -103,7 +112,7 @@ import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.s
               <h3>{{ 'welcome_heading' | i18n }}</h3>
               <p class="welcome-node-status">
                 <mat-icon class="node-ready-icon">check_circle</mat-icon>
-                {{ 'welcome_node_ready' | i18n }}
+                {{ (isRemote() ? 'welcome_electrum_ready' : 'welcome_node_ready') | i18n }}
               </p>
               <p class="welcome-body">{{ 'welcome_body' | i18n }}</p>
             </div>
@@ -246,14 +255,16 @@ import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.s
               <mat-icon>import_export</mat-icon>
               {{ 'import' | i18n }}
             </button>
-            <button mat-stroked-button routerLink="/auth/watch-only" [disabled]="!isConnected()">
-              <mat-icon>visibility</mat-icon>
-              {{ 'watch_only' | i18n }}
-            </button>
-            <button mat-stroked-button routerLink="/auth/multisig" [disabled]="!isConnected()">
-              <mat-icon>group</mat-icon>
-              {{ 'msig_multisig' | i18n }}
-            </button>
+            @if (!isRemote()) {
+              <button mat-stroked-button routerLink="/auth/watch-only" [disabled]="!isConnected()">
+                <mat-icon>visibility</mat-icon>
+                {{ 'watch_only' | i18n }}
+              </button>
+              <button mat-stroked-button routerLink="/auth/multisig" [disabled]="!isConnected()">
+                <mat-icon>group</mat-icon>
+                {{ 'msig_multisig' | i18n }}
+              </button>
+            }
           </div>
           <div class="right-actions">
             <button
@@ -690,7 +701,12 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly appUpdateService = inject(AppUpdateService);
   private readonly walletUnlock = inject(WalletUnlockService);
+  private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly destroy$ = new Subject<void>();
+
+  /** Remote (Electrum) mode: local wallet store, no Core-only affordances. */
+  readonly isRemote = this.nodeService.isRemote;
 
   /** App version from backend */
   readonly appVersion = this.appUpdateService.currentVersion;
@@ -729,6 +745,27 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   async checkConnection(): Promise<void> {
     this.isConnecting.set(true);
     this.connectionError.set(null);
+
+    // Remote (Electrum) mode: NO cookie/RPC — the wallet store is local.
+    // This branch must run before any cookie access or the user would see
+    // a spurious "Is Bitcoin Core running?" error.
+    if (this.isRemote()) {
+      try {
+        await this.btcxWallet.initialize();
+        if (!this.btcxWallet.hasElectrumServer()) {
+          this.connectionError.set(this.i18n.get('electrum_no_server_configured'));
+          this.isConnecting.set(false);
+          return;
+        }
+        await this.loadWallets();
+        this.isConnecting.set(false);
+      } catch (err) {
+        console.error('Remote wallet check failed:', err);
+        this.connectionError.set(err instanceof Error ? err.message : `${err}`);
+        this.isConnecting.set(false);
+      }
+      return;
+    }
 
     // Check if we have RPC credentials
     if (!this.cookieAuth.isAuthenticated) {

@@ -95,7 +95,16 @@ pub struct CookieReadResult {
 /// - Windows: `%LocalAppData%\Phoenix PoCX Data`
 /// - Linux:   `~/.local/share/phoenix-pocx`
 /// - macOS:   `~/Library/Application Support/Phoenix PoCX Data`
+///
+/// `PHOENIX_DATA_DIR` overrides the location — used by tests (temp dirs
+/// instead of the real profile) and as an operational escape hatch.
 pub fn app_data_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("PHOENIX_DATA_DIR") {
+        if !dir.is_empty() {
+            return PathBuf::from(dir);
+        }
+    }
+
     #[cfg(target_os = "windows")]
     {
         dirs::data_local_dir()
@@ -924,6 +933,11 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_reprobe,
             btcx_wallet::commands::btcx_wallet_unlock,
             btcx_wallet::commands::btcx_wallet_lock,
+            // Nodeless BTCX wallet commands - Named-wallet registry
+            btcx_wallet::commands::btcx_wallet_list,
+            btcx_wallet::commands::btcx_wallet_select,
+            btcx_wallet::commands::btcx_wallet_close,
+            btcx_wallet::commands::btcx_wallet_delete,
             // Nodeless BTCX wallet commands - Operations
             btcx_wallet::commands::btcx_wallet_new_address,
             btcx_wallet::commands::btcx_wallet_balance,
@@ -936,6 +950,22 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_get_config,
             btcx_wallet::commands::btcx_wallet_set_config,
             btcx_wallet::commands::btcx_wallet_sync_now,
+            // Nodeless BTCX wallet commands - Forging assignments
+            btcx_wallet::commands::btcx_wallet_create_assignment,
+            btcx_wallet::commands::btcx_wallet_revoke_assignment,
+            btcx_wallet::commands::btcx_wallet_get_assignment,
+            // Nodeless BTCX wallet commands - PSBT operations
+            btcx_wallet::commands::btcx_psbt_decode,
+            btcx_wallet::commands::btcx_psbt_analyze,
+            btcx_wallet::commands::btcx_psbt_wallet_process,
+            btcx_wallet::commands::btcx_psbt_finalize,
+            btcx_wallet::commands::btcx_psbt_combine,
+            btcx_wallet::commands::btcx_wallet_create_funded_psbt,
+            btcx_wallet::commands::btcx_wallet_utxos,
+            // Nodeless BTCX wallet commands - Electrum health & chain info
+            btcx_wallet::commands::btcx_electrum_health,
+            btcx_wallet::commands::btcx_electrum_probe,
+            btcx_wallet::commands::btcx_chain_info,
             // Update commands
             update::get_app_version,
             update::check_wallet_update,

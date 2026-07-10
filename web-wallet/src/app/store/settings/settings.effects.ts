@@ -88,8 +88,7 @@ export class SettingsEffects {
         SettingsActions.setHideBalances,
         // Advanced
         SettingsActions.toggleDebugMode,
-        SettingsActions.setCustomFeeRate,
-        SettingsActions.setNodelessWallet
+        SettingsActions.setCustomFeeRate
       ),
       map(() => SettingsActions.saveSettings())
     )

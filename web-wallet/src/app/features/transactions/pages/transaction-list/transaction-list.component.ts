@@ -30,6 +30,7 @@ import {
   WalletRpcService,
   WalletTransaction,
 } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
+import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 import {
   FeeBumpDialogComponent,
   FeeBumpDialogData,
@@ -878,6 +879,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
+  private readonly backendRouter = inject(BackendRouterService);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly i18n = inject(I18nService);
@@ -1006,9 +1008,10 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     this.loading.set(true);
 
     try {
-      // Load transactions based on load limit (0 = ALL, use large number)
+      // Load transactions based on load limit (0 = ALL, use large number).
+      // Routed through the mode's backend (Core RPC or the local BDK wallet).
       const count = this.loadLimit === 0 ? 999999 : this.loadLimit;
-      const txs = await this.walletRpc.listTransactions(walletName, '*', count, 0);
+      const txs = await this.backendRouter.wallet().listTransactions(walletName, count, 0);
 
       // Sort by time descending — copy first to avoid mutating the RPC response.
       const sorted = [...txs].sort((a, b) => b.time - a.time);
@@ -1171,17 +1174,13 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     if (!walletName) return;
 
     try {
-      const bumpOptions: { confTarget?: number; feeRate?: number } = {};
-      if (options.feeRate !== undefined) {
-        bumpOptions.feeRate = options.feeRate;
-      } else if (options.confTarget !== undefined) {
-        bumpOptions.confTarget = options.confTarget;
-      }
-
-      const result = await this.walletRpc.bumpFee(walletName, txid, bumpOptions);
+      // Routed through the mode's backend (Core RPC or the local BDK wallet).
+      const newTxid = await this.backendRouter
+        .wallet()
+        .bumpFee(walletName, txid, options.feeRate);
 
       this.notification.success(
-        this.i18n.get('bump_fee_success').replace('{txid}', result.txid.substring(0, 16) + '...')
+        this.i18n.get('bump_fee_success').replace('{txid}', newTxid.substring(0, 16) + '...')
       );
 
       // Refresh transactions list
@@ -1215,6 +1214,12 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private async executeAbandon(txid: string): Promise<void> {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
+
+    if (this.backendRouter.isRemote()) {
+      // abandontransaction is a Core wallet concept with no BDK analog.
+      this.notification.error(this.i18n.get('feature_unavailable_remote'));
+      return;
+    }
 
     try {
       await this.walletRpc.abandonTransaction(walletName, txid);
