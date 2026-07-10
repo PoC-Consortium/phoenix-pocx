@@ -72,6 +72,11 @@ jobs:
           # Add requestLegacyExternalStorage to application tag
           sed -i 's|<application|<application android:requestLegacyExternalStorage="true"|' "$MANIFEST"
 
+          # Wallet app: the seed lives in app data — keep it out of Google
+          # Auto-Backup and device-to-device migration (Android defaults
+          # allowBackup to true when unset).
+          sed -i 's|<application|<application android:allowBackup="false" tools:replace="android:allowBackup"|' "$MANIFEST"
+
           # Add Samsung DeX meta-data for better process survival on Samsung devices
           sed -i '/<\/application>/i\        <meta-data android:name="com.samsung.android.keepalive.density" android:value="true" />\n        <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true" />\n        <meta-data android:name="com.sec.android.support.multiwindow" android:value="true" />' "$MANIFEST"
 
