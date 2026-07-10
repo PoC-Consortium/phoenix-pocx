@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
-use electrum_btcx::SendFee;
+use electrum_btcx::{SendFee, WalletEntry};
 use keys_btcx::WalletSeed;
 use seedstore::SeedStore;
 use wallet_btcx::WalletTxInfo;
@@ -566,15 +566,72 @@ pub fn btcx_wallet_balance(state: State<'_, SharedBtcxWalletState>) -> Result<Bt
     })
 }
 
-/// Transaction history, newest first (the activity feed).
+/// One activity-feed entry as the UI lists it: the crate's [`WalletTxInfo`]
+/// (flattened, snake_case) plus a display address derived from the tx
+/// outputs — the counterparty on sends, our receiving address on receives.
+#[derive(Debug, Clone, Serialize)]
+pub struct BtcxWalletTxDto {
+    #[serde(flatten)]
+    pub info: WalletTxInfo,
+    /// Absent when the tx is unknown to the graph or no candidate output
+    /// has a bech32 display form (e.g. an OP_RETURN-only counterparty).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+}
+
+/// Derive the display address of one activity entry from its tx outputs:
+/// a send shows the first foreign (non-wallet, non-OP_RETURN) output — a
+/// self-transfer falls back to our own receive output; a receive shows the
+/// first own external-keychain output, falling back to any own output
+/// (mirrors what Core's `listtransactions` puts in `address`).
+pub fn tx_display_address(
+    entry: &WalletEntry,
+    network: WalletNetwork,
+    info: &WalletTxInfo,
+) -> Option<String> {
+    use bdk_wallet::KeychainKind;
+
+    let txid: bitcoin::Txid = info.txid.parse().ok()?;
+    let tx = entry.wallet.get_tx(txid)?.tx_node.tx.clone();
+    let spks = || tx.output.iter().map(|o| &o.script_pubkey);
+    let own_external = |spk: &bitcoin::ScriptBuf| {
+        matches!(
+            entry.wallet.derivation_of_spk(spk.clone()),
+            Some((KeychainKind::External, _))
+        )
+    };
+    let spk = if info.direction == "sent" {
+        spks()
+            .find(|spk| !spk.is_op_return() && !entry.wallet.is_mine((*spk).clone()))
+            .or_else(|| spks().find(|spk| own_external(spk)))
+    } else {
+        spks()
+            .find(|spk| own_external(spk))
+            .or_else(|| spks().find(|spk| entry.wallet.is_mine((*spk).clone())))
+    }?;
+    super::psbt::spk_to_address(network, spk)
+}
+
+/// Transaction history, newest first (the activity feed), each entry
+/// carrying the display address derived from its outputs.
 #[tauri::command]
 pub fn btcx_wallet_transactions(
     state: State<'_, SharedBtcxWalletState>,
-) -> Result<Vec<WalletTxInfo>, String> {
-    state
+) -> Result<Vec<BtcxWalletTxDto>, String> {
+    let network = state.get_config().network;
+    let infos = state
         .backend()?
         .wallet_transactions()
-        .map_err(|e| format!("{e:#}"))
+        .map_err(|e| format!("{e:#}"))?;
+    state.with_entry(|entry| {
+        Ok(infos
+            .into_iter()
+            .map(|info| {
+                let address = tx_display_address(entry, network, &info);
+                BtcxWalletTxDto { info, address }
+            })
+            .collect())
+    })
 }
 
 /// A send request. Exactly one of `amount_sat` / `send_all` must be given.

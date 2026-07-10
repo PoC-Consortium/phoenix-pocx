@@ -25,7 +25,8 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy};
+use phoenix_pocx_lib::btcx_wallet::commands::tx_display_address;
+use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy, WalletNetwork};
 use phoenix_pocx_lib::btcx_wallet::manager::{
     candidate_spks, open_wallet, probe_all_branches, select_restore_policy,
 };
@@ -253,10 +254,70 @@ fn regtest_end_to_end() {
     assert_eq!(activity[1].direction, "received");
     assert_eq!(activity[1].amount_sat, 50_000_000);
 
+    // 6. Display addresses (the btcx_wallet_transactions enrichment): the
+    //    send shows the counterparty, the receive our funded address.
+    {
+        let entry = handle.lock().unwrap();
+        assert_eq!(
+            tx_display_address(&entry, WalletNetwork::Regtest, &activity[0]).as_deref(),
+            Some(miner_addr.as_str()),
+            "sent entry shows the counterparty output address"
+        );
+        assert_eq!(
+            tx_display_address(&entry, WalletNetwork::Regtest, &activity[1]).as_deref(),
+            Some(address.as_str()),
+            "received entry shows our receiving address"
+        );
+    }
+
+    // 7. Send-all (the mobile MAX path): sweep the rest back to the miner
+    //    and the balance must hit zero; the sweep has no change output and
+    //    still resolves the counterparty as its display address.
+    let sweep_txid = backend
+        .wallet_send_all(&miner_addr, electrum_btcx::SendFee::RatePerKvb(2000))
+        .unwrap();
+    assert_eq!(sweep_txid.len(), 64, "sweep txid: {sweep_txid}");
+    let mediantime = rpc(None, "getblockchaininfo", serde_json::json!([]))["mediantime"]
+        .as_u64()
+        .unwrap();
+    rpc(
+        None,
+        "setmocktime",
+        serde_json::json!([now_secs().max(mediantime) + 3600]),
+    );
+    rpc(
+        None,
+        "generatetoaddress",
+        serde_json::json!([1, miner_addr]),
+    );
+    let mut swept = after;
+    for _ in 0..30 {
+        worker.poke();
+        std::thread::sleep(Duration::from_secs(1));
+        swept = backend.wallet_balance().unwrap();
+        if swept == 0 {
+            break;
+        }
+    }
+    assert_eq!(swept, 0, "send-all must sweep the whole balance");
+    let activity = backend.wallet_transactions().unwrap();
+    assert_eq!(activity.len(), 3);
+    assert_eq!(activity[0].direction, "sent");
+    {
+        let entry = handle.lock().unwrap();
+        assert_eq!(
+            tx_display_address(&entry, WalletNetwork::Regtest, &activity[0]).as_deref(),
+            Some(miner_addr.as_str()),
+            "sweep entry shows the counterparty output address"
+        );
+    }
+
     // Leave the node's clock alone for whoever runs next.
     rpc(None, "setmocktime", serde_json::json!([0]));
     worker.shutdown();
-    println!("regtest end-to-end smoke: OK (funded {funded}, after spend {after})");
+    println!(
+        "regtest end-to-end smoke: OK (funded {funded}, after spend {after}, swept to 0)"
+    );
 }
 
 /// Hardened restore probe, live: a fresh seed first gets an HONEST empty
