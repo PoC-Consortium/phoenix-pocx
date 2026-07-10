@@ -315,9 +315,7 @@ fn regtest_end_to_end() {
     // Leave the node's clock alone for whoever runs next.
     rpc(None, "setmocktime", serde_json::json!([0]));
     worker.shutdown();
-    println!(
-        "regtest end-to-end smoke: OK (funded {funded}, after spend {after}, swept to 0)"
-    );
+    println!("regtest end-to-end smoke: OK (funded {funded}, after spend {after}, swept to 0)");
 }
 
 /// Hardened restore probe, live: a fresh seed first gets an HONEST empty
