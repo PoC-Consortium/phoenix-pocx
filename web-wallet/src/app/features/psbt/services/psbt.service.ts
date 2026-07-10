@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { WalletRpcService } from '../../../bitcoin/services/rpc/wallet-rpc.service';
 import type { DecodedPsbt, PsbtAnalysis } from '../../../bitcoin/services/rpc/wallet-rpc.service';
 import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
+import { NodeService } from '../../../node/services/node.service';
+import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
 import type {
   FeeWarning,
   PsbtDocument,
@@ -27,6 +29,8 @@ const PSBT_MAGIC = [0x70, 0x73, 0x62, 0x74, 0xff];
 export class PsbtService {
   private readonly walletRpc = inject(WalletRpcService);
   private readonly walletManager = inject(WalletManagerService);
+  private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
 
   // ============================================================
   // Document building
@@ -36,8 +40,14 @@ export class PsbtService {
    * Decode and analyze a PSBT into the digested form the UI renders.
    * Output ownership is classified against the active wallet when one is
    * loaded; classification failures degrade to 'external'.
+   *
+   * Remote (Electrum) mode uses the client-side decode/analyze commands
+   * instead of the node's decodepsbt/analyzepsbt.
    */
   async buildDocument(base64: string): Promise<PsbtDocument> {
+    if (this.nodeService.isRemote()) {
+      return this.buildDocumentRemote(base64.trim());
+    }
     const psbt = base64.trim();
     const [decoded, analysis] = await Promise.all([
       this.walletRpc.decodePsbt(psbt),
@@ -100,6 +110,116 @@ export class PsbtService {
       changeAbsorbed,
       totalInput,
       locktime: decoded.tx.locktime,
+    };
+  }
+
+  /**
+   * Remote-mode document build over the client-side PSBT commands. Output
+   * ownership is classified against the local wallet's known UTXO/receive
+   * addresses where possible; unknown addresses degrade to 'external'
+   * (change detection has no getaddressinfo analog here).
+   */
+  private async buildDocumentRemote(psbt: string): Promise<PsbtDocument> {
+    const [decoded, analysis] = await Promise.all([
+      this.btcxWallet.psbtDecode(psbt),
+      this.btcxWallet.psbtAnalyze(psbt),
+    ]);
+
+    const analysisByIndex = new Map(analysis.inputs.map(i => [i.index, i]));
+    const inputs: PsbtInputView[] = decoded.vin.map((vin, index) => {
+      const psbtIn = decoded.inputs[index];
+      const inAnalysis = analysisByIndex.get(index);
+      const isFinal = inAnalysis?.isFinal ?? psbtIn?.isFinal ?? false;
+      const hasUtxo =
+        inAnalysis?.hasUtxo ?? (psbtIn?.hasWitnessUtxo || psbtIn?.hasNonWitnessUtxo) ?? false;
+      const sigCount = psbtIn?.partialSigs ?? 0;
+      return {
+        index,
+        txid: vin.txid,
+        vout: vin.vout,
+        address: psbtIn?.utxoAddress,
+        amount: psbtIn?.utxoValueSat !== undefined ? psbtIn.utxoValueSat / 1e8 : undefined,
+        scriptType: undefined,
+        sigCount,
+        missingSigs: isFinal || sigCount > 0 ? 0 : 1,
+        // The local wallet is single-sig BIP-84; foreign inputs are unknown.
+        requiredSigs: undefined,
+        satisfied: isFinal || sigCount > 0,
+        isFinal,
+        hasUtxo,
+      };
+    });
+
+    // Classify outputs against the wallet's own known addresses (UTXO set
+    // — cheap cache read). Change stays 'external' when unknown.
+    let ownAddresses = new Set<string>();
+    try {
+      const utxos = await this.btcxWallet.utxos();
+      ownAddresses = new Set(utxos.map(u => u.address).filter((a): a is string => !!a));
+    } catch {
+      // Wallet closed — every non-data output classifies as external.
+    }
+    const outputs: PsbtOutputView[] = decoded.vout.map(vout => {
+      if (vout.opReturn) {
+        // script hex = 6a <pushlen> <data...>
+        return {
+          index: vout.n,
+          amount: vout.valueSat / 1e8,
+          kind: 'data',
+          dataHex: vout.scriptHex.length > 4 ? vout.scriptHex.slice(4) : undefined,
+        };
+      }
+      const kind: PsbtOutputView['kind'] =
+        vout.address && ownAddresses.has(vout.address) ? 'mine' : 'external';
+      return { index: vout.n, address: vout.address, amount: vout.valueSat / 1e8, kind };
+    });
+
+    const sendingTotal = outputs
+      .filter(o => o.kind === 'external' || o.kind === 'mine')
+      .reduce((sum, o) => sum + o.amount, 0);
+    const changeTotal = outputs
+      .filter(o => o.kind === 'change')
+      .reduce((sum, o) => sum + o.amount, 0);
+    const allUtxosKnown = inputs.every(i => i.hasUtxo);
+    const totalInput = allUtxosKnown
+      ? inputs.reduce((sum, i) => sum + (i.amount ?? 0), 0)
+      : undefined;
+
+    const fee = decoded.feeSat !== undefined ? decoded.feeSat / 1e8 : undefined;
+    const vsize = analysis.estimatedVsize;
+    let feeRate = analysis.estimatedFeeRateSatVb;
+    if (feeRate === undefined && fee !== undefined && vsize) {
+      feeRate = (fee * 1e8) / vsize;
+    }
+
+    const status: PsbtStatus =
+      inputs.length > 0 && inputs.every(i => i.isFinal)
+        ? 'finalized'
+        : analysis.next === 'finalizer' || analysis.next === 'extractor'
+          ? 'ready'
+          : inputs.some(i => i.sigCount > 0 || i.isFinal)
+            ? 'partial'
+            : 'unsigned';
+
+    return {
+      base64: psbt,
+      sizeBytes: this.base64ByteLength(psbt),
+      unsignedTxid: decoded.txid,
+      status,
+      nextRole: analysis.next,
+      inputs,
+      outputs,
+      satisfiedInputs: inputs.filter(i => i.satisfied).length,
+      sigsCollected: inputs.filter(i => !i.isFinal).reduce((sum, i) => sum + i.sigCount, 0),
+      sigsRequired: undefined,
+      fee,
+      feeRate,
+      vsize,
+      sendingTotal,
+      changeTotal,
+      changeAbsorbed: false,
+      totalInput,
+      locktime: decoded.locktime,
     };
   }
 

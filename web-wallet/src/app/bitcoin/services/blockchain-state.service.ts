@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, OnDestroy, computed } from '@angular/core';
+import { Injectable, inject, signal, OnDestroy, computed, effect, untracked } from '@angular/core';
 import { Subject, interval, takeUntil } from 'rxjs';
 import {
   BlockchainRpcService,
@@ -9,6 +9,7 @@ import {
 import { CookieAuthService } from '../../core/auth/cookie-auth.service';
 import { PocxNotificationService } from './pocx-notification.service';
 import { NodeService } from '../../node/services/node.service';
+import { BtcxWalletService } from '../../core/services/btcx-wallet.service';
 
 /**
  * PoCX block extension with base_target for capacity calculation
@@ -56,10 +57,21 @@ export class BlockchainStateService implements OnDestroy {
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly notificationService = inject(PocxNotificationService);
   private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly destroy$ = new Subject<void>();
 
   constructor() {
     this.nodeService.nodeStarting$.subscribe(() => this.resetState());
+
+    // Remote mode: chain state rides the `btcx-wallet:sync` event instead
+    // of the 15s poll — a height change re-fetches the Electrum tip header
+    // (height, time, base_target).
+    effect(() => {
+      const sync = this.btcxWallet.lastSync();
+      if (sync && this.nodeService.isRemote()) {
+        untracked(() => void this.refresh());
+      }
+    });
   }
 
   // Polling configuration
@@ -107,6 +119,10 @@ export class BlockchainStateService implements OnDestroy {
     // Initial load
     this.refresh();
 
+    // Remote mode is event-driven (constructor effect on btcx sync events)
+    // — no interval. The initial refresh above still primes the state.
+    if (this.nodeService.isRemote()) return;
+
     // Set up polling interval
     interval(this.pollInterval)
       .pipe(takeUntil(this.destroy$))
@@ -149,8 +165,9 @@ export class BlockchainStateService implements OnDestroy {
    * Silently skips if RPC credentials are not yet available.
    */
   async refresh(): Promise<void> {
-    // Skip if not authenticated (credentials not loaded yet)
-    if (!this.cookieAuth.isAuthenticated) {
+    const remote = this.nodeService.isRemote();
+    // Core: skip if not authenticated (credentials not loaded yet).
+    if (!remote && !this.cookieAuth.isAuthenticated) {
       return;
     }
 
@@ -158,19 +175,38 @@ export class BlockchainStateService implements OnDestroy {
     this.lastError.set(null);
 
     try {
-      // Get blockchain info and peer info in parallel
-      const [info, peers] = await Promise.all([
-        this.blockchainRpc.getBlockchainInfo(),
-        this.blockchainRpc.getPeerInfo().catch(() => [] as PeerInfo[]),
-      ]);
+      if (remote) {
+        // Remote: one Electrum tip fetch replaces getblockchaininfo +
+        // getpeerinfo + getblock. The PoCX tip header carries base_target,
+        // so network capacity works identically; there are no peers.
+        const info = await this.btcxWallet.chainInfo();
+        this.blockHeight.set(info.height);
+        this.headers.set(info.height);
+        this.bestBlockHash.set(info.tipHash);
+        this.chain.set(info.network === 'mainnet' ? 'main' : info.network);
+        this.lastBlockTime.set(info.headerTime);
+        this.baseTarget.set(info.baseTarget > 0 ? info.baseTarget : null);
+        // A reachable Electrum server serves the fully synced chain — the
+        // sync-progress machinery (IBD/peer heights) has no remote analog.
+        this.verificationProgress.set(1);
+        this.initialBlockDownload.set(false);
+        this.peerTargetHeight.set(info.height);
+        this.peerCount.set(0);
+      } else {
+        // Get blockchain info and peer info in parallel
+        const [info, peers] = await Promise.all([
+          this.blockchainRpc.getBlockchainInfo(),
+          this.blockchainRpc.getPeerInfo().catch(() => [] as PeerInfo[]),
+        ]);
 
-      this.updateFromBlockchainInfo(info);
-      this.updateFromPeerInfo(peers);
+        this.updateFromBlockchainInfo(info);
+        this.updateFromPeerInfo(peers);
 
-      // Get best block for additional info (time, base_target)
-      if (info.bestblockhash) {
-        const block = (await this.blockchainRpc.getBlock(info.bestblockhash, 1)) as PoCXBlock;
-        this.updateFromBlock(block);
+        // Get best block for additional info (time, base_target)
+        if (info.bestblockhash) {
+          const block = (await this.blockchainRpc.getBlock(info.bestblockhash, 1)) as PoCXBlock;
+          this.updateFromBlock(block);
+        }
       }
 
       this.lastUpdated.set(new Date());

@@ -35,6 +35,7 @@ import { WalletService } from '../../../../bitcoin/services/wallet/wallet.servic
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { NodeService } from '../../../../node/services/node.service';
 import { ElectronService } from '../../../../core/services/electron.service';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import { PsbtService } from '../../services/psbt.service';
@@ -453,24 +454,26 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                     <mat-icon>call_merge</mat-icon>
                     {{ 'psbt_combine' | i18n }}
                   </button>
-                  <span
-                    class="tooltip-host"
-                    [matTooltip]="
-                      (document.status !== 'unsigned'
-                        ? 'psbt_join_needs_unsigned'
-                        : 'psbt_join_tooltip'
-                      ) | i18n
-                    "
-                  >
-                    <button
-                      mat-stroked-button
-                      [disabled]="joining() || document.status !== 'unsigned'"
-                      (click)="join()"
+                  @if (!isRemote()) {
+                    <span
+                      class="tooltip-host"
+                      [matTooltip]="
+                        (document.status !== 'unsigned'
+                          ? 'psbt_join_needs_unsigned'
+                          : 'psbt_join_tooltip'
+                        ) | i18n
+                      "
                     >
-                      <mat-icon>merge_type</mat-icon>
-                      {{ 'psbt_join' | i18n }}
-                    </button>
-                  </span>
+                      <button
+                        mat-stroked-button
+                        [disabled]="joining() || document.status !== 'unsigned'"
+                        (click)="join()"
+                      >
+                        <mat-icon>merge_type</mat-icon>
+                        {{ 'psbt_join' | i18n }}
+                      </button>
+                    </span>
+                  }
                   <span class="tooltip-host" [matTooltip]="'psbt_coming_soon' | i18n">
                     <button mat-stroked-button disabled>
                       <mat-icon>usb</mat-icon>
@@ -488,24 +491,26 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 <div class="card-head no-pad">
                   <h3 class="section-title">{{ 'psbt_broadcast_via' | i18n }}</h3>
                 </div>
-                <div
-                  class="target"
-                  [class.selected]="broadcastTarget() === 'local'"
-                  (click)="broadcastTarget.set('local')"
-                  (keydown.enter)="broadcastTarget.set('local')"
-                  tabindex="0"
-                  role="radio"
-                  [attr.aria-checked]="broadcastTarget() === 'local'"
-                >
-                  <span class="radio" [class.checked]="broadcastTarget() === 'local'"></span>
-                  <div class="target-body">
-                    <div class="target-name">{{ 'psbt_target_local' | i18n }}</div>
-                    <div class="target-hint">{{ 'psbt_target_local_hint' | i18n }}</div>
+                @if (!isRemote()) {
+                  <div
+                    class="target"
+                    [class.selected]="broadcastTarget() === 'local'"
+                    (click)="broadcastTarget.set('local')"
+                    (keydown.enter)="broadcastTarget.set('local')"
+                    tabindex="0"
+                    role="radio"
+                    [attr.aria-checked]="broadcastTarget() === 'local'"
+                  >
+                    <span class="radio" [class.checked]="broadcastTarget() === 'local'"></span>
+                    <div class="target-body">
+                      <div class="target-name">{{ 'psbt_target_local' | i18n }}</div>
+                      <div class="target-hint">{{ 'psbt_target_local_hint' | i18n }}</div>
+                    </div>
+                    @if (broadcastTarget() === 'local') {
+                      <mat-icon class="ok">check_circle</mat-icon>
+                    }
                   </div>
-                  @if (broadcastTarget() === 'local') {
-                    <mat-icon class="ok">check_circle</mat-icon>
-                  }
-                </div>
+                }
                 @if (electrumAvailable()) {
                   <div
                     class="target"
@@ -1597,7 +1602,11 @@ export class PsbtComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly store = inject(Store);
+  private readonly nodeService = inject(NodeService);
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
+
+  /** Remote (Electrum) mode: client-side PSBT ops, Electrum-only broadcast. */
+  readonly isRemote = this.nodeService.isRemote;
 
   readonly view = signal<PsbtView>('start');
   readonly doc = signal<PsbtDocument | null>(null);
@@ -1850,6 +1859,11 @@ export class PsbtComponent implements OnInit {
     if (this.electron.isDesktop) {
       void this.btcxWallet.refreshConfig();
     }
+
+    // Remote mode has no local node: Electrum is the only broadcast target.
+    if (this.isRemote()) {
+      this.broadcastTarget.set('electrum');
+    }
   }
 
   goBack(): void {
@@ -1969,22 +1983,27 @@ export class PsbtComponent implements OnInit {
     this.signing.set(true);
     this.docError.set(null);
     try {
-      const info = await this.walletRpc.getWalletInfo(walletName);
-      if (info.private_keys_enabled === false) {
-        this.docError.set(this.i18n.get('psbt_watch_only_cannot_sign'));
-        return;
+      if (!this.isRemote()) {
+        const info = await this.walletRpc.getWalletInfo(walletName);
+        if (info.private_keys_enabled === false) {
+          this.docError.set(this.i18n.get('psbt_watch_only_cannot_sign'));
+          return;
+        }
       }
       if (!(await this.ensureWalletUnlocked(walletName))) return;
       const sigsBefore = document.sigsCollected;
-      // finalize=false keeps sealing an explicit, separate step
-      const result = await this.walletRpc.walletProcessPsbt(
-        walletName,
-        document.base64,
-        true,
-        'ALL',
-        true,
-        false
-      );
+      // finalize=false keeps sealing an explicit, separate step (the
+      // client-side signer leaves foreign inputs untouched too)
+      const result = this.isRemote()
+        ? await this.btcxWallet.psbtProcess(document.base64)
+        : await this.walletRpc.walletProcessPsbt(
+            walletName,
+            document.base64,
+            true,
+            'ALL',
+            true,
+            false
+          );
       // walletprocesspsbt also acts as an updater (adds derivation/UTXO
       // data), so a changed string does NOT prove a signature was added —
       // compare actual signature counts instead.
@@ -2030,6 +2049,11 @@ export class PsbtComponent implements OnInit {
         this.docError.set(this.i18n.get('psbt_join_signed'));
         return;
       }
+      if (this.isRemote()) {
+        // joinpsbts has no client-side implementation (yet).
+        this.docError.set(this.i18n.get('psbt_join_unavailable_remote'));
+        return;
+      }
       const joined = await this.walletRpc.joinPsbts([document.base64, other]);
       this.doc.set(await this.psbtService.buildDocument(joined));
       this.syncDraft();
@@ -2055,7 +2079,9 @@ export class PsbtComponent implements OnInit {
     this.combining.set(true);
     this.docError.set(null);
     try {
-      const combined = await this.walletRpc.combinePsbt([document.base64, other]);
+      const combined = this.isRemote()
+        ? await this.btcxWallet.psbtCombine([document.base64, other])
+        : await this.walletRpc.combinePsbt([document.base64, other]);
       this.doc.set(await this.psbtService.buildDocument(combined));
       this.syncDraft();
       this.notification.success(this.i18n.get('psbt_combined'));
@@ -2073,6 +2099,21 @@ export class PsbtComponent implements OnInit {
     this.finalizing.set(true);
     this.docError.set(null);
     try {
+      if (this.isRemote()) {
+        // Client-side finalize returns PSBT + raw hex in one step.
+        const result = await this.btcxWallet.psbtFinalize(document.base64);
+        if (!result.complete || !result.hex) {
+          this.docError.set(this.i18n.get('psbt_finalize_incomplete'));
+          return;
+        }
+        this.finalHex.set(result.hex);
+        this.docSection.set(null);
+        this.doc.set(await this.psbtService.buildDocument(result.psbt));
+        this.syncDraft();
+        this.notification.success(this.i18n.get('psbt_finalized_ok'));
+        return;
+      }
+
       const result = await this.walletRpc.finalizePsbt(document.base64, false);
       if (!result.complete || !result.psbt) {
         this.docError.set(this.i18n.get('psbt_finalize_incomplete'));
@@ -2323,6 +2364,20 @@ export class PsbtComponent implements OnInit {
   }
 
   private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
+    if (this.isRemote()) {
+      // Local wallet: only a passphrase-encrypted seed can be locked.
+      const status = await this.btcxWallet.refreshStatus();
+      if (status?.seed !== 'locked') return true;
+      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
+        width: '400px',
+        data: { walletName, timeout: 60 },
+      });
+      const result: PassphraseDialogResult | null = await firstValueFrom(dialogRef.afterClosed());
+      if (!result) return false;
+      await this.btcxWallet.unlock(result.passphrase);
+      return true;
+    }
+
     const info = await this.walletRpc.getWalletInfo(walletName);
     if (info.unlocked_until === undefined || info.unlocked_until > 0) {
       return true; // not encrypted, or already unlocked

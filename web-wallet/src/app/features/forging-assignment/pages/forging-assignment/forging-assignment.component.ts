@@ -36,6 +36,8 @@ import {
   AssignmentState,
 } from '../../../../bitcoin/services/rpc/mining-rpc.service';
 import { MiningService } from '../../../../mining/services/mining.service';
+import { NodeService } from '../../../../node/services/node.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 
 type OperationMode = 'create' | 'revoke' | 'check';
 
@@ -1216,6 +1218,22 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private readonly miningService = inject(MiningService);
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(Store);
+  private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
+
+  /** Remote (Electrum) mode: assignments run client-side, no node RPC. */
+  readonly isRemote = this.nodeService.isRemote;
+
+  /**
+   * Assignment status via the mode's backend: node `get_assignment` RPC or
+   * the client-side Electrum history derivation — identical DTOs.
+   */
+  private async fetchAssignmentStatus(plotAddress: string): Promise<AssignmentStatus> {
+    if (this.isRemote()) {
+      return (await this.btcxWallet.getAssignment(plotAddress)) as AssignmentStatus;
+    }
+    return this.miningRpc.getAssignmentStatus(plotAddress);
+  }
 
   /**
    * Forging addresses from configured pool chains, offered as a dropdown on the
@@ -1310,6 +1328,22 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private async loadWalletAddresses(): Promise<void> {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
+
+    // Remote mode: offer the wallet's FUNDED addresses — an assignment must
+    // spend a coin on the plot address, so unfunded addresses can't sign
+    // one anyway (and the local wallet has no label registry).
+    if (this.isRemote()) {
+      try {
+        const utxos = await this.walletService.listUnspent(0);
+        const unique = [...new Set(utxos.map(u => u.address).filter(a => !!a))];
+        this.walletAddresses.set(
+          unique.map(address => ({ address, label: '', isSegwitV0: true }))
+        );
+      } catch (error) {
+        console.error('Failed to load wallet addresses:', error);
+      }
+      return;
+    }
 
     try {
       // Get all addresses with empty label (receiving addresses)
@@ -1458,12 +1492,27 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   async loadFeeEstimates(): Promise<void> {
     this.isLoadingFees.set(true);
     try {
-      for (const option of this.feeOptions) {
-        if (option.label === 'fee_custom') continue;
-        const result = await this.blockchainRpc.estimateSmartFee(option.blocks);
-        if (result.feerate) {
-          // feerate is in BTC/kvB, convert to sat/vB
-          option.feeRate = Math.round((result.feerate * 100000000) / 1000);
+      if (this.isRemote()) {
+        // One Electrum estimate call covers all presets.
+        const estimates = await this.btcxWallet.fetchFeeEstimates();
+        const bySpeed: Record<string, number | null> = {
+          fee_slow: estimates.slow,
+          fee_normal: estimates.normal,
+          fee_fast: estimates.fast,
+        };
+        for (const option of this.feeOptions) {
+          if (option.label === 'fee_custom') continue;
+          const rate = bySpeed[option.label];
+          option.feeRate = rate != null ? Math.max(1, Math.round(rate)) : null;
+        }
+      } else {
+        for (const option of this.feeOptions) {
+          if (option.label === 'fee_custom') continue;
+          const result = await this.blockchainRpc.estimateSmartFee(option.blocks);
+          if (result.feerate) {
+            // feerate is in BTC/kvB, convert to sat/vB
+            option.feeRate = Math.round((result.feerate * 100000000) / 1000);
+          }
         }
       }
       // Default to custom 1 sat/vB if no estimates available, normal otherwise
@@ -1510,7 +1559,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
 
     try {
       // Block height is auto-refreshed by BlockchainStateService
-      const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
+      const status = await this.fetchAssignmentStatus(this.selectedPlotAddress);
       this.assignmentStatus.set(status);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -1521,6 +1570,20 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   }
 
   private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
+    if (this.isRemote()) {
+      // Local wallet: only a passphrase-encrypted seed can be locked.
+      const status = await this.btcxWallet.refreshStatus();
+      if (status?.seed !== 'locked') return true;
+      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
+        width: '400px',
+        data: { walletName, timeout: 60 },
+      });
+      const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
+      if (!result) return false; // user cancelled
+      await this.btcxWallet.unlock(result.passphrase);
+      return true;
+    }
+
     const info = await this.walletRpc.getWalletInfo(walletName);
     if (info.unlocked_until === undefined || info.unlocked_until > 0) {
       return true; // not encrypted, or already unlocked
@@ -1550,7 +1613,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     try {
       // Pre-flight check: verify current state allows the operation
       try {
-        const status = await this.miningRpc.getAssignmentStatus(this.selectedPlotAddress);
+        const status = await this.fetchAssignmentStatus(this.selectedPlotAddress);
 
         if (this.currentMode === 'create') {
           if (status.state !== 'UNASSIGNED' && status.state !== 'REVOKED') {
@@ -1583,23 +1646,31 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       const feeRate = this.getSelectedFeeRate();
 
       if (this.currentMode === 'create') {
-        const result = await this.miningRpc.createForgingAssignment(
-          walletName,
-          this.selectedPlotAddress,
-          this.forgingAddress.trim(),
-          feeRate
-        );
+        const result = this.isRemote()
+          ? await this.btcxWallet.createAssignment(
+              this.selectedPlotAddress,
+              this.forgingAddress.trim(),
+              feeRate
+            )
+          : await this.miningRpc.createForgingAssignment(
+              walletName,
+              this.selectedPlotAddress,
+              this.forgingAddress.trim(),
+              feeRate
+            );
         this.notification.success(
           `${this.i18n.get('assignment_created_success')} (${result.txid.substring(0, 16)}...)`
         );
         this.walletService.refresh();
         this.clear();
       } else if (this.currentMode === 'revoke') {
-        const result = await this.miningRpc.revokeForgingAssignment(
-          walletName,
-          this.selectedPlotAddress,
-          feeRate
-        );
+        const result = this.isRemote()
+          ? await this.btcxWallet.revokeAssignment(this.selectedPlotAddress, feeRate)
+          : await this.miningRpc.revokeForgingAssignment(
+              walletName,
+              this.selectedPlotAddress,
+              feeRate
+            );
         this.notification.success(
           `${this.i18n.get('revocation_created_success')} (${result.txid.substring(0, 16)}...)`
         );

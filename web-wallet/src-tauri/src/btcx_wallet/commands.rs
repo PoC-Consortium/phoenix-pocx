@@ -9,9 +9,12 @@ use tauri::{AppHandle, State};
 
 use electrum_btcx::SendFee;
 use keys_btcx::WalletSeed;
+use seedstore::SeedStore;
 use wallet_btcx::WalletTxInfo;
 
-use super::config::{BtcxWalletConfig, DescriptorPolicy, WalletNetwork};
+use super::config::{
+    self, BtcxWalletConfig, DescriptorPolicy, WalletNetwork, TRASH_SUBDIR,
+};
 use super::manager::{self, BranchHit};
 use super::state::{BtcxWalletStatus, SharedBtcxWalletState};
 
@@ -45,31 +48,105 @@ pub fn btcx_wallet_generate_mnemonic(
     state.with_seed(|s| s.generate_mnemonic(12).map_err(|e| format!("{e:#}")))
 }
 
-/// Create the wallet from a (freshly generated, user-confirmed) mnemonic.
+/// Resolve + validate the wallet name of a create/restore: an explicit
+/// `name`, or the active wallet (the mobile UI's name-less flow).
+///
+/// Uniqueness is CASE-INSENSITIVE (while the stored name keeps its case):
+/// wallet directories live on case-insensitive filesystems on Windows and
+/// macOS, where `Johnny` and `johnny` are the same path — Bitcoin Core gets
+/// the same outcome from its database-exists check. A leftover on-disk seed
+/// (e.g. a wallet restored from `.trash` by hand) is refused too.
+fn resolve_new_wallet_name(
+    config: &BtcxWalletConfig,
+    network: WalletNetwork,
+    name: Option<String>,
+) -> Result<String, String> {
+    let name = name.unwrap_or_else(|| config.active_wallet_name());
+    config::validate_wallet_name(&name)?;
+    let lower = name.to_ascii_lowercase();
+    if let Some(existing) = config
+        .wallet_names(network)
+        .into_iter()
+        .find(|n| n.to_ascii_lowercase() == lower)
+    {
+        return Err(format!(
+            "A wallet named '{existing}' already exists on {}",
+            network.as_str()
+        ));
+    }
+    if BtcxWalletConfig::wallet_root(network, &name)
+        .join(seedstore::SEED_FILE)
+        .exists()
+    {
+        return Err(format!(
+            "A wallet already exists on disk at '{name}' — pick another name",
+        ));
+    }
+    Ok(name)
+}
+
+/// Write `mnemonic` into the named wallet's OWN data dir (standalone store
+/// — the state's cached store still points at the previously active
+/// wallet), then adopt the wallet: close the old runtime, select the new
+/// name, record its descriptor policy, and re-hold the passphrase so an
+/// encrypted seed opens without an extra unlock round trip.
+fn import_into_named_wallet(
+    state: &SharedBtcxWalletState,
+    network: WalletNetwork,
+    name: &str,
+    mnemonic: &str,
+    passphrase: Option<&str>,
+    policy: DescriptorPolicy,
+) -> Result<(), String> {
+    let root = BtcxWalletConfig::wallet_root(network, name);
+    let mut store = SeedStore::open(&root, None)
+        .map_err(|e| format!("Failed to open seed store: {e:#}"))?;
+    store
+        .import_seed(mnemonic, passphrase)
+        .map(|_| ())
+        .map_err(|e| format!("{e:#}"))?;
+
+    state.close_runtime();
+    state.drop_seed_passphrase();
+    state.update_config(|c| {
+        c.set_active_wallet(network, name);
+        c.set_policy(network, policy);
+        c.active = true;
+    })?;
+    if let Some(pass) = passphrase.filter(|p| !p.is_empty()) {
+        state.with_seed(|s| s.unlock(pass).map_err(|e| format!("{e:#}")))?;
+    }
+    Ok(())
+}
+
+/// Create a wallet from a (freshly generated, user-confirmed) mnemonic.
 /// An optional passphrase encrypts the seed at rest (it is NOT a BIP39
 /// word-25 — derivation always uses an empty BIP39 passphrase, so the
 /// mnemonic alone always recovers the funds). New wallets derive BIP-84 at
-/// the BTCX coin type. Refuses to overwrite an existing seed.
+/// the BTCX coin type. Refuses to overwrite an existing seed. `name` picks
+/// the named wallet to create (default: the active wallet — the mobile
+/// flow); the created wallet becomes the active one.
 #[tauri::command]
 pub async fn btcx_wallet_create(
     mnemonic: String,
     passphrase: Option<String>,
+    name: Option<String>,
     app: AppHandle,
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<BtcxWalletStatus, String> {
     let state = state.inner().clone();
     blocking(move || {
-        state.with_seed(|s| {
-            s.import_seed(&mnemonic, passphrase.as_deref())
-                .map(|_| ())
-                .map_err(|e| format!("{e:#}"))
-        })?;
-        state.update_config(|c| {
-            let network = c.network;
-            let policy = c.policy();
-            c.set_policy(network, policy); // pin the default explicitly
-            c.active = true;
-        })?;
+        let config = state.get_config();
+        let network = config.network;
+        let name = resolve_new_wallet_name(&config, network, name)?;
+        import_into_named_wallet(
+            &state,
+            network,
+            &name,
+            &mnemonic,
+            passphrase.as_deref(),
+            DescriptorPolicy::default(),
+        )?;
         // No Electrum server configured yet is fine — the runtime opens
         // later, when one is (Ok(false)).
         state.open_runtime(Some(app))?;
@@ -130,29 +207,31 @@ fn open_after_probe(
 pub async fn btcx_wallet_restore(
     mnemonic: String,
     passphrase: Option<String>,
+    name: Option<String>,
     app: AppHandle,
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<BtcxRestoreResult, String> {
     let state = state.inner().clone();
     blocking(move || {
-        // Validate + derive first: nothing is written if the phrase is bad
-        // or the probe cannot run.
+        // Validate + derive + resolve the name first: nothing is written if
+        // the phrase is bad, the name is taken, or the probe cannot run.
+        let config = state.get_config();
+        let network = config.network;
+        let name = resolve_new_wallet_name(&config, network, name)?;
         let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
         let chain = state.probe_chain()?;
         let hits = manager::probe_all_branches(&seed, &chain)
             .map_err(|e| format!("Restore probing failed: {e:#}"))?;
         let (selected, fresh) = manager::select_restore_policy(&hits);
 
-        state.with_seed(|s| {
-            s.import_seed(&mnemonic, passphrase.as_deref())
-                .map(|_| ())
-                .map_err(|e| format!("{e:#}"))
-        })?;
-        state.update_config(|c| {
-            let network = c.network;
-            c.set_policy(network, selected);
-            c.active = true;
-        })?;
+        import_into_named_wallet(
+            &state,
+            network,
+            &name,
+            &mnemonic,
+            passphrase.as_deref(),
+            selected,
+        )?;
         open_after_probe(&state, app, &hits, selected)?;
         Ok(BtcxRestoreResult {
             status: state.status()?,
@@ -256,6 +335,186 @@ pub fn btcx_wallet_lock(
     state.close_runtime();
     state.drop_seed_passphrase();
     state.status()
+}
+
+// ============================================================================
+// Named-Wallet Registry
+// ============================================================================
+
+/// One registered wallet of the active network, as the wallet selector
+/// lists it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxWalletSummary {
+    pub name: String,
+    pub network: String,
+    pub policy: DescriptorPolicy,
+    /// The selected wallet of the network.
+    pub is_active: bool,
+    /// Runtime open (only ever true for the active wallet).
+    pub is_open: bool,
+    /// Whether this wallet's seed is PASSPHRASE-encrypted (lockable). The
+    /// transparent at-rest wraps (OS keystore / obfuscation) report false —
+    /// they present like unencrypted Core wallets.
+    pub seed_encrypted: bool,
+    /// Whether this wallet's seed currently needs a passphrase unlock.
+    pub seed_locked: bool,
+    /// Total balance in sats — only for the OPEN wallet (a cheap cache
+    /// read); listing must not open every store.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub balance_sat: Option<u64>,
+}
+
+/// List the registered wallets of the active network.
+#[tauri::command]
+pub fn btcx_wallet_list(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<Vec<BtcxWalletSummary>, String> {
+    let config = state.get_config();
+    let network = config.network;
+    let active_name = config.active_wallet_name();
+    let runtime_open = state.is_open();
+    // Whether the ACTIVE wallet's store currently holds a working
+    // passphrase — the one thing the seed file alone can't tell.
+    let active_unlocked = state
+        .status()
+        .map(|s| s.seed == super::state::SeedState::Unlocked)
+        .unwrap_or(false);
+
+    let mut out = Vec::new();
+    for name in config.wallet_names(network) {
+        let Some(meta) = config.wallet_meta(network, &name) else {
+            continue;
+        };
+        let seed_contents = std::fs::read_to_string(
+            BtcxWalletConfig::wallet_root(network, &name).join(seedstore::SEED_FILE),
+        )
+        .unwrap_or_default();
+        // Only the passphrase wrap needs an unlock; keyring/obfuscation
+        // auto-read and present like unencrypted Core wallets.
+        let needs_passphrase = super::state::seed_needs_passphrase(&seed_contents);
+        let is_active = name == active_name;
+        let is_open = is_active && runtime_open;
+        let balance_sat = if is_open {
+            state
+                .with_entry(|entry| Ok(entry.wallet.balance().total().to_sat()))
+                .ok()
+        } else {
+            None
+        };
+        out.push(BtcxWalletSummary {
+            name,
+            network: network.as_str().to_string(),
+            policy: meta.policy,
+            is_active,
+            is_open,
+            seed_encrypted: needs_passphrase,
+            // Only the active wallet can hold a passphrase, so every other
+            // passphrase wallet lists as locked.
+            seed_locked: needs_passphrase && !(is_active && active_unlocked),
+            balance_sat,
+        });
+    }
+    Ok(out)
+}
+
+/// Select (and open, when possible) another registered wallet of the
+/// active network. Closes the previous wallet's runtime and drops its held
+/// passphrase.
+#[tauri::command]
+pub async fn btcx_wallet_select(
+    name: String,
+    app: AppHandle,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxWalletStatus, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        config::validate_wallet_name(&name)?;
+        let config = state.get_config();
+        let network = config.network;
+        if config.wallet_meta(network, &name).is_none() {
+            return Err(format!(
+                "No wallet named '{name}' on {}",
+                network.as_str()
+            ));
+        }
+        if config.active_wallet_name() != name {
+            state.close_runtime();
+            state.drop_seed_passphrase();
+            state.update_config(|c| c.set_active_wallet(network, &name))?;
+        }
+        // Ok(false) (locked seed / no server) is a valid selected-but-closed
+        // state — the status tells the UI which.
+        state.open_runtime(Some(app))?;
+        state.status()
+    })
+    .await
+}
+
+/// Close the active wallet's runtime WITHOUT switching the selection (the
+/// wallet selector's "unload"). Unlike `btcx_wallet_lock` the held
+/// passphrase survives, so reopening needs no re-unlock.
+#[tauri::command]
+pub fn btcx_wallet_close(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxWalletStatus, String> {
+    state.close_runtime();
+    state.status()
+}
+
+/// Delete a registered wallet: moved to `<network>/.trash/<name>-<ts>`,
+/// NEVER removed from disk — the seed inside stays recoverable. Refuses
+/// the open wallet and demands the name typed back (`confirm_name`).
+#[tauri::command]
+pub async fn btcx_wallet_delete(
+    name: String,
+    confirm_name: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<(), String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        config::validate_wallet_name(&name)?;
+        if name != confirm_name {
+            return Err("Confirmation does not match the wallet name".into());
+        }
+        let config = state.get_config();
+        let network = config.network;
+        if config.wallet_meta(network, &name).is_none() {
+            return Err(format!("No wallet named '{name}' on {}", network.as_str()));
+        }
+        if config.active_wallet_name() == name && state.is_open() {
+            return Err("Cannot delete the open wallet — close it first".into());
+        }
+        // The cached seed store holds no OS file handle, but drop it anyway
+        // so nothing references the moved directory.
+        state.drop_seed_passphrase();
+
+        let root = BtcxWalletConfig::wallet_root(network, &name);
+        if root.exists() {
+            let trash = BtcxWalletConfig::wallet_dir()
+                .join(network.as_str())
+                .join(TRASH_SUBDIR);
+            std::fs::create_dir_all(&trash)
+                .map_err(|e| format!("creating {}: {e}", trash.display()))?;
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let mut dest = trash.join(format!("{name}-{ts}"));
+            let mut n = 0;
+            while dest.exists() {
+                n += 1;
+                dest = trash.join(format!("{name}-{ts}-{n}"));
+            }
+            std::fs::rename(&root, &dest).map_err(|e| {
+                format!("moving {} to {}: {e}", root.display(), dest.display())
+            })?;
+            log::info!("btcx wallet '{name}' moved to {}", dest.display());
+        }
+        state.update_config(|c| c.remove_wallet_meta(network, &name))?;
+        Ok(())
+    })
+    .await
 }
 
 // ============================================================================
@@ -507,9 +766,317 @@ pub fn btcx_wallet_sync_now(state: State<'_, SharedBtcxWalletState>) -> Result<(
     state.poke()
 }
 
+// ============================================================================
+// Forging Assignments (remote node mode)
+// ============================================================================
+
+/// Create a forging assignment: delegate `plot_address`'s forging rights to
+/// `forging_address`, entirely client-side (BDK build + sign, Electrum
+/// broadcast) — the remote-mode replacement for the node's
+/// `create_assignment`. The plot address must hold a spendable coin in THIS
+/// wallet (ownership proof).
+#[tauri::command]
+pub async fn btcx_wallet_create_assignment(
+    plot_address: String,
+    forging_address: String,
+    fee_rate_sat_vb: Option<f64>,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<super::assignments::CreateAssignmentDto, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        super::assignments::create_assignment(
+            &state,
+            &plot_address,
+            &forging_address,
+            fee_rate_sat_vb,
+        )
+    })
+    .await
+}
+
+/// Revoke `plot_address`'s active forging assignment (client-side) — the
+/// remote-mode replacement for the node's `revoke_assignment`.
+#[tauri::command]
+pub async fn btcx_wallet_revoke_assignment(
+    plot_address: String,
+    fee_rate_sat_vb: Option<f64>,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<super::assignments::RevokeAssignmentDto, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        super::assignments::revoke_assignment(&state, &plot_address, fee_rate_sat_vb)
+    })
+    .await
+}
+
+/// Assignment status of `plot_address`, derived from its Electrum script
+/// history — the remote-mode replacement for the node's `get_assignment`.
+/// Chain-only: needs no seed and no open wallet.
+#[tauri::command]
+pub async fn btcx_wallet_get_assignment(
+    plot_address: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<super::assignments::AssignmentStatusDto, String> {
+    let state = state.inner().clone();
+    blocking(move || super::assignments::get_assignment(&state, &plot_address)).await
+}
+
+// ============================================================================
+// PSBT Operations (remote node mode)
+// ============================================================================
+
+/// Decode a base64 PSBT for display — client-side `decodepsbt`.
+#[tauri::command]
+pub fn btcx_psbt_decode(
+    psbt_base64: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<super::psbt::PsbtDecodeDto, String> {
+    super::psbt::decode(state.get_config().network, &psbt_base64)
+}
+
+/// Analyze a PSBT's signing progress — client-side `analyzepsbt`.
+#[tauri::command]
+pub fn btcx_psbt_analyze(psbt_base64: String) -> Result<super::psbt::PsbtAnalyzeDto, String> {
+    super::psbt::analyze(&psbt_base64)
+}
+
+/// Sign a PSBT with the open wallet — client-side `walletprocesspsbt`.
+/// Foreign inputs pass through untouched.
+#[tauri::command]
+pub async fn btcx_psbt_wallet_process(
+    psbt_base64: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<super::psbt::PsbtProcessDto, String> {
+    let state = state.inner().clone();
+    blocking(move || super::psbt::wallet_process(&state, &psbt_base64)).await
+}
+
+/// Finalize a PSBT's wallet-owned inputs — client-side `finalizepsbt`.
+/// When every input ends up final the raw tx hex is included.
+#[tauri::command]
+pub async fn btcx_psbt_finalize(
+    psbt_base64: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<super::psbt::PsbtProcessDto, String> {
+    let state = state.inner().clone();
+    blocking(move || super::psbt::finalize(&state, &psbt_base64)).await
+}
+
+/// Combine several PSBTs of the same transaction — client-side
+/// `combinepsbt`. Pure; needs no wallet.
+#[tauri::command]
+pub fn btcx_psbt_combine(psbts: Vec<String>) -> Result<String, String> {
+    super::psbt::combine(&psbts)
+}
+
+/// Compose a funded, UNSIGNED PSBT from the open wallet — client-side
+/// `walletcreatefundedpsbt` (the Transaction Builder's compose tab).
+#[tauri::command]
+pub async fn btcx_wallet_create_funded_psbt(
+    outputs: Vec<super::psbt::PsbtRecipient>,
+    fee_rate_sat_vb: Option<f64>,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    blocking(move || super::psbt::create_funded_psbt(&state, &outputs, fee_rate_sat_vb)).await
+}
+
+/// The open wallet's unspent outputs (cache read) — the remote-mode
+/// `listunspent`.
+#[tauri::command]
+pub fn btcx_wallet_utxos(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<Vec<super::psbt::WalletUtxoDto>, String> {
+    super::psbt::wallet_utxos(&state)
+}
+
+// ============================================================================
+// Electrum Health & Chain Info (remote node mode)
+// ============================================================================
+
+/// Per-server health snapshots of the ACTIVE network's configured Electrum
+/// servers, with roles stamped from the open runtime (`wallet` = home,
+/// `view` = broadcast fallback, `standby` = configured but unused). Cheap:
+/// reads the passive health cells, no network I/O.
+#[tauri::command]
+pub fn btcx_electrum_health(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<Vec<electrum_btcx::HealthSnapshot>, String> {
+    let config = state.get_config();
+    let servers = config.servers();
+    let urls: Vec<&str> = servers.iter().map(String::as_str).collect();
+    let mut snapshots = electrum_btcx::server_health::coin_snapshots(super::config::COIN_ID, &urls);
+    let runtime_urls = state.runtime_urls();
+    for snapshot in &mut snapshots {
+        snapshot.role = Some(match &runtime_urls {
+            Some((home, _)) if *home == snapshot.url => "wallet".to_string(),
+            Some((_, views)) if views.contains(&snapshot.url) => "view".to_string(),
+            _ => "standby".to_string(),
+        });
+    }
+    Ok(snapshots)
+}
+
+/// Result of a live Electrum server probe (`btcx_electrum_probe`).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElectrumProbeResult {
+    /// The server's chain tip height.
+    pub height: u64,
+    /// Round-trip time of the tip fetch, milliseconds.
+    pub latency_ms: f64,
+}
+
+/// Probe one Electrum server with a FRESH connection (never the pool): dial,
+/// verify it serves the expected chain (genesis check — catches a server of
+/// the wrong network), and time a tip fetch. The settings page's "Test
+/// connection" button.
+#[tauri::command]
+pub async fn btcx_electrum_probe(
+    url: String,
+    network: Option<WalletNetwork>,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<ElectrumProbeResult, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        let network = network.unwrap_or_else(|| state.get_config().network);
+        let params = network.params();
+        let backend = electrum_btcx::ElectrumBackend::new(params, url.trim())
+            .map_err(|e| format!("{e:#}"))?;
+        let started = std::time::Instant::now();
+        let (height, _) = backend.tip().map_err(|e| format!("Server unreachable: {e:#}"))?;
+        backend
+            .verify_chain()
+            .map_err(|e| format!("Wrong chain or unusable server: {e:#}"))?;
+        Ok(ElectrumProbeResult {
+            height,
+            latency_ms: started.elapsed().as_secs_f64() * 1000.0,
+        })
+    })
+    .await
+}
+
+/// Chain tip snapshot from the active network's first configured Electrum
+/// server (`btcx_chain_info`) — the remote-mode replacement for the desktop
+/// header's getblockchaininfo/getblock poll. Chain-only: needs no seed and
+/// no open wallet. `base_target` comes from the PoCX 286-byte tip header
+/// (version 4 + prev 32 + merkle 32 + time 4 + height 4 + gensig 32 =
+/// offset 108, 8 bytes LE); the frontend derives network capacity from it
+/// with its existing formula.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxChainInfo {
+    pub network: String,
+    pub height: u64,
+    pub tip_hash: String,
+    /// `nTime` of the tip header, unix seconds.
+    pub header_time: u32,
+    /// PoCX consensus base target of the tip (0 on non-PoCX headers).
+    pub base_target: u64,
+}
+
+#[tauri::command]
+pub async fn btcx_chain_info(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxChainInfo, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        let config = state.get_config();
+        let params = config.network.params();
+        let chain = state.probe_chain()?;
+        let (height, raw) = chain.tip().map_err(|e| format!("{e:#}"))?;
+        let header_time = params.header_time(&raw).map_err(|e| format!("{e:#}"))?;
+        let tip_hash = params.header_hash(&raw).map_err(|e| format!("{e:#}"))?;
+        // Only the PoCX 286-byte format carries a base target.
+        let base_target = if raw.len() == 286 {
+            u64::from_le_bytes(raw[108..116].try_into().expect("length checked"))
+        } else {
+            0
+        };
+        Ok(BtcxChainInfo {
+            network: config.network.as_str().to_string(),
+            height,
+            tip_hash,
+            header_time,
+            base_target,
+        })
+    })
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The full named-wallet create flow (resolve → import → open runtime →
+    /// status), OFFLINE: the configured Electrum server is unreachable, and
+    /// creation must still succeed because the backend dials lazily.
+    /// Exercises the exact code `btcx_wallet_create` runs.
+    #[test]
+    fn create_named_wallet_flow_works_offline() {
+        // 24-word all-zero-entropy BIP39 test vector.
+        const MNEMONIC_24: &str = "abandon abandon abandon abandon abandon abandon abandon \
+             abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon \
+             abandon abandon abandon abandon abandon abandon art";
+
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+        // Never touch the developer's real OS keychain from a test.
+        std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+        let state = super::super::state::create_btcx_wallet_state();
+        state
+            .update_config(|c| {
+                c.network = WalletNetwork::Regtest;
+                // Unreachable on purpose — creation is an offline operation.
+                c.set_servers(WalletNetwork::Regtest, vec!["tcp://127.0.0.1:1".to_string()]);
+            })
+            .unwrap();
+
+        let config = state.get_config();
+
+        // The Rust-side name rules reject what the UI must also reject —
+        // and mixed case is fine (Core parity: saved as stated).
+        let err = resolve_new_wallet_name(&config, config.network, Some("my wallet".to_string()))
+            .unwrap_err();
+        assert!(err.contains("letters"), "{err}");
+        assert!(
+            resolve_new_wallet_name(&config, config.network, Some("MyWallet".to_string())).is_ok()
+        );
+
+        let name =
+            resolve_new_wallet_name(&config, config.network, Some("mywallet".to_string())).unwrap();
+        import_into_named_wallet(
+            &state,
+            config.network,
+            &name,
+            MNEMONIC_24,
+            None,
+            DescriptorPolicy::default(),
+        )
+        .unwrap();
+        let opened = state.open_runtime(None).unwrap();
+        assert!(opened, "runtime must open with an unreachable server (lazy dial)");
+
+        let status = state.status().unwrap();
+        assert_eq!(status.wallet_name, "mywallet");
+        assert!(status.wallet_active);
+
+        // Re-creating the same name is refused with a clear message — and
+        // the uniqueness check is case-INSENSITIVE (the wallet directory
+        // would collide on Windows/macOS filesystems).
+        let config = state.get_config();
+        let err = resolve_new_wallet_name(&config, config.network, Some("mywallet".to_string()))
+            .unwrap_err();
+        assert!(err.contains("already exists"), "{err}");
+        let err = resolve_new_wallet_name(&config, config.network, Some("MyWallet".to_string()))
+            .unwrap_err();
+        assert!(err.contains("already exists"), "{err}");
+
+        state.close_runtime();
+        std::env::remove_var("PHOENIX_DATA_DIR");
+        std::env::remove_var("PACT_DISABLE_KEYRING");
+    }
 
     fn request(fee_target: Option<u16>, fee_rate_sat_vb: Option<f64>) -> BtcxSendRequest {
         BtcxSendRequest {

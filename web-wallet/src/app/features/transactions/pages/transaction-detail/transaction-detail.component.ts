@@ -20,6 +20,7 @@ import {
   WalletRpcService,
   WalletTransaction,
 } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
+import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 import {
   BlockchainRpcService,
   Transaction,
@@ -1014,6 +1015,7 @@ export class TransactionDetailComponent implements OnInit {
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
+  private readonly backendRouter = inject(BackendRouterService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
@@ -1045,6 +1047,27 @@ export class TransactionDetailComponent implements OnInit {
     if (!walletName) {
       this.error.set('No wallet selected');
       this.loading.set(false);
+      return;
+    }
+
+    // Remote (Electrum) mode: gettransaction/getrawtransaction have no
+    // equivalent — render the essentials from the wallet's cached history.
+    if (this.backendRouter.isRemote()) {
+      try {
+        const txs = await this.backendRouter.wallet().listTransactions(walletName, 999999, 0);
+        const cached = txs.find(t => t.txid === txid);
+        if (!cached) {
+          this.error.set('Transaction not found in wallet history');
+          return;
+        }
+        this.tx.set({ wallet: { ...cached, hex: '' }, raw: null });
+        this.computeValues();
+        await this.detectPocxMarkers({ ...cached, hex: '' }, null);
+      } catch (err) {
+        this.error.set(err instanceof Error ? err.message : 'Failed to load transaction');
+      } finally {
+        this.loading.set(false);
+      }
       return;
     }
 
@@ -1357,24 +1380,20 @@ export class TransactionDetailComponent implements OnInit {
     if (!walletName) return;
 
     try {
-      const bumpOptions: { confTarget?: number; feeRate?: number } = {};
-      if (options.feeRate !== undefined) {
-        bumpOptions.feeRate = options.feeRate;
-      } else if (options.confTarget !== undefined) {
-        bumpOptions.confTarget = options.confTarget;
-      }
-
-      const result = await this.walletRpc.bumpFee(walletName, txid, bumpOptions);
+      // Routed through the mode's backend (Core RPC or the local BDK wallet).
+      const newTxid = await this.backendRouter
+        .wallet()
+        .bumpFee(walletName, txid, options.feeRate);
 
       this.notification.success(
-        this.i18n.get('bump_fee_success').replace('{txid}', result.txid.substring(0, 16) + '...')
+        this.i18n.get('bump_fee_success').replace('{txid}', newTxid.substring(0, 16) + '...')
       );
 
       // Refresh wallet service for balance updates
       this.walletService.refresh();
 
       // Navigate to the new transaction
-      this.loadTransaction(result.txid);
+      this.loadTransaction(newTxid);
     } catch (error) {
       const message = error instanceof Error ? error.message : this.i18n.get('bump_fee_error');
       this.notification.error(message);
@@ -1405,6 +1424,12 @@ export class TransactionDetailComponent implements OnInit {
   private async executeAbandon(txid: string): Promise<void> {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
+
+    if (this.backendRouter.isRemote()) {
+      // abandontransaction is a Core wallet concept with no BDK analog.
+      this.notification.error(this.i18n.get('feature_unavailable_remote'));
+      return;
+    }
 
     try {
       await this.walletRpc.abandonTransaction(walletName, txid);

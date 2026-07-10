@@ -36,13 +36,24 @@ pub enum SeedState {
     Unlocked,
 }
 
+/// The seedstore passphrase wrap's file magic — the ONLY wrap that needs a
+/// user passphrase. The keyring/obfuscation wraps auto-read, so user-facing
+/// "lock" affordances key on this, not on encryption-at-rest (a Windows
+/// no-passphrase seed is keystore-encrypted yet behaves like an
+/// unencrypted Core wallet).
+pub(crate) fn seed_needs_passphrase(seed_contents: &str) -> bool {
+    seed_contents.trim_start().starts_with("PACTSEEDv1")
+}
+
 /// Wallet status snapshot for the frontend (`btcx_wallet_status`).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BtcxWalletStatus {
     /// Seed lifecycle: none | locked | unlocked.
     pub seed: SeedState,
-    /// Whether the on-disk seed is passphrase-encrypted.
+    /// Whether the seed is PASSPHRASE-encrypted, i.e. lockable. False for
+    /// the transparent at-rest wraps (OS keystore / obfuscation) — those
+    /// behave like unencrypted Core wallets.
     pub seed_encrypted: bool,
     /// Whether the wallet runtime is open (bdk wallet + sync worker).
     pub wallet_active: bool,
@@ -50,6 +61,8 @@ pub struct BtcxWalletStatus {
     pub active: bool,
     /// Active network name (mainnet, testnet, regtest).
     pub network: String,
+    /// Name of the selected wallet on the active network.
+    pub wallet_name: String,
     /// Wallet-cache chain height (bdk checkpoint tip), once open.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synced_height: Option<u32>,
@@ -63,6 +76,8 @@ pub struct BtcxWalletStatus {
 pub struct WalletRuntime {
     pub params: &'static ChainParams,
     pub network: WalletNetwork,
+    /// Name of the wallet this runtime holds open.
+    pub wallet_name: String,
     pub policy: DescriptorPolicy,
     pub handle: WalletHandle,
     pub worker: Arc<SyncWorker>,
@@ -79,8 +94,10 @@ pub struct WalletRuntime {
 pub struct BtcxWalletState {
     /// Persisted configuration.
     pub config: Mutex<BtcxWalletConfig>,
-    /// Seed store, opened lazily (holds the unlock passphrase in memory).
-    seed: Mutex<Option<SeedStore>>,
+    /// Seed store of ONE wallet, opened lazily and keyed by
+    /// `<network>/<wallet name>` so a wallet/network switch reopens the
+    /// right store (and drops the previous wallet's held passphrase).
+    seed: Mutex<Option<(String, SeedStore)>>,
     /// Long-lived Electrum connections, one per (coin, url).
     pool: ElectrumPool,
     /// The open wallet runtime, if any.
@@ -90,10 +107,23 @@ pub struct BtcxWalletState {
 /// Type alias for shared BTCX wallet state.
 pub type SharedBtcxWalletState = Arc<BtcxWalletState>;
 
-/// Create a new shared BTCX wallet state.
+/// Create a new shared BTCX wallet state. Runs the legacy-layout migration
+/// (single shared seed → named wallets) BEFORE anything can open a store —
+/// sqlite files move freely only while no runtime holds them.
 pub fn create_btcx_wallet_state() -> SharedBtcxWalletState {
+    let mut config = BtcxWalletConfig::load();
+    match config.migrate_legacy_layout() {
+        Ok(true) => {
+            if let Err(e) = config.save() {
+                log::error!("btcx wallet: saving migrated config failed: {e}");
+            }
+        }
+        Ok(false) => {}
+        // Non-fatal: the marker (root seed) stays, the next launch retries.
+        Err(e) => log::error!("btcx wallet: legacy layout migration failed: {e}"),
+    }
     Arc::new(BtcxWalletState {
-        config: Mutex::new(BtcxWalletConfig::load()),
+        config: Mutex::new(config),
         seed: Mutex::new(None),
         pool: ElectrumPool::new(),
         runtime: Mutex::new(None),
@@ -101,20 +131,28 @@ pub fn create_btcx_wallet_state() -> SharedBtcxWalletState {
 }
 
 impl BtcxWalletState {
-    /// Run `f` on the seed store, opening it on first use. The store lives
-    /// in `<app data dir>/btcx-wallet` and holds the unlock passphrase in
-    /// memory across calls.
+    /// The seed-cache key of the currently selected wallet.
+    fn seed_key(config: &BtcxWalletConfig) -> String {
+        format!("{}/{}", config.network.as_str(), config.active_wallet_name())
+    }
+
+    /// Run `f` on the ACTIVE wallet's seed store, opening it on first use.
+    /// The store lives in that wallet's data dir
+    /// (`btcx-wallet/<network>/<name>/`) and holds the unlock passphrase in
+    /// memory across calls; selecting another wallet or network drops it.
     pub fn with_seed<T>(
         &self,
         f: impl FnOnce(&mut SeedStore) -> Result<T, String>,
     ) -> Result<T, String> {
+        let config = self.get_config();
+        let key = Self::seed_key(&config);
         let mut guard = self.seed.lock().map_err(|_| "seed store lock poisoned")?;
-        if guard.is_none() {
-            let store = SeedStore::open(&BtcxWalletConfig::wallet_dir(), None)
+        if guard.as_ref().map(|(k, _)| k.as_str()) != Some(key.as_str()) {
+            let store = SeedStore::open(&config.active_wallet_root(), None)
                 .map_err(|e| format!("Failed to open seed store: {e:#}"))?;
-            *guard = Some(store);
+            *guard = Some((key, store));
         }
-        f(guard.as_mut().expect("seed store just opened"))
+        f(&mut guard.as_mut().expect("seed store just opened").1)
     }
 
     /// Drop the in-memory seed store (and with it any held passphrase).
@@ -194,6 +232,8 @@ impl BtcxWalletState {
                 config.network,
                 handle.clone(),
                 worker.clone(),
+                home_url.clone(),
+                view_urls.clone(),
                 emitter_stop.clone(),
             );
         }
@@ -201,6 +241,7 @@ impl BtcxWalletState {
         let runtime = WalletRuntime {
             params,
             network: config.network,
+            wallet_name: config.active_wallet_name(),
             policy,
             handle,
             worker,
@@ -210,7 +251,8 @@ impl BtcxWalletState {
         };
         *self.runtime.lock().map_err(|_| "runtime lock poisoned")? = Some(runtime);
         log::info!(
-            "btcx wallet opened on {} ({:?}, coin type 0x{:x})",
+            "btcx wallet '{}' opened on {} ({:?}, coin type 0x{:x})",
+            config.active_wallet_name(),
             config.network.as_str(),
             policy.kind,
             policy.coin_type
@@ -320,6 +362,38 @@ impl BtcxWalletState {
         Ok(())
     }
 
+    /// The open runtime's (home, views) server URLs, if any — the health
+    /// command uses this to stamp server roles.
+    pub fn runtime_urls(&self) -> Option<(String, Vec<String>)> {
+        self.runtime
+            .lock()
+            .ok()?
+            .as_ref()
+            .map(|rt| (rt.home_url.clone(), rt.view_urls.clone()))
+    }
+
+    /// Bounded wait for the sync worker's first completed pass of this run,
+    /// poking it first — operations that BUILD/SPEND call this so they can
+    /// never coin-select from a cache that has not seen the chain at all
+    /// (mirrors wallet-btcx's `with_synced_wallet` guard). Steady state
+    /// costs nothing: the latch is already set.
+    pub fn ensure_first_sync(&self) -> Result<(), String> {
+        let worker = {
+            let guard = self.runtime.lock().map_err(|_| "runtime lock poisoned")?;
+            let rt = guard.as_ref().ok_or("The nodeless wallet is not open")?;
+            rt.worker.clone()
+        };
+        worker.poke();
+        if !worker.wait_first_sync(electrum_btcx::FIRST_SYNC_WAIT) {
+            return Err(
+                "The wallet has not completed its first chain sync yet — check that the \
+                 Electrum server is reachable, then retry"
+                    .to_string(),
+            );
+        }
+        Ok(())
+    }
+
     /// Current status snapshot (`btcx_wallet_status`).
     pub fn status(&self) -> Result<BtcxWalletStatus, String> {
         let config = self.get_config();
@@ -348,12 +422,23 @@ impl BtcxWalletState {
             }
         };
 
+        // "Encrypted" for the UI = passphrase-lockable. The keystore/
+        // obfuscation wraps auto-read and must present like an unencrypted
+        // Core wallet (no padlock).
+        let seed_encrypted = seed_status.seed_exists
+            && std::fs::read_to_string(
+                config.active_wallet_root().join(seedstore::SEED_FILE),
+            )
+            .map(|contents| seed_needs_passphrase(&contents))
+            .unwrap_or(false);
+
         Ok(BtcxWalletStatus {
             seed,
-            seed_encrypted: seed_status.encrypted,
+            seed_encrypted,
             wallet_active,
             active: config.active,
             network: config.network.as_str().to_string(),
+            wallet_name: config.active_wallet_name(),
             synced_height,
             sync_age_secs,
         })
@@ -367,11 +452,39 @@ struct SyncEvent {
     network: &'static str,
     height: u32,
     sync_age_secs: Option<u64>,
+    /// Aggregate Electrum connectivity as the toolbar indicator shows it:
+    /// `connecting` (home server untested), `healthy`, `degraded` (home
+    /// down, a view still healthy), `down`.
+    overall: &'static str,
 }
 
-/// Emit `btcx-wallet:sync` to the frontend on sync completion and on every
-/// height change: a small polling thread over the worker's freshness latch
-/// and the wallet's checkpoint tip (the SyncWorker surface has no callback
+/// Aggregate Electrum connectivity from the passive per-server health
+/// cells: the HOME server (the one the sync worker rides) decides between
+/// healthy/connecting; when it is down, a healthy view downgrades to
+/// `degraded` instead of `down`.
+pub fn overall_health(home_url: &str, view_urls: &[String]) -> &'static str {
+    use electrum_btcx::HealthState;
+    let state = |url: &str| electrum_btcx::server_health(COIN_ID, url).state();
+    match state(home_url) {
+        HealthState::Healthy => "healthy",
+        HealthState::Untested => "connecting",
+        HealthState::Down { .. } => {
+            if view_urls
+                .iter()
+                .any(|u| matches!(state(u), HealthState::Healthy))
+            {
+                "degraded"
+            } else {
+                "down"
+            }
+        }
+    }
+}
+
+/// Emit `btcx-wallet:sync` to the frontend on sync completion, on every
+/// height change, and on every aggregate-health change: a small polling
+/// thread over the worker's freshness latch, the wallet's checkpoint tip
+/// and the passive health cells (the SyncWorker surface has no callback
 /// hook; polling its cheap accessors is the sanctioned pattern). Exits with
 /// the runtime that spawned it.
 fn spawn_sync_emitter(
@@ -379,12 +492,14 @@ fn spawn_sync_emitter(
     network: WalletNetwork,
     handle: WalletHandle,
     worker: Arc<SyncWorker>,
+    home_url: String,
+    view_urls: Vec<String>,
     stop: Arc<AtomicBool>,
 ) {
     let result = std::thread::Builder::new()
         .name("btcx-wallet-sync-emitter".to_string())
         .spawn(move || {
-            let mut last_height: Option<u32> = None;
+            let mut last: Option<(u32, &'static str)> = None;
             loop {
                 // ~3s cadence, checking the stop flag every 500ms so a
                 // close/network-switch never waits on a sleeping thread.
@@ -394,21 +509,20 @@ fn spawn_sync_emitter(
                     }
                     std::thread::sleep(std::time::Duration::from_millis(500));
                 }
-                // Nothing to report before the first completed sync.
-                let Some(age) = worker.fresh_age() else {
-                    continue;
-                };
+                let age = worker.fresh_age();
                 let Ok(entry) = handle.lock() else { return };
                 let height = entry.wallet.latest_checkpoint().height();
                 drop(entry);
-                if last_height != Some(height) {
-                    last_height = Some(height);
+                let overall = overall_health(&home_url, &view_urls);
+                if last != Some((height, overall)) {
+                    last = Some((height, overall));
                     let _ = app.emit(
                         "btcx-wallet:sync",
                         SyncEvent {
                             network: network.as_str(),
                             height,
-                            sync_age_secs: Some(age.as_secs()),
+                            sync_age_secs: age.map(|d| d.as_secs()),
+                            overall,
                         },
                     );
                 }

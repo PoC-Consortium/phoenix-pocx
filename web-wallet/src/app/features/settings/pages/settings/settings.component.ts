@@ -28,9 +28,10 @@ import { SettingsActions } from '../../../../store/settings/settings.actions';
 import { WalletActions } from '../../../../store/wallet/wallet.actions';
 import {
   selectNodeConfig,
-  selectNodelessWallet,
   selectNotifications,
 } from '../../../../store/settings/settings.selectors';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 import {
   NodeConfig,
   NotificationSettings,
@@ -141,6 +142,7 @@ function withListenPort(listenAddress: string, port: number): string {
     MatDialogModule,
     MatTooltipModule,
     I18nPipe,
+    ElectrumServersEditorComponent,
   ],
   template: `
     <div class="settings-page">
@@ -172,6 +174,9 @@ function withListenPort(listenAddress: string, port: number): string {
                     }}</mat-radio-button>
                     <mat-radio-button value="external">{{
                       'node_external_node' | i18n
+                    }}</mat-radio-button>
+                    <mat-radio-button value="remote">{{
+                      'node_remote_node' | i18n
                     }}</mat-radio-button>
                   </mat-radio-group>
                 </div>
@@ -645,19 +650,50 @@ function withListenPort(listenAddress: string, port: number): string {
                   </div>
                 }
 
-                <!-- Experimental (desktop wallet mode only) -->
-                @if (showExperimental) {
+                <!-- Remote (Electrum) Section -->
+                @if (nodeMode() === 'remote') {
+                  <!-- Network Section -->
                   <div class="config-section">
-                    <h3 class="section-title">{{ 'settings_experimental' | i18n }}</h3>
-                    <mat-slide-toggle
-                      [ngModel]="nodelessWallet()"
-                      (ngModelChange)="onNodelessWalletToggle($event)"
+                    <h3 class="section-title">{{ 'network' | i18n }}</h3>
+                    <mat-radio-group
+                      [ngModel]="remoteNetwork()"
+                      (ngModelChange)="onRemoteNetworkChange($event)"
+                      class="horizontal-radio-group"
                     >
-                      {{ 'settings_nodeless_wallet' | i18n }}
-                    </mat-slide-toggle>
-                    <p class="section-description">
-                      {{ 'settings_nodeless_wallet_desc' | i18n }}
-                    </p>
+                      <mat-radio-button value="mainnet">{{ 'mainnet' | i18n }}</mat-radio-button>
+                      <mat-radio-button value="testnet">{{ 'testnet' | i18n }}</mat-radio-button>
+                      <mat-radio-button value="regtest">{{ 'regtest' | i18n }}</mat-radio-button>
+                    </mat-radio-group>
+                  </div>
+
+                  <!-- Electrum Servers Section -->
+                  <div class="config-section">
+                    <h3 class="section-title">{{ 'electrum_servers' | i18n }}</h3>
+                    <p class="section-description">{{ 'electrum_servers_desc' | i18n }}</p>
+                    <app-electrum-servers-editor
+                      [servers]="remoteServers()"
+                      [network]="remoteNetwork()"
+                      [showTest]="true"
+                      [disabled]="isSaving()"
+                      (serversChange)="remoteServers.set($event)"
+                    />
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="action-buttons">
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      (click)="saveAndApply()"
+                      [disabled]="isSaving() || remoteServers().length === 0"
+                    >
+                      @if (isSaving()) {
+                        <mat-spinner diameter="20"></mat-spinner>
+                      } @else {
+                        <mat-icon>save</mat-icon>
+                      }
+                      {{ 'save_apply' | i18n }}
+                    </button>
                   </div>
                 }
               </div>
@@ -799,7 +835,11 @@ function withListenPort(listenAddress: string, port: number): string {
                   </div>
                 </div>
 
-                <!-- Import WIF Key Section -->
+                <!-- Import WIF Key Section (Core wallets only: imports a
+                     single-key descriptor via importdescriptors — the local
+                     BDK wallet is one fixed BIP-84 descriptor and cannot
+                     adopt foreign keys) -->
+                @if (nodeMode() !== 'remote') {
                 <div class="wif-import-section">
                   <h3 class="section-title">{{ 'import_wif_wpkh' | i18n }}</h3>
                   <p class="section-description">
@@ -926,6 +966,7 @@ function withListenPort(listenAddress: string, port: number): string {
                     </div>
                   </div>
                 </div>
+                }
               </div>
             </div>
           </mat-tab>
@@ -1842,21 +1883,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
   readonly nodeService = inject(NodeService);
   protected readonly aggregatorService = inject(AggregatorService);
   private readonly appMode = inject(AppModeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly destroy$ = new Subject<void>();
-
-  // Experimental settings (desktop wallet mode only — the nodeless wallet
-  // is always-on in mobile/wallet-only modes and pointless in mining-only)
-  readonly nodelessWallet = this.store.selectSignal(selectNodelessWallet);
-  readonly showExperimental =
-    this.electron.isDesktop &&
-    !this.appMode.isMobileMode() &&
-    !this.appMode.isWalletOnly() &&
-    !this.appMode.isMiningOnly();
 
   // Managed node state
   nodeMode = signal<NodeMode>('managed');
   isStartingNode = signal(false);
   isStoppingNode = signal(false);
+
+  // Remote (Electrum) mode state — the network + ordered endpoint list the
+  // remote block edits; persisted via NodeService.saveRemoteConfig.
+  readonly remoteNetwork = signal<'mainnet' | 'testnet' | 'regtest'>('mainnet');
+  readonly remoteServers = signal<string[]>([]);
 
   // Expose only the active wallet name for template
   get activeWalletName(): string | null {
@@ -1964,6 +2002,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
     // Initialize managed node service
     await this.nodeService.initialize();
     this.nodeMode.set(this.nodeService.mode());
+
+    // Seed the remote block from the persisted btcx wallet config (network
+    // follows node config when already in remote mode).
+    void this.btcxWallet.refreshConfig().then(() => {
+      const network =
+        this.nodeService.mode() === 'remote'
+          ? this.nodeService.network()
+          : (this.btcxWallet.config()?.network ?? 'mainnet');
+      this.remoteNetwork.set(network);
+      this.remoteServers.set(this.btcxWallet.serversFor(network));
+    });
 
     // Populate managed temp config: always localhost, cookie auth, persisted/default port
     const rustConfig = this.nodeService.config();
@@ -2120,11 +2169,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
     try {
       const mode = this.nodeMode();
-      const config = this.activeConfig;
 
-      // If switching from managed → external while managed node is running, confirm first
+      // If switching away from managed while its node is running, confirm first
       const previousMode = this.nodeService.mode();
-      if (previousMode === 'managed' && mode === 'external' && this.nodeService.isRunning()) {
+      if (previousMode === 'managed' && mode !== 'managed' && this.nodeService.isRunning()) {
         const action = await this.promptManagedNodeAction();
         if (action === null) {
           this.isSaving.set(false);
@@ -2135,6 +2183,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
         }
         // 'keep' — leave the node running, just switch mode
       }
+
+      if (mode === 'remote') {
+        // Remote: one save path for BOTH configs (node mode/network +
+        // Electrum endpoints), no cookie/RPC plumbing, then back to the
+        // wallet selector, which lists the LOCAL wallet store.
+        const network = this.remoteNetwork();
+        const saved = await this.nodeService.saveRemoteConfig(network, this.remoteServers());
+        if (!saved) {
+          this.notification.error(
+            this.nodeService.error() ?? 'Failed to save configuration'
+          );
+          return;
+        }
+        this.store.dispatch(SettingsActions.setNetwork({ network }));
+        this.notification.success(this.i18n.get('settings_saved'));
+        this.store.dispatch(WalletActions.resetState());
+        this.walletManager.setActiveWallet(null);
+        this.router.navigate(['/auth']);
+        return;
+      }
+
+      const config = this.activeConfig;
 
       // 1. Persist mode to Rust
       await this.nodeService.setMode(mode);
@@ -2208,15 +2278,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.store.dispatch(
       SettingsActions.setNotifications({ notifications: { ...this.notifications } })
     );
-  }
-
-  // ============================================================
-  // Experimental
-  // ============================================================
-
-  /** Toggle the experimental desktop nodeless wallet (persisted setting) */
-  onNodelessWalletToggle(enabled: boolean): void {
-    this.store.dispatch(SettingsActions.setNodelessWallet({ enabled }));
   }
 
   // ============================================================
@@ -2424,6 +2485,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
   onNodeModeToggle(mode: NodeMode): void {
     this.nodeMode.set(mode);
     this.testResult.set(null);
+  }
+
+  /** Remote block: switch the edited network (per-network server lists). */
+  onRemoteNetworkChange(network: 'mainnet' | 'testnet' | 'regtest'): void {
+    this.remoteNetwork.set(network);
+    this.remoteServers.set(this.btcxWallet.serversFor(network));
   }
 
   async startManagedNode(): Promise<void> {

@@ -20,6 +20,8 @@ import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../core/i18n';
 import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 import { AppUpdateService } from '../../../core/services/app-update.service';
+import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
+import { ElectrumServersEditorComponent } from '../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 import { SettingsActions } from '../../../store/settings/settings.actions';
 import { getDefaultRpcPort } from '../../../store/settings/settings.state';
 
@@ -33,6 +35,7 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
     MatProgressBarModule,
     MatSnackBarModule,
     I18nPipe,
+    ElectrumServersEditorComponent,
   ],
   template: `
     <div class="setup-container">
@@ -83,6 +86,20 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
                   </div>
                 </div>
               </div>
+
+              <div
+                class="mode-option"
+                [class.selected]="selectedMode() === 'remote'"
+                (click)="selectMode('remote')"
+              >
+                <mat-icon class="mode-icon">bolt</mat-icon>
+                <div class="mode-details">
+                  <div class="mode-title">{{ 'node_setup_remote_title' | i18n }}</div>
+                  <div class="mode-desc">
+                    {{ 'node_setup_remote_desc' | i18n }}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <label class="testnet-toggle">
@@ -90,7 +107,23 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
               <span>{{ 'node_setup_testnet_mode' | i18n }}</span>
             </label>
 
-            <div class="advanced-section">
+            @if (selectedMode() === 'remote') {
+              <div class="remote-section">
+                <div class="section-header">
+                  <span class="section-title">{{ 'electrum_servers' | i18n }}</span>
+                </div>
+                <div class="section-content">
+                  <app-electrum-servers-editor
+                    [servers]="remoteServers()"
+                    [network]="testnetMode() ? 'testnet' : 'mainnet'"
+                    [showTest]="true"
+                    (serversChange)="remoteServers.set($event)"
+                  />
+                </div>
+              </div>
+            }
+
+            <div class="advanced-section" [hidden]="selectedMode() === 'remote'">
               <div class="section-header">
                 <span class="section-title">{{ 'setup_advanced_options' | i18n }}</span>
                 <button class="collapse-toggle" type="button" (click)="toggleAdvanced()">
@@ -120,7 +153,12 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
           <div class="box-actions">
             <div class="left-actions"></div>
             <div class="right-actions">
-              <button mat-raised-button color="primary" (click)="continueFromModeSelection()">
+              <button
+                mat-raised-button
+                color="primary"
+                [disabled]="selectedMode() === 'remote' && remoteServers().length === 0"
+                (click)="continueFromModeSelection()"
+              >
                 <mat-icon>arrow_forward</mat-icon>
                 {{ 'node_setup_continue' | i18n }}
               </button>
@@ -412,12 +450,32 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
         cursor: pointer;
       }
 
-      .advanced-section {
+      .advanced-section,
+      .remote-section {
         margin-top: 16px;
         border: 1px solid rgba(0, 0, 0, 0.12);
         border-radius: 6px;
         overflow: hidden;
         font-size: 13px;
+      }
+
+      .remote-section .section-header {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        background: rgba(0, 0, 0, 0.04);
+      }
+
+      .remote-section .section-title {
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: rgba(0, 0, 0, 0.7);
+      }
+
+      .remote-section .section-content {
+        padding: 12px;
       }
 
       .advanced-section .section-header {
@@ -749,6 +807,7 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly appUpdateService = inject(AppUpdateService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly store = inject(Store);
 
   /** App version from backend */
@@ -758,6 +817,8 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
   readonly currentStep = signal(0);
   readonly selectedMode = signal<NodeMode>('managed');
   readonly testnetMode = signal(false);
+  /** Remote mode: ordered Electrum endpoints (first = primary). */
+  readonly remoteServers = signal<string[]>([]);
   readonly customRpcPort = signal<number | null>(null);
   readonly advancedOpen = signal(false);
   readonly releaseInfo = signal<ReleaseInfo | null>(null);
@@ -782,6 +843,12 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
     await this.nodeService.initialize();
     const config = this.nodeService.config();
     this.selectedMode.set(config.mode);
+
+    // Prefill the remote endpoint list from any previously saved btcx
+    // wallet config (best effort — an empty list is the honest default).
+    void this.btcxWallet
+      .refreshConfig()
+      .then(() => this.remoteServers.set(this.btcxWallet.serversFor(this.currentNetwork())));
 
     // Check if we're in update mode (navigated from settings with ?update=true)
     const updateParam = this.route.snapshot.queryParamMap.get('update');
@@ -885,6 +952,12 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
 
   toggleTestnetMode(): void {
     this.testnetMode.update(v => !v);
+    // The endpoint list is per network — reload the toggled network's list.
+    this.remoteServers.set(this.btcxWallet.serversFor(this.currentNetwork()));
+  }
+
+  private currentNetwork(): 'mainnet' | 'testnet' {
+    return this.testnetMode() ? 'testnet' : 'mainnet';
   }
 
   toggleAdvanced(): void {
@@ -916,6 +989,21 @@ export class NodeSetupComponent implements OnInit, OnDestroy {
 
     // Sync network to NgRx store so RpcClientService uses the correct port
     this.store.dispatch(SettingsActions.setNetwork({ network }));
+
+    if (this.selectedMode() === 'remote') {
+      // Remote: save node mode + Electrum endpoints in one path (no
+      // install step, no local node) and go to the wallet selector, which
+      // lists the LOCAL wallet store in this mode.
+      const saved = await this.nodeService.saveRemoteConfig(network, this.remoteServers());
+      if (!saved) {
+        this.snackBar.open(this.nodeService.error() ?? 'Failed to save configuration', 'OK', {
+          duration: 5000,
+        });
+        return;
+      }
+      this.router.navigate(['/auth']);
+      return;
+    }
 
     if (this.selectedMode() === 'external') {
       // External: save and go to wallet selector

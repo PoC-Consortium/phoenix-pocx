@@ -108,6 +108,9 @@ pub fn start_managed_node(
     manager: State<'_, NodeManager>,
     app: AppHandle,
 ) -> Result<u32, String> {
+    if state.get_config().mode == NodeMode::Remote {
+        return Err("Remote mode has no local node to start".to_string());
+    }
     manager.start(&state, &app)
 }
 
@@ -143,6 +146,9 @@ pub fn restart_managed_node(
     manager: State<'_, NodeManager>,
     app: AppHandle,
 ) -> Result<u32, String> {
+    if state.get_config().mode == NodeMode::Remote {
+        return Err("Remote mode has no local node to restart".to_string());
+    }
     manager.restart(&state, &app)
 }
 

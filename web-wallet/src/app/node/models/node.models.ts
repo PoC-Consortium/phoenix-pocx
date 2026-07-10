@@ -9,7 +9,8 @@
 // ============================================================================
 
 // Note: These must be lowercase to match Rust serde(rename_all = "lowercase")
-export type NodeMode = 'managed' | 'external';
+// 'remote' = no local node; the wallet runs over Electrum servers.
+export type NodeMode = 'managed' | 'external' | 'remote';
 
 export type Network = 'mainnet' | 'testnet' | 'regtest';
 

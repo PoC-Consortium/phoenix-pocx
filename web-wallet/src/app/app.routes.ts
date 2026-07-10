@@ -8,6 +8,7 @@ import {
   notWalletOnlyGuard,
   mobileWalletGuard,
 } from './core/guards';
+import { notRemoteGuard } from './core/guards/not-remote.guard';
 
 /**
  * Application routes with lazy-loaded feature modules.
@@ -153,12 +154,16 @@ export const routes: Routes = [
             m => m.FORGING_ASSIGNMENT_ROUTES
           ),
       },
+      // Full-node-only pages (getpeerinfo / getblock walks) — remote
+      // (Electrum) mode redirects to the dashboard.
       {
         path: 'peers',
+        canActivate: [notRemoteGuard],
         loadChildren: () => import('./features/peers/peers.routes').then(m => m.PEERS_ROUTES),
       },
       {
         path: 'blocks',
+        canActivate: [notRemoteGuard],
         loadChildren: () => import('./features/blocks/blocks.routes').then(m => m.BLOCKS_ROUTES),
       },
       {

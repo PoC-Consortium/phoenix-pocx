@@ -11,8 +11,13 @@ phoenix-pocx/
 │   │   ├── app/
 │   │   │   ├── core/        # Core services
 │   │   │   │   ├── auth/    # Cookie authentication
-│   │   │   │   ├── guards/  # Route guards (auth, node-setup)
-│   │   │   │   └── services/# Desktop, Platform services
+│   │   │   │   ├── backend/ # WalletBackend seam: Core RPC vs Electrum/BDK
+│   │   │   │   │   ├── wallet-backend.model.ts       # Interfaces + capability matrix
+│   │   │   │   │   ├── core-wallet-backend.ts        # Bitcoin Core RPC impl
+│   │   │   │   │   ├── electrum-wallet-backend.ts    # Local BDK wallet impl
+│   │   │   │   │   └── backend-router.service.ts     # Routes by node mode
+│   │   │   │   ├── guards/  # Route guards (auth, node-setup, not-remote)
+│   │   │   │   └── services/# Desktop, Platform, BtcxWallet, ElectrumStatus
 │   │   │   ├── bitcoin/     # Bitcoin-specific services
 │   │   │   │   └── services/
 │   │   │   │       ├── rpc/ # Split RPC services
@@ -152,6 +157,32 @@ Despite the legacy name, this service is now primarily for Tauri:
 - **wallet** feature: balance, transactions, UTXOs, addresses
 - **settings** feature: network, theme, preferences
 
+### Backend Abstraction (Remote/Electrum Mode)
+Node mode is **managed / external / remote**. Remote mode runs WITHOUT a
+local bitcoind: a named local BDK wallet store (Rust `btcx_wallet` module,
+BIP-84 @ POCX coin type 0x504F4358, one open wallet at a time) synced over
+user-configured Electrum servers (ordered list, first = primary, rest
+failover).
+
+1. **BackendRouterService** (`core/backend/`) — hands out THE `WalletBackend`
+   for the current mode; `WalletService`, `BlockchainStateService`, the NgRx
+   wallet effects and the pages consume this seam, so every page works
+   against Core RPC and Electrum/BDK alike. `capabilities()` gates
+   Core-only actions (abandontransaction, wallet encryption RPCs, rescan,
+   watch-only, multisig, testmempoolaccept).
+2. **Polling**: remote mode never polls from Angular — the Rust SyncWorker
+   ticks at 15s with scripthash subscriptions and the `btcx-wallet:sync`
+   event (height + aggregate health) drives WalletService/
+   BlockchainStateService refreshes. Chain info (height/base_target for
+   network capacity) comes from `btcx_chain_info` (PoCX tip header).
+3. **Remote-only surfaces**: toolbar Electrum indicator
+   (`ElectrumStatusService` + `btcx_electrum_health`), client-side forging
+   assignments (`btcx_wallet_*_assignment` — OP_RETURN txs built/signed via
+   BDK, status derived from Electrum script history), client-side PSBT ops
+   (`btcx_psbt_*`).
+4. **Disabled in remote**: solo mining (pool/custom only), blocks explorer,
+   peers page (guarded by `notRemoteGuard`).
+
 ### Node Layer (Managed Node)
 The node module provides optional managed node functionality:
 
@@ -228,6 +259,31 @@ Located in `src-tauri/src/node/`:
 - Lightweight RPC client for node communication
 - Health check (getblockchaininfo)
 - Graceful stop command
+
+## Rust BTCX Wallet Backend (nodeless / remote mode)
+
+Located in `src-tauri/src/btcx_wallet/`, built on the shared btcx crates
+(`params-btcx`, `keys-btcx`, `seedstore`, `electrum-btcx`, `wallet-btcx`):
+
+- **config.rs** — `btcx_wallet_config.json`: network, per-network ordered
+  Electrum server lists, NAMED wallet registry (`wallets`/`active_wallet`)
+  with per-wallet descriptor policy; legacy single-wallet layout migration.
+- **state.rs** — seed store (per active wallet), Electrum pool, one open
+  wallet runtime (bdk handle + SyncWorker), `btcx-wallet:sync` emitter
+  (height + aggregate health), chain-only Electrum broadcast.
+- **manager.rs** — descriptor-explicit wallet open + restore probing.
+- **assignments.rs** — client-side forging assignments: POCX/XCOP OP_RETURN
+  build/sign/broadcast via BDK (`TxOrdering::Untouched`, plot-address UTXO
+  as ownership proof) and `get_assignment` state derived from Electrum
+  script history (delays: 30/720 blocks main+test, 4/8 regtest).
+- **psbt.rs** — client-side decode/analyze/sign/finalize/combine +
+  `walletcreatefundedpsbt` + `btcx_wallet_utxos`.
+- **commands.rs** — all `btcx_wallet_*`/`btcx_psbt_*`/`btcx_electrum_*`
+  Tauri commands (wallet registry: list/select/close/delete; health/probe/
+  chain-info for the remote-mode UI).
+
+Data layout: `btcx-wallet/<network>/<name>/{seed.mnemonic, wallet/btcx.sqlite}`;
+deleted wallets move to `<network>/.trash/`, never removed.
 
 ## Rust Mining Backend
 

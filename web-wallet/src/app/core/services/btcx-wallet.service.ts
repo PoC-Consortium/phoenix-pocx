@@ -29,7 +29,11 @@ export type BtcxNetwork = 'mainnet' | 'testnet' | 'regtest';
 export interface BtcxWalletStatus {
   /** Seed lifecycle: none | locked | unlocked. */
   seed: BtcxSeedState;
-  /** Whether the on-disk seed is passphrase-encrypted. */
+  /**
+   * Whether the seed is PASSPHRASE-encrypted (lockable). False for the
+   * transparent at-rest wraps (OS keystore / obfuscation) — those present
+   * like unencrypted Core wallets (no padlock).
+   */
   seedEncrypted: boolean;
   /** Whether the wallet runtime is open (bdk wallet + sync worker). */
   walletActive: boolean;
@@ -37,6 +41,8 @@ export interface BtcxWalletStatus {
   active: boolean;
   /** Active network name. */
   network: BtcxNetwork;
+  /** Name of the selected wallet on the active network. */
+  walletName: string;
   /** Wallet-cache chain height, once open. */
   syncedHeight?: number;
   /** Seconds since the last completed sync pass. */
@@ -122,14 +128,45 @@ export interface BtcxRestoreResult {
   fresh: boolean;
 }
 
+/** Per-wallet metadata in the named-wallet registry. */
+export interface BtcxWalletMeta {
+  policy: BtcxDescriptorPolicy;
+  /** Unix seconds at create/restore/migration time (display only). */
+  createdAt?: number | null;
+}
+
+/** One registered wallet as listed by `btcx_wallet_list`. */
+export interface BtcxWalletSummary {
+  name: string;
+  network: BtcxNetwork;
+  policy: BtcxDescriptorPolicy;
+  /** The selected wallet of the network. */
+  isActive: boolean;
+  /** Runtime open (only ever true for the active wallet). */
+  isOpen: boolean;
+  /** Whether the seed is PASSPHRASE-encrypted (lockable, shows a padlock). */
+  seedEncrypted: boolean;
+  /** Whether the seed currently needs a passphrase unlock. */
+  seedLocked: boolean;
+  /** Total balance in sats — only present for the open wallet. */
+  balanceSat?: number;
+}
+
 /** Persisted wallet configuration (`btcx_wallet_get_config`). */
 export interface BtcxWalletConfig {
   network: BtcxNetwork;
-  /** Electrum server URLs keyed by network name. */
+  /** Electrum server URLs keyed by network name (first = primary). */
   electrumServers: Record<string, string[]>;
   active: boolean;
-  /** Descriptor policy per network name (missing = fresh default). */
-  descriptors: Record<string, BtcxDescriptorPolicy>;
+  /**
+   * LEGACY (pre-multi-wallet) descriptor policy per network name — only
+   * present until the startup migration has run; absent afterwards.
+   */
+  descriptors?: Record<string, BtcxDescriptorPolicy>;
+  /** Named-wallet registry: network name → wallet name → metadata. */
+  wallets: Record<string, Record<string, BtcxWalletMeta>>;
+  /** The selected wallet per network name (missing = 'default'). */
+  activeWallet: Record<string, string>;
 }
 
 /** A send request (`btcx_wallet_send`). Give amountSat XOR sendAll. */
@@ -144,11 +181,106 @@ export interface BtcxSendRequest {
   feeRateSatVb?: number;
 }
 
+/** Aggregate Electrum connectivity as the toolbar indicator shows it. */
+export type BtcxOverallHealth = 'connecting' | 'healthy' | 'degraded' | 'down';
+
 /** Payload of the `btcx-wallet:sync` event. */
 export interface BtcxSyncEvent {
   network: string;
   height: number;
   syncAgeSecs: number | null;
+  /** Aggregate Electrum connectivity (home server + failover views). */
+  overall: BtcxOverallHealth;
+}
+
+/** One server's health snapshot (`btcx_electrum_health`, snake_case DTO). */
+export interface BtcxServerHealth {
+  coin_id: string;
+  url: string;
+  /** 'untested' | 'healthy' | 'down'. */
+  state: 'untested' | 'healthy' | 'down';
+  /** 'wallet' (the home server), 'view', or 'standby'. */
+  role?: 'wallet' | 'view' | 'standby';
+  /** When down: seconds until the backoff window expires. */
+  retry_in_secs?: number;
+  /** Smoothed request latency, milliseconds. */
+  latency_ms?: number;
+  last_ok_secs_ago?: number;
+  last_error?: string;
+  last_error_secs_ago?: number;
+  requests: number;
+  failures: number;
+}
+
+/** Result of a live server probe (`btcx_electrum_probe`). */
+export interface BtcxElectrumProbeResult {
+  /** The server's chain tip height. */
+  height: number;
+  /** Round-trip time of the tip fetch, milliseconds. */
+  latencyMs: number;
+}
+
+/** Chain tip snapshot from Electrum (`btcx_chain_info`). */
+export interface BtcxChainInfo {
+  network: BtcxNetwork;
+  height: number;
+  tipHash: string;
+  /** nTime of the tip header, unix seconds. */
+  headerTime: number;
+  /** PoCX consensus base target of the tip (0 when unavailable). */
+  baseTarget: number;
+}
+
+/** Client-side PSBT decode result (`btcx_psbt_decode`). */
+export interface BtcxPsbtDecode {
+  txid: string;
+  version: number;
+  locktime: number;
+  vin: { txid: string; vout: number; sequence: number }[];
+  vout: {
+    n: number;
+    valueSat: number;
+    address?: string;
+    scriptHex: string;
+    opReturn: boolean;
+  }[];
+  inputs: {
+    index: number;
+    hasWitnessUtxo: boolean;
+    hasNonWitnessUtxo: boolean;
+    utxoValueSat?: number;
+    utxoAddress?: string;
+    partialSigs: number;
+    isFinal: boolean;
+  }[];
+  feeSat?: number;
+  complete: boolean;
+}
+
+/** Client-side PSBT analysis result (`btcx_psbt_analyze`). */
+export interface BtcxPsbtAnalyze {
+  inputs: { index: number; hasUtxo: boolean; isFinal: boolean; next: string }[];
+  next: 'updater' | 'signer' | 'finalizer' | 'extractor';
+  feeSat?: number;
+  estimatedVsize?: number;
+  estimatedFeeRateSatVb?: number;
+}
+
+/** Sign/finalize result (`btcx_psbt_wallet_process` / `btcx_psbt_finalize`). */
+export interface BtcxPsbtProcessResult {
+  psbt: string;
+  hex?: string;
+  complete: boolean;
+}
+
+/** One spendable wallet UTXO (`btcx_wallet_utxos`). */
+export interface BtcxUtxo {
+  txid: string;
+  vout: number;
+  amountSat: number;
+  address?: string;
+  confirmations: number;
+  isChange: boolean;
 }
 
 /** The BIP32 coin type new BTCX wallets derive at (0x504F4358, "POCX"). */
@@ -222,11 +354,23 @@ export class BtcxWalletService {
   });
   readonly hasElectrumServer = computed(() => this.electrumServers().length > 0);
 
-  /** Descriptor policy of the ACTIVE network (null = fresh default). */
+  /** Name of the selected wallet on the active network. */
+  readonly walletName = computed(() => this._status()?.walletName ?? 'default');
+
+  /**
+   * Descriptor policy of the active network's selected wallet (null =
+   * fresh default). Falls back to the legacy per-network map while the
+   * startup migration has not run yet.
+   */
   readonly descriptorPolicy = computed<BtcxDescriptorPolicy | null>(() => {
     const config = this._config();
     if (!config) return null;
-    return config.descriptors[config.network] ?? null;
+    const name = config.activeWallet?.[config.network] ?? 'default';
+    return (
+      config.wallets?.[config.network]?.[name]?.policy ??
+      config.descriptors?.[config.network] ??
+      null
+    );
   });
 
   // ============================================================================
@@ -324,10 +468,11 @@ export class BtcxWalletService {
    * The optional passphrase encrypts the seed at rest only — the mnemonic
    * alone always recovers the funds. Throws on failure.
    */
-  async create(mnemonic: string, passphrase?: string): Promise<BtcxWalletStatus> {
+  async create(mnemonic: string, passphrase?: string, name?: string): Promise<BtcxWalletStatus> {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_create', {
       mnemonic,
       passphrase: passphrase || null,
+      name: name ?? null,
     });
     this._status.set(status);
     await this.refreshConfig();
@@ -341,10 +486,15 @@ export class BtcxWalletService {
    * Electrum server) and opens the best hit; the result carries the full
    * hit list and an honest fresh verdict. Throws on failure.
    */
-  async restore(mnemonic: string, passphrase?: string): Promise<BtcxRestoreResult> {
+  async restore(
+    mnemonic: string,
+    passphrase?: string,
+    name?: string
+  ): Promise<BtcxRestoreResult> {
     const result = await invoke<BtcxRestoreResult>('btcx_wallet_restore', {
       mnemonic,
       passphrase: passphrase || null,
+      name: name ?? null,
     });
     this._status.set(result.status);
     await this.refreshConfig();
@@ -381,12 +531,64 @@ export class BtcxWalletService {
       this._status.set(status);
       this._balance.set(null);
       this._transactions.set([]);
+      this._lastSync.set(null);
       return status;
     } catch (err) {
       console.error('Failed to lock btcx wallet:', err);
       this._error.set(`${err}`);
       return null;
     }
+  }
+
+  // ============================================================================
+  // Named-Wallet Registry
+  // ============================================================================
+
+  /** List the registered wallets of the active network. Throws on failure. */
+  async list(): Promise<BtcxWalletSummary[]> {
+    return invoke<BtcxWalletSummary[]>('btcx_wallet_list');
+  }
+
+  /**
+   * Select (and open, when possible) another registered wallet of the
+   * active network. Closes the previous wallet's runtime. Throws on failure.
+   */
+  async select(name: string): Promise<BtcxWalletStatus> {
+    const status = await invoke<BtcxWalletStatus>('btcx_wallet_select', { name });
+    this._status.set(status);
+    this._balance.set(null);
+    this._transactions.set([]);
+    // The previous runtime's sync events no longer describe this wallet.
+    this._lastSync.set(null);
+    await this.refreshConfig();
+    await this.refreshAll();
+    return status;
+  }
+
+  /**
+   * Close the active wallet's runtime WITHOUT switching the selection (the
+   * wallet selector's "unload"). The held passphrase survives.
+   */
+  async close(): Promise<BtcxWalletStatus> {
+    const status = await invoke<BtcxWalletStatus>('btcx_wallet_close');
+    this._status.set(status);
+    this._balance.set(null);
+    this._transactions.set([]);
+    // The closed runtime's sync events are stale — the toolbar falls back
+    // to the passive per-server health snapshots.
+    this._lastSync.set(null);
+    return status;
+  }
+
+  /**
+   * Delete a registered wallet — moved to the network's trash directory,
+   * never removed from disk. Refuses the open wallet; `confirmName` must
+   * repeat the name exactly. Throws on failure.
+   */
+  async delete(name: string, confirmName: string): Promise<void> {
+    await invoke('btcx_wallet_delete', { name, confirmName });
+    await this.refreshConfig();
+    await this.refreshStatus();
   }
 
   // ============================================================================
@@ -499,6 +701,135 @@ export class BtcxWalletService {
     await this.refreshConfig();
     await this.refreshAll();
     return status;
+  }
+
+  // ============================================================================
+  // PSBT Operations (remote node mode)
+  // ============================================================================
+
+  /** Decode a PSBT for display — client-side `decodepsbt`. Throws on failure. */
+  async psbtDecode(psbtBase64: string): Promise<BtcxPsbtDecode> {
+    return invoke<BtcxPsbtDecode>('btcx_psbt_decode', { psbtBase64 });
+  }
+
+  /** Analyze a PSBT's signing progress — client-side `analyzepsbt`. */
+  async psbtAnalyze(psbtBase64: string): Promise<BtcxPsbtAnalyze> {
+    return invoke<BtcxPsbtAnalyze>('btcx_psbt_analyze', { psbtBase64 });
+  }
+
+  /** Sign a PSBT with the open wallet — client-side `walletprocesspsbt`. */
+  async psbtProcess(psbtBase64: string): Promise<BtcxPsbtProcessResult> {
+    return invoke<BtcxPsbtProcessResult>('btcx_psbt_wallet_process', { psbtBase64 });
+  }
+
+  /** Finalize a PSBT — client-side `finalizepsbt` (hex when complete). */
+  async psbtFinalize(psbtBase64: string): Promise<BtcxPsbtProcessResult> {
+    return invoke<BtcxPsbtProcessResult>('btcx_psbt_finalize', { psbtBase64 });
+  }
+
+  /** Merge signatures from several copies — client-side `combinepsbt`. */
+  async psbtCombine(psbts: string[]): Promise<string> {
+    return invoke<string>('btcx_psbt_combine', { psbts });
+  }
+
+  /** Compose a funded UNSIGNED PSBT — client-side `walletcreatefundedpsbt`. */
+  async createFundedPsbt(
+    outputs: { address: string; amountSat: number }[],
+    feeRateSatVb?: number
+  ): Promise<string> {
+    return invoke<string>('btcx_wallet_create_funded_psbt', {
+      outputs,
+      feeRateSatVb: feeRateSatVb ?? null,
+    });
+  }
+
+  /** The open wallet's unspent outputs (cache read). Throws on failure. */
+  async utxos(): Promise<BtcxUtxo[]> {
+    return invoke<BtcxUtxo[]>('btcx_wallet_utxos');
+  }
+
+  // ============================================================================
+  // Forging Assignments (remote node mode)
+  // ============================================================================
+
+  /**
+   * Create a forging assignment client-side (BDK build + sign, Electrum
+   * broadcast). The plot address must hold a spendable coin in the open
+   * wallet. Result mirrors the node's `create_assignment` (snake_case).
+   * Throws on failure.
+   */
+  async createAssignment(
+    plotAddress: string,
+    forgingAddress: string,
+    feeRateSatVb?: number
+  ): Promise<{ txid: string; hex: string; plot_address: string; forging_address: string }> {
+    const result = await invoke<{
+      txid: string;
+      hex: string;
+      plot_address: string;
+      forging_address: string;
+    }>('btcx_wallet_create_assignment', {
+      plotAddress,
+      forgingAddress,
+      feeRateSatVb: feeRateSatVb ?? null,
+    });
+    await this.refreshAll();
+    return result;
+  }
+
+  /** Revoke a forging assignment client-side. Throws on failure. */
+  async revokeAssignment(
+    plotAddress: string,
+    feeRateSatVb?: number
+  ): Promise<{ txid: string; hex: string; plot_address: string }> {
+    const result = await invoke<{ txid: string; hex: string; plot_address: string }>(
+      'btcx_wallet_revoke_assignment',
+      { plotAddress, feeRateSatVb: feeRateSatVb ?? null }
+    );
+    await this.refreshAll();
+    return result;
+  }
+
+  /**
+   * Assignment status derived from the plot address's Electrum script
+   * history — mirrors the node's `get_assignment` (snake_case DTO).
+   * Chain-only: works without an open wallet. Throws on failure.
+   */
+  async getAssignment(plotAddress: string): Promise<unknown> {
+    return invoke('btcx_wallet_get_assignment', { plotAddress });
+  }
+
+  // ============================================================================
+  // Electrum Health & Chain Info (remote node mode)
+  // ============================================================================
+
+  /**
+   * Per-server health snapshots of the active network's configured servers
+   * (passive cells — no network I/O). Throws on failure.
+   */
+  async electrumHealth(): Promise<BtcxServerHealth[]> {
+    return invoke<BtcxServerHealth[]>('btcx_electrum_health');
+  }
+
+  /**
+   * Probe one Electrum server with a fresh connection: dial, genesis-check
+   * the chain, time a tip fetch. Throws with a reason on failure — the
+   * settings "Test connection" button surfaces it.
+   */
+  async electrumProbe(url: string, network?: BtcxNetwork): Promise<BtcxElectrumProbeResult> {
+    return invoke<BtcxElectrumProbeResult>('btcx_electrum_probe', {
+      url,
+      network: network ?? null,
+    });
+  }
+
+  /**
+   * Chain tip snapshot from the active network's first configured server —
+   * the remote-mode replacement for getblockchaininfo. Chain-only: needs no
+   * seed and no open wallet. Throws on failure.
+   */
+  async chainInfo(): Promise<BtcxChainInfo> {
+    return invoke<BtcxChainInfo>('btcx_chain_info');
   }
 
   /**

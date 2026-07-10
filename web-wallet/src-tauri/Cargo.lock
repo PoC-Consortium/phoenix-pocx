@@ -4095,6 +4095,7 @@ version = "2.0.5"
 dependencies = [
  "anyhow",
  "bdk_wallet",
+ "bech32",
  "bitcoin",
  "dirs",
  "electrum-btcx",

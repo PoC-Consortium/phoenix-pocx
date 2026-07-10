@@ -67,6 +67,8 @@ electrum-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "f1e2168
 wallet-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "f1e216897bae629a251f4bd83f95bb71b4ffb06e" }
 bitcoin = { version = "0.32", features = ["serde", "rand-std"] }
 bdk_wallet = { version = "2", features = ["rusqlite"] }
+# bech32 with custom HRPs (pocx/tpocx/rpocx) — same version the btcx crates use
+bech32 = "0.11"
 
 # SHA256 hashing for node binary verification
 sha2 = "0.10"

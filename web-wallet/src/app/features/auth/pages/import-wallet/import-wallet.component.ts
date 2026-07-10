@@ -20,6 +20,12 @@ import {
   RestoreBranchReport,
 } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
+import { NodeService } from '../../../../node/services/node.service';
+import {
+  BtcxWalletService,
+  BtcxRestoreResult,
+  BtcxDescriptorPolicy,
+} from '../../../../core/services/btcx-wallet.service';
 
 /**
  * ImportWalletComponent guides users through importing an existing Bitcoin wallet.
@@ -76,8 +82,12 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 />
                 @if (walletNameConflict()) {
                   <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
+                } @else if (walletNameInvalid()) {
+                  <mat-error>{{ 'wallet_name_invalid_local' | i18n }}</mat-error>
                 } @else {
-                  <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
+                  <mat-hint>{{
+                    (isRemote() ? 'wallet_name_hint_local' : 'wallet_name_hint') | i18n
+                  }}</mat-hint>
                 }
               </mat-form-field>
               <div class="step-actions">
@@ -87,7 +97,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || walletNameConflict() || importing()"
+                  [disabled]="!walletName || walletNameConflict() || walletNameInvalid() || importing()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -106,8 +116,10 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
                 (changed)="onMnemonicChanged($event)"
               ></app-mnemonic-entry>
 
-              <!-- BIP39 Passphrase Option (25th word) -->
-              <div class="passphrase-section">
+              <!-- BIP39 Passphrase Option (25th word) — Core wallets only;
+                   the local BDK wallet derives with an empty BIP39
+                   passphrase by design. -->
+              <div class="passphrase-section" [hidden]="isRemote()">
                 <mat-checkbox [(ngModel)]="useBip39Passphrase" class="passphrase-checkbox">
                   {{ 'use_bip39_passphrase' | i18n }}
                 </mat-checkbox>
@@ -183,10 +195,12 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
             </div>
           }
 
-          <!-- Step 3: Bitcoin Core Wallet Encryption -->
+          <!-- Step 3: Wallet Encryption (Core passphrase / local seed-at-rest) -->
           @if (currentStep() === 3 && !imported()) {
             <div class="step-content">
-              <p class="info-text">{{ 'wallet_encryption_info' | i18n }}</p>
+              <p class="info-text">
+                {{ (isRemote() ? 'wallet_encryption_info_local' : 'wallet_encryption_info') | i18n }}
+              </p>
 
               <mat-checkbox [(ngModel)]="useWalletEncryption" class="encryption-checkbox">
                 {{ 'encrypt_wallet' | i18n }}
@@ -224,7 +238,7 @@ import { selectIsTestnet } from '../../../../store/settings/settings.selectors';
 
               <p class="info-text hint">
                 <mat-icon>info</mat-icon>
-                {{ 'rescan_info' | i18n }}
+                {{ (isRemote() ? 'restore_probe_info' : 'rescan_info') | i18n }}
               </p>
 
               <div class="step-actions">
@@ -373,6 +387,14 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+  private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
+
+  /** Remote (Electrum) mode: local BDK wallet, Electrum restore probing. */
+  readonly isRemote = this.nodeService.isRemote;
+
+  /** Remote mode: the name fails the local store's naming rules. */
+  readonly walletNameInvalid = signal(false);
 
   // Get testnet flag from settings store
   private readonly isTestnet = toSignal(this.store.select(selectIsTestnet), { initialValue: true });
@@ -420,6 +442,13 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     this.walletNameConflict.set(
       target.length > 0 && this.existingWalletNames().some(n => n.toLowerCase() === target)
     );
+    // Local wallets: mirror the Rust-side rules on the name that actually
+    // gets sent (case is preserved, Core-style; uniqueness is checked
+    // case-insensitively above), so violations show before the commit step.
+    const raw = this.walletName.trim();
+    this.walletNameInvalid.set(
+      this.isRemote() && raw.length > 0 && !/^[A-Za-z0-9_-]{1,32}$/.test(raw)
+    );
   }
 
   getCurrentStepTitle(): string {
@@ -461,29 +490,45 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     try {
       const mnemonic = this.mnemonic;
 
-      // Only use BIP39 passphrase if checkbox is enabled
-      const mnemonicPassphrase = this.useBip39Passphrase ? this.passphrase : undefined;
+      if (this.isRemote()) {
+        // Remote (Electrum) mode: the backend probes EVERY derivation
+        // branch the seed's history could live on over Electrum before
+        // importing, and opens the best hit. The optional password
+        // encrypts the seed at rest.
+        const name = this.walletName.trim();
+        const passphrase =
+          this.useWalletEncryption && this.walletPassword ? this.walletPassword : undefined;
+        const result = await this.btcxWallet.restore(mnemonic, passphrase, name);
+        this.branchReport.set(this.mapBtcxRestore(result));
+        const loaded = await this.walletManager.refreshLoadedWallets();
+        if (loaded.includes(name)) {
+          this.walletManager.setActiveWallet(name);
+        }
+      } else {
+        // Only use BIP39 passphrase if checkbox is enabled
+        const mnemonicPassphrase = this.useBip39Passphrase ? this.passphrase : undefined;
 
-      const result = await this.walletManager.createWalletFromMnemonic({
-        walletName: this.walletName,
-        mnemonic,
-        mnemonicPassphrase,
-        isTestnet: this.isTestnet(),
-        rescan: true, // Always rescan for imported wallets
-        restore: true, // POCX branch active + funded legacy branches watched
-      });
+        const result = await this.walletManager.createWalletFromMnemonic({
+          walletName: this.walletName,
+          mnemonic,
+          mnemonicPassphrase,
+          isTestnet: this.isTestnet(),
+          rescan: true, // Always rescan for imported wallets
+          restore: true, // POCX branch active + funded legacy branches watched
+        });
 
-      if (!result.success) {
-        throw new Error(result.errors?.join(', ') || 'Import failed');
-      }
+        if (!result.success) {
+          throw new Error(result.errors?.join(', ') || 'Import failed');
+        }
 
-      // Which branches the restore-time UTXO scan found coins on (null
-      // when the scan could not run — the note is simply skipped then).
-      this.branchReport.set(result.branchReport ?? null);
+        // Which branches the restore-time UTXO scan found coins on (null
+        // when the scan could not run — the note is simply skipped then).
+        this.branchReport.set(result.branchReport ?? null);
 
-      // Encrypt wallet if requested
-      if (this.useWalletEncryption && this.walletPassword) {
-        await this.walletManager.encryptWallet(this.walletName, this.walletPassword);
+        // Encrypt wallet if requested
+        if (this.useWalletEncryption && this.walletPassword) {
+          await this.walletManager.encryptWallet(this.walletName, this.walletPassword);
+        }
       }
 
       this.clearSecrets();
@@ -491,10 +536,27 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
       this.imported.set(true);
     } catch (error) {
       console.error('Failed to import wallet:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to import wallet';
+      // Tauri command rejections are plain strings, not Error instances —
+      // surface them instead of a generic message.
+      const errorMessage =
+        error instanceof Error ? error.message : String(error) || 'Failed to import wallet';
       this.snackBar.open(errorMessage, this.i18n.get('dismiss'), { duration: 5000 });
       this.importing.set(false);
     }
+  }
+
+  /**
+   * Map the remote restore's probe hits onto the same branch-report shape
+   * the Core path renders (legacy = coin type 0', pocx = the BTCX type).
+   */
+  private mapBtcxRestore(result: BtcxRestoreResult): RestoreBranchReport {
+    const label = (p: BtcxDescriptorPolicy) =>
+      `${p.kind === 'bip84' ? "84'" : "86'"}/${p.coinType === 0 ? "0'" : 'BTCX'}`;
+    return {
+      legacy: result.hits.filter(h => h.policy.coinType === 0).map(h => label(h.policy)),
+      pocx: result.hits.filter(h => h.policy.coinType !== 0).map(h => label(h.policy)),
+      fresh: result.fresh,
+    };
   }
 
   /** Compact era-labelled list, e.g. "legacy desktop (84'/0'), mobile (84'/BTCX)". */

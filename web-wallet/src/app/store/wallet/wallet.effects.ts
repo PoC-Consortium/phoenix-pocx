@@ -5,17 +5,21 @@ import { map, exhaustMap, switchMap, withLatestFrom } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { WalletActions } from './wallet.actions';
 import { selectActiveWallet } from './wallet.selectors';
-import { WalletRpcService } from '../../bitcoin/services/rpc';
 import { WalletManagerService, WalletService } from '../../bitcoin/services/wallet';
+import { BackendRouterService } from '../../core/backend/backend-router.service';
 
 /**
- * Wallet effects - handles side effects for wallet actions
+ * Wallet effects - handles side effects for wallet actions.
+ *
+ * Data flows through the BackendRouterService seam, so every effect works
+ * against Bitcoin Core RPC (managed/external) AND the local BDK/Electrum
+ * wallet (remote mode) alike.
  */
 @Injectable()
 export class WalletEffects {
   private readonly actions$ = inject(Actions);
   private readonly store = inject(Store);
-  private readonly walletRpc = inject(WalletRpcService);
+  private readonly backendRouter = inject(BackendRouterService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
 
@@ -45,15 +49,18 @@ export class WalletEffects {
         if (!walletName) {
           return of(WalletActions.refreshBalanceFailure({ error: 'No active wallet' }));
         }
-        return this.walletRpc.getBalances(walletName).then(
-          balances =>
-            WalletActions.refreshBalanceSuccess({
-              balance: balances.mine.trusted,
-              unconfirmedBalance: balances.mine.untrusted_pending,
-              immatureBalance: balances.mine.immature,
-            }),
-          error => WalletActions.refreshBalanceFailure({ error: error.message })
-        );
+        return this.backendRouter
+          .wallet()
+          .getBalances(walletName)
+          .then(
+            balances =>
+              WalletActions.refreshBalanceSuccess({
+                balance: balances.trusted,
+                unconfirmedBalance: balances.untrustedPending,
+                immatureBalance: balances.immature,
+              }),
+            error => WalletActions.refreshBalanceFailure({ error: error.message })
+          );
       })
     )
   );
@@ -69,10 +76,13 @@ export class WalletEffects {
         if (!walletName) {
           return of(WalletActions.loadTransactionsFailure({ error: 'No active wallet' }));
         }
-        return this.walletRpc.listTransactions(walletName, '*', count, skip).then(
-          transactions => WalletActions.loadTransactionsSuccess({ transactions }),
-          error => WalletActions.loadTransactionsFailure({ error: error.message })
-        );
+        return this.backendRouter
+          .wallet()
+          .listTransactions(walletName, count, skip)
+          .then(
+            transactions => WalletActions.loadTransactionsSuccess({ transactions }),
+            error => WalletActions.loadTransactionsFailure({ error: error.message })
+          );
       })
     )
   );
@@ -88,10 +98,13 @@ export class WalletEffects {
         if (!walletName) {
           return of(WalletActions.loadUTXOsFailure({ error: 'No active wallet' }));
         }
-        return this.walletRpc.listUnspent(walletName).then(
-          utxos => WalletActions.loadUTXOsSuccess({ utxos }),
-          error => WalletActions.loadUTXOsFailure({ error: error.message })
-        );
+        return this.backendRouter
+          .wallet()
+          .listUnspent(walletName)
+          .then(
+            utxos => WalletActions.loadUTXOsSuccess({ utxos }),
+            error => WalletActions.loadUTXOsFailure({ error: error.message })
+          );
       })
     )
   );
@@ -107,10 +120,13 @@ export class WalletEffects {
         if (!walletName) {
           return of(WalletActions.generateAddressFailure({ error: 'No active wallet' }));
         }
-        return this.walletRpc.getNewAddress(walletName, label, type).then(
-          address => WalletActions.generateAddressSuccess({ address }),
-          error => WalletActions.generateAddressFailure({ error: error.message })
-        );
+        return this.backendRouter
+          .wallet()
+          .getNewAddress(walletName, label, type)
+          .then(
+            address => WalletActions.generateAddressSuccess({ address }),
+            error => WalletActions.generateAddressFailure({ error: error.message })
+          );
       })
     )
   );
@@ -126,10 +142,13 @@ export class WalletEffects {
         if (!walletName) {
           return of(WalletActions.sendTransactionFailure({ error: 'No active wallet' }));
         }
-        return this.walletRpc.sendToAddress(walletName, address, amount, options || {}).then(
-          txid => WalletActions.sendTransactionSuccess({ txid }),
-          error => WalletActions.sendTransactionFailure({ error: error.message })
-        );
+        return this.backendRouter
+          .wallet()
+          .sendToAddress(walletName, address, amount, options || {})
+          .then(
+            txid => WalletActions.sendTransactionSuccess({ txid }),
+            error => WalletActions.sendTransactionFailure({ error: error.message })
+          );
       })
     )
   );
