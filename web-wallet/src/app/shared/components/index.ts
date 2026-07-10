@@ -14,6 +14,9 @@ export type {
 export { ConfirmDialogComponent } from './confirm-dialog/confirm-dialog.component';
 export type { ConfirmDialogData } from './confirm-dialog/confirm-dialog.component';
 
+export { TypedConfirmDialogComponent } from './typed-confirm-dialog/typed-confirm-dialog.component';
+export type { TypedConfirmDialogData } from './typed-confirm-dialog/typed-confirm-dialog.component';
+
 export { UpdateDialogComponent } from './update-dialog/update-dialog.component';
 
 // Display Components
