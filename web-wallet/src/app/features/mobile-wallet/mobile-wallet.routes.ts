@@ -43,6 +43,18 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           import('./pages/history/wallet-history.component').then(m => m.WalletHistoryComponent),
       },
       {
+        path: 'assignment',
+        loadComponent: () =>
+          import('./pages/assignment/wallet-assignment.component').then(
+            m => m.WalletAssignmentComponent
+          ),
+      },
+      {
+        path: 'contacts',
+        loadComponent: () =>
+          import('./pages/contacts/wallet-contacts.component').then(m => m.WalletContactsComponent),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./pages/settings/wallet-settings.component').then(m => m.WalletSettingsComponent),

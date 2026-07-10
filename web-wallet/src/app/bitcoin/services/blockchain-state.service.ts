@@ -10,6 +10,10 @@ import { CookieAuthService } from '../../core/auth/cookie-auth.service';
 import { PocxNotificationService } from './pocx-notification.service';
 import { NodeService } from '../../node/services/node.service';
 import { BtcxWalletService } from '../../core/services/btcx-wallet.service';
+import {
+  BTCX_BLOCK_TIME_SECONDS,
+  formatNetworkCapacityTib,
+} from '../../mining/models/mining.models';
 
 /**
  * PoCX block extension with base_target for capacity calculation
@@ -34,9 +38,8 @@ export interface SyncState {
   targetHeight: number;
 }
 
-// PoCX constants for network capacity calculation
-const BLOCK_TIME_SECONDS = 120; // 2 minutes
-const GENESIS_BASE_TARGET = Math.pow(2, 42) / BLOCK_TIME_SECONDS;
+// PoCX constant for network capacity calculation
+const GENESIS_BASE_TARGET = Math.pow(2, 42) / BTCX_BLOCK_TIME_SECONDS;
 
 /**
  * BlockchainStateService provides centralized, auto-refreshing blockchain state.
@@ -362,18 +365,7 @@ export class BlockchainStateService implements OnDestroy {
   getNetworkCapacityFormatted(): string {
     const bytes = this.getNetworkCapacityBytes();
     if (bytes === null) return 'N/A';
-
-    const TiB = Math.pow(2, 40);
-    const PiB = Math.pow(2, 50);
-    const EiB = Math.pow(2, 60);
-
-    if (bytes >= EiB) {
-      return (bytes / EiB).toFixed(3) + ' EiB';
-    } else if (bytes >= PiB) {
-      return (bytes / PiB).toFixed(3) + ' PiB';
-    } else {
-      return (bytes / TiB).toFixed(3) + ' TiB';
-    }
+    return formatNetworkCapacityTib(bytes / Math.pow(2, 40));
   }
 
   /**

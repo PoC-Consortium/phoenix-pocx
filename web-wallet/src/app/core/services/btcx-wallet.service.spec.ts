@@ -10,6 +10,7 @@ describe('mapWalletTx', () => {
       vsize: 141,
       confirmations: 3,
       timestamp: 1_752_000_000,
+      address: 'pocx1qcounterparty',
     };
 
     const tx = mapWalletTx(dto);
@@ -21,6 +22,7 @@ describe('mapWalletTx', () => {
       vsize: 141,
       confirmations: 3,
       timestamp: 1_752_000_000,
+      address: 'pocx1qcounterparty',
     });
   });
 
@@ -40,6 +42,8 @@ describe('mapWalletTx', () => {
     expect(tx.feeSat).toBeNull();
     expect(tx.timestamp).toBeNull();
     expect(tx.confirmations).toBe(0);
+    // No address on the wire (older backend / underivable) maps to null.
+    expect(tx.address).toBeNull();
   });
 
   it('normalizes unknown directions to received (net-in default)', () => {

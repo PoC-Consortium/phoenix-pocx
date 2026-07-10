@@ -37,6 +37,14 @@ body {
 body.platform-android {
   --android-safe-top: env(safe-area-inset-top, 24px);
   padding-top: var(--android-safe-top);
+  // Keep the inset INSIDE the body's 100% height. Without this the padding
+  // adds to the content-box height, the document overflows <html> by
+  // exactly the inset, and every page — even one that fully fits — can be
+  // scrolled up by the status-bar height.
+  box-sizing: border-box;
+  // No rubber-banding on the document itself; the app's inner containers
+  // are the only scrollers.
+  overscroll-behavior-y: none;
 }
 
 // Dark theme body

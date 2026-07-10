@@ -1,20 +1,29 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe } from '../../../../core/i18n';
+import { HashTruncatePipe } from '../../../../shared/pipes';
 import { ClipboardService } from '../../../../shared/services';
+import { BlockExplorerService } from '../../../../shared/services/block-explorer.service';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
+
+/** Rows added per "load more" tap (and shown initially). */
+const PAGE_SIZE = 25;
 
 /**
  * WalletHistoryComponent - transaction list (newest first).
  *
+ * Incrementally paged (25 rows + "load more"). Each row shows the display
+ * address (counterparty on sends, own receive address otherwise) and has a
+ * per-item menu: copy txid, copy address, open in the block explorer.
  * Refresh pokes the background sync worker (sync_now) and re-reads the
  * cached history. Tapping an item expands a simple detail: txid with
- * copy, fee, vsize, confirmations.
+ * copy, address, fee, vsize.
  */
 @Component({
   selector: 'app-wallet-history',
@@ -23,10 +32,12 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
     RouterModule,
     MatButtonModule,
     MatIconModule,
+    MatMenuModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
     DatePipe,
     DecimalPipe,
+    HashTruncatePipe,
     I18nPipe,
   ],
   template: `
@@ -54,7 +65,7 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
             <span>{{ 'no_transactions' | i18n }}</span>
           </div>
         } @else {
-          @for (tx of wallet.transactions(); track tx.txid) {
+          @for (tx of visibleTransactions(); track tx.txid) {
             <div class="tx-item" (click)="toggleDetail(tx)">
               <div class="tx-row">
                 <mat-icon
@@ -69,6 +80,9 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
                   <span class="tx-direction">
                     {{ (tx.direction === 'received' ? 'mwallet_received' : 'mwallet_sent') | i18n }}
                   </span>
+                  @if (tx.address) {
+                    <span class="tx-address mono">{{ tx.address | hashTruncate: 12 : 6 }}</span>
+                  }
                   <span class="tx-time">
                     @if (tx.timestamp) {
                       {{ tx.timestamp * 1000 | date: 'short' }}
@@ -93,6 +107,31 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
                     }
                   </span>
                 </div>
+
+                <button
+                  mat-icon-button
+                  class="tx-menu-button"
+                  [matMenuTriggerFor]="txMenu"
+                  (click)="$event.stopPropagation()"
+                >
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #txMenu="matMenu">
+                  <button mat-menu-item (click)="copyTxid(tx.txid)">
+                    <mat-icon>content_copy</mat-icon>
+                    <span>{{ 'copy_transaction_id' | i18n }}</span>
+                  </button>
+                  @if (tx.address) {
+                    <button mat-menu-item (click)="copyAddress(tx.address)">
+                      <mat-icon>content_copy</mat-icon>
+                      <span>{{ 'copy_address' | i18n }}</span>
+                    </button>
+                  }
+                  <button mat-menu-item (click)="openInExplorer(tx.txid)">
+                    <mat-icon>open_in_new</mat-icon>
+                    <span>{{ 'view_in_explorer' | i18n }}</span>
+                  </button>
+                </mat-menu>
               </div>
 
               @if (expandedTxid() === tx.txid) {
@@ -108,6 +147,19 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
                       <mat-icon class="copy-icon">content_copy</mat-icon>
                     </div>
                   </div>
+                  @if (tx.address) {
+                    <div class="detail-line">
+                      <span class="detail-label">{{ 'address' | i18n }}</span>
+                      <div
+                        class="detail-value copyable"
+                        (click)="copyAddress(tx.address); $event.stopPropagation()"
+                        [matTooltip]="'copy' | i18n"
+                      >
+                        <span class="mono">{{ tx.address }}</span>
+                        <mat-icon class="copy-icon">content_copy</mat-icon>
+                      </div>
+                    </div>
+                  }
                   @if (tx.feeSat !== null) {
                     <div class="detail-line">
                       <span class="detail-label">{{ 'fee' | i18n }}</span>
@@ -116,6 +168,15 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
                   }
                 </div>
               }
+            </div>
+          }
+
+          @if (hasMore()) {
+            <div class="load-more-row">
+              <button mat-button (click)="loadMore()">
+                <mat-icon>expand_more</mat-icon>
+                {{ 'mwallet_load_more' | i18n }}
+              </button>
             </div>
           }
         }
@@ -194,7 +255,7 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
       }
 
       .tx-item {
-        padding: 10px 16px;
+        padding: 10px 8px 10px 16px;
         cursor: pointer;
 
         &:not(:last-child) {
@@ -233,6 +294,14 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
           font-size: 14px;
         }
 
+        .tx-address {
+          font-size: 11px;
+          color: rgba(0, 0, 0, 0.6);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
         .tx-time {
           font-size: 11px;
           color: rgba(0, 0, 0, 0.5);
@@ -264,9 +333,30 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
         }
       }
 
+      .tx-menu-button {
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+        padding: 6px;
+
+        mat-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+          color: rgba(0, 0, 0, 0.45);
+        }
+      }
+
+      .load-more-row {
+        display: flex;
+        justify-content: center;
+        padding: 4px 0;
+        border-top: 1px solid rgba(0, 0, 0, 0.06);
+      }
+
       .tx-detail {
         margin-top: 8px;
-        padding: 8px 0 4px 32px;
+        padding: 8px 8px 4px 32px;
         border-top: 1px dashed rgba(0, 0, 0, 0.08);
       }
 
@@ -308,6 +398,10 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
         }
       }
 
+      .mono {
+        font-family: monospace;
+      }
+
       :host-context(.dark-theme) {
         .card {
           background: #424242;
@@ -321,13 +415,25 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
           border-bottom-color: rgba(255, 255, 255, 0.08);
         }
 
+        .tx-main .tx-address {
+          color: rgba(255, 255, 255, 0.6);
+        }
+
         .tx-main .tx-time,
         .tx-right .tx-conf {
           color: rgba(255, 255, 255, 0.5);
         }
 
+        .tx-menu-button mat-icon {
+          color: rgba(255, 255, 255, 0.55);
+        }
+
         .tx-right .tx-amount.received {
           color: #81c784;
+        }
+
+        .load-more-row {
+          border-top-color: rgba(255, 255, 255, 0.08);
         }
 
         .tx-detail {
@@ -340,9 +446,16 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
 export class WalletHistoryComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly clipboard = inject(ClipboardService);
+  private readonly explorer = inject(BlockExplorerService);
 
   readonly refreshing = signal(false);
   readonly expandedTxid = signal<string | null>(null);
+  readonly visibleCount = signal(PAGE_SIZE);
+
+  readonly visibleTransactions = computed(() =>
+    this.wallet.transactions().slice(0, this.visibleCount())
+  );
+  readonly hasMore = computed(() => this.wallet.transactions().length > this.visibleCount());
 
   ngOnInit(): void {
     void this.init();
@@ -366,11 +479,23 @@ export class WalletHistoryComponent implements OnInit {
     }
   }
 
+  loadMore(): void {
+    this.visibleCount.update(count => count + PAGE_SIZE);
+  }
+
   toggleDetail(tx: BtcxWalletTx): void {
     this.expandedTxid.set(this.expandedTxid() === tx.txid ? null : tx.txid);
   }
 
+  openInExplorer(txid: string): void {
+    this.explorer.openTransaction(txid, this.wallet.network());
+  }
+
   async copyTxid(txid: string): Promise<void> {
     await this.clipboard.copyTxid(txid);
+  }
+
+  async copyAddress(address: string): Promise<void> {
+    await this.clipboard.copyAddress(address);
   }
 }
