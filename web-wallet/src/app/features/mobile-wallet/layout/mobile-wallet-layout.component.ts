@@ -1,13 +1,16 @@
-import { Component, inject, OnInit } from '@angular/core';
-import { RouterModule } from '@angular/router';
+import { Component, inject, signal, OnInit } from '@angular/core';
+import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService, LANGUAGES, Language } from '../../../core/i18n';
-import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
+import { BtcxWalletService, BtcxWalletSummary } from '../../../core/services/btcx-wallet.service';
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
+import { NotificationService } from '../../../shared/services';
 import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile-nav.component';
 
 /**
@@ -16,6 +19,13 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
  * Mirrors MiningLayoutComponent's minimal header (logo, name, language)
  * plus a network badge and wallet settings shortcut, with the shared
  * bottom navigation to switch between wallet and mining.
+ *
+ * Once a wallet exists, the static app name gives way to the wallet
+ * switcher chip — the mobile-compact mirror of the desktop toolbar's
+ * wallet selector (wallet icon + active name + dropdown arrow, opening a
+ * menu of the current network's wallets plus create/restore entries).
+ * Selecting a row closes the open wallet and opens the tapped one (the
+ * backend's one-open-wallet-at-a-time flow, same as desktop remote mode).
  */
 @Component({
   selector: 'app-mobile-wallet-layout',
@@ -25,7 +35,9 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
     MatToolbarModule,
     MatButtonModule,
     MatIconModule,
+    MatDividerModule,
     MatMenuModule,
+    MatProgressSpinnerModule,
     MatTooltipModule,
     MobileNavComponent,
     I18nPipe,
@@ -36,7 +48,62 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         <div class="toolbar-content">
           <div class="toolbar-left">
             <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="logo" />
-            <span class="app-name">{{ 'mwallet_title' | i18n }}</span>
+
+            @if (wallet.hasSeed()) {
+              <!-- Wallet switcher chip (desktop toolbar's wallet selector) -->
+              <button
+                mat-button
+                class="wallet-chip"
+                [matMenuTriggerFor]="walletMenu"
+                (menuOpened)="onWalletMenuOpened()"
+              >
+                <div class="wallet-chip-content">
+                  <mat-icon class="wallet-icon">account_balance_wallet</mat-icon>
+                  <span class="wallet-chip-name">{{ wallet.walletName() }}</span>
+                  <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
+                </div>
+              </button>
+
+              <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
+                @for (w of wallet.wallets(); track w.name) {
+                  <button
+                    mat-menu-item
+                    class="wallet-row"
+                    [disabled]="switching() !== null"
+                    (click)="switchTo(w)"
+                  >
+                    <div class="wallet-row-content">
+                      <mat-icon class="wallet-row-icon" [class.active]="w.isActive"
+                        >account_balance_wallet</mat-icon
+                      >
+                      <span class="wallet-row-name">{{ w.name }}</span>
+                      @if (w.policy.kind === 'bip86') {
+                        <span class="wallet-row-badge">{{ 'mwallet_taproot_badge' | i18n }}</span>
+                      }
+                      @if (w.seedEncrypted && w.seedLocked) {
+                        <mat-icon class="wallet-row-lock">lock</mat-icon>
+                      }
+                      @if (switching() === w.name) {
+                        <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
+                      } @else if (w.isActive) {
+                        <mat-icon class="wallet-row-check">check</mat-icon>
+                      }
+                    </div>
+                  </button>
+                }
+                <mat-divider></mat-divider>
+                <button mat-menu-item routerLink="/wallet/create">
+                  <mat-icon>add</mat-icon>
+                  <span>{{ 'mwallet_create_wallet' | i18n }}</span>
+                </button>
+                <button mat-menu-item routerLink="/wallet/restore">
+                  <mat-icon>restore</mat-icon>
+                  <span>{{ 'mwallet_restore_wallet' | i18n }}</span>
+                </button>
+              </mat-menu>
+            } @else {
+              <span class="app-name">{{ 'mwallet_title' | i18n }}</span>
+            }
 
             @if (wallet.network() !== 'mainnet') {
               <span class="network-badge">{{ wallet.network() | i18n }}</span>
@@ -134,6 +201,104 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
         font-size: 16px;
         font-weight: 500;
         color: rgba(0, 0, 0, 0.87);
+      }
+
+      /* Wallet switcher chip — the desktop toolbar's .wallet-button, compact. */
+      .wallet-chip {
+        min-width: 0;
+        padding: 0 4px;
+        margin-left: -8px;
+      }
+
+      .wallet-chip-content {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+
+        .wallet-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+          color: rgba(0, 0, 0, 0.54);
+        }
+
+        .wallet-chip-name {
+          font-size: 15px;
+          font-weight: 500;
+          color: rgba(0, 0, 0, 0.87);
+          max-width: 120px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .dropdown-arrow {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: rgba(0, 0, 0, 0.54);
+          margin: 0;
+        }
+      }
+
+      .wallet-row-content {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 180px;
+
+        .wallet-row-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+          color: rgba(0, 0, 0, 0.4);
+          margin: 0;
+
+          &.active {
+            color: #1976d2;
+          }
+        }
+
+        .wallet-row-name {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .wallet-row-badge {
+          font-size: 10px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: #7b1fa2;
+          border: 1px solid currentColor;
+          border-radius: 8px;
+          padding: 0 6px;
+          flex-shrink: 0;
+        }
+
+        .wallet-row-lock {
+          font-size: 16px;
+          width: 16px;
+          height: 16px;
+          color: #4caf50;
+          margin: 0;
+          flex-shrink: 0;
+        }
+
+        .wallet-row-check {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: #1976d2;
+          margin: 0;
+          flex-shrink: 0;
+        }
+
+        .wallet-row-spinner {
+          flex-shrink: 0;
+        }
       }
 
       .network-badge {
@@ -248,6 +413,17 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
           color: white;
         }
 
+        .wallet-chip-content {
+          .wallet-icon,
+          .dropdown-arrow {
+            color: rgba(255, 255, 255, 0.7);
+          }
+
+          .wallet-chip-name {
+            color: white;
+          }
+        }
+
         .secondary-text {
           color: rgba(255, 255, 255, 0.7);
         }
@@ -267,12 +443,41 @@ export class MobileWalletLayoutComponent implements OnInit {
   readonly i18n = inject(I18nService);
   readonly wallet = inject(BtcxWalletService);
   readonly electrumStatus = inject(ElectrumStatusService);
+  private readonly notification = inject(NotificationService);
+  private readonly router = inject(Router);
 
   languages: Language[] = LANGUAGES;
+
+  /** Name of the wallet a switch is in flight for, or null. */
+  readonly switching = signal<string | null>(null);
 
   ngOnInit(): void {
     // Lazy init: only mobile wallet routes touch the btcx wallet backend
     void this.wallet.initialize();
+  }
+
+  /** Refresh the registry snapshot whenever the switcher opens. */
+  onWalletMenuOpened(): void {
+    void this.wallet.refreshWallets();
+  }
+
+  /**
+   * Switch to another registered wallet: the backend closes the open
+   * runtime and opens the tapped one (a locked seed lands on the home
+   * unlock form). Lands on the wallet home so the new state is visible.
+   */
+  async switchTo(w: BtcxWalletSummary): Promise<void> {
+    if (w.isActive || this.switching() !== null) return;
+    this.switching.set(w.name);
+    try {
+      await this.wallet.select(w.name);
+      await this.router.navigate(['/wallet']);
+    } catch (err) {
+      console.error('Failed to switch wallet:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.switching.set(null);
+    }
   }
 
   /** Tooltip of the connection dot: status text plus synced height. */

@@ -10,14 +10,21 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
-import { BtcxWalletService, BtcxNetwork } from '../../../../core/services/btcx-wallet.service';
+import {
+  BtcxWalletService,
+  BtcxNetwork,
+  BtcxWalletSummary,
+} from '../../../../core/services/btcx-wallet.service';
 import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 
 /**
  * WalletSettingsComponent - mobile wallet settings.
  *
- * Network selection, Electrum server list editor (per active network),
- * and lock control (only shown for passphrase-encrypted seeds).
+ * Wallet management (the switcher's list — active marker, tap to switch,
+ * create/restore entries; deleting wallets is deliberately NOT offered:
+ * the desktop delete-wallet UX is still undecided, the backend command
+ * stays unwired), network selection, Electrum server list editor (per
+ * active network), and lock control (passphrase-encrypted seeds only).
  */
 @Component({
   selector: 'app-wallet-settings',
@@ -43,6 +50,55 @@ import { ElectrumServersEditorComponent } from '../../../../shared/components/el
         </button>
         <h2>{{ 'mwallet_settings_title' | i18n }}</h2>
       </div>
+
+      <!-- Wallets (the switcher's management surface) -->
+      @if (wallet.hasSeed()) {
+        <div class="card">
+          <h3>{{ 'wallets' | i18n }}</h3>
+          <p class="hint-text">{{ 'mwallet_wallets_hint' | i18n }}</p>
+
+          @for (w of wallet.wallets(); track w.name) {
+            <div
+              class="wallet-row"
+              [class.active]="w.isActive"
+              [class.disabled]="switching() !== null"
+              (click)="switchTo(w)"
+            >
+              <mat-icon class="row-icon" [class.active]="w.isActive"
+                >account_balance_wallet</mat-icon
+              >
+              <div class="row-main">
+                <span class="row-name">{{ w.name }}</span>
+                <span class="row-sub">
+                  {{
+                    (w.policy.kind === 'bip86' ? 'mwallet_kind_taproot' : 'mwallet_kind_segwit')
+                      | i18n
+                  }}
+                </span>
+              </div>
+              @if (w.seedEncrypted && w.seedLocked) {
+                <mat-icon class="row-lock">lock</mat-icon>
+              }
+              @if (switching() === w.name) {
+                <mat-spinner diameter="18"></mat-spinner>
+              } @else if (w.isActive) {
+                <mat-icon class="row-check">check</mat-icon>
+              }
+            </div>
+          }
+
+          <div class="add-wallet-row">
+            <button mat-stroked-button routerLink="/wallet/create">
+              <mat-icon>add</mat-icon>
+              {{ 'mwallet_create_wallet' | i18n }}
+            </button>
+            <button mat-stroked-button routerLink="/wallet/restore">
+              <mat-icon>restore</mat-icon>
+              {{ 'mwallet_restore_wallet' | i18n }}
+            </button>
+          </div>
+        </div>
+      }
 
       <!-- Network -->
       <div class="card">
@@ -136,6 +192,80 @@ import { ElectrumServersEditorComponent } from '../../../../shared/components/el
         width: 100%;
       }
 
+      /* Wallet management rows (the switcher's list, settings-card form) */
+      .wallet-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+
+        &.active {
+          background: rgba(25, 118, 210, 0.08);
+        }
+
+        &.disabled {
+          pointer-events: none;
+          opacity: 0.6;
+        }
+
+        .row-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+          color: rgba(0, 0, 0, 0.4);
+
+          &.active {
+            color: #1976d2;
+          }
+        }
+
+        .row-main {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+
+          .row-name {
+            font-size: 14px;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          .row-sub {
+            font-size: 11px;
+            color: rgba(0, 0, 0, 0.5);
+          }
+        }
+
+        .row-lock {
+          font-size: 16px;
+          width: 16px;
+          height: 16px;
+          color: #4caf50;
+        }
+
+        .row-check {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: #1976d2;
+        }
+      }
+
+      .add-wallet-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+
+        button {
+          flex: 1;
+        }
+      }
+
       .server-row {
         display: flex;
         align-items: center;
@@ -181,6 +311,28 @@ import { ElectrumServersEditorComponent } from '../../../../shared/components/el
         .server-row {
           background: #333;
         }
+
+        .wallet-row {
+          &.active {
+            background: rgba(100, 181, 246, 0.12);
+          }
+
+          .row-icon {
+            color: rgba(255, 255, 255, 0.4);
+
+            &.active {
+              color: #64b5f6;
+            }
+          }
+
+          .row-main .row-sub {
+            color: rgba(255, 255, 255, 0.5);
+          }
+
+          .row-check {
+            color: #64b5f6;
+          }
+        }
       }
     `,
   ],
@@ -193,8 +345,25 @@ export class WalletSettingsComponent implements OnInit {
   readonly networks: BtcxNetwork[] = ['mainnet', 'testnet', 'regtest'];
   readonly busy = signal(false);
 
+  /** Name of the wallet a switch is in flight for, or null. */
+  readonly switching = signal<string | null>(null);
+
   ngOnInit(): void {
-    void this.wallet.initialize();
+    void this.wallet.initialize().then(() => this.wallet.refreshWallets());
+  }
+
+  /** Switch the active wallet (same flow as the header switcher). */
+  async switchTo(w: BtcxWalletSummary): Promise<void> {
+    if (w.isActive || this.switching() !== null) return;
+    this.switching.set(w.name);
+    try {
+      await this.wallet.select(w.name);
+    } catch (err) {
+      console.error('Failed to switch wallet:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.switching.set(null);
+    }
   }
 
   async setNetwork(network: BtcxNetwork): Promise<void> {
