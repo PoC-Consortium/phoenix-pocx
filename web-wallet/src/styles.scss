@@ -25,9 +25,18 @@ body {
   background-color: #eaf0f6;
 }
 
-// Android safe area - prevents content from overlapping system status bar
+// Android safe area - prevents content from overlapping system status bar.
+// The inset is exported as --android-safe-top so full-height layouts (app
+// root, mobile wallet/mining layouts) can subtract it from the viewport
+// height — a plain 100vh box would overflow the padded body and push the
+// bottom navigation half off-screen.
+:root {
+  --android-safe-top: 0px;
+}
+
 body.platform-android {
-  padding-top: env(safe-area-inset-top, 24px);
+  --android-safe-top: env(safe-area-inset-top, 24px);
+  padding-top: var(--android-safe-top);
 }
 
 // Dark theme body

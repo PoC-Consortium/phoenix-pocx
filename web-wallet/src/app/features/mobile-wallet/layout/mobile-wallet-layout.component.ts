@@ -91,7 +91,11 @@ import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile
       .wallet-layout {
         display: flex;
         flex-direction: column;
-        height: 100vh;
+        /* Visible viewport minus the Android status-bar padding on <body>:
+           100vh fallback, 100dvh override — plain 100vh overflows on
+           Android WebView and clips the bottom navigation. */
+        height: calc(100vh - var(--android-safe-top, 0px));
+        height: calc(100dvh - var(--android-safe-top, 0px));
         background: #eaf0f6;
       }
 

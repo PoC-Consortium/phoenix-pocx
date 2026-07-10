@@ -47,7 +47,11 @@ import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confi
     `
       :host {
         display: block;
-        height: 100vh;
+        /* Viewport height minus the Android status-bar padding on <body>.
+           100vh fallback first; 100dvh where supported so mobile browser
+           UI / system bars don't push the bottom navigation off-screen. */
+        height: calc(100vh - var(--android-safe-top, 0px));
+        height: calc(100dvh - var(--android-safe-top, 0px));
         overflow: hidden;
       }
 
