@@ -590,6 +590,51 @@ pub async fn btcx_wallet_new_address(
     .await
 }
 
+/// The CURRENT receive address: the lowest-index revealed-but-unused
+/// external address, revealing a fresh one ONLY when none is outstanding
+/// (bdk's next-unused semantics). Unlike `btcx_wallet_new_address`,
+/// repeated calls hand out the SAME address until it sees funds on-chain
+/// or a fresh one is explicitly requested — the receive page rides this on
+/// entry so page visits never burn through the handout cap.
+#[tauri::command]
+pub async fn btcx_wallet_current_address(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    blocking(move || current_address_impl(&state)).await
+}
+
+/// `btcx_wallet_current_address` behind a testable seam — the regtest
+/// integration suite drives it against a live stack.
+pub fn current_address_impl(state: &SharedBtcxWalletState) -> Result<String, String> {
+    let network = state.get_config().network;
+    let address = state.with_entry(|entry| current_address_of(entry, network))?;
+    // The receive page is open: poke the worker so the (possibly fresh)
+    // spk is subscribed and an incoming payment is spotted promptly — the
+    // same nudge wallet_new_address gives.
+    let _ = state.poke();
+    Ok(address)
+}
+
+/// The peek itself, on a bare wallet entry (unit-testable without the
+/// Tauri state): bdk's `next_unused_address` picks the lowest unused
+/// index and reveals only when nothing is unused; the persist makes a
+/// reveal survive a restart (and is a no-op otherwise).
+pub fn current_address_of(
+    entry: &mut WalletEntry,
+    network: WalletNetwork,
+) -> Result<String, String> {
+    let info = entry
+        .wallet
+        .next_unused_address(bdk_wallet::KeychainKind::External);
+    entry
+        .wallet
+        .persist(&mut entry.conn)
+        .map_err(|e| format!("persisting wallet: {e}"))?;
+    super::psbt::spk_to_address(network, &info.address.script_pubkey())
+        .ok_or_else(|| "Unsupported address script".to_string())
+}
+
 /// Wallet balance breakdown, in sats (bdk balance categories).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

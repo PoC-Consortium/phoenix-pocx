@@ -9,6 +9,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxPipe, TimeAgoPipe } from '../../../../shared/pipes';
+import { ContactsStoreService } from '../../../../shared/services';
+import { TxRowComponent } from '../../components/tx-row/tx-row.component';
 import { BtcxWalletService, BtcxChainInfo } from '../../../../core/services/btcx-wallet.service';
 import { MiningService } from '../../../../mining/services';
 import {
@@ -49,6 +51,7 @@ import {
     BtcxPipe,
     I18nPipe,
     TimeAgoPipe,
+    TxRowComponent,
   ],
   template: `
     <div class="page">
@@ -133,35 +136,28 @@ import {
                 <span class="label">{{ 'network_capacity' | i18n }}</span>
                 <span class="value">{{ networkCapacity() }}</span>
               </div>
-              <div class="info-item">
-                <span class="label">{{ 'last_block_time' | i18n }}</span>
-                <span class="value">
+            </div>
+
+            <!-- Footer: last block time (+ wallet sync freshness) -->
+            <div class="sync-row">
+              @if (wallet.walletActive() && !wallet.hasSynced()) {
+                <mat-spinner diameter="14"></mat-spinner>
+                <span>{{ 'mwallet_waiting_first_sync' | i18n }}</span>
+              } @else {
+                <mat-icon class="sync-icon synced">check_circle</mat-icon>
+                <span>
+                  {{ 'last_block_time' | i18n }}:
                   @if (chain(); as info) {
                     {{ info.headerTime | timeAgo }}
                   } @else {
                     —
                   }
+                  @if (wallet.walletActive() && wallet.syncAgeSecs() !== null) {
+                    · {{ 'mwallet_sync_age' | i18n: { seconds: wallet.syncAgeSecs() ?? 0 } }}
+                  }
                 </span>
-              </div>
+              }
             </div>
-
-            <!-- Wallet sync status -->
-            @if (wallet.walletActive()) {
-              <div class="sync-row">
-                @if (wallet.hasSynced()) {
-                  <mat-icon class="sync-icon synced">check_circle</mat-icon>
-                  <span>
-                    {{ 'block_height' | i18n }}: {{ wallet.syncedHeight() ?? 0 }}
-                    @if (wallet.syncAgeSecs() !== null) {
-                      · {{ 'mwallet_sync_age' | i18n: { seconds: wallet.syncAgeSecs() ?? 0 } }}
-                    }
-                  </span>
-                } @else {
-                  <mat-spinner diameter="14"></mat-spinner>
-                  <span>{{ 'mwallet_waiting_first_sync' | i18n }}</span>
-                }
-              </div>
-            }
           </div>
         }
 
@@ -247,45 +243,14 @@ import {
             <p class="hint-text no-tx">{{ 'no_transactions' | i18n }}</p>
           } @else {
             @for (tx of recentTransactions(); track tx.txid) {
-              <div class="tx-row" routerLink="/wallet/history">
-                <mat-icon
-                  class="tx-icon"
-                  [class.received]="tx.direction === 'received'"
-                  [class.sent]="tx.direction === 'sent'"
-                >
-                  {{ tx.direction === 'received' ? 'arrow_downward' : 'arrow_upward' }}
-                </mat-icon>
-                <div class="tx-main">
-                  <span class="tx-direction">
-                    {{ (tx.direction === 'received' ? 'mwallet_received' : 'mwallet_sent') | i18n }}
-                  </span>
-                  @if (tx.timestamp) {
-                    <span class="tx-time">{{ tx.timestamp | timeAgo }}</span>
-                  }
-                </div>
-                <span class="tx-amount" [class.received]="tx.direction === 'received'">
-                  {{ tx.direction === 'received' ? '+' : '-' }}{{ tx.amountSat / 100000000 | btcx }}
-                </span>
+              <div class="tx-item" routerLink="/wallet/history">
+                <app-mwallet-tx-row [tx]="tx" />
               </div>
             }
             <div class="view-all-row">
               <a routerLink="/wallet/history">{{ 'mwallet_view_all' | i18n }}</a>
             </div>
           }
-        </div>
-
-        <!-- Assignments & contacts entry points -->
-        <div class="card nav-card">
-          <div class="nav-row" routerLink="/wallet/assignment">
-            <mat-icon class="nav-icon">assignment</mat-icon>
-            <span class="nav-label">{{ 'forging_assignment' | i18n }}</span>
-            <mat-icon class="chevron">chevron_right</mat-icon>
-          </div>
-          <div class="nav-row" routerLink="/wallet/contacts">
-            <mat-icon class="nav-icon">contacts</mat-icon>
-            <span class="nav-label">{{ 'contacts' | i18n }}</span>
-            <mat-icon class="chevron">chevron_right</mat-icon>
-          </div>
         </div>
 
         <!-- Mining nudge: only until mining is configured -->
@@ -520,55 +485,12 @@ import {
         }
       }
 
-      .tx-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 0;
+      .tx-item {
+        padding: 6px 0;
         cursor: pointer;
 
         &:not(:last-of-type) {
           border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-        }
-      }
-
-      .tx-icon {
-        font-size: 18px;
-        width: 18px;
-        height: 18px;
-        flex-shrink: 0;
-
-        &.received {
-          color: #4caf50;
-        }
-        &.sent {
-          color: #1976d2;
-        }
-      }
-
-      .tx-main {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-width: 0;
-
-        .tx-direction {
-          font-size: 13px;
-        }
-
-        .tx-time {
-          font-size: 11px;
-          color: rgba(0, 0, 0, 0.5);
-        }
-      }
-
-      .tx-amount {
-        font-size: 12px;
-        font-family: monospace;
-        font-variant-numeric: tabular-nums;
-
-        &.received {
-          color: #2e7d32;
         }
       }
 
@@ -583,38 +505,6 @@ import {
           color: #1976d2;
           text-decoration: none;
           cursor: pointer;
-        }
-      }
-
-      .nav-card {
-        padding: 4px 0;
-      }
-
-      .nav-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 12px 16px;
-        cursor: pointer;
-
-        &:not(:last-child) {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-        }
-
-        .nav-icon {
-          color: #42a5f5;
-          font-size: 20px;
-          width: 20px;
-          height: 20px;
-        }
-
-        .nav-label {
-          flex: 1;
-          font-size: 14px;
-        }
-
-        .chevron {
-          color: rgba(0, 0, 0, 0.3);
         }
       }
 
@@ -646,30 +536,12 @@ import {
           color: rgba(255, 255, 255, 0.3);
         }
 
-        .tx-row:not(:last-of-type) {
+        .tx-item:not(:last-of-type) {
           border-bottom-color: rgba(255, 255, 255, 0.08);
-        }
-
-        .tx-main .tx-time {
-          color: rgba(255, 255, 255, 0.5);
-        }
-
-        .tx-amount.received {
-          color: #81c784;
         }
 
         .view-all-row a {
           color: #64b5f6;
-        }
-
-        .nav-row {
-          &:not(:last-child) {
-            border-bottom-color: rgba(255, 255, 255, 0.08);
-          }
-
-          .chevron {
-            color: rgba(255, 255, 255, 0.3);
-          }
         }
       }
     `,
@@ -678,6 +550,7 @@ import {
 export class WalletHomeComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly mining = inject(MiningService);
+  private readonly contactsStore = inject(ContactsStoreService);
 
   readonly balance = computed(() => this.wallet.balance());
   readonly pendingSat = computed(() => {
@@ -717,6 +590,9 @@ export class WalletHomeComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Fresh contacts book: the tx-row menu's "add to contact" hides
+    // addresses that already have an entry (possibly added elsewhere).
+    this.contactsStore.load();
     void this.wallet.initialize().then(() => {
       if (this.wallet.hasElectrumServer()) {
         void this.refreshChain();

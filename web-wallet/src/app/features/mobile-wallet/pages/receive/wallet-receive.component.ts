@@ -69,7 +69,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
           </div>
         } @else {
           <p class="error-text">{{ 'mwallet_address_failed' | i18n }}</p>
-          <button mat-stroked-button class="full-width" (click)="newAddress()">
+          <button mat-stroked-button class="full-width" (click)="loadCurrentAddress()">
             <mat-icon>refresh</mat-icon>
             {{ 'retry' | i18n }}
           </button>
@@ -206,14 +206,27 @@ export class WalletReceiveComponent implements OnInit {
 
   private async load(): Promise<void> {
     await this.wallet.initialize();
-    await this.newAddress();
+    await this.loadCurrentAddress();
   }
 
+  /**
+   * Entering the page shows the CURRENT address (last revealed, still
+   * unused — desktop behavior), never burning a fresh one per visit.
+   */
+  async loadCurrentAddress(): Promise<void> {
+    await this.fetch(() => this.wallet.currentAddress());
+  }
+
+  /** The explicit "new address" button: reveal a fresh address. */
   async newAddress(): Promise<void> {
+    await this.fetch(() => this.wallet.newAddress());
+  }
+
+  private async fetch(get: () => Promise<string>): Promise<void> {
     if (this.loading()) return;
     this.loading.set(true);
     try {
-      this.address.set(await this.wallet.newAddress());
+      this.address.set(await get());
     } catch (err) {
       console.error('Failed to get receive address:', err);
       this.address.set('');

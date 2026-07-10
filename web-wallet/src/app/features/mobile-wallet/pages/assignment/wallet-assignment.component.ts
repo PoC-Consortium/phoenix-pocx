@@ -1,9 +1,10 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -25,19 +26,27 @@ import type {
 } from '../../../../bitcoin/services/rpc/mining-rpc.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 
+/** One fee choice — the desktop forging-assignment page's FeeOption, slim. */
+interface FeeOption {
+  label: string;
+  feeRate: number | null;
+}
+
 /**
  * WalletAssignmentComponent - forging assignments on mobile.
  *
- * A slim single-page take on the desktop forging-assignment feature,
+ * A slim single-CARD take on the desktop forging-assignment feature,
  * driven entirely by the same client-side service methods the desktop
  * page uses in remote mode (BtcxWalletService.getAssignment /
  * createAssignment / revokeAssignment — OP_RETURN txs built and signed
  * via BDK, status derived from Electrum script history).
  *
- * Pick a funded wallet address (the assignment must spend a coin on the
- * plot address), see its assignment state — badge + details mirroring
- * the desktop check tab, slimmed — and create or revoke depending on the
- * state. Fees use the backend's market default.
+ * One card carries the whole flow: pick a funded wallet address (the
+ * assignment must spend a coin on the plot address), see its assignment
+ * state — badge + details mirroring the desktop check tab — and the
+ * matching action (create or revoke). Fee selection mirrors the desktop
+ * page's fee section (slow/normal/fast/custom chips fed by
+ * `fetchFeeEstimates`, custom sat/vB input), slimmed to fit the card.
  */
 @Component({
   selector: 'app-wallet-assignment',
@@ -47,6 +56,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
     RouterModule,
     MatButtonModule,
     MatIconModule,
+    MatDividerModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -55,6 +65,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
     MatProgressSpinnerModule,
     MatTooltipModule,
     DecimalPipe,
+    NgTemplateOutlet,
     HashTruncatePipe,
     I18nPipe,
   ],
@@ -86,13 +97,12 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
           </button>
         </div>
       } @else {
-        <!-- Plot address -->
+        <!-- Everything in ONE card: selector + status + matching action -->
         <div class="card">
-          <h3>{{ 'plot_address' | i18n }}</h3>
           @if (fundedAddresses().length === 0) {
             <p class="hint-text">{{ 'mwallet_assignment_no_funded' | i18n }}</p>
           } @else {
-            <mat-form-field appearance="outline" class="full-width">
+            <mat-form-field appearance="outline" class="full-width slim-field">
               <mat-label>{{ 'plot_address' | i18n }}</mat-label>
               <mat-select
                 [(ngModel)]="plotAddress"
@@ -105,13 +115,9 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
               </mat-select>
             </mat-form-field>
           }
-        </div>
 
-        <!-- Status -->
-        @if (plotAddress) {
-          <div class="card">
-            <h3>{{ 'assignment_status' | i18n }}</h3>
-
+          <!-- Status -->
+          @if (plotAddress) {
             @if (statusLoading()) {
               <div class="status-loading">
                 <mat-spinner diameter="24"></mat-spinner>
@@ -123,7 +129,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
               @switch (s.state) {
                 @case ('UNASSIGNED') {
-                  <p class="hint-text">{{ 'no_assignment_exists' | i18n }}</p>
                   <p class="hint-text small">{{ 'can_create_assignment' | i18n }}</p>
                 }
                 @case ('ASSIGNING') {
@@ -150,7 +155,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                       <span class="detail-value">{{ s.activation_height | number }}</span>
                     </div>
                   }
-                  <p class="hint-text small success-hint">{{ 'assignment_active' | i18n }}</p>
                 }
                 @case ('REVOKING') {
                   <div class="detail-row">
@@ -174,21 +178,15 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                       <span class="detail-value mono">{{ s.forging_address }}</span>
                     </div>
                   }
-                  <p class="hint-text small">{{ 'assignment_revoked' | i18n }}</p>
                   <p class="hint-text small">{{ 'can_create_new_assignment' | i18n }}</p>
                 }
               }
-            }
-          </div>
 
-          <!-- Actions -->
-          @if (status(); as s) {
-            @if (canCreate(s.state)) {
-              <div class="card">
-                <h3>{{ 'create_assignment' | i18n }}</h3>
-                <p class="hint-text small">{{ 'create_assignment_description' | i18n }}</p>
+              <!-- Matching action -->
+              @if (canCreate(s.state)) {
+                <mat-divider class="section-divider"></mat-divider>
 
-                <mat-form-field appearance="outline" class="full-width">
+                <mat-form-field appearance="outline" class="full-width slim-field">
                   <mat-label>{{ 'forging_address' | i18n }}</mat-label>
                   <input
                     matInput
@@ -230,10 +228,12 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                   <p class="error-text">{{ forgErr.key | i18n: forgErr.params }}</p>
                 }
 
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
+
                 <button
                   mat-raised-button
                   color="primary"
-                  class="full-width"
+                  class="full-width action-button"
                   [disabled]="!forgingValid() || busy()"
                   (click)="create()"
                 >
@@ -244,14 +244,16 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                   }
                   {{ 'create_assignment' | i18n }}
                 </button>
-              </div>
-            } @else if (s.state === 'ASSIGNED') {
-              <div class="card">
-                <h3>{{ 'revoke_assignment' | i18n }}</h3>
+              } @else if (s.state === 'ASSIGNED') {
+                <mat-divider class="section-divider"></mat-divider>
+
                 <p class="hint-text small">{{ 'revoke_assignment_description' | i18n }}</p>
+
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
+
                 <button
                   mat-stroked-button
-                  class="full-width revoke-button"
+                  class="full-width action-button revoke-button"
                   [disabled]="busy()"
                   (click)="revoke()"
                 >
@@ -262,12 +264,68 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                   }
                   {{ 'revoke_assignment' | i18n }}
                 </button>
-              </div>
+              }
             }
           }
-        }
+        </div>
       }
     </div>
+
+    <!-- Fee section — the desktop forging-assignment fee chips, slimmed -->
+    <ng-template #feeSection>
+      <div class="fee-section">
+        <div class="fee-header">
+          <span class="fee-title">{{ 'fee' | i18n }}</span>
+          <button
+            mat-icon-button
+            type="button"
+            class="fee-refresh"
+            (click)="loadFeeEstimates()"
+            [disabled]="isLoadingFees()"
+            [matTooltip]="'refresh_fees' | i18n"
+          >
+            <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
+          </button>
+        </div>
+
+        <div class="fee-options">
+          @for (option of feeOptions; track option.label) {
+            <button
+              mat-stroked-button
+              type="button"
+              class="fee-chip"
+              [class.selected]="selectedFeeOption === option"
+              (click)="selectFeeOption(option)"
+              [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
+            >
+              <span class="fee-label">{{ option.label | i18n }}</span>
+              @if (option.label === 'fee_custom') {
+                <mat-icon class="custom-icon">tune</mat-icon>
+              } @else if (option.feeRate !== null) {
+                <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
+              } @else {
+                <span class="fee-rate">--</span>
+              }
+            </button>
+          }
+        </div>
+
+        @if (selectedFeeOption?.label === 'fee_custom') {
+          <mat-form-field appearance="outline" class="full-width slim-field custom-fee-field">
+            <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
+            <input
+              matInput
+              type="number"
+              [(ngModel)]="customFeeRate"
+              (ngModelChange)="onCustomFeeChange()"
+              min="1"
+              step="1"
+              autocomplete="off"
+            />
+          </mat-form-field>
+        }
+      </div>
+    </ng-template>
   `,
   styles: [
     `
@@ -315,17 +373,19 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        padding: 20px;
-
-        h3 {
-          margin: 0 0 12px;
-          font-size: 15px;
-          font-weight: 500;
-        }
+        padding: 16px;
       }
 
       .full-width {
         width: 100%;
+      }
+
+      .slim-field {
+        margin-bottom: -8px;
+      }
+
+      .section-divider {
+        margin: 12px 0;
       }
 
       .hint-text {
@@ -335,10 +395,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
         &.small {
           font-size: 12px;
-        }
-
-        &.success-hint {
-          color: #2e7d32;
+          margin-bottom: 8px;
         }
       }
 
@@ -354,6 +411,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
       .empty-card {
         text-align: center;
+        padding: 20px;
 
         .empty-icon {
           font-size: 36px;
@@ -372,13 +430,13 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
       /* Desktop forging-assignment badge, slimmed. */
       .state-badge {
         display: inline-block;
-        padding: 4px 14px;
+        padding: 3px 12px;
         border-radius: 20px;
         font-weight: 600;
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 1px;
-        margin-bottom: 12px;
+        margin: 8px 0;
 
         &.badge-unassigned {
           background: #e0e0e0;
@@ -409,7 +467,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
       .detail-row {
         display: flex;
         flex-direction: column;
-        padding: 6px 0;
+        padding: 4px 0;
         border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 
         &:last-of-type {
@@ -452,6 +510,88 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         }
       }
 
+      /* Fee section — desktop's fee chips, mobile-sized. */
+      .fee-section {
+        margin: 12px 0 4px;
+      }
+
+      .fee-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+
+        .fee-title {
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: rgba(0, 0, 0, 0.5);
+        }
+
+        .fee-refresh {
+          width: 32px;
+          height: 32px;
+          padding: 4px;
+
+          mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            color: rgba(0, 0, 0, 0.45);
+          }
+        }
+      }
+
+      .fee-options {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+
+        .fee-chip {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0;
+          min-width: 0;
+          padding: 4px 2px;
+          height: auto;
+          line-height: 1.3;
+
+          &.selected {
+            border-color: #1976d2;
+            background: rgba(25, 118, 210, 0.08);
+          }
+
+          .fee-label {
+            font-size: 12px;
+            font-weight: 500;
+          }
+
+          .fee-rate {
+            font-size: 10px;
+            color: rgba(0, 0, 0, 0.55);
+            font-variant-numeric: tabular-nums;
+          }
+
+          .custom-icon {
+            font-size: 14px;
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            color: rgba(0, 0, 0, 0.55);
+          }
+        }
+      }
+
+      .custom-fee-field {
+        margin-top: 10px;
+      }
+
+      .action-button {
+        margin-top: 12px;
+      }
+
       .revoke-button {
         color: #d84315;
         border-color: currentColor;
@@ -464,10 +604,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
         .hint-text {
           color: rgba(255, 255, 255, 0.6);
-
-          &.success-hint {
-            color: #81c784;
-          }
         }
 
         .empty-card .empty-icon {
@@ -479,6 +615,26 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
           .detail-label {
             color: rgba(255, 255, 255, 0.5);
+          }
+        }
+
+        .fee-header .fee-title {
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .fee-header .fee-refresh mat-icon {
+          color: rgba(255, 255, 255, 0.55);
+        }
+
+        .fee-options .fee-chip {
+          .fee-rate,
+          .custom-icon {
+            color: rgba(255, 255, 255, 0.55);
+          }
+
+          &.selected {
+            border-color: #64b5f6;
+            background: rgba(100, 181, 246, 0.12);
           }
         }
       }
@@ -506,6 +662,20 @@ export class WalletAssignmentComponent implements OnInit {
   plotAddress = '';
   forgingAddress = '';
 
+  // Fee estimation — the desktop forging-assignment fee section, slimmed
+  // (same options, same defaulting: normal when estimates load, custom
+  // otherwise), fed by the SAME fetchFeeEstimates backend call desktop
+  // remote mode uses.
+  readonly isLoadingFees = signal(false);
+  customFeeRate: number | null = 1;
+  feeOptions: FeeOption[] = [
+    { label: 'fee_slow', feeRate: null },
+    { label: 'fee_normal', feeRate: null },
+    { label: 'fee_fast', feeRate: null },
+    { label: 'fee_custom', feeRate: null },
+  ];
+  selectedFeeOption: FeeOption | null = null;
+
   ngOnInit(): void {
     this.contactsStore.load();
     void this.init();
@@ -514,6 +684,7 @@ export class WalletAssignmentComponent implements OnInit {
   private async init(): Promise<void> {
     await this.wallet.initialize();
     if (!this.wallet.walletActive()) return;
+    void this.loadFeeEstimates();
     try {
       const utxos = await this.wallet.utxos();
       // Non-change addresses first, then change — deduplicated.
@@ -532,6 +703,56 @@ export class WalletAssignmentComponent implements OnInit {
     } catch (err) {
       console.error('Failed to load wallet UTXOs:', err);
     }
+  }
+
+  /** Same estimates + rounding + defaulting as the desktop fee section. */
+  async loadFeeEstimates(): Promise<void> {
+    if (this.isLoadingFees()) return;
+    this.isLoadingFees.set(true);
+    try {
+      const estimates = await this.wallet.fetchFeeEstimates();
+      const byLabel: Record<string, number | null | undefined> = {
+        fee_slow: estimates.slow,
+        fee_normal: estimates.normal,
+        fee_fast: estimates.fast,
+      };
+      for (const option of this.feeOptions) {
+        if (option.label === 'fee_custom') continue;
+        const rate = byLabel[option.label];
+        option.feeRate = rate != null ? Math.max(1, Math.round(rate)) : null;
+      }
+    } catch (error) {
+      console.error('Failed to load fee estimates:', error);
+    } finally {
+      const hasEstimates = this.feeOptions.some(
+        o => o.label !== 'fee_custom' && o.feeRate !== null
+      );
+      if (!this.selectedFeeOption || this.selectedFeeOption.feeRate === null) {
+        this.selectedFeeOption = hasEstimates ? this.feeOptions[1] : this.feeOptions[3];
+      }
+      this.isLoadingFees.set(false);
+    }
+  }
+
+  selectFeeOption(option: FeeOption): void {
+    this.selectedFeeOption = option;
+    if (option.label === 'fee_custom' && this.customFeeRate) {
+      option.feeRate = this.customFeeRate;
+    }
+  }
+
+  onCustomFeeChange(): void {
+    if (this.selectedFeeOption?.label === 'fee_custom' && this.customFeeRate) {
+      this.selectedFeeOption.feeRate = this.customFeeRate;
+    }
+  }
+
+  /** Selected rate in sat/vB, or undefined for the backend's default. */
+  private getSelectedFeeRate(): number | undefined {
+    if (this.selectedFeeOption?.label === 'fee_custom') {
+      return this.customFeeRate ?? undefined;
+    }
+    return this.selectedFeeOption?.feeRate ?? undefined;
   }
 
   async checkStatus(): Promise<void> {
@@ -610,7 +831,11 @@ export class WalletAssignmentComponent implements OnInit {
     if (!this.forgingValid() || this.busy()) return;
     this.busy.set(true);
     try {
-      await this.wallet.createAssignment(this.plotAddress, this.forgingAddress.trim());
+      await this.wallet.createAssignment(
+        this.plotAddress,
+        this.forgingAddress.trim(),
+        this.getSelectedFeeRate()
+      );
       this.notifications.success(this.i18n.get('assignment_created_success'));
       this.forgingAddress = '';
       this.forgingValid.set(false);
@@ -643,7 +868,7 @@ export class WalletAssignmentComponent implements OnInit {
   private async doRevoke(): Promise<void> {
     this.busy.set(true);
     try {
-      await this.wallet.revokeAssignment(this.plotAddress);
+      await this.wallet.revokeAssignment(this.plotAddress, this.getSelectedFeeRate());
       this.notifications.success(this.i18n.get('revocation_created_success'));
       await this.checkStatus();
     } catch (err) {

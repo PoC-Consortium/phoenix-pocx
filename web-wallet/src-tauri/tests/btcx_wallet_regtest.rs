@@ -26,7 +26,8 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use phoenix_pocx_lib::btcx_wallet::commands::{
-    create_wallet_impl, restore_wallet_impl, select_wallet_impl, tx_display_address,
+    create_wallet_impl, current_address_of, restore_wallet_impl, select_wallet_impl,
+    tx_display_address,
 };
 use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy, WalletNetwork};
 use phoenix_pocx_lib::btcx_wallet::manager::{
@@ -592,6 +593,113 @@ fn regtest_named_dual_kind_wallets() {
     std::env::remove_var("PHOENIX_DATA_DIR");
     std::env::remove_var("PACT_DISABLE_KEYRING");
     println!("named dual-kind wallets smoke: OK (alpha/beta/gamma/gamma-taproot)");
+}
+
+/// The receive page's current-address semantics (feedback round 4, a7),
+/// live: `current_address_of` — the peek behind `btcx_wallet_current_address`
+/// — is STABLE across calls (it reveals a fresh address only when nothing
+/// unused is outstanding), while `wallet_new_address` (the explicit
+/// "new address" button AND the mining wizard's address fetch, #115) keeps
+/// revealing fresh addresses under the handout cap, unaffected. Once the
+/// current address sees funds on-chain, the peek moves to the next unused.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_current_address_stable_until_used_or_new() {
+    use phoenix_pocx_lib::btcx_wallet::config::WalletNetwork;
+
+    let params = &params_btcx::params::BTCX_REGTEST;
+    let dir = tempfile::tempdir().unwrap();
+
+    // Fresh seed → open wallet, same skeleton as regtest_end_to_end.
+    let mut store = seedstore::SeedStore::open(dir.path(), None).unwrap();
+    let mnemonic = store.create_seed(None, 24).unwrap();
+    let seed = keys_btcx::WalletSeed::from_mnemonic(&mnemonic, "").unwrap();
+    let db = dir
+        .path()
+        .join("regtest")
+        .join("wallet")
+        .join("btcx.sqlite");
+    let handle = open_wallet(&db, params, &seed, DescriptorPolicy::default()).unwrap();
+
+    let chain = Arc::new(electrum_btcx::ElectrumBackend::new(params, ELECTRUM_URL).unwrap());
+    let worker_chain = Arc::new(electrum_btcx::ElectrumBackend::new(params, ELECTRUM_URL).unwrap());
+    let worker = electrum_btcx::SyncWorker::spawn("btcx", worker_chain, &handle);
+    let backend = wallet_btcx::BdkWalletBackend::new(
+        params,
+        chain,
+        Vec::new(),
+        Some((handle.clone(), worker.clone())),
+    );
+
+    // 1. Entering the receive page twice hands out the SAME address —
+    //    the first call reveals index 0 (nothing unused yet), the second
+    //    peeks it again instead of burning a fresh one.
+    let current = {
+        let mut entry = handle.lock().unwrap();
+        let first = current_address_of(&mut entry, WalletNetwork::Regtest).unwrap();
+        let second = current_address_of(&mut entry, WalletNetwork::Regtest).unwrap();
+        assert_eq!(
+            first, second,
+            "current address must be stable across receive-page visits"
+        );
+        first
+    };
+    assert!(
+        current.starts_with("rpocx1q"),
+        "expected an rpocx1q... address, got {current}"
+    );
+
+    // 2. The explicit "new address" button (and the mining wizard's fetch)
+    //    still reveals a FRESH address under the cap — unaffected by the
+    //    peek — while the current address stays put at the older unused one.
+    let fresh = backend.wallet_new_address().unwrap();
+    assert_ne!(
+        fresh, current,
+        "wallet_new_address must keep revealing fresh addresses"
+    );
+    {
+        let mut entry = handle.lock().unwrap();
+        let still = current_address_of(&mut entry, WalletNetwork::Regtest).unwrap();
+        assert_eq!(
+            still, current,
+            "an explicit reveal must not move the current (lowest-unused) address"
+        );
+    }
+
+    // 3. Fund the current address and confirm it: once it is USED, the
+    //    peek advances to the next unused one (the explicitly revealed
+    //    address from step 2).
+    assert!(
+        worker.wait_first_sync(Duration::from_secs(30)),
+        "first sync did not complete — is electrs up on {ELECTRUM_URL}?"
+    );
+    fund_and_mine(&current, 0.2);
+    let mut funded = 0u64;
+    for _ in 0..30 {
+        worker.poke();
+        std::thread::sleep(Duration::from_secs(1));
+        funded = backend.wallet_balance().unwrap();
+        if funded > 0 {
+            break;
+        }
+    }
+    assert_eq!(
+        funded, 20_000_000,
+        "expected the confirmed 0.2 BTCX funding, balance is {funded} sat"
+    );
+    {
+        let mut entry = handle.lock().unwrap();
+        let advanced = current_address_of(&mut entry, WalletNetwork::Regtest).unwrap();
+        assert_eq!(
+            advanced, fresh,
+            "after the current address is used, the peek moves to the next unused address"
+        );
+    }
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    worker.shutdown();
+    println!("current-address semantics smoke: OK (current {current}, fresh {fresh})");
 }
 
 /// Chain-only Electrum broadcast (Phase 6a): a raw transaction built and
