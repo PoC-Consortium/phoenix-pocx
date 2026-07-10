@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -330,6 +330,7 @@ export class WalletContactsComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   readonly contacts = computed(() => this.store.forNetwork(this.wallet.network()));
 
@@ -346,6 +347,21 @@ export class WalletContactsComponent implements OnInit {
     void this.wallet.initialize();
     // Pick up edits made on other surfaces (desktop contacts page).
     this.store.load();
+
+    // Add-mode entry (tx-row menu's "add to contact"): open the add form
+    // with the handed-over address prefilled and validated.
+    const address = this.route.snapshot.queryParamMap.get('add');
+    if (address) {
+      this.startAdd();
+      this.formAddress = address;
+      this.validateAddress();
+      // Drop the param so back/refresh does not reopen the form.
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true,
+      });
+    }
   }
 
   startAdd(): void {

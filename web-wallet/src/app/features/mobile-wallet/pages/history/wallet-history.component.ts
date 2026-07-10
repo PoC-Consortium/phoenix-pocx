@@ -1,29 +1,27 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe } from '../../../../core/i18n';
-import { HashTruncatePipe } from '../../../../shared/pipes';
-import { ClipboardService } from '../../../../shared/services';
-import { BlockExplorerService } from '../../../../shared/services/block-explorer.service';
+import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
+import { TxRowComponent } from '../../components/tx-row/tx-row.component';
 
-/** Rows added per "load more" tap (and shown initially). */
+/** Desktop transaction-list page sizes, defaulting to the mobile-sensible 25. */
 const PAGE_SIZE = 25;
 
 /**
  * WalletHistoryComponent - transaction list (newest first).
  *
- * Incrementally paged (25 rows + "load more"). Each row shows the display
- * address (counterparty on sends, own receive address otherwise) and has a
- * per-item menu: copy txid, copy address, open in the block explorer.
- * Refresh pokes the background sync worker (sync_now) and re-reads the
- * cached history. Tapping an item expands a simple detail: txid with
- * copy, address, fee, vsize.
+ * Rows are the shared mobile TxRowComponent (same row the home preview
+ * renders, including the per-row menu). Pagination mirrors the desktop
+ * transaction-list: a mat-paginator with page-size options and first/last
+ * buttons over a client-side slice, instead of the former "load more"
+ * button. Refresh pokes the background sync worker (sync_now) and
+ * re-reads the cached history. Tapping an item expands a simple detail:
+ * txid with copy, address, fee, vsize.
  */
 @Component({
   selector: 'app-wallet-history',
@@ -32,13 +30,10 @@ const PAGE_SIZE = 25;
     RouterModule,
     MatButtonModule,
     MatIconModule,
-    MatMenuModule,
-    MatProgressSpinnerModule,
+    MatPaginatorModule,
     MatTooltipModule,
-    DatePipe,
-    DecimalPipe,
-    HashTruncatePipe,
     I18nPipe,
+    TxRowComponent,
   ],
   template: `
     <div class="page">
@@ -67,72 +62,7 @@ const PAGE_SIZE = 25;
         } @else {
           @for (tx of visibleTransactions(); track tx.txid) {
             <div class="tx-item" (click)="toggleDetail(tx)">
-              <div class="tx-row">
-                <mat-icon
-                  class="tx-icon"
-                  [class.received]="tx.direction === 'received'"
-                  [class.sent]="tx.direction === 'sent'"
-                >
-                  {{ tx.direction === 'received' ? 'arrow_downward' : 'arrow_upward' }}
-                </mat-icon>
-
-                <div class="tx-main">
-                  <span class="tx-direction">
-                    {{ (tx.direction === 'received' ? 'mwallet_received' : 'mwallet_sent') | i18n }}
-                  </span>
-                  @if (tx.address) {
-                    <span class="tx-address mono">{{ tx.address | hashTruncate: 12 : 6 }}</span>
-                  }
-                  <span class="tx-time">
-                    @if (tx.timestamp) {
-                      {{ tx.timestamp * 1000 | date: 'short' }}
-                    }
-                  </span>
-                </div>
-
-                <div class="tx-right">
-                  <span
-                    class="tx-amount"
-                    [class.received]="tx.direction === 'received'"
-                    [class.sent]="tx.direction === 'sent'"
-                  >
-                    {{ tx.direction === 'received' ? '+' : '-'
-                    }}{{ tx.amountSat / 100000000 | number: '1.8-8' }}
-                  </span>
-                  <span class="tx-conf" [class.unconfirmed]="tx.confirmations === 0">
-                    @if (tx.confirmations === 0) {
-                      {{ 'mwallet_unconfirmed' | i18n }}
-                    } @else {
-                      {{ 'mwallet_confirmations_n' | i18n: { count: tx.confirmations } }}
-                    }
-                  </span>
-                </div>
-
-                <button
-                  mat-icon-button
-                  class="tx-menu-button"
-                  [matMenuTriggerFor]="txMenu"
-                  (click)="$event.stopPropagation()"
-                >
-                  <mat-icon>more_vert</mat-icon>
-                </button>
-                <mat-menu #txMenu="matMenu">
-                  <button mat-menu-item (click)="copyTxid(tx.txid)">
-                    <mat-icon>content_copy</mat-icon>
-                    <span>{{ 'copy_transaction_id' | i18n }}</span>
-                  </button>
-                  @if (tx.address) {
-                    <button mat-menu-item (click)="copyAddress(tx.address)">
-                      <mat-icon>content_copy</mat-icon>
-                      <span>{{ 'copy_address' | i18n }}</span>
-                    </button>
-                  }
-                  <button mat-menu-item (click)="openInExplorer(tx.txid)">
-                    <mat-icon>open_in_new</mat-icon>
-                    <span>{{ 'view_in_explorer' | i18n }}</span>
-                  </button>
-                </mat-menu>
-              </div>
+              <app-mwallet-tx-row [tx]="tx" />
 
               @if (expandedTxid() === tx.txid) {
                 <div class="tx-detail">
@@ -171,14 +101,16 @@ const PAGE_SIZE = 25;
             </div>
           }
 
-          @if (hasMore()) {
-            <div class="load-more-row">
-              <button mat-button (click)="loadMore()">
-                <mat-icon>expand_more</mat-icon>
-                {{ 'mwallet_load_more' | i18n }}
-              </button>
-            </div>
-          }
+          <!-- Desktop transaction-list pagination, scaled to mobile -->
+          <mat-paginator
+            [length]="wallet.transactions().length"
+            [pageSize]="pageSize()"
+            [pageIndex]="pageIndex()"
+            [pageSizeOptions]="pageSizeOptions"
+            (page)="onPageChange($event)"
+            [showFirstLastButtons]="true"
+          >
+          </mat-paginator>
         }
       </div>
     </div>
@@ -232,7 +164,7 @@ const PAGE_SIZE = 25;
       }
 
       .list-card {
-        padding: 4px 0;
+        padding: 4px 0 0;
       }
 
       .empty-state {
@@ -258,100 +190,37 @@ const PAGE_SIZE = 25;
         padding: 10px 8px 10px 16px;
         cursor: pointer;
 
-        &:not(:last-child) {
-          border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-        }
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
       }
 
-      .tx-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
+      /* Compact paginator (the desktop transaction-list pager, mobile-sized). */
+      mat-paginator {
+        border-radius: 0 0 8px 8px;
 
-      .tx-icon {
-        font-size: 20px;
-        width: 20px;
-        height: 20px;
-        flex-shrink: 0;
-
-        &.received {
-          color: #4caf50;
+        ::ng-deep .mat-mdc-paginator-container {
+          min-height: 44px;
+          padding: 0 4px;
+          justify-content: center;
         }
 
-        &.sent {
-          color: #1976d2;
-        }
-      }
-
-      .tx-main {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-width: 0;
-
-        .tx-direction {
-          font-size: 14px;
+        ::ng-deep .mat-mdc-paginator-page-size {
+          margin-right: 4px;
         }
 
-        .tx-address {
+        ::ng-deep .mat-mdc-paginator-page-size-label,
+        ::ng-deep .mat-mdc-paginator-range-label {
           font-size: 11px;
-          color: rgba(0, 0, 0, 0.6);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          margin: 0 6px;
         }
 
-        .tx-time {
-          font-size: 11px;
-          color: rgba(0, 0, 0, 0.5);
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-first,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-previous,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-next,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-last {
+          width: 36px;
+          height: 36px;
+          padding: 6px;
         }
-      }
-
-      .tx-right {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-
-        .tx-amount {
-          font-size: 13px;
-          font-variant-numeric: tabular-nums;
-          font-family: monospace;
-
-          &.received {
-            color: #2e7d32;
-          }
-        }
-
-        .tx-conf {
-          font-size: 11px;
-          color: rgba(0, 0, 0, 0.5);
-
-          &.unconfirmed {
-            color: #e65100;
-          }
-        }
-      }
-
-      .tx-menu-button {
-        flex-shrink: 0;
-        width: 36px;
-        height: 36px;
-        padding: 6px;
-
-        mat-icon {
-          font-size: 20px;
-          width: 20px;
-          height: 20px;
-          color: rgba(0, 0, 0, 0.45);
-        }
-      }
-
-      .load-more-row {
-        display: flex;
-        justify-content: center;
-        padding: 4px 0;
-        border-top: 1px solid rgba(0, 0, 0, 0.06);
       }
 
       .tx-detail {
@@ -411,29 +280,8 @@ const PAGE_SIZE = 25;
           color: rgba(255, 255, 255, 0.38);
         }
 
-        .tx-item:not(:last-child) {
+        .tx-item {
           border-bottom-color: rgba(255, 255, 255, 0.08);
-        }
-
-        .tx-main .tx-address {
-          color: rgba(255, 255, 255, 0.6);
-        }
-
-        .tx-main .tx-time,
-        .tx-right .tx-conf {
-          color: rgba(255, 255, 255, 0.5);
-        }
-
-        .tx-menu-button mat-icon {
-          color: rgba(255, 255, 255, 0.55);
-        }
-
-        .tx-right .tx-amount.received {
-          color: #81c784;
-        }
-
-        .load-more-row {
-          border-top-color: rgba(255, 255, 255, 0.08);
         }
 
         .tx-detail {
@@ -446,18 +294,28 @@ const PAGE_SIZE = 25;
 export class WalletHistoryComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly clipboard = inject(ClipboardService);
-  private readonly explorer = inject(BlockExplorerService);
+  private readonly contactsStore = inject(ContactsStoreService);
 
   readonly refreshing = signal(false);
   readonly expandedTxid = signal<string | null>(null);
-  readonly visibleCount = signal(PAGE_SIZE);
 
-  readonly visibleTransactions = computed(() =>
-    this.wallet.transactions().slice(0, this.visibleCount())
-  );
-  readonly hasMore = computed(() => this.wallet.transactions().length > this.visibleCount());
+  // Desktop transaction-list pagination state (client-side slicing).
+  readonly pageSize = signal(PAGE_SIZE);
+  readonly pageIndex = signal(0);
+  readonly pageSizeOptions = [10, 25, 50];
+
+  readonly visibleTransactions = computed(() => {
+    const txs = this.wallet.transactions();
+    // Clamp: a refresh can shrink the list below the current page.
+    const lastPage = Math.max(0, Math.ceil(txs.length / this.pageSize()) - 1);
+    const page = Math.min(this.pageIndex(), lastPage);
+    const start = page * this.pageSize();
+    return txs.slice(start, start + this.pageSize());
+  });
 
   ngOnInit(): void {
+    // Fresh contacts book for the row menu's "add to contact" visibility.
+    this.contactsStore.load();
     void this.init();
   }
 
@@ -479,16 +337,14 @@ export class WalletHistoryComponent implements OnInit {
     }
   }
 
-  loadMore(): void {
-    this.visibleCount.update(count => count + PAGE_SIZE);
+  onPageChange(event: PageEvent): void {
+    this.pageSize.set(event.pageSize);
+    this.pageIndex.set(event.pageIndex);
+    this.expandedTxid.set(null);
   }
 
   toggleDetail(tx: BtcxWalletTx): void {
     this.expandedTxid.set(this.expandedTxid() === tx.txid ? null : tx.txid);
-  }
-
-  openInExplorer(txid: string): void {
-    this.explorer.openTransaction(txid, this.wallet.network());
   }
 
   async copyTxid(txid: string): Promise<void> {
