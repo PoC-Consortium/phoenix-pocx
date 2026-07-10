@@ -38,15 +38,12 @@ import {
 import { MiningService } from '../../../../mining/services/mining.service';
 import { NodeService } from '../../../../node/services/node.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import {
+  PoolAddressOption,
+  poolAddressOptionsForChains,
+} from '../../../../mining/models/mining.models';
 
 type OperationMode = 'create' | 'revoke' | 'check';
-
-/** A configured pool's forging address, surfaced in the forging-address dropdown. */
-interface PoolAddressOption {
-  poolName: string;
-  label: string;
-  address: string;
-}
 
 interface FeeOption {
   label: string;
@@ -1237,20 +1234,13 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
 
   /**
    * Forging addresses from configured pool chains, offered as a dropdown on the
-   * forging-address field. Free-text entry remains available.
+   * forging-address field. Free-text entry remains available. Shared helper:
+   * falls back to the predefined-pool registry for chains whose persisted
+   * list is empty (configs predating the poolAddresses field).
    */
-  readonly poolAddressOptions = computed<PoolAddressOption[]>(() => {
-    const chains = this.miningService.config()?.chains ?? [];
-    const options: PoolAddressOption[] = [];
-    for (const chain of chains) {
-      for (const pa of chain.poolAddresses ?? []) {
-        if (pa.address) {
-          options.push({ poolName: chain.name, label: pa.label, address: pa.address });
-        }
-      }
-    }
-    return options;
-  });
+  readonly poolAddressOptions = computed<PoolAddressOption[]>(() =>
+    poolAddressOptionsForChains(this.miningService.config()?.chains)
+  );
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
   private readonly destroy$ = new Subject<void>();
 
@@ -1292,6 +1282,11 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadWalletAddresses();
     this.loadFeeEstimates();
+    // Ensure the mining chain configs are loaded (pool forging-address
+    // dropdown) — the signal-driven computed picks them up when they land.
+    void this.miningService.getState().catch(err => {
+      console.warn('Failed to load mining state for pool addresses:', err);
+    });
     // Note: Block height is now handled by BlockchainStateService with auto-refresh
 
     // Subscribe to wallet changes to reload addresses

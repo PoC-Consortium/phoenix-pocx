@@ -27,6 +27,10 @@ import type {
 } from '../../../../bitcoin/services/rpc/mining-rpc.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { MiningService } from '../../../../mining/services';
+import {
+  PoolAddressOption,
+  poolAddressOptionsForChains,
+} from '../../../../mining/models/mining.models';
 
 /** One fee choice — the desktop forging-assignment page's FeeOption, slim. */
 interface FeeOption {
@@ -34,12 +38,12 @@ interface FeeOption {
   feeRate: number | null;
 }
 
-/** A configured pool's forging address — the desktop page's PoolAddressOption. */
-interface PoolAddressOption {
-  poolName: string;
-  label: string;
-  address: string;
-}
+/**
+ * Assumed vsize of an assignment/revocation tx for the fee preview:
+ * 1 P2WPKH input + OP_RETURN payload + change, ~170 vB (the desktop send
+ * page's preview assumption, which the OP_RETURN output roughly matches).
+ */
+const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
 
 /**
  * WalletAssignmentComponent - forging assignments on mobile.
@@ -357,6 +361,19 @@ interface PoolAddressOption {
             />
           </mat-form-field>
         }
+
+        <!-- Live estimate for the assignment tx (the desktop send page's
+             .fee-summary treatment — the desktop assignment page shows
+             only per-chip sat/vB rates) -->
+        <div class="fee-summary">
+          <span class="fee-summary-label">{{ 'estimated_fee' | i18n }}:</span>
+          <span class="fee-summary-value">
+            ~{{ estimatedFeeSat() / 100000000 | number: '1.8-8' }} BTCX ({{
+              estimatedFeeSat() | number: '1.0-0'
+            }}
+            sats)
+          </span>
+        </div>
       </div>
     </ng-template>
   `,
@@ -646,6 +663,25 @@ interface PoolAddressOption {
         margin-top: 10px;
       }
 
+      /* Live fee line (desktop send page's .fee-summary, mobile-sized). */
+      .fee-summary {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 12px;
+        margin-top: 10px;
+
+        .fee-summary-label {
+          color: rgba(0, 0, 0, 0.6);
+          flex-shrink: 0;
+        }
+
+        .fee-summary-value {
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+
       .action-button {
         margin-top: 12px;
       }
@@ -678,6 +714,10 @@ interface PoolAddressOption {
 
         .fee-header .fee-title {
           color: rgba(255, 255, 255, 0.5);
+        }
+
+        .fee-summary .fee-summary-label {
+          color: rgba(255, 255, 255, 0.6);
         }
 
         .fee-header .fee-refresh mat-icon {
@@ -721,21 +761,14 @@ export class WalletAssignmentComponent implements OnInit {
   /**
    * Forging addresses published by the configured pool chains, offered in
    * the forging-address combo — the desktop forging-assignment page's
-   * poolAddressOptions, sourced from the same mining chain configs
-   * (ChainConfig.poolAddresses). Free-text entry remains available.
+   * poolAddressOptions, via the SAME shared helper: persisted
+   * ChainConfig.poolAddresses first, falling back to the predefined-pool
+   * registry (endpoint match) for configs that predate the field.
+   * Free-text entry remains available.
    */
-  readonly poolAddressOptions = computed<PoolAddressOption[]>(() => {
-    const chains = this.mining.config()?.chains ?? [];
-    const options: PoolAddressOption[] = [];
-    for (const chain of chains) {
-      for (const pa of chain.poolAddresses ?? []) {
-        if (pa.address) {
-          options.push({ poolName: chain.name, label: pa.label, address: pa.address });
-        }
-      }
-    }
-    return options;
-  });
+  readonly poolAddressOptions = computed<PoolAddressOption[]>(() =>
+    poolAddressOptionsForChains(this.mining.config()?.chains)
+  );
 
   plotAddress = '';
   forgingAddress = '';
@@ -835,6 +868,11 @@ export class WalletAssignmentComponent implements OnInit {
       return this.customFeeRate ?? undefined;
     }
     return this.selectedFeeOption?.feeRate ?? undefined;
+  }
+
+  /** Live fee preview for the assignment tx, sats (rate × assumed vsize). */
+  estimatedFeeSat(): number {
+    return Math.ceil((this.getSelectedFeeRate() ?? 1) * ASSIGNMENT_PREVIEW_VSIZE_VB);
   }
 
   async checkStatus(): Promise<void> {
