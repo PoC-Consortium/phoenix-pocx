@@ -160,7 +160,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
               <mat-icon>report</mat-icon>
               <div class="high-fee-body">
                 <span>
-                  {{ 'fee_high_warning' | i18n: { rate: previewFeeRate() | number: '1.0-2' } }}
+                  {{ 'fee_high_warning' | i18n: { rate: ((previewFeeRate() ?? 0) | number: '1.0-2') ?? '0' } }}
                 </span>
                 <mat-checkbox
                   class="high-fee-ack"
