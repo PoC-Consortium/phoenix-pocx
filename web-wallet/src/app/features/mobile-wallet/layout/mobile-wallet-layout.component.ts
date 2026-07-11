@@ -531,18 +531,16 @@ interface NavGroup {
         background: #eaf0f6;
       }
 
-      /* Phoenix-gradient header (round 6): the desktop wallet's toolbar is
-         plain white — the Phoenix identity gradient lives on its sidenav
-         (main-layout), which the drawer and dashboard cards here already
-         mirror. The mobile toolbar carries the same gradient so every
-         wallet page's header reads as desktop-Phoenix. */
+      /* Plain white toolbar — the desktop toolbar (layout/toolbar), which
+         is white with dark text/icons. The Phoenix identity gradient lives
+         on the page headers and the drawer, not on the top bar. */
       .wallet-toolbar {
         position: relative;
-        background: linear-gradient(90deg, #1e3a5f 0%, #2d5a87 100%) !important;
-        color: white !important;
+        background-color: white !important;
+        color: rgba(0, 0, 0, 0.87) !important;
         padding: 0;
         height: 56px;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         flex-shrink: 0;
         z-index: 2;
       }
@@ -566,7 +564,7 @@ interface NavGroup {
       .app-name {
         font-size: 16px;
         font-weight: 500;
-        color: white;
+        color: rgba(0, 0, 0, 0.87);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -587,13 +585,13 @@ interface NavGroup {
           font-size: 20px;
           width: 20px;
           height: 20px;
-          color: rgba(255, 255, 255, 0.8);
+          color: rgba(0, 0, 0, 0.54);
         }
 
         .wallet-chip-name {
           font-size: 15px;
           font-weight: 500;
-          color: white;
+          color: rgba(0, 0, 0, 0.87);
           max-width: 96px;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -604,7 +602,7 @@ interface NavGroup {
           font-size: 18px;
           width: 18px;
           height: 18px;
-          color: rgba(255, 255, 255, 0.8);
+          color: rgba(0, 0, 0, 0.54);
           margin: 0;
         }
       }
@@ -679,7 +677,7 @@ interface NavGroup {
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        color: #ffb74d;
+        color: #e65100;
         border: 1px solid currentColor;
         border-radius: 10px;
         padding: 1px 8px;
@@ -688,7 +686,7 @@ interface NavGroup {
       }
 
       /* Electrum indicator (the desktop toolbar's .status-indicator),
-         sized as a touch target and tinted for the gradient surface. */
+         sized as a touch target. Same colors as the desktop toolbar. */
       .status-indicator {
         display: flex;
         align-items: center;
@@ -701,7 +699,7 @@ interface NavGroup {
           font-size: 22px;
           width: 22px;
           height: 22px;
-          color: rgba(255, 255, 255, 0.45);
+          color: rgba(0, 0, 0, 0.25);
           transition: color 0.2s ease;
 
           &.electrum-healthy {
@@ -717,7 +715,7 @@ interface NavGroup {
           }
 
           &.electrum-connecting {
-            color: rgba(255, 255, 255, 0.45);
+            color: rgba(0, 0, 0, 0.38);
           }
         }
 
@@ -815,7 +813,7 @@ interface NavGroup {
       .toolbar-separator {
         height: 56px;
         width: 1px;
-        background: rgba(255, 255, 255, 0.15);
+        background: rgba(0, 0, 0, 0.12);
         flex-shrink: 0;
       }
 
@@ -840,12 +838,12 @@ interface NavGroup {
       }
 
       .secondary-text {
-        color: rgba(255, 255, 255, 0.85);
+        color: rgba(0, 0, 0, 0.54);
       }
 
       .lang-button {
         .lang-name-text {
-          color: white;
+          color: rgba(0, 0, 0, 0.87);
           display: inline;
         }
 
@@ -886,9 +884,57 @@ interface NavGroup {
           background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
         }
 
-        /* Same treatment, the dark sidenav gradient (desktop main-layout). */
+        /* Dark surface with light text — the pre-gradient dark toolbar. */
         .wallet-toolbar {
-          background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%) !important;
+          background-color: #424242 !important;
+          color: white !important;
+        }
+
+        .app-name {
+          color: white;
+        }
+
+        .wallet-chip-content {
+          .wallet-icon,
+          .dropdown-arrow {
+            color: rgba(255, 255, 255, 0.7);
+          }
+
+          .wallet-chip-name {
+            color: white;
+          }
+        }
+
+        .secondary-text {
+          color: rgba(255, 255, 255, 0.7);
+        }
+
+        .toolbar-separator {
+          background: rgba(255, 255, 255, 0.12);
+        }
+
+        .network-badge {
+          color: #ffb74d;
+        }
+
+        .status-indicator mat-icon {
+          color: rgba(255, 255, 255, 0.3);
+
+          &.electrum-healthy {
+            color: #4caf50;
+          }
+
+          &.electrum-degraded {
+            color: #ff9800;
+          }
+
+          &.electrum-down {
+            color: #e53935;
+          }
+
+          &.electrum-connecting {
+            color: rgba(255, 255, 255, 0.45);
+          }
         }
       }
     `,
