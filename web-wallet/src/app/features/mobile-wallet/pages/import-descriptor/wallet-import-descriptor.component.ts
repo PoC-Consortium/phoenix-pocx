@@ -105,7 +105,12 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
 
           <p class="hint-text">{{ 'mwallet_import_description' | i18n }}</p>
 
-          <mat-form-field appearance="outline" class="full-width">
+          <!-- subscriptSizing dynamic: the multi-line hint below the
+               textarea must grow the field. In the default 'fixed' mode
+               the hint wrapper is absolutely positioned in a one-line-high
+               subscript box, so the wrapped hint painted OVER the section
+               that followed (the wallet-name label overlay bug). -->
+          <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
             <mat-label>{{ 'mwallet_import_input_label' | i18n }}</mat-label>
             <textarea
               matInput
