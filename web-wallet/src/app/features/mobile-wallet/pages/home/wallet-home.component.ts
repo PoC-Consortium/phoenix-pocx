@@ -12,7 +12,11 @@ import { BtcxPipe } from '../../../../shared/pipes';
 import { ContactsStoreService } from '../../../../shared/services';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
 import { FitRowsDirective } from '../../fit-rows.directive';
-import { BtcxWalletService, BtcxChainInfo } from '../../../../core/services/btcx-wallet.service';
+import {
+  BtcxWalletService,
+  BtcxChainInfo,
+  RECENT_TX_LIMIT,
+} from '../../../../core/services/btcx-wallet.service';
 import { MiningService } from '../../../../mining/services';
 import {
   BTCX_BLOCK_TIME_SECONDS,
@@ -224,7 +228,7 @@ import {
               class="tx-list"
               appFitRows
               [fitMinRows]="3"
-              [fitMaxRows]="10"
+              [fitMaxRows]="recentTxLimit"
               (fitRows)="visibleTxCount.set($event)"
             >
               @for (tx of recentTransactions(); track tx.txid) {
@@ -563,8 +567,14 @@ export class WalletHomeComponent implements OnInit {
   // so its height never depends on its own rows); the shared
   // FitRowsDirective on the row container derives how many rows fit.
   readonly visibleTxCount = signal(3);
+  /** The fit ceiling — also the window the service fetches (round 8). */
+  readonly recentTxLimit = RECENT_TX_LIMIT;
 
-  /** Recent activity preview — as many newest entries as fit the screen. */
+  /**
+   * Recent activity preview — as many newest entries as fit the screen.
+   * The service's transaction window is already capped at RECENT_TX_LIMIT
+   * (O(visible) on fat wallets); the slice trims it to the measured fit.
+   */
   readonly recentTransactions = computed(() =>
     this.wallet.transactions().slice(0, this.visibleTxCount())
   );
@@ -603,6 +613,12 @@ export class WalletHomeComponent implements OnInit {
     void this.wallet.initialize().then(() => {
       if (this.wallet.hasElectrumServer()) {
         void this.refreshChain();
+      }
+      // Point the service's transaction window back at the recent slice
+      // (a visit to the transactions page moves it to that page's offset);
+      // sync ticks keep re-requesting this same small window.
+      if (this.wallet.walletActive()) {
+        void this.wallet.refreshTransactions(RECENT_TX_LIMIT);
       }
     });
     void this.mining.getState().then(() => this.miningStateLoaded.set(true));
