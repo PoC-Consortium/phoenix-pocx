@@ -384,6 +384,9 @@ pub struct BtcxImportResult {
     pub inferred_internal: bool,
     /// Both branches came from one multipath `<0;1>` descriptor.
     pub from_multipath: bool,
+    /// Single-address (`wpkh(WIF)`) wallet: one keychain, change returns
+    /// to the same address — the success screen notes it.
+    pub single_address: bool,
 }
 
 /// The full descriptor-import flow (parse/validate → resolve name → store
@@ -411,11 +414,7 @@ pub fn import_descriptor_wallet_impl(
     let root = BtcxWalletConfig::wallet_root(network, &name);
     let mut store = DescStore::open(&root)?;
     store.import(
-        &DescriptorPayload {
-            version: 1,
-            external: parsed.external.clone(),
-            internal: parsed.internal.clone(),
-        },
+        &DescriptorPayload::new(parsed.external.clone(), parsed.internal.clone()),
         passphrase,
     )?;
 
@@ -442,6 +441,7 @@ pub fn import_descriptor_wallet_impl(
                     .ok()
                     .map(|d| d.as_secs()),
                 source: WalletSourceCfg::Descriptor,
+                single_address: parsed.single_address(),
             },
         );
         c.active = true;
@@ -450,20 +450,24 @@ pub fn import_descriptor_wallet_impl(
         state.with_desc(|d| d.unlock(pass))?;
     }
     // No Electrum server configured yet is fine — the runtime opens later,
-    // when one is (Ok(false)); the first sync then gap-scans the history.
+    // when one is (Ok(false)); the first sync then gap-scans the history
+    // (or, for a single-address wallet, syncs its one revealed script).
     state.open_runtime(app)?;
     Ok(BtcxImportResult {
         status: state.status()?,
         policy,
         inferred_internal: parsed.inferred_internal,
         from_multipath: parsed.from_multipath,
+        single_address: parsed.single_address(),
     })
 }
 
 /// Import a wallet from one or two PRIVATE descriptors (`wpkh`/`tr`, plus
 /// legacy `pkh`/`sh(wpkh)` — gated from mining/assignments). A single
 /// standard descriptor infers its `/0/*`↔`/1/*` sibling; a multipath
-/// `<0;1>` descriptor carries both branches. Public-only (xpub) material is
+/// `<0;1>` descriptor carries both branches; a `wpkh(WIF)` descriptor
+/// imports as a SINGLE-ADDRESS wallet (one keychain, change returns to the
+/// same address — vanity/plot identities). Public-only (xpub) material is
 /// rejected — watch-only wallets are not supported yet. The optional
 /// passphrase encrypts the stored descriptors at rest (same scheme as the
 /// seed store). `name` picks the named wallet (default: the active one);
@@ -548,6 +552,8 @@ pub struct BtcxWalletSummary {
     pub policy: DescriptorPolicy,
     /// Key-material source: seed (create/restore) or imported descriptors.
     pub source: WalletSourceCfg,
+    /// Single-address (`wpkh(WIF)`) wallet — the switcher/settings badge.
+    pub single_address: bool,
     /// The selected wallet of the network.
     pub is_active: bool,
     /// Runtime open (only ever true for the active wallet).
@@ -611,6 +617,7 @@ pub fn btcx_wallet_list(
             network: network.as_str().to_string(),
             policy: meta.policy,
             source: meta.source,
+            single_address: meta.single_address,
             is_active,
             is_open,
             seed_encrypted: needs_passphrase,
@@ -1676,6 +1683,95 @@ mod tests {
             import_descriptor_wallet_impl(&state, None, &external, None, Some("imported".into()))
                 .unwrap_err();
         assert!(err.contains("already exists"), "{err}");
+
+        state.close_runtime();
+        std::env::remove_var("PHOENIX_DATA_DIR");
+        std::env::remove_var("PACT_DISABLE_KEYRING");
+    }
+
+    /// The full `wpkh(WIF)` single-address import flow, OFFLINE: registry
+    /// entry with singleAddress=true, descriptor store with a null
+    /// internal, ONE keychain open with THE address revealed, and the
+    /// bare-WIF / non-segwit rejections writing nothing.
+    #[test]
+    fn import_wif_single_address_flow_works_offline() {
+        let _guard = DATA_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+        std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+        let state = super::super::state::create_btcx_wallet_state();
+        state
+            .update_config(|c| {
+                c.network = WalletNetwork::Regtest;
+                // Unreachable on purpose — import is an offline operation.
+                c.set_servers(
+                    WalletNetwork::Regtest,
+                    vec!["tcp://127.0.0.1:1".to_string()],
+                );
+            })
+            .unwrap();
+
+        let secret = bitcoin::secp256k1::SecretKey::from_slice(&[0x33u8; 32]).unwrap();
+        let wif = bitcoin::PrivateKey::new(secret, bitcoin::NetworkKind::Test).to_wif();
+
+        let result = import_descriptor_wallet_impl(
+            &state,
+            None,
+            &format!("wpkh({wif})"),
+            None,
+            Some("vanity".into()),
+        )
+        .expect("import wpkh(WIF)");
+        assert_eq!(result.status.wallet_name, "vanity");
+        assert!(result.status.wallet_active, "runtime opens (lazy dial)");
+        assert!(result.status.single_address, "status carries the marker");
+        assert!(result.single_address);
+        assert_eq!(result.policy.kind, DescriptorKindCfg::Bip84);
+        assert!(!result.inferred_internal);
+
+        // Registry: descriptor source + single-address marker; the list
+        // DTO carries it for the switcher badge.
+        let meta = state
+            .get_config()
+            .wallet_meta(WalletNetwork::Regtest, "vanity")
+            .unwrap();
+        assert_eq!(meta.source, WalletSourceCfg::Descriptor);
+        assert!(meta.single_address);
+
+        // The stored payload has NO internal descriptor (v2 shape).
+        let payload = state.with_desc(|d| d.payload()).unwrap();
+        assert_eq!(payload.internal, None);
+        assert_eq!(payload.version, 2);
+
+        // Current and "new" address are THE address — identity-preserving.
+        let current = state
+            .with_entry(|entry| current_address_of(entry, WalletNetwork::Regtest))
+            .unwrap();
+        assert!(current.starts_with("rpocx1q"), "{current}");
+        let again = state
+            .with_entry(|entry| current_address_of(entry, WalletNetwork::Regtest))
+            .unwrap();
+        assert_eq!(current, again);
+
+        // Mining/assignments stay ALLOWED — the point of the feature.
+        assert!(ensure_segwit_wallet(meta.policy).is_ok());
+
+        // Bare WIF and non-segwit WIF forms never write anything.
+        for (input, needle) in [
+            (wif.clone(), "wpkh(YOUR_WIF)"),
+            (format!("pkh({wif})"), "segwit only"),
+            (format!("tr({wif})"), "segwit only"),
+        ] {
+            let err =
+                import_descriptor_wallet_impl(&state, None, &input, None, Some("nope".into()))
+                    .unwrap_err();
+            assert!(err.contains(needle), "{input}: {err}");
+            assert!(state
+                .get_config()
+                .wallet_meta(WalletNetwork::Regtest, "nope")
+                .is_none());
+        }
 
         state.close_runtime();
         std::env::remove_var("PHOENIX_DATA_DIR");

@@ -17,6 +17,15 @@
 //!   convert a PRIVATE multipath key to its public form, so
 //!   `Wallet::create_from_two_path_descriptor` is not usable here); any
 //!   other shape needs both descriptors pasted explicitly.
+//! - **Single-address (`wpkh(WIF)`).** One `wpkh` descriptor over a single
+//!   WIF key (no derivation, no wildcard) imports as a SINGLE-ADDRESS
+//!   wallet: one keychain, no internal descriptor — change returns to the
+//!   same address (bdk `create_single` semantics). This is deliberate:
+//!   vanity/plot addresses are single-key mining identities and spending
+//!   must not scatter funds onto other addresses. Segwit only — `pkh(WIF)`
+//!   / `tr(WIF)` / `sh(wpkh(WIF))` are rejected, and a BARE WIF paste gets
+//!   the wrap-it hint instead of a generic parse error. The WIF's network
+//!   byte is validated against the active network like xprv/tprv.
 //! - **Classification** from the script type: `wpkh` → BIP-84 (segwit v0,
 //!   mining + assignments allowed), `tr` → BIP-86 (taproot), `pkh` /
 //!   `sh(wpkh)` → legacy (funds visible + spendable, mining/assignments
@@ -71,8 +80,10 @@ impl std::fmt::Display for ImportError {
 pub struct ParsedImport {
     /// External (receive) private descriptor, checksum-stripped.
     pub external: String,
-    /// Internal (change) private descriptor, checksum-stripped.
-    pub internal: String,
+    /// Internal (change) private descriptor, checksum-stripped. `None` for
+    /// a single-address `wpkh(WIF)` wallet: ONE keychain, change returns
+    /// to the same address (bdk `create_single`).
+    pub internal: Option<String>,
     /// Script-type classification (drives badges + mining/assignment gates).
     pub kind: DescriptorKindCfg,
     /// BIP32 coin type parsed from the derivation path, if any —
@@ -82,6 +93,13 @@ pub struct ParsedImport {
     pub inferred_internal: bool,
     /// Both branches came from one multipath `<0;1>` descriptor.
     pub from_multipath: bool,
+}
+
+impl ParsedImport {
+    /// Single-address wallet (`wpkh(WIF)`, no internal descriptor).
+    pub fn single_address(&self) -> bool {
+        self.internal.is_none()
+    }
 }
 
 /// Pre-submit validation feedback for the import form
@@ -100,6 +118,9 @@ pub struct ImportValidation {
     pub coin_type: Option<u32>,
     pub inferred_internal: bool,
     pub from_multipath: bool,
+    /// Single-address `wpkh(WIF)` wallet — change returns to the same
+    /// address (the import form's verdict line).
+    pub single_address: bool,
 }
 
 impl ImportValidation {
@@ -113,6 +134,7 @@ impl ImportValidation {
                 coin_type: parsed.coin_type,
                 inferred_internal: parsed.inferred_internal,
                 from_multipath: parsed.from_multipath,
+                single_address: parsed.single_address(),
             },
             Err(e) => Self {
                 valid: false,
@@ -122,6 +144,7 @@ impl ImportValidation {
                 coin_type: None,
                 inferred_internal: false,
                 from_multipath: false,
+                single_address: false,
             },
         }
     }
@@ -194,6 +217,16 @@ fn check_token(token: &str) -> Result<(), ImportError> {
             "Paste a full descriptor (wpkh(...) or tr(...)), not a bare extended key",
         ));
     }
+    // A bare WIF private key (base58check-decodable) gets the wrap-it hint
+    // instead of the generic not-a-descriptor error — the vanity-address
+    // path into the single-address wallet import.
+    if bitcoin::PrivateKey::from_wif(token).is_ok() {
+        return Err(ImportError::new(
+            "bare_wif",
+            "That is a bare WIF private key — wrap it as wpkh(YOUR_WIF) to import it as a \
+             single-address wallet",
+        ));
+    }
     if !token.contains('(') {
         return Err(ImportError::new(
             "parse",
@@ -225,6 +258,9 @@ struct ParsedSide {
     /// pair check compares these.
     keys: Vec<String>,
     network: Option<NetworkKind>,
+    /// Non-ranged `wpkh` over a single WIF key — imports as a
+    /// single-address wallet (one keychain, change to self).
+    single_address: bool,
 }
 
 fn classify_type(desc: &Descriptor<DescriptorPublicKey>) -> Result<DescriptorKindCfg, ImportError> {
@@ -284,26 +320,46 @@ fn parse_side(body: &str, network: WalletNetwork) -> Result<ParsedSide, ImportEr
 
     let kind = classify_type(&desc)?;
 
-    if !desc.has_wildcard() {
+    // Single WIF keys (no derivation, no wildcard) are the single-address
+    // wallet form — segwit only. Everything else must be ranged.
+    let all_single_keys = !keymap.is_empty()
+        && keymap
+            .values()
+            .all(|secret| matches!(secret, DescriptorSecretKey::Single(_)));
+    let single_address = if desc.has_wildcard() {
+        false
+    } else if all_single_keys {
+        if kind != DescriptorKindCfg::Bip84 {
+            return Err(ImportError::new(
+                "wif_not_segwit",
+                "Only wpkh(WIF) is supported for single-key imports — segwit only (pkh, tr and \
+                 sh(wpkh) forms are rejected)",
+            ));
+        }
+        true
+    } else {
         return Err(ImportError::new(
             "not_ranged",
             "The descriptor must be ranged (its derivation must end in /*)",
         ));
-    }
+    };
 
-    // Key network (xprv vs tprv) against the active app network.
+    // Key network (xprv vs tprv, or the WIF network byte) against the
+    // active app network.
     let mut network_kind = None;
     for secret in keymap.values() {
-        let this = match secret {
-            DescriptorSecretKey::XPrv(x) => x.xkey.network,
-            DescriptorSecretKey::MultiXPrv(x) => x.xkey.network,
-            DescriptorSecretKey::Single(s) => s.key.network,
+        let (this, is_wif) = match secret {
+            DescriptorSecretKey::XPrv(x) => (x.xkey.network, false),
+            DescriptorSecretKey::MultiXPrv(x) => (x.xkey.network, false),
+            DescriptorSecretKey::Single(s) => (s.key.network, true),
         };
         network_kind = Some(this);
         if this != expected_network_kind(network) {
-            let (have, want) = match this {
-                NetworkKind::Main => ("a mainnet key (xprv)", "tprv"),
-                NetworkKind::Test => ("a testnet key (tprv)", "xprv"),
+            let (have, want) = match (this, is_wif) {
+                (NetworkKind::Main, false) => ("a mainnet key (xprv)", "tprv"),
+                (NetworkKind::Test, false) => ("a testnet key (tprv)", "xprv"),
+                (NetworkKind::Main, true) => ("a mainnet WIF key", "testnet WIF"),
+                (NetworkKind::Test, true) => ("a testnet WIF key", "mainnet WIF"),
             };
             return Err(ImportError::new(
                 "wrong_network",
@@ -336,6 +392,7 @@ fn parse_side(body: &str, network: WalletNetwork) -> Result<ParsedSide, ImportEr
         coin_type,
         keys,
         network: network_kind,
+        single_address,
     })
 }
 
@@ -372,7 +429,27 @@ pub fn parse_import(input: &str, network: WalletNetwork) -> Result<ParsedImport,
                 // Parse the lone descriptor FIRST so the precise error
                 // (watch-only, wrong network, not ranged, unsupported
                 // type) wins over the generic paste-both message.
-                parse_side(&body, network)?;
+                let side = parse_side(&body, network)?;
+                if side.single_address {
+                    // `wpkh(WIF)` — a single-address wallet: one keychain,
+                    // no internal descriptor, change returns to the same
+                    // address. Honor check with the exact single-keychain
+                    // build the real store creation runs later.
+                    Wallet::create_single(body.clone())
+                        .network(bdk_network(network))
+                        .create_wallet_no_persist()
+                        .map_err(|e| {
+                            ImportError::new("parse", format!("Descriptor rejected: {e}"))
+                        })?;
+                    return Ok(ParsedImport {
+                        external: body,
+                        internal: None,
+                        kind: side.kind,
+                        coin_type: side.coin_type,
+                        inferred_internal: false,
+                        from_multipath: false,
+                    });
+                }
                 match branch_and_sibling(&body) {
                     Some((0, sibling)) => (body, sibling, true, false),
                     Some((_, sibling)) => (sibling, body, true, false),
@@ -463,7 +540,7 @@ pub fn parse_import(input: &str, network: WalletNetwork) -> Result<ParsedImport,
 
     Ok(ParsedImport {
         external: external.body,
-        internal: internal.body,
+        internal: Some(internal.body),
         kind: external.kind,
         coin_type: external.coin_type.or(internal.coin_type),
         inferred_internal,
@@ -511,7 +588,7 @@ mod tests {
     fn single_external_infers_internal() {
         let parsed = parse_import(&tprv_wpkh(0), WalletNetwork::Regtest).unwrap();
         assert_eq!(parsed.external, tprv_wpkh(0));
-        assert_eq!(parsed.internal, tprv_wpkh(1));
+        assert_eq!(parsed.internal.as_deref(), Some(tprv_wpkh(1).as_str()));
         assert!(parsed.inferred_internal);
         assert!(!parsed.from_multipath);
         assert_eq!(parsed.kind, DescriptorKindCfg::Bip84);
@@ -522,7 +599,7 @@ mod tests {
     fn single_internal_infers_external() {
         let parsed = parse_import(&tprv_wpkh(1), WalletNetwork::Regtest).unwrap();
         assert_eq!(parsed.external, tprv_wpkh(0));
-        assert_eq!(parsed.internal, tprv_wpkh(1));
+        assert_eq!(parsed.internal.as_deref(), Some(tprv_wpkh(1).as_str()));
         assert!(parsed.inferred_internal);
     }
 
@@ -531,7 +608,7 @@ mod tests {
         let input = format!("{}\n{}", tprv_wpkh(1), tprv_wpkh(0));
         let parsed = parse_import(&input, WalletNetwork::Regtest).unwrap();
         assert_eq!(parsed.external, tprv_wpkh(0));
-        assert_eq!(parsed.internal, tprv_wpkh(1));
+        assert_eq!(parsed.internal.as_deref(), Some(tprv_wpkh(1).as_str()));
         assert!(!parsed.inferred_internal);
     }
 
@@ -554,7 +631,7 @@ mod tests {
         let multipath = tprv_wpkh(0).replacen("/0/*", "/<0;1>/*", 1);
         let parsed = parse_import(&multipath, WalletNetwork::Regtest).unwrap();
         assert_eq!(parsed.external, tprv_wpkh(0));
-        assert_eq!(parsed.internal, tprv_wpkh(1));
+        assert_eq!(parsed.internal.as_deref(), Some(tprv_wpkh(1).as_str()));
         assert!(parsed.from_multipath);
         assert!(!parsed.inferred_internal);
     }
@@ -658,7 +735,8 @@ mod tests {
             .unwrap();
         let parsed = parse_import(&external, WalletNetwork::Mainnet).unwrap();
         assert_eq!(
-            parsed.internal, internal,
+            parsed.internal.as_deref(),
+            Some(internal.as_str()),
             "sibling inference matches keys-btcx"
         );
         assert_eq!(parsed.kind, DescriptorKindCfg::Bip84);
@@ -712,6 +790,105 @@ mod tests {
                 .code,
             "parse"
         );
+    }
+
+    /// A deterministic WIF key of the given network (NOT a real wallet).
+    fn wif(network: NetworkKind) -> String {
+        let secret = bitcoin::secp256k1::SecretKey::from_slice(&[0x42u8; 32]).unwrap();
+        bitcoin::PrivateKey::new(secret, network).to_wif()
+    }
+
+    #[test]
+    fn wpkh_wif_imports_as_single_address_wallet() {
+        // Testnet WIF on regtest (WIF has no regtest-specific byte).
+        let input = format!("wpkh({})", wif(NetworkKind::Test));
+        let parsed = parse_import(&input, WalletNetwork::Regtest).unwrap();
+        assert_eq!(parsed.external, input);
+        assert_eq!(parsed.internal, None, "single keychain — no internal");
+        assert!(parsed.single_address());
+        assert_eq!(parsed.kind, DescriptorKindCfg::Bip84);
+        assert_eq!(parsed.coin_type, None, "a WIF has no derivation path");
+        assert!(!parsed.inferred_internal);
+        assert!(!parsed.from_multipath);
+
+        // Mainnet WIF on mainnet works the same way...
+        let input = format!("wpkh({})", wif(NetworkKind::Main));
+        let parsed = parse_import(&input, WalletNetwork::Mainnet).unwrap();
+        assert!(parsed.single_address());
+
+        // ...and a checksummed paste is accepted, stored checksum-stripped.
+        let body = format!("wpkh({})", wif(NetworkKind::Test));
+        let checksum = bdk_wallet::miniscript::descriptor::checksum::desc_checksum(&body).unwrap();
+        let parsed = parse_import(&format!("{body}#{checksum}"), WalletNetwork::Regtest).unwrap();
+        assert_eq!(parsed.external, body);
+        assert!(parsed.single_address());
+    }
+
+    #[test]
+    fn wif_wrong_network_is_rejected_both_ways() {
+        let err = parse_import(
+            &format!("wpkh({})", wif(NetworkKind::Main)),
+            WalletNetwork::Regtest,
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "wrong_network");
+        assert!(err.message.contains("mainnet WIF"), "{err}");
+
+        let err = parse_import(
+            &format!("wpkh({})", wif(NetworkKind::Test)),
+            WalletNetwork::Mainnet,
+        )
+        .unwrap_err();
+        assert_eq!(err.code, "wrong_network");
+        assert!(err.message.contains("testnet WIF"), "{err}");
+    }
+
+    #[test]
+    fn non_segwit_wif_forms_are_rejected() {
+        // pkh(WIF), tr(WIF), sh(wpkh(WIF)): all parse, all classify, all
+        // refused — single-key imports are segwit only (owner decision).
+        let key = wif(NetworkKind::Test);
+        for form in [
+            format!("pkh({key})"),
+            format!("tr({key})"),
+            format!("sh(wpkh({key}))"),
+        ] {
+            let err = parse_import(&form, WalletNetwork::Regtest).unwrap_err();
+            assert_eq!(err.code, "wif_not_segwit", "{form}");
+            assert!(err.message.contains("wpkh(WIF)"), "{err}");
+        }
+    }
+
+    #[test]
+    fn bare_wif_gets_the_wrap_hint() {
+        for network in [NetworkKind::Test, NetworkKind::Main] {
+            let err = parse_import(&wif(network), WalletNetwork::Regtest).unwrap_err();
+            assert_eq!(err.code, "bare_wif");
+            assert!(err.message.contains("wpkh(YOUR_WIF)"), "{err}");
+        }
+    }
+
+    #[test]
+    fn wif_next_to_a_second_descriptor_is_refused() {
+        // A wpkh(WIF) can never form a pair — it has no branch tail.
+        let input = format!("wpkh({}) {}", wif(NetworkKind::Test), tprv_wpkh(1));
+        let err = parse_import(&input, WalletNetwork::Regtest).unwrap_err();
+        assert_eq!(err.code, "pair_mismatch");
+    }
+
+    #[test]
+    fn validation_dto_carries_the_single_address_flag() {
+        let input = format!("wpkh({})", wif(NetworkKind::Test));
+        let v = ImportValidation::from_result(&parse_import(&input, WalletNetwork::Regtest));
+        assert!(v.valid);
+        assert!(v.single_address);
+        assert_eq!(v.kind, Some(DescriptorKindCfg::Bip84));
+        assert!(!v.inferred_internal);
+
+        // Ranged imports keep reporting false.
+        let v = ImportValidation::from_result(&parse_import(&tprv_wpkh(0), WalletNetwork::Regtest));
+        assert!(v.valid);
+        assert!(!v.single_address);
     }
 
     #[test]

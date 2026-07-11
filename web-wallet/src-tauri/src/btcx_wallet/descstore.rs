@@ -45,15 +45,36 @@ const OBFUSCATION_KEY: [u8; 32] = [
 ];
 
 /// The stored key material of a descriptor-imported wallet: the private
-/// descriptor pair, exactly as the bdk store opens with it.
+/// descriptor(s), exactly as the bdk store opens with them.
+///
+/// Payload versions: v1 is the descriptor PAIR (`internal` a string); v2
+/// adds the single-address form (`internal` null — one keychain, change to
+/// self). A v2 reader parses v1 files unchanged (`internal` deserializes
+/// to `Some`); the version is bumped ONLY on the null-internal shape so a
+/// v1-only binary fails on the version-honest new files rather than on a
+/// surprising null.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DescriptorPayload {
-    /// Format version of this payload (currently 1).
+    /// Format version of this payload: 1 = pair, 2 = single-address.
     pub version: u32,
     /// External (receive) private descriptor.
     pub external: String,
-    /// Internal (change) private descriptor.
-    pub internal: String,
+    /// Internal (change) private descriptor; `None` for a single-address
+    /// (`wpkh(WIF)`) wallet.
+    #[serde(default)]
+    pub internal: Option<String>,
+}
+
+impl DescriptorPayload {
+    /// The payload for `external` + optional `internal`, version-stamped
+    /// by shape (see the type docs).
+    pub fn new(external: String, internal: Option<String>) -> Self {
+        Self {
+            version: if internal.is_some() { 1 } else { 2 },
+            external,
+            internal,
+        }
+    }
 }
 
 /// Lifecycle snapshot of one wallet's descriptor store — mirrors
@@ -272,11 +293,50 @@ mod tests {
     use super::*;
 
     fn payload() -> DescriptorPayload {
-        DescriptorPayload {
-            version: 1,
-            external: "wpkh(tprvEXAMPLE/0/*)".into(),
-            internal: "wpkh(tprvEXAMPLE/1/*)".into(),
-        }
+        DescriptorPayload::new(
+            "wpkh(tprvEXAMPLE/0/*)".into(),
+            Some("wpkh(tprvEXAMPLE/1/*)".into()),
+        )
+    }
+
+    #[test]
+    fn payload_versions_follow_the_shape() {
+        assert_eq!(payload().version, 1, "pair payloads stay v1");
+        let single = DescriptorPayload::new("wpkh(WIFEXAMPLE)".into(), None);
+        assert_eq!(single.version, 2, "single-address payloads are v2");
+    }
+
+    #[test]
+    fn single_address_payload_roundtrips_with_null_internal() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = DescStore::open(dir.path()).unwrap();
+        let single = DescriptorPayload::new("wpkh(WIFEXAMPLE)".into(), None);
+        store.import(&single, None).unwrap();
+        assert_eq!(store.payload().unwrap(), single);
+
+        // Reopened store reads the same shape back.
+        let reopened = DescStore::open(dir.path()).unwrap();
+        let read = reopened.payload().unwrap();
+        assert_eq!(read.internal, None);
+        assert_eq!(read.version, 2);
+    }
+
+    #[test]
+    fn old_pair_json_shape_still_parses() {
+        // The exact v1 JSON older installs have at rest (internal a plain
+        // string): must keep deserializing.
+        let old = r#"{"version":1,"external":"wpkh(A/0/*)","internal":"wpkh(A/1/*)"}"#;
+        let parsed: DescriptorPayload = serde_json::from_str(old).unwrap();
+        assert_eq!(parsed.internal.as_deref(), Some("wpkh(A/1/*)"));
+
+        // And the new null form parses too (an explicitly-null or absent
+        // internal are equivalent).
+        let parsed: DescriptorPayload =
+            serde_json::from_str(r#"{"version":2,"external":"wpkh(W)","internal":null}"#).unwrap();
+        assert_eq!(parsed.internal, None);
+        let parsed: DescriptorPayload =
+            serde_json::from_str(r#"{"version":2,"external":"wpkh(W)"}"#).unwrap();
+        assert_eq!(parsed.internal, None);
     }
 
     #[test]
