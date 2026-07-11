@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,18 +13,21 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 import { sanitizeReturnTo } from '../../return-to';
 import { isInvalidWalletName, isWalletNameTaken, suggestWalletName } from '../../wallet-name';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
+import { WalletNameSectionComponent } from '../../components/wallet-name-section/wallet-name-section.component';
 
-type CreateStep = 'phrase' | 'verify' | 'protect';
+type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
 
 /**
  * WalletCreateComponent - create-wallet onboarding flow.
  *
- * 1. phrase:  generate + display the 24 words with a write-it-down gate
- * 2. verify:  confirm a few words from the written backup
- * 3. protect: wallet name (pre-filled with the next free default, desktop
- *             naming rules), optional at-rest passphrase, and a collapsed
- *             ADVANCED address-type choice (BIP-84 segwit default /
- *             BIP-86 taproot), then create
+ * 1. name:    wallet name as its own FIRST step (owner rule, round 8) —
+ *             pre-filled with the next free default, desktop naming rules
+ *             (the shared WalletNameSectionComponent)
+ * 2. phrase:  generate + display the 24 words with a write-it-down gate
+ * 3. verify:  confirm a few words from the written backup
+ * 4. protect: optional at-rest passphrase and a collapsed ADVANCED
+ *             address-type choice (BIP-84 segwit default / BIP-86
+ *             taproot), then create
  *
  * No skippable-backup shortcuts: the acknowledge checkbox and the word
  * check are both required before the seed is committed.
@@ -47,12 +50,33 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
     MatRadioModule,
     I18nPipe,
     PageHeaderComponent,
+    WalletNameSectionComponent,
   ],
   template: `
     <app-mwallet-page-header titleKey="mwallet_create_wallet" />
 
     <div class="page">
-      @if (step() === 'phrase') {
+      @if (step() === 'name') {
+        <div class="card">
+          <!-- Wallet name — its own FIRST step so the pre-filled default is
+               a conscious choice, not something to overlook. -->
+          <app-mwallet-name-section
+            #nameSection
+            [(name)]="walletName"
+            [existingNames]="existingNames()"
+          />
+
+          <button
+            mat-raised-button
+            color="primary"
+            class="full-width step-button"
+            [disabled]="nameSection.hasError()"
+            (click)="step.set('phrase')"
+          >
+            {{ 'next' | i18n }}
+          </button>
+        </div>
+      } @else if (step() === 'phrase') {
         <div class="card">
           <h3>{{ 'mwallet_backup_title' | i18n }}</h3>
           <p class="warning-text">
@@ -79,15 +103,19 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
             {{ 'mwallet_backup_ack' | i18n }}
           </mat-checkbox>
 
-          <button
-            mat-raised-button
-            color="primary"
-            class="full-width step-button"
-            [disabled]="!acknowledged || words().length === 0"
-            (click)="startVerify()"
-          >
-            {{ 'next' | i18n }}
-          </button>
+          <div class="button-row step-button">
+            <button mat-stroked-button (click)="step.set('name')">
+              {{ 'back' | i18n }}
+            </button>
+            <button
+              mat-raised-button
+              color="primary"
+              [disabled]="!acknowledged || words().length === 0"
+              (click)="startVerify()"
+            >
+              {{ 'next' | i18n }}
+            </button>
+          </div>
         </div>
       } @else if (step() === 'verify') {
         <div class="card">
@@ -127,32 +155,6 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
         </div>
       } @else {
         <div class="card">
-          <!-- Wallet name — its own labeled section so the pre-filled
-               default is a conscious choice, not something to overlook. -->
-          <h3 class="name-heading">
-            <mat-icon class="name-icon">badge</mat-icon>
-            {{ 'wallet_name' | i18n }}
-          </h3>
-          <p class="hint-text">{{ 'mwallet_name_hint' | i18n }}</p>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
-            <input
-              matInput
-              [(ngModel)]="walletName"
-              (ngModelChange)="onWalletNameChange()"
-              autocomplete="off"
-              autocapitalize="none"
-              spellcheck="false"
-            />
-            @if (walletNameConflict()) {
-              <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
-            } @else if (walletNameInvalid()) {
-              <mat-error>{{ 'wallet_name_invalid_local' | i18n }}</mat-error>
-            } @else {
-              <mat-hint>{{ 'wallet_name_hint_local' | i18n }}</mat-hint>
-            }
-          </mat-form-field>
-
           <h3>{{ 'mwallet_passphrase_title' | i18n }}</h3>
           <p class="hint-text">{{ 'mwallet_passphrase_hint' | i18n }}</p>
 
@@ -251,19 +253,6 @@ type CreateStep = 'phrase' | 'verify' | 'protect';
         &.small {
           font-size: 12px;
           margin: 0 0 8px;
-        }
-      }
-
-      .name-heading {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-
-        .name-icon {
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
-          color: #1976d2;
         }
       }
 
@@ -422,7 +411,7 @@ export class WalletCreateComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
-  readonly step = signal<CreateStep>('phrase');
+  readonly step = signal<CreateStep>('name');
   readonly words = signal<string[]>([]);
   readonly checks = signal<{ index: number; entered: string }[]>([]);
   readonly verifyError = signal(false);
@@ -435,8 +424,8 @@ export class WalletCreateComponent implements OnInit {
 
   /** Wallet name — pre-filled with the next free default; desktop rules. */
   walletName = '';
-  readonly walletNameConflict = signal(false);
-  readonly walletNameInvalid = signal(false);
+  /** The shared name section (rendered on the 'name' step only). */
+  private readonly nameSection = viewChild(WalletNameSectionComponent);
 
   /** Advanced section (collapsed): descriptor family for the new wallet. */
   readonly showAdvanced = signal(false);
@@ -444,7 +433,7 @@ export class WalletCreateComponent implements OnInit {
 
   private mnemonic = '';
   /** Registry names for suggestion + case-insensitive conflict checks. */
-  private existingNames: string[] = [];
+  readonly existingNames = signal<string[]>([]);
 
   readonly allChecksFilled = computed(() => this.checks().every(c => c.entered.trim().length > 0));
 
@@ -455,9 +444,9 @@ export class WalletCreateComponent implements OnInit {
   private async generate(): Promise<void> {
     try {
       await this.wallet.initialize();
-      this.existingNames = (await this.wallet.refreshWallets()).map(w => w.name);
+      this.existingNames.set((await this.wallet.refreshWallets()).map(w => w.name));
       if (!this.walletName) {
-        this.walletName = suggestWalletName(this.existingNames);
+        this.walletName = suggestWalletName(this.existingNames());
       }
       this.mnemonic = await this.wallet.generateMnemonic();
       this.words.set(this.mnemonic.split(' '));
@@ -465,12 +454,6 @@ export class WalletCreateComponent implements OnInit {
       console.error('Failed to generate mnemonic:', err);
       this.createError.set(`${err}`);
     }
-  }
-
-  /** Mirror the Rust-side naming rules before the commit (desktop parity). */
-  onWalletNameChange(): void {
-    this.walletNameConflict.set(isWalletNameTaken(this.walletName, this.existingNames));
-    this.walletNameInvalid.set(isInvalidWalletName(this.walletName));
   }
 
   startVerify(): void {
@@ -496,7 +479,16 @@ export class WalletCreateComponent implements OnInit {
   }
 
   canCreate(): boolean {
-    if (this.walletNameConflict() || this.walletNameInvalid()) return false;
+    // The name step gated conflicts/invalid names already; re-check with
+    // the same rules in case the registry moved (the section may be
+    // off-screen by now, so don't rely on its viewChild).
+    if (
+      this.nameSection()?.hasError() ||
+      isWalletNameTaken(this.walletName, this.existingNames()) ||
+      isInvalidWalletName(this.walletName)
+    ) {
+      return false;
+    }
     if (!this.passphrase) return true;
     return this.passphrase === this.passphraseConfirm;
   }
@@ -507,7 +499,7 @@ export class WalletCreateComponent implements OnInit {
     this.createError.set(null);
     try {
       // An emptied name field falls back to the suggested default.
-      const name = this.walletName.trim() || suggestWalletName(this.existingNames);
+      const name = this.walletName.trim() || suggestWalletName(this.existingNames());
       await this.wallet.create(this.mnemonic, this.passphrase || undefined, name, this.kind);
       this.mnemonic = '';
       this.words.set([]);

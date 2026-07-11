@@ -73,6 +73,13 @@ export interface BtcxWalletTxDto {
   address?: string;
 }
 
+/** Wire shape of one `btcx_wallet_transactions` page (items + total). */
+export interface BtcxWalletTxPageDto {
+  items: BtcxWalletTxDto[];
+  /** History size BEFORE the limit/offset slice (the paginator length). */
+  total: number;
+}
+
 /** A wallet transaction, mapped to camelCase for the UI. */
 export interface BtcxWalletTx {
   txid: string;
@@ -344,6 +351,14 @@ export interface BtcxUtxo {
 export const BTCX_COIN_TYPE = 0x504f4358;
 
 /**
+ * Default transaction window: the home page's recent-list maximum (its
+ * FitRowsDirective caps at 10 rows). The service never fetches more than
+ * the last consumer asked for, so a fat wallet's history stays on the Rust
+ * side until the transactions page pages through it.
+ */
+export const RECENT_TX_LIMIT = 10;
+
+/**
  * Map one snake_case transaction DTO from `btcx_wallet_transactions` to the
  * camelCase shape the UI uses. Exported for unit testing.
  */
@@ -370,6 +385,13 @@ export class BtcxWalletService {
   private readonly _status = signal<BtcxWalletStatus | null>(null);
   private readonly _balance = signal<BtcxBalance | null>(null);
   private readonly _transactions = signal<BtcxWalletTx[]>([]);
+  private readonly _transactionsTotal = signal(0);
+  /**
+   * The window the `transactions` signal currently holds — re-requested
+   * verbatim on every sync tick / refreshAll, so background refreshes stay
+   * as small as whatever the visible page last asked for.
+   */
+  private _txWindow: { limit?: number; offset?: number } = { limit: RECENT_TX_LIMIT };
   private readonly _config = signal<BtcxWalletConfig | null>(null);
   private readonly _wallets = signal<BtcxWalletSummary[]>([]);
   private readonly _lastSync = signal<BtcxSyncEvent | null>(null);
@@ -387,7 +409,10 @@ export class BtcxWalletService {
   // Public readonly signals
   readonly status = this._status.asReadonly();
   readonly balance = this._balance.asReadonly();
+  /** The last requested transaction WINDOW (see refreshTransactions). */
   readonly transactions = this._transactions.asReadonly();
+  /** Full history size behind the window (the paginator's length). */
+  readonly transactionsTotal = this._transactionsTotal.asReadonly();
   readonly config = this._config.asReadonly();
   /** Registered wallets of the active network (refreshWallets snapshot). */
   readonly wallets = this._wallets.asReadonly();
@@ -461,7 +486,7 @@ export class BtcxWalletService {
       await this.setupEventListeners();
       await Promise.all([this.refreshStatus(), this.refreshConfig()]);
       if (this.walletActive()) {
-        await Promise.all([this.refreshBalance(), this.refreshTransactions()]);
+        await Promise.all([this.refreshBalance(), this.refreshTransactions(RECENT_TX_LIMIT)]);
       }
       this._initialized.set(true);
     } catch (err) {
@@ -482,10 +507,11 @@ export class BtcxWalletService {
 
     const syncUnlisten = await listen<BtcxSyncEvent>('btcx-wallet:sync', event => {
       this._lastSync.set(event.payload);
-      // Keep the cheap cached views fresh on every sync/height change
+      // Keep the cheap cached views fresh on every sync/height change —
+      // re-requesting only the WINDOW the UI currently shows.
       void this.refreshStatus();
       void this.refreshBalance();
-      void this.refreshTransactions();
+      void this.refreshTransactions(this._txWindow.limit, this._txWindow.offset);
     });
     this._eventUnlisteners.push(syncUnlisten);
   }
@@ -637,7 +663,7 @@ export class BtcxWalletService {
       const status = await invoke<BtcxWalletStatus>('btcx_wallet_lock');
       this._status.set(status);
       this._balance.set(null);
-      this._transactions.set([]);
+      this.resetTransactionWindow();
       this._lastSync.set(null);
       return status;
     } catch (err) {
@@ -680,7 +706,7 @@ export class BtcxWalletService {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_select', { name });
     this._status.set(status);
     this._balance.set(null);
-    this._transactions.set([]);
+    this.resetTransactionWindow();
     // The previous runtime's sync events no longer describe this wallet.
     this._lastSync.set(null);
     await this.refreshConfig();
@@ -696,11 +722,18 @@ export class BtcxWalletService {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_close');
     this._status.set(status);
     this._balance.set(null);
-    this._transactions.set([]);
+    this.resetTransactionWindow();
     // The closed runtime's sync events are stale — the toolbar falls back
     // to the passive per-server health snapshots.
     this._lastSync.set(null);
     return status;
+  }
+
+  /** Empty the transaction signals and fall back to the default window. */
+  private resetTransactionWindow(): void {
+    this._transactions.set([]);
+    this._transactionsTotal.set(0);
+    this._txWindow = { limit: RECENT_TX_LIMIT };
   }
 
   /**
@@ -757,13 +790,39 @@ export class BtcxWalletService {
     }
   }
 
-  /** Refresh the transaction history (newest first), mapping the snake_case DTO. */
-  async refreshTransactions(): Promise<BtcxWalletTx[]> {
+  /**
+   * Fetch one WINDOW of the transaction history (newest first) WITHOUT
+   * touching the signals — the backend-router seam (desktop remote mode)
+   * pages through here so it never clobbers the mobile UI's window.
+   * `limit: 0` is a cheap count-only query (no items, no per-item work).
+   * Both absent = the full history. Throws on failure.
+   */
+  async fetchTransactionsPage(
+    limit?: number,
+    offset?: number
+  ): Promise<{ items: BtcxWalletTx[]; total: number }> {
+    const page = await invoke<BtcxWalletTxPageDto>('btcx_wallet_transactions', {
+      limit: limit ?? null,
+      offset: offset ?? null,
+    });
+    return { items: page.items.map(mapWalletTx), total: page.total };
+  }
+
+  /**
+   * Refresh the `transactions` signal with one WINDOW of the history
+   * (newest first) and remember the window: every background refresh
+   * (sync tick, refreshAll after a send) re-requests the same small slice,
+   * so nothing ever pulls a fat wallet's full history over IPC. The home
+   * page asks for its recent-list maximum, the transactions page for its
+   * fit-sized paginator page; `transactionsTotal` carries the full size.
+   */
+  async refreshTransactions(limit?: number, offset?: number): Promise<BtcxWalletTx[]> {
+    this._txWindow = { limit, offset };
     try {
-      const txs = await invoke<BtcxWalletTxDto[]>('btcx_wallet_transactions');
-      const mapped = txs.map(mapWalletTx);
-      this._transactions.set(mapped);
-      return mapped;
+      const { items, total } = await this.fetchTransactionsPage(limit, offset);
+      this._transactions.set(items);
+      this._transactionsTotal.set(total);
+      return items;
     } catch (err) {
       console.error('Failed to get btcx wallet transactions:', err);
       return [];
@@ -999,11 +1058,17 @@ export class BtcxWalletService {
   // Helpers
   // ============================================================================
 
-  /** Refresh balance + transactions when the wallet is open (no-ops otherwise). */
+  /**
+   * Refresh balance + the current transaction window when the wallet is
+   * open (no-ops otherwise) — never more than the UI's visible slice.
+   */
   private async refreshAll(): Promise<void> {
     await this.refreshStatus();
     if (this.walletActive()) {
-      await Promise.all([this.refreshBalance(), this.refreshTransactions()]);
+      await Promise.all([
+        this.refreshBalance(),
+        this.refreshTransactions(this._txWindow.limit, this._txWindow.offset),
+      ]);
     }
   }
 

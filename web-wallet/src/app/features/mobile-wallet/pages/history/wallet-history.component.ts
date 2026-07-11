@@ -15,16 +15,22 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
  *
  * Rows are the shared mobile TxRowComponent (same row the home preview
  * renders, including the per-row menu). Pagination mirrors the desktop
- * transaction-list's mat-paginator (first/last buttons over a client-side
- * slice), but the page size is not chosen from a dropdown: the list card
- * flex-fills the viewport and the shared FitRowsDirective (the home page's
- * recent-list fill, round 6) derives how many rows fit without scrolling —
- * that fit IS the page size, recomputed on resize/rotation. When the fit
- * changes, the pager stays on the page containing the previously first
- * visible transaction. Refresh pokes the background sync worker (sync_now)
- * and re-reads the cached history. Tapping an item expands a simple
- * detail: txid with copy, address, fee, vsize (the list scrolls the
- * few overflowing pixels while a detail is open).
+ * transaction-list's mat-paginator (first/last buttons), but the page size
+ * is not chosen from a dropdown: the list card flex-fills the viewport and
+ * the shared FitRowsDirective (the home page's recent-list fill, round 6)
+ * derives how many rows fit without scrolling — that fit IS the page size,
+ * recomputed on resize/rotation. When the fit changes, the pager stays on
+ * the page containing the previously first visible transaction.
+ *
+ * Fat-wallet rule (round 8): each page is fetched from the backend with
+ * `refreshTransactions(pageSize, offset)` — only the visible slice ever
+ * crosses IPC, the paginator length comes from `transactionsTotal`, and
+ * sync ticks re-request the same current page through the service's
+ * remembered window. Refresh pokes the background sync worker (sync_now)
+ * and re-reads the current page. Tapping an item expands a simple detail:
+ * txid with copy, address, fee, vsize (the list scrolls the few
+ * overflowing pixels while a detail is open) — all from data already in
+ * the row.
  */
 @Component({
   selector: 'app-wallet-history',
@@ -53,7 +59,7 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
 
     <div class="page">
       <div class="card list-card">
-        @if (wallet.transactions().length === 0) {
+        @if (wallet.transactionsTotal() === 0) {
           <div class="empty-state">
             <mat-icon>receipt_long</mat-icon>
             <span>{{ 'no_transactions' | i18n }}</span>
@@ -113,7 +119,7 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
           <!-- Desktop transaction-list pagination; the page size is the
                measured fit, so there is no size dropdown. -->
           <mat-paginator
-            [length]="wallet.transactions().length"
+            [length]="wallet.transactionsTotal()"
             [pageSize]="pageSize()"
             [pageIndex]="pageIndex()"
             [hidePageSize]="true"
@@ -324,14 +330,15 @@ export class WalletHistoryComponent implements OnInit {
   readonly pageSize = signal(8);
   readonly pageIndex = signal(0);
 
-  readonly visibleTransactions = computed(() => {
-    const txs = this.wallet.transactions();
-    // Clamp: a refresh can shrink the list below the current page.
-    const lastPage = Math.max(0, Math.ceil(txs.length / this.pageSize()) - 1);
-    const page = Math.min(this.pageIndex(), lastPage);
-    const start = page * this.pageSize();
-    return txs.slice(start, start + this.pageSize());
-  });
+  /**
+   * The service's transaction window IS the current page (the history
+   * fetches per page — only the visible slice crosses IPC). The defensive
+   * slice covers the transient where another page's window (e.g. the
+   * home's recent list) is still in the signal.
+   */
+  readonly visibleTransactions = computed(() =>
+    this.wallet.transactions().slice(0, this.pageSize())
+  );
 
   ngOnInit(): void {
     // Fresh contacts book for the row menu's "add to contact" visibility.
@@ -342,8 +349,25 @@ export class WalletHistoryComponent implements OnInit {
   private async init(): Promise<void> {
     await this.wallet.initialize();
     if (this.wallet.walletActive()) {
-      await this.wallet.refreshTransactions();
+      await this.loadPage(this.pageIndex());
     }
+  }
+
+  /**
+   * Fetch one fit-sized page from the backend and clamp: a refresh can
+   * shrink the history below the requested page — then re-request the
+   * last page that still exists. The service remembers the window, so
+   * sync ticks keep this page fresh without another explicit fetch.
+   */
+  private async loadPage(index: number): Promise<void> {
+    const size = this.pageSize();
+    await this.wallet.refreshTransactions(size, index * size);
+    const lastPage = Math.max(0, Math.ceil(this.wallet.transactionsTotal() / size) - 1);
+    if (index > lastPage) {
+      index = lastPage;
+      await this.wallet.refreshTransactions(size, index * size);
+    }
+    this.pageIndex.set(index);
   }
 
   async refresh(): Promise<void> {
@@ -351,7 +375,7 @@ export class WalletHistoryComponent implements OnInit {
     this.refreshing.set(true);
     try {
       await this.wallet.syncNow();
-      await this.wallet.refreshTransactions();
+      await this.loadPage(this.pageIndex());
     } finally {
       this.refreshing.set(false);
     }
@@ -368,11 +392,11 @@ export class WalletHistoryComponent implements OnInit {
     if (fit === oldSize) return;
     const firstVisibleIndex = this.pageIndex() * oldSize;
     this.pageSize.set(fit);
-    this.pageIndex.set(Math.floor(firstVisibleIndex / fit));
+    void this.loadPage(Math.floor(firstVisibleIndex / fit));
   }
 
   onPageChange(event: PageEvent): void {
-    this.pageIndex.set(event.pageIndex);
+    void this.loadPage(event.pageIndex);
     this.expandedTxid.set(null);
   }
 

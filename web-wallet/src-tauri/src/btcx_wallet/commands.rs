@@ -964,26 +964,60 @@ pub fn tx_display_address(
     super::psbt::spk_to_address(network, spk)
 }
 
-/// Transaction history, newest first (the activity feed), each entry
-/// carrying the display address derived from its outputs.
-#[tauri::command]
-pub fn btcx_wallet_transactions(
-    state: State<'_, SharedBtcxWalletState>,
-) -> Result<Vec<BtcxWalletTxDto>, String> {
+/// One page of the activity feed: the requested slice plus the total entry
+/// count (the transaction page's paginator length; `limit: 0` is a cheap
+/// count-only query).
+#[derive(Debug, Clone, Serialize)]
+pub struct BtcxWalletTxPage {
+    pub items: Vec<BtcxWalletTxDto>,
+    /// History size BEFORE the limit/offset slice.
+    pub total: usize,
+}
+
+/// Seam behind `btcx_wallet_transactions` (unit-testable from the live
+/// regtest suite). The crate builds the full sorted history (cheap in-
+/// process arithmetic per entry); the slice is applied BEFORE the per-item
+/// display-address derivation (tx-graph reads + bech32 encoding), DTO
+/// mapping and IPC serialization — the parts that actually hurt on a fat
+/// wallet — so absent `limit`/`offset` keep the old full-list behavior.
+pub fn wallet_transactions_impl(
+    state: &SharedBtcxWalletState,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<BtcxWalletTxPage, String> {
     let network = state.get_config().network;
     let infos = state
         .backend()?
         .wallet_transactions()
         .map_err(|e| format!("{e:#}"))?;
+    let total = infos.len();
     state.with_entry(|entry| {
-        Ok(infos
-            .into_iter()
-            .map(|info| {
-                let address = tx_display_address(entry, network, &info);
-                BtcxWalletTxDto { info, address }
-            })
-            .collect())
+        Ok(BtcxWalletTxPage {
+            items: infos
+                .into_iter()
+                .skip(offset.unwrap_or(0))
+                .take(limit.unwrap_or(usize::MAX))
+                .map(|info| {
+                    let address = tx_display_address(entry, network, &info);
+                    BtcxWalletTxDto { info, address }
+                })
+                .collect(),
+            total,
+        })
     })
+}
+
+/// Transaction history, newest first (the activity feed), each entry
+/// carrying the display address derived from its outputs. Optional
+/// `limit`/`offset` slice the feed so the dashboard/transaction pages stay
+/// O(visible) on fat wallets; both absent = the full history.
+#[tauri::command]
+pub fn btcx_wallet_transactions(
+    limit: Option<usize>,
+    offset: Option<usize>,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxWalletTxPage, String> {
+    wallet_transactions_impl(&state, limit, offset)
 }
 
 /// A send request. Exactly one of `amount_sat` / `send_all` must be given.

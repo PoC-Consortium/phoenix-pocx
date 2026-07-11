@@ -84,8 +84,9 @@ export class ElectrumWalletBackend implements WalletBackend {
   }
 
   async getWalletDetails(): Promise<WalletBackendDetails> {
-    const txs = await this.btcxWallet.refreshTransactions();
-    return { txCount: txs.length, watchOnly: false };
+    // limit 0 = count-only: total without items, DTO mapping or IPC bulk.
+    const { total } = await this.btcxWallet.fetchTransactionsPage(0);
+    return { txCount: total, watchOnly: false };
   }
 
   async listTransactions(
@@ -93,9 +94,11 @@ export class ElectrumWalletBackend implements WalletBackend {
     count: number,
     skip = 0
   ): Promise<WalletTransaction[]> {
-    // The full history is a local sqlite read — paginate client-side.
-    const txs = await this.btcxWallet.refreshTransactions();
-    return txs.slice(skip, skip + count).map(mapBtcxTxToWalletTransaction);
+    // Page on the Rust side; only the requested slice crosses the IPC
+    // boundary (and fetchTransactionsPage leaves the mobile UI's window
+    // signals alone).
+    const { items } = await this.btcxWallet.fetchTransactionsPage(count, skip);
+    return items.map(mapBtcxTxToWalletTransaction);
   }
 
   async getNewAddress(): Promise<string> {

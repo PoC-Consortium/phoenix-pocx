@@ -27,7 +27,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use phoenix_pocx_lib::btcx_wallet::commands::{
     create_wallet_impl, current_address_of, import_descriptor_wallet_impl, rename_wallet_impl,
-    restore_wallet_impl, select_wallet_impl, tx_display_address,
+    restore_wallet_impl, select_wallet_impl, tx_display_address, wallet_transactions_impl,
 };
 use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy, WalletNetwork};
 use phoenix_pocx_lib::btcx_wallet::manager::{
@@ -933,6 +933,144 @@ fn regtest_chain_only_broadcast() {
     mine_block(&dest);
     rpc(None, "setmocktime", serde_json::json!([0]));
     println!("chain-only Electrum broadcast smoke: OK ({txid})");
+}
+
+/// Fat-wallet pagination (feedback round 8), live: a wallet accumulates
+/// ~30 history entries (one funding + 29 small sends back to the miner,
+/// mined in batches), then `wallet_transactions_impl` — the seam behind
+/// `btcx_wallet_transactions` — must slice it correctly: absent args = the
+/// full feed (old behavior), `limit: 0` = a cheap count-only query, pages
+/// of 10 concatenate txid-for-txid to the full feed, a tail slice past the
+/// end truncates, and an offset beyond the end is empty — with `total`
+/// carrying the full size on every shape.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_transactions_limit_offset_pagination() {
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+    // Never touch the developer's real OS keychain from a test.
+    std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+    let state = phoenix_pocx_lib::btcx_wallet::create_btcx_wallet_state();
+    state
+        .update_config(|c| {
+            c.network = WalletNetwork::Regtest;
+            c.set_servers(WalletNetwork::Regtest, vec![ELECTRUM_URL.to_string()]);
+        })
+        .unwrap();
+
+    // A FRESH mnemonic every run — the shared regtest chain must not leak
+    // history from earlier runs.
+    let seed_dir = tempfile::tempdir().unwrap();
+    let mut scratch = seedstore::SeedStore::open(seed_dir.path(), None).unwrap();
+    let mnemonic = scratch.create_seed(None, 24).unwrap();
+
+    // 1. Create + fund "fat" once (entry #1: received).
+    let status = create_wallet_impl(&state, None, &mnemonic, None, Some("fat".into()), None)
+        .expect("create fat");
+    assert_eq!(status.wallet_name, "fat");
+    let addr = state.backend().unwrap().wallet_new_address().unwrap();
+    fund_and_mine(&addr, 1.0);
+    wait_for_balance(&state, 100_000_000, "fat after funding");
+
+    // 2. 29 small sends back to the miner (entries #2..#30). BDK chains
+    //    the unconfirmed change, so sends batch between blocks; a block
+    //    every 5 keeps the mempool ancestor chains comfortably short.
+    let wallets = rpc(None, "listwallets", serde_json::json!([]));
+    let wallet_name = wallets[0]
+        .as_str()
+        .expect("a loaded miner wallet on the regtest node")
+        .to_string();
+    let miner_addr = rpc(Some(&wallet_name), "getnewaddress", serde_json::json!([]))
+        .as_str()
+        .unwrap()
+        .to_string();
+    const SENDS: usize = 29;
+    for i in 0..SENDS {
+        let txid = state
+            .backend()
+            .unwrap()
+            .wallet_send(
+                &miner_addr,
+                100_000,
+                electrum_btcx::SendFee::RatePerKvb(2000),
+            )
+            .unwrap_or_else(|e| panic!("send #{}: {e:#}", i + 1));
+        assert_eq!(txid.len(), 64);
+        if (i + 1) % 5 == 0 {
+            mine_block(&miner_addr);
+        }
+    }
+    mine_block(&miner_addr);
+
+    // Wait until the whole history is confirmed and visible.
+    let total_expected = SENDS + 1;
+    let mut confirmed = 0usize;
+    for _ in 0..60 {
+        state.poke().unwrap();
+        std::thread::sleep(Duration::from_secs(1));
+        let acts = state.backend().unwrap().wallet_transactions().unwrap();
+        confirmed = acts.iter().filter(|t| t.confirmations > 0).count();
+        if acts.len() == total_expected && confirmed == total_expected {
+            break;
+        }
+    }
+    assert_eq!(
+        confirmed, total_expected,
+        "all {total_expected} history entries must confirm"
+    );
+
+    // 3. Absent limit/offset = the full feed (the pre-round-8 behavior).
+    let full = wallet_transactions_impl(&state, None, None).expect("full feed");
+    assert_eq!(full.total, total_expected);
+    assert_eq!(full.items.len(), total_expected);
+    // Newest first: the sorted feed ends with the one funding receive.
+    assert_eq!(full.items.last().unwrap().info.direction, "received");
+    assert_eq!(full.items.last().unwrap().info.amount_sat, 100_000_000);
+    assert!(
+        full.items
+            .iter()
+            .take(SENDS)
+            .all(|t| t.info.direction == "sent" && t.info.amount_sat == 100_000),
+        "the 29 sends precede the funding receive"
+    );
+
+    // 4. limit 0 = count-only: total without items (the txCount query).
+    let count = wallet_transactions_impl(&state, Some(0), None).expect("count-only");
+    assert_eq!(count.total, total_expected);
+    assert!(count.items.is_empty());
+
+    // 5. Pages of 10 concatenate txid-for-txid to the full feed.
+    let mut paged = Vec::new();
+    for page in 0..3 {
+        let p = wallet_transactions_impl(&state, Some(10), Some(page * 10)).expect("page");
+        assert_eq!(p.total, total_expected);
+        assert_eq!(p.items.len(), 10, "page {page} is full");
+        paged.extend(p.items);
+    }
+    let full_txids: Vec<&str> = full.items.iter().map(|t| t.info.txid.as_str()).collect();
+    let paged_txids: Vec<&str> = paged.iter().map(|t| t.info.txid.as_str()).collect();
+    assert_eq!(paged_txids, full_txids, "pages must tile the full feed");
+
+    // 6. A tail slice truncates; an offset beyond the end is empty.
+    let tail = wallet_transactions_impl(&state, Some(10), Some(25)).expect("tail");
+    assert_eq!(tail.total, total_expected);
+    assert_eq!(tail.items.len(), 5);
+    assert_eq!(tail.items[0].info.txid, full.items[25].info.txid);
+    let beyond =
+        wallet_transactions_impl(&state, Some(10), Some(total_expected)).expect("beyond the end");
+    assert_eq!(beyond.total, total_expected);
+    assert!(beyond.items.is_empty());
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    state.close_runtime();
+    std::env::remove_var("PHOENIX_DATA_DIR");
+    std::env::remove_var("PACT_DISABLE_KEYRING");
+    println!(
+        "fat-wallet pagination smoke: OK ({total_expected} entries, 3 pages of 10 tiled, \
+         count-only + tail + beyond-end verified)"
+    );
 }
 
 /// The wallet rename flow (feedback round 6), live: a funded named wallet
