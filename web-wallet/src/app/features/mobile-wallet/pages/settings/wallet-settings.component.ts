@@ -25,6 +25,7 @@ import {
 } from '../../../../core/services/btcx-wallet.service';
 import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 import { isInvalidWalletName, isWalletNameTaken } from '../../wallet-name';
+import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
 /** Width of ONE swipe-revealed action button, px. */
 const ACTION_PX = 56;
@@ -76,16 +77,12 @@ const DRAG_SLOP_PX = 8;
     MatTooltipModule,
     I18nPipe,
     ElectrumServersEditorComponent,
+    PageHeaderComponent,
   ],
   template: `
-    <div class="page">
-      <div class="header-row">
-        <button mat-icon-button routerLink="/wallet">
-          <mat-icon>arrow_back</mat-icon>
-        </button>
-        <h2>{{ 'mwallet_settings_title' | i18n }}</h2>
-      </div>
+    <app-mwallet-page-header titleKey="mwallet_settings_title" />
 
+    <div class="page">
       <!-- Wallets (the switcher's management surface) -->
       @if (wallet.hasSeed()) {
         <div class="card">
@@ -261,18 +258,6 @@ const DRAG_SLOP_PX = 8;
         width: 100%;
         margin: 0 auto;
         box-sizing: border-box;
-      }
-
-      .header-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 500;
-        }
       }
 
       .card {
