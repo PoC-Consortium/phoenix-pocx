@@ -63,6 +63,7 @@
   "assignment_details": "Podrobnosti přiřazení",
   "assignment_revoked": "Prirazeni bylo zruseno",
   "assignment_status": "Stav prirazeni",
+  "assignment_taproot_hint": "Přiřazení kování vyžadují SegWit peněženku — aktivní peněženka používá taproot adresy, které nikdy nemohou být adresami plotu. Přepněte na SegWit peněženku a pokračujte.",
   "authentication": "Overeni",
   "back": "Zpet",
   "backup_phrase": "Zalozni fraze",

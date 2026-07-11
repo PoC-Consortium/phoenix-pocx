@@ -63,6 +63,7 @@
   "assignment_details": "Szczegóły przypisania",
   "assignment_revoked": "Przypisanie zostalo odwolane",
   "assignment_status": "Status przypisania",
+  "assignment_taproot_hint": "Przypisania kucia wymagają portfela SegWit — aktywny portfel używa adresów taproot, które nigdy nie mogą być adresami plotu. Przełącz się na portfel SegWit, aby kontynuować.",
   "authentication": "Uwierzytelnianie",
   "back": "Wstecz",
   "backup_phrase": "Fraza zapasowa",

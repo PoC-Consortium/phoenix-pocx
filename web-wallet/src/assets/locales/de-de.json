@@ -63,6 +63,7 @@
   "assignment_details": "Zuweisungsdetails",
   "assignment_revoked": "Zuweisung wurde widerrufen",
   "assignment_status": "Zuweisungsstatus",
+  "assignment_taproot_hint": "Forging-Zuweisungen erfordern ein SegWit-Wallet — das aktive Wallet verwendet Taproot-Adressen, die niemals Plot-Adressen sein können. Wechsle zu einem SegWit-Wallet, um fortzufahren.",
   "authentication": "Authentifizierung",
   "back": "Zurueck",
   "backup_phrase": "Sicherungsphrase",

@@ -63,6 +63,7 @@
   "assignment_details": "Dettagli assegnazione",
   "assignment_revoked": "L'assegnazione e stata revocata",
   "assignment_status": "Stato dell'assegnazione",
+  "assignment_taproot_hint": "Le assegnazioni forging richiedono un portafoglio SegWit — il portafoglio attivo usa indirizzi taproot, che non possono mai essere indirizzi plot. Passa a un portafoglio SegWit per continuare.",
   "authentication": "Autenticazione",
   "back": "Indietro",
   "backup_phrase": "Frase di backup",

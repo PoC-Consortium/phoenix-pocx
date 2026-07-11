@@ -63,6 +63,7 @@
   "assignment_details": "Podrobnosti priradenia",
   "assignment_revoked": "Priradenie bolo zrusene",
   "assignment_status": "Stav priradenia",
+  "assignment_taproot_hint": "Priradenia kovania vyžadujú SegWit peňaženku — aktívna peňaženka používa taproot adresy, ktoré nikdy nemôžu byť adresami plotu. Prepnite na SegWit peňaženku a pokračujte.",
   "authentication": "Overenie",
   "back": "Spat",
   "backup_phrase": "Zalozna fraza",

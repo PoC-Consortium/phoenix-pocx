@@ -108,477 +108,490 @@ interface WalletAddress {
 
       <div class="content">
         <div class="assignment-card">
-          <!-- Tab Navigation -->
-          <mat-tab-group
-            [(selectedIndex)]="selectedTabIndex"
-            (selectedIndexChange)="onTabChange($event)"
-            class="assignment-tabs"
-          >
-            <!-- Create Assignment Tab -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">add_circle_outline</mat-icon>
-                <span class="tab-label">{{ 'create_assignment' | i18n }}</span>
-              </ng-template>
+          @if (assignmentsGated()) {
+            <!-- Remote mode + taproot wallet: a plot address is a 20-byte
+                 segwit-v0 witness program, so this wallet can never own one
+                 and assignments are gated (the mobile page's pattern) —
+                 switch to a SegWit wallet to manage assignments. -->
+            <div class="description-box">
+              <mat-icon class="description-icon">warning_amber</mat-icon>
+              <div class="description-text">{{ 'assignment_taproot_hint' | i18n }}</div>
+            </div>
+          } @else {
+            <!-- Tab Navigation -->
+            <mat-tab-group
+              [(selectedIndex)]="selectedTabIndex"
+              (selectedIndexChange)="onTabChange($event)"
+              class="assignment-tabs"
+            >
+              <!-- Create Assignment Tab -->
+              <mat-tab>
+                <ng-template mat-tab-label>
+                  <mat-icon class="tab-icon">add_circle_outline</mat-icon>
+                  <span class="tab-label">{{ 'create_assignment' | i18n }}</span>
+                </ng-template>
 
-              <div class="tab-content">
-                <!-- Description -->
-                <div class="description-box">
-                  <mat-icon class="description-icon">info_outline</mat-icon>
-                  <div class="description-text">{{ 'create_assignment_description' | i18n }}</div>
-                </div>
-
-                <!-- Plot Address -->
-                <div class="field-group">
-                  <label class="field-label">{{ 'plot_address' | i18n }}</label>
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
-                    <input
-                      matInput
-                      [matAutocomplete]="createPlotAuto"
-                      [(ngModel)]="selectedPlotAddress"
-                      (ngModelChange)="onPlotAddressChange($event)"
-                      placeholder="tb1q... / bc1q..."
-                    />
-                    <mat-autocomplete #createPlotAuto="matAutocomplete">
-                      @for (addr of walletAddresses(); track addr.address) {
-                        <mat-option [value]="addr.address">
-                          <span class="address-option">
-                            <span class="address-text">{{ addr.address }}</span>
-                            @if (addr.label) {
-                              <span class="address-label">({{ addr.label }})</span>
-                            }
-                          </span>
-                        </mat-option>
-                      }
-                    </mat-autocomplete>
-                    @if (isPlotAddressValid()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-valid"
-                        [matTooltip]="'address_valid' | i18n"
-                        >check_circle</mat-icon
-                      >
-                    } @else if (plotAddressError()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-invalid"
-                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
-                        >error</mat-icon
-                      >
-                    }
-                    @let createPlotErr = plotAddressError();
-                    @if (createPlotErr) {
-                      <mat-hint class="error-hint">
-                        {{ createPlotErr.key | i18n: createPlotErr.params }}
-                      </mat-hint>
-                    }
-                  </mat-form-field>
-                </div>
-
-                <!-- Forging Address -->
-                <div class="field-group">
-                  <label class="field-label">{{ 'forging_address' | i18n }}</label>
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'select_or_enter_forging_address' | i18n }}</mat-label>
-                    <input
-                      matInput
-                      [matAutocomplete]="forgingAuto"
-                      [(ngModel)]="forgingAddress"
-                      (ngModelChange)="onForgingAddressChange()"
-                      placeholder="pocx1q... / tb1q... / bc1q..."
-                    />
-                    <mat-autocomplete #forgingAuto="matAutocomplete">
-                      @for (opt of poolAddressOptions(); track opt.address) {
-                        <mat-option [value]="opt.address">
-                          <span class="address-option">
-                            <span class="address-label">{{ opt.label || opt.poolName }}</span>
-                            <span class="address-text">{{ opt.address }}</span>
-                          </span>
-                        </mat-option>
-                      }
-                    </mat-autocomplete>
-                    @if (isForgingAddressValid()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-valid"
-                        [matTooltip]="'address_valid' | i18n"
-                        >check_circle</mat-icon
-                      >
-                    } @else if (forgingAddressError()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-invalid"
-                        [matTooltip]="
-                          forgingAddressError()!.key | i18n: forgingAddressError()!.params
-                        "
-                        >error</mat-icon
-                      >
-                    }
-                    @let forgErr = forgingAddressError();
-                    @if (forgErr) {
-                      <mat-hint class="error-hint">
-                        {{ forgErr.key | i18n: forgErr.params }}
-                      </mat-hint>
-                    }
-                  </mat-form-field>
-                </div>
-
-                <!-- Fee Section -->
-                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
-
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                  <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
-                  <button
-                    mat-raised-button
-                    color="primary"
-                    (click)="onSubmit()"
-                    [disabled]="!canSubmit()"
-                  >
-                    @if (isSubmitting()) {
-                      <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-                    } @else {
-                      <mat-icon>add_circle</mat-icon>
-                    }
-                    <span>{{ 'create_assignment' | i18n }}</span>
-                  </button>
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- Revoke Assignment Tab -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">remove_circle_outline</mat-icon>
-                <span class="tab-label">{{ 'revoke_assignment' | i18n }}</span>
-              </ng-template>
-
-              <div class="tab-content">
-                <!-- Description -->
-                <div class="description-box">
-                  <mat-icon class="description-icon">info_outline</mat-icon>
-                  <div class="description-text">{{ 'revoke_assignment_description' | i18n }}</div>
-                </div>
-
-                <!-- Plot Address -->
-                <div class="field-group">
-                  <label class="field-label">{{ 'plot_address' | i18n }}</label>
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
-                    <input
-                      matInput
-                      [matAutocomplete]="revokePlotAuto"
-                      [(ngModel)]="selectedPlotAddress"
-                      (ngModelChange)="onPlotAddressChange($event)"
-                      placeholder="tb1q... / bc1q..."
-                    />
-                    <mat-autocomplete #revokePlotAuto="matAutocomplete">
-                      @for (addr of walletAddresses(); track addr.address) {
-                        <mat-option [value]="addr.address">
-                          <span class="address-option">
-                            <span class="address-text">{{ addr.address }}</span>
-                            @if (addr.label) {
-                              <span class="address-label">({{ addr.label }})</span>
-                            }
-                          </span>
-                        </mat-option>
-                      }
-                    </mat-autocomplete>
-                    @if (isPlotAddressValid()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-valid"
-                        [matTooltip]="'address_valid' | i18n"
-                        >check_circle</mat-icon
-                      >
-                    } @else if (plotAddressError()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-invalid"
-                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
-                        >error</mat-icon
-                      >
-                    }
-                    @let revokePlotErr = plotAddressError();
-                    @if (revokePlotErr) {
-                      <mat-hint class="error-hint">
-                        {{ revokePlotErr.key | i18n: revokePlotErr.params }}
-                      </mat-hint>
-                    }
-                  </mat-form-field>
-                </div>
-
-                <!-- Fee Section -->
-                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
-
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                  <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
-                  <button
-                    mat-raised-button
-                    color="warn"
-                    (click)="onSubmit()"
-                    [disabled]="!canSubmit()"
-                  >
-                    @if (isSubmitting()) {
-                      <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-                    } @else {
-                      <mat-icon>remove_circle</mat-icon>
-                    }
-                    <span>{{ 'revoke_assignment' | i18n }}</span>
-                  </button>
-                </div>
-              </div>
-            </mat-tab>
-
-            <!-- Check Status Tab -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">search</mat-icon>
-                <span class="tab-label">{{ 'check_status' | i18n }}</span>
-              </ng-template>
-
-              <div class="tab-content">
-                <!-- Description -->
-                <div class="description-box">
-                  <mat-icon class="description-icon">info_outline</mat-icon>
-                  <div class="description-text">{{ 'check_status_description' | i18n }}</div>
-                </div>
-
-                <!-- Plot Address -->
-                <div class="field-group">
-                  <label class="field-label">{{ 'plot_address' | i18n }}</label>
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
-                    <input
-                      matInput
-                      [matAutocomplete]="checkPlotAuto"
-                      [(ngModel)]="selectedPlotAddress"
-                      (ngModelChange)="onPlotAddressChange($event)"
-                      placeholder="tb1q... / bc1q..."
-                    />
-                    <mat-autocomplete #checkPlotAuto="matAutocomplete">
-                      @for (addr of walletAddresses(); track addr.address) {
-                        <mat-option [value]="addr.address">
-                          <span class="address-option">
-                            <span class="address-text">{{ addr.address }}</span>
-                            @if (addr.label) {
-                              <span class="address-label">({{ addr.label }})</span>
-                            }
-                          </span>
-                        </mat-option>
-                      }
-                    </mat-autocomplete>
-                    @if (isPlotAddressValid()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-valid"
-                        [matTooltip]="'address_valid' | i18n"
-                        >check_circle</mat-icon
-                      >
-                    } @else if (plotAddressError()) {
-                      <mat-icon
-                        matSuffix
-                        class="address-badge address-badge-invalid"
-                        [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
-                        >error</mat-icon
-                      >
-                    }
-                    @let checkPlotErr = plotAddressError();
-                    @if (checkPlotErr) {
-                      <mat-hint class="error-hint">
-                        {{ checkPlotErr.key | i18n: checkPlotErr.params }}
-                      </mat-hint>
-                    }
-                  </mat-form-field>
-                </div>
-
-                <!-- Status Display -->
-                <div class="status-section">
-                  <div class="status-header">
-                    <h3>{{ 'assignment_status' | i18n }}</h3>
-                    <button
-                      mat-icon-button
-                      (click)="checkStatus()"
-                      [disabled]="!isPlotAddressValid() || isCheckingStatus()"
-                      [matTooltip]="'refresh' | i18n"
-                    >
-                      <mat-icon [class.spinning]="isCheckingStatus()">refresh</mat-icon>
-                    </button>
+                <div class="tab-content">
+                  <!-- Description -->
+                  <div class="description-box">
+                    <mat-icon class="description-icon">info_outline</mat-icon>
+                    <div class="description-text">{{ 'create_assignment_description' | i18n }}</div>
                   </div>
 
-                  <!-- Status Content -->
-                  @if (assignmentStatus()) {
-                    <div class="status-content">
-                      <!-- State Badge -->
-                      <div
-                        class="state-badge"
-                        [ngClass]="getStateBadgeClass(assignmentStatus()!.state)"
+                  <!-- Plot Address -->
+                  <div class="field-group">
+                    <label class="field-label">{{ 'plot_address' | i18n }}</label>
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
+                      <input
+                        matInput
+                        [matAutocomplete]="createPlotAuto"
+                        [(ngModel)]="selectedPlotAddress"
+                        (ngModelChange)="onPlotAddressChange($event)"
+                        placeholder="tb1q... / bc1q..."
+                      />
+                      <mat-autocomplete #createPlotAuto="matAutocomplete">
+                        @for (addr of walletAddresses(); track addr.address) {
+                          <mat-option [value]="addr.address">
+                            <span class="address-option">
+                              <span class="address-text">{{ addr.address }}</span>
+                              @if (addr.label) {
+                                <span class="address-label">({{ addr.label }})</span>
+                              }
+                            </span>
+                          </mat-option>
+                        }
+                      </mat-autocomplete>
+                      @if (isPlotAddressValid()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-valid"
+                          [matTooltip]="'address_valid' | i18n"
+                          >check_circle</mat-icon
+                        >
+                      } @else if (plotAddressError()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-invalid"
+                          [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                          >error</mat-icon
+                        >
+                      }
+                      @let createPlotErr = plotAddressError();
+                      @if (createPlotErr) {
+                        <mat-hint class="error-hint">
+                          {{ createPlotErr.key | i18n: createPlotErr.params }}
+                        </mat-hint>
+                      }
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Forging Address -->
+                  <div class="field-group">
+                    <label class="field-label">{{ 'forging_address' | i18n }}</label>
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>{{ 'select_or_enter_forging_address' | i18n }}</mat-label>
+                      <input
+                        matInput
+                        [matAutocomplete]="forgingAuto"
+                        [(ngModel)]="forgingAddress"
+                        (ngModelChange)="onForgingAddressChange()"
+                        placeholder="pocx1q... / tb1q... / bc1q..."
+                      />
+                      <mat-autocomplete #forgingAuto="matAutocomplete">
+                        @for (opt of poolAddressOptions(); track opt.address) {
+                          <mat-option [value]="opt.address">
+                            <span class="address-option">
+                              <span class="address-label">{{ opt.label || opt.poolName }}</span>
+                              <span class="address-text">{{ opt.address }}</span>
+                            </span>
+                          </mat-option>
+                        }
+                      </mat-autocomplete>
+                      @if (isForgingAddressValid()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-valid"
+                          [matTooltip]="'address_valid' | i18n"
+                          >check_circle</mat-icon
+                        >
+                      } @else if (forgingAddressError()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-invalid"
+                          [matTooltip]="
+                            forgingAddressError()!.key | i18n: forgingAddressError()!.params
+                          "
+                          >error</mat-icon
+                        >
+                      }
+                      @let forgErr = forgingAddressError();
+                      @if (forgErr) {
+                        <mat-hint class="error-hint">
+                          {{ forgErr.key | i18n: forgErr.params }}
+                        </mat-hint>
+                      }
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Fee Section -->
+                  <ng-container *ngTemplateOutlet="feeSection"></ng-container>
+
+                  <!-- Action Buttons -->
+                  <div class="action-buttons">
+                    <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      (click)="onSubmit()"
+                      [disabled]="!canSubmit()"
+                    >
+                      @if (isSubmitting()) {
+                        <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
+                      } @else {
+                        <mat-icon>add_circle</mat-icon>
+                      }
+                      <span>{{ 'create_assignment' | i18n }}</span>
+                    </button>
+                  </div>
+                </div>
+              </mat-tab>
+
+              <!-- Revoke Assignment Tab -->
+              <mat-tab>
+                <ng-template mat-tab-label>
+                  <mat-icon class="tab-icon">remove_circle_outline</mat-icon>
+                  <span class="tab-label">{{ 'revoke_assignment' | i18n }}</span>
+                </ng-template>
+
+                <div class="tab-content">
+                  <!-- Description -->
+                  <div class="description-box">
+                    <mat-icon class="description-icon">info_outline</mat-icon>
+                    <div class="description-text">{{ 'revoke_assignment_description' | i18n }}</div>
+                  </div>
+
+                  <!-- Plot Address -->
+                  <div class="field-group">
+                    <label class="field-label">{{ 'plot_address' | i18n }}</label>
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
+                      <input
+                        matInput
+                        [matAutocomplete]="revokePlotAuto"
+                        [(ngModel)]="selectedPlotAddress"
+                        (ngModelChange)="onPlotAddressChange($event)"
+                        placeholder="tb1q... / bc1q..."
+                      />
+                      <mat-autocomplete #revokePlotAuto="matAutocomplete">
+                        @for (addr of walletAddresses(); track addr.address) {
+                          <mat-option [value]="addr.address">
+                            <span class="address-option">
+                              <span class="address-text">{{ addr.address }}</span>
+                              @if (addr.label) {
+                                <span class="address-label">({{ addr.label }})</span>
+                              }
+                            </span>
+                          </mat-option>
+                        }
+                      </mat-autocomplete>
+                      @if (isPlotAddressValid()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-valid"
+                          [matTooltip]="'address_valid' | i18n"
+                          >check_circle</mat-icon
+                        >
+                      } @else if (plotAddressError()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-invalid"
+                          [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                          >error</mat-icon
+                        >
+                      }
+                      @let revokePlotErr = plotAddressError();
+                      @if (revokePlotErr) {
+                        <mat-hint class="error-hint">
+                          {{ revokePlotErr.key | i18n: revokePlotErr.params }}
+                        </mat-hint>
+                      }
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Fee Section -->
+                  <ng-container *ngTemplateOutlet="feeSection"></ng-container>
+
+                  <!-- Action Buttons -->
+                  <div class="action-buttons">
+                    <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
+                    <button
+                      mat-raised-button
+                      color="warn"
+                      (click)="onSubmit()"
+                      [disabled]="!canSubmit()"
+                    >
+                      @if (isSubmitting()) {
+                        <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
+                      } @else {
+                        <mat-icon>remove_circle</mat-icon>
+                      }
+                      <span>{{ 'revoke_assignment' | i18n }}</span>
+                    </button>
+                  </div>
+                </div>
+              </mat-tab>
+
+              <!-- Check Status Tab -->
+              <mat-tab>
+                <ng-template mat-tab-label>
+                  <mat-icon class="tab-icon">search</mat-icon>
+                  <span class="tab-label">{{ 'check_status' | i18n }}</span>
+                </ng-template>
+
+                <div class="tab-content">
+                  <!-- Description -->
+                  <div class="description-box">
+                    <mat-icon class="description-icon">info_outline</mat-icon>
+                    <div class="description-text">{{ 'check_status_description' | i18n }}</div>
+                  </div>
+
+                  <!-- Plot Address -->
+                  <div class="field-group">
+                    <label class="field-label">{{ 'plot_address' | i18n }}</label>
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
+                      <input
+                        matInput
+                        [matAutocomplete]="checkPlotAuto"
+                        [(ngModel)]="selectedPlotAddress"
+                        (ngModelChange)="onPlotAddressChange($event)"
+                        placeholder="tb1q... / bc1q..."
+                      />
+                      <mat-autocomplete #checkPlotAuto="matAutocomplete">
+                        @for (addr of walletAddresses(); track addr.address) {
+                          <mat-option [value]="addr.address">
+                            <span class="address-option">
+                              <span class="address-text">{{ addr.address }}</span>
+                              @if (addr.label) {
+                                <span class="address-label">({{ addr.label }})</span>
+                              }
+                            </span>
+                          </mat-option>
+                        }
+                      </mat-autocomplete>
+                      @if (isPlotAddressValid()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-valid"
+                          [matTooltip]="'address_valid' | i18n"
+                          >check_circle</mat-icon
+                        >
+                      } @else if (plotAddressError()) {
+                        <mat-icon
+                          matSuffix
+                          class="address-badge address-badge-invalid"
+                          [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
+                          >error</mat-icon
+                        >
+                      }
+                      @let checkPlotErr = plotAddressError();
+                      @if (checkPlotErr) {
+                        <mat-hint class="error-hint">
+                          {{ checkPlotErr.key | i18n: checkPlotErr.params }}
+                        </mat-hint>
+                      }
+                    </mat-form-field>
+                  </div>
+
+                  <!-- Status Display -->
+                  <div class="status-section">
+                    <div class="status-header">
+                      <h3>{{ 'assignment_status' | i18n }}</h3>
+                      <button
+                        mat-icon-button
+                        (click)="checkStatus()"
+                        [disabled]="!isPlotAddressValid() || isCheckingStatus()"
+                        [matTooltip]="'refresh' | i18n"
                       >
-                        {{ assignmentStatus()!.state }}
-                      </div>
+                        <mat-icon [class.spinning]="isCheckingStatus()">refresh</mat-icon>
+                      </button>
+                    </div>
 
-                      <!-- Status Details -->
-                      <div class="status-details">
-                        <!-- UNASSIGNED -->
-                        @if (assignmentStatus()!.state === 'UNASSIGNED') {
-                          <p class="status-message">{{ 'no_assignment_exists' | i18n }}</p>
-                          <p class="status-hint">{{ 'can_create_assignment' | i18n }}</p>
-                        }
+                    <!-- Status Content -->
+                    @if (assignmentStatus()) {
+                      <div class="status-content">
+                        <!-- State Badge -->
+                        <div
+                          class="state-badge"
+                          [ngClass]="getStateBadgeClass(assignmentStatus()!.state)"
+                        >
+                          {{ assignmentStatus()!.state }}
+                        </div>
 
-                        <!-- ASSIGNING -->
-                        @if (assignmentStatus()!.state === 'ASSIGNING') {
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.forging_address
-                            }}</span>
-                          </div>
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'created_at_block' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.assignment_height | number
-                            }}</span>
-                          </div>
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'activates_at_block' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.activation_height | number
-                            }}</span>
-                          </div>
-                          <div class="progress-section">
-                            <mat-progress-bar
-                              mode="determinate"
-                              [value]="getProgressPercentage()"
-                            ></mat-progress-bar>
-                            <div class="progress-info">
-                              <span
-                                >{{ getBlocksRemaining() }} {{ 'blocks_remaining' | i18n }}</span
-                              >
-                              <span>{{ getEstimatedTime() }}</span>
+                        <!-- Status Details -->
+                        <div class="status-details">
+                          <!-- UNASSIGNED -->
+                          @if (assignmentStatus()!.state === 'UNASSIGNED') {
+                            <p class="status-message">{{ 'no_assignment_exists' | i18n }}</p>
+                            <p class="status-hint">{{ 'can_create_assignment' | i18n }}</p>
+                          }
+
+                          <!-- ASSIGNING -->
+                          @if (assignmentStatus()!.state === 'ASSIGNING') {
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.forging_address
+                              }}</span>
                             </div>
-                          </div>
-                        }
-
-                        <!-- ASSIGNED -->
-                        @if (assignmentStatus()!.state === 'ASSIGNED') {
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.forging_address
-                            }}</span>
-                          </div>
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'created_at_block' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.assignment_height | number
-                            }}</span>
-                          </div>
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'activated_at_block' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.activation_height | number
-                            }}</span>
-                          </div>
-                          <p class="status-message success">{{ 'assignment_active' | i18n }}</p>
-                        }
-
-                        <!-- REVOKING -->
-                        @if (assignmentStatus()!.state === 'REVOKING') {
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
-                            <span class="detail-value"
-                              >{{ assignmentStatus()!.forging_address }} ({{
-                                'still_active' | i18n
-                              }})</span
-                            >
-                          </div>
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'revoked_at_block' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.revocation_height | number
-                            }}</span>
-                          </div>
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'effective_at_block' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.revocation_effective_height | number
-                            }}</span>
-                          </div>
-                          <div class="progress-section">
-                            <mat-progress-bar
-                              mode="determinate"
-                              [value]="getProgressPercentage()"
-                              color="warn"
-                            ></mat-progress-bar>
-                            <div class="progress-info">
-                              <span
-                                >{{ getBlocksRemaining() }} {{ 'blocks_remaining' | i18n }}</span
-                              >
-                              <span>{{ getEstimatedTime() }}</span>
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'created_at_block' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.assignment_height | number
+                              }}</span>
                             </div>
-                          </div>
-                        }
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'activates_at_block' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.activation_height | number
+                              }}</span>
+                            </div>
+                            <div class="progress-section">
+                              <mat-progress-bar
+                                mode="determinate"
+                                [value]="getProgressPercentage()"
+                              ></mat-progress-bar>
+                              <div class="progress-info">
+                                <span
+                                  >{{ getBlocksRemaining() }} {{ 'blocks_remaining' | i18n }}</span
+                                >
+                                <span>{{ getEstimatedTime() }}</span>
+                              </div>
+                            </div>
+                          }
 
-                        <!-- REVOKED -->
-                        @if (assignmentStatus()!.state === 'REVOKED') {
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'previously_assigned_to' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.forging_address
-                            }}</span>
-                          </div>
-                          <div class="detail-row">
-                            <span class="detail-label">{{ 'revocation_effective' | i18n }}:</span>
-                            <span class="detail-value">{{
-                              assignmentStatus()!.revocation_effective_height | number
-                            }}</span>
-                          </div>
-                          <p class="status-message">{{ 'assignment_revoked' | i18n }}</p>
-                          <p class="status-hint">{{ 'can_create_new_assignment' | i18n }}</p>
-                        }
+                          <!-- ASSIGNED -->
+                          @if (assignmentStatus()!.state === 'ASSIGNED') {
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.forging_address
+                              }}</span>
+                            </div>
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'created_at_block' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.assignment_height | number
+                              }}</span>
+                            </div>
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'activated_at_block' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.activation_height | number
+                              }}</span>
+                            </div>
+                            <p class="status-message success">{{ 'assignment_active' | i18n }}</p>
+                          }
+
+                          <!-- REVOKING -->
+                          @if (assignmentStatus()!.state === 'REVOKING') {
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
+                              <span class="detail-value"
+                                >{{ assignmentStatus()!.forging_address }} ({{
+                                  'still_active' | i18n
+                                }})</span
+                              >
+                            </div>
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'revoked_at_block' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.revocation_height | number
+                              }}</span>
+                            </div>
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'effective_at_block' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.revocation_effective_height | number
+                              }}</span>
+                            </div>
+                            <div class="progress-section">
+                              <mat-progress-bar
+                                mode="determinate"
+                                [value]="getProgressPercentage()"
+                                color="warn"
+                              ></mat-progress-bar>
+                              <div class="progress-info">
+                                <span
+                                  >{{ getBlocksRemaining() }} {{ 'blocks_remaining' | i18n }}</span
+                                >
+                                <span>{{ getEstimatedTime() }}</span>
+                              </div>
+                            </div>
+                          }
+
+                          <!-- REVOKED -->
+                          @if (assignmentStatus()!.state === 'REVOKED') {
+                            <div class="detail-row">
+                              <span class="detail-label"
+                                >{{ 'previously_assigned_to' | i18n }}:</span
+                              >
+                              <span class="detail-value">{{
+                                assignmentStatus()!.forging_address
+                              }}</span>
+                            </div>
+                            <div class="detail-row">
+                              <span class="detail-label">{{ 'revocation_effective' | i18n }}:</span>
+                              <span class="detail-value">{{
+                                assignmentStatus()!.revocation_effective_height | number
+                              }}</span>
+                            </div>
+                            <p class="status-message">{{ 'assignment_revoked' | i18n }}</p>
+                            <p class="status-hint">{{ 'can_create_new_assignment' | i18n }}</p>
+                          }
+                        </div>
                       </div>
-                    </div>
-                  }
-
-                  <!-- No Status Yet -->
-                  @if (!assignmentStatus() && !isCheckingStatus()) {
-                    <div class="no-status">
-                      <mat-icon>help_outline</mat-icon>
-                      <span>{{ 'no_status_checked' | i18n }}</span>
-                    </div>
-                  }
-
-                  <!-- Loading -->
-                  @if (isCheckingStatus()) {
-                    <div class="loading-status">
-                      <mat-spinner diameter="24"></mat-spinner>
-                      <span>{{ 'checking_status' | i18n }}</span>
-                    </div>
-                  }
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                  <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
-                  <button
-                    mat-raised-button
-                    color="primary"
-                    (click)="checkStatus()"
-                    [disabled]="!isPlotAddressValid() || isCheckingStatus()"
-                  >
-                    @if (isCheckingStatus()) {
-                      <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-                    } @else {
-                      <mat-icon>search</mat-icon>
                     }
-                    <span>{{ 'check_status' | i18n }}</span>
-                  </button>
+
+                    <!-- No Status Yet -->
+                    @if (!assignmentStatus() && !isCheckingStatus()) {
+                      <div class="no-status">
+                        <mat-icon>help_outline</mat-icon>
+                        <span>{{ 'no_status_checked' | i18n }}</span>
+                      </div>
+                    }
+
+                    <!-- Loading -->
+                    @if (isCheckingStatus()) {
+                      <div class="loading-status">
+                        <mat-spinner diameter="24"></mat-spinner>
+                        <span>{{ 'checking_status' | i18n }}</span>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="action-buttons">
+                    <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
+                    <button
+                      mat-raised-button
+                      color="primary"
+                      (click)="checkStatus()"
+                      [disabled]="!isPlotAddressValid() || isCheckingStatus()"
+                    >
+                      @if (isCheckingStatus()) {
+                        <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
+                      } @else {
+                        <mat-icon>search</mat-icon>
+                      }
+                      <span>{{ 'check_status' | i18n }}</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </mat-tab>
-          </mat-tab-group>
+              </mat-tab>
+            </mat-tab-group>
+          }
         </div>
       </div>
     </div>
@@ -1220,6 +1233,16 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
 
   /** Remote (Electrum) mode: assignments run client-side, no node RPC. */
   readonly isRemote = this.nodeService.isRemote;
+
+  /**
+   * Remote mode with a taproot (BIP-86) btcx wallet: a plot address is a
+   * 20-byte segwit-v0 witness program, so this wallet can never own one —
+   * the whole page is gated (the Rust command guard's UI counterpart).
+   * Node mode (Core RPC wallets) is never gated here.
+   */
+  readonly assignmentsGated = computed(
+    () => this.isRemote() && this.btcxWallet.descriptorPolicy()?.kind === 'bip86'
+  );
 
   /**
    * Assignment status via the mode's backend: node `get_assignment` RPC or

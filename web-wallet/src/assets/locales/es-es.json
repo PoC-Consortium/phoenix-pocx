@@ -63,6 +63,7 @@
   "assignment_details": "Detalles de la asignación",
   "assignment_revoked": "La asignación ha sido revocada",
   "assignment_status": "Estado de la asignación",
+  "assignment_taproot_hint": "Las asignaciones de forja requieren una billetera SegWit — la billetera activa usa direcciones taproot, que nunca pueden ser direcciones de plot. Cambie a una billetera SegWit para continuar.",
   "authentication": "Autenticación",
   "back": "Atrás",
   "backup_phrase": "Frase de respaldo",

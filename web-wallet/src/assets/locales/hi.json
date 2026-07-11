@@ -63,6 +63,7 @@
   "assignment_details": "असाइनमेंट विवरण",
   "assignment_revoked": "असाइनमेंट रद्द कर दिया गया है",
   "assignment_status": "असाइनमेंट स्थिति",
+  "assignment_taproot_hint": "फोर्जिंग असाइनमेंट के लिए SegWit वॉलेट आवश्यक है — सक्रिय वॉलेट taproot पतों का उपयोग करता है, जो कभी प्लॉट पते नहीं हो सकते। जारी रखने के लिए किसी SegWit वॉलेट पर स्विच करें।",
   "authentication": "प्रमाणीकरण",
   "back": "वापस",
   "backup_phrase": "बैकअप वाक्यांश",

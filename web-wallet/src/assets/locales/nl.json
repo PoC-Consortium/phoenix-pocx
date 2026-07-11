@@ -63,6 +63,7 @@
   "assignment_details": "Toewijzingsdetails",
   "assignment_revoked": "Toewijzing is ingetrokken",
   "assignment_status": "Toewijzingsstatus",
+  "assignment_taproot_hint": "Forging-toewijzingen vereisen een SegWit-portemonnee — de actieve portemonnee gebruikt taproot-adressen, die nooit plot-adressen kunnen zijn. Wissel naar een SegWit-portemonnee om verder te gaan.",
   "authentication": "Authenticatie",
   "back": "Terug",
   "backup_phrase": "Back-up zin",

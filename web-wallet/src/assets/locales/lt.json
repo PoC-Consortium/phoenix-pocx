@@ -63,6 +63,7 @@
   "assignment_details": "Priskyrimo informacija",
   "assignment_revoked": "Priskyrimas atsauktas",
   "assignment_status": "Priskyrimo busena",
+  "assignment_taproot_hint": "Kalimo priskyrimams reikia SegWit piniginės — aktyvi piniginė naudoja taproot adresus, kurie niekada negali būti plot adresais. Perjunkite į SegWit piniginę, kad tęstumėte.",
   "authentication": "Autentifikacija",
   "back": "Atgal",
   "backup_phrase": "Atsargines kopijos fraze",

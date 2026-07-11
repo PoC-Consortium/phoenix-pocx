@@ -63,6 +63,7 @@
   "assignment_details": "分配详情",
   "assignment_revoked": "分配已撤销",
   "assignment_status": "分配状态",
+  "assignment_taproot_hint": "锻造分配需要 SegWit 钱包 — 当前活动钱包使用 Taproot 地址，永远无法作为绘图地址。请切换到 SegWit 钱包以继续。",
   "authentication": "身份验证",
   "back": "返回",
   "backup_phrase": "备份助记词",
