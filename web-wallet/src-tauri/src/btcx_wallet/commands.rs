@@ -245,7 +245,10 @@ pub fn restore_wallet_impl(
     let network = config.network;
     let name = resolve_new_wallet_name(&config, network, name)?;
     let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
-    let chain = state.probe_chain()?;
+    // F3: verify the server serves the right, UNPRUNED chain before probing.
+    // A pruned server hides older history, so a real seed would probe as
+    // "fresh" — verified_probe_chain fails hard (or falls over) instead.
+    let chain = state.verified_probe_chain()?;
     let hits = manager::probe_all_branches(&seed, &chain)
         .map_err(|e| format!("Restore probing failed: {e:#}"))?;
     let (selected, fresh) = match kind {
@@ -318,7 +321,9 @@ pub async fn btcx_wallet_reprobe(
     blocking(move || {
         let mnemonic = state.with_seed(|s| s.mnemonic().map_err(|e| format!("{e:#}")))?;
         let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
-        let chain = state.probe_chain()?;
+        // F3: same verified-chain guard as the first restore probe — a pruned
+        // or wrong-chain server must not drive a "fresh" verdict.
+        let chain = state.verified_probe_chain()?;
         let hits = manager::probe_all_branches(&seed, &chain)
             .map_err(|e| format!("Restore probing failed: {e:#}"))?;
 

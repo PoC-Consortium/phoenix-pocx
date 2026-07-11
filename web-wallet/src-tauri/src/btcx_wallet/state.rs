@@ -14,7 +14,9 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use electrum_btcx::{ElectrumBackend, ElectrumPool, SyncWorker, WalletEntry, WalletHandle};
+use electrum_btcx::{
+    ChainMismatch, ElectrumBackend, ElectrumPool, SyncWorker, WalletEntry, WalletHandle,
+};
 use keys_btcx::WalletSeed;
 use params_btcx::params::ChainParams;
 use seedstore::SeedStore;
@@ -250,8 +252,15 @@ impl BtcxWalletState {
         }
         let params = config.network.params();
         let policy = config.policy();
-        let home_url = servers[0].clone();
-        let view_urls: Vec<String> = servers[1..].to_vec();
+        // F3: verify the chain the wallet is about to sync against BEFORE the
+        // first sync. Elect a server whose genesis matches and that is not
+        // pruned; fall over past an unreachable / wrong-chain / pruned server
+        // to a healthy one so one bad server never bricks the wallet. A
+        // reachable server that DISAGREES with no healthy alternative is a
+        // connection error (the UI already handles it) — never a silent sync
+        // against an unverified server.
+        let (home_url, view_urls) =
+            self.elect_verified_home(&servers, params, config.network.as_str())?;
 
         let handle = match self.active_source(&config) {
             WalletSourceCfg::Seed => {
@@ -384,6 +393,113 @@ impl BtcxWalletState {
         self.pool
             .get(config.network.params(), COIN_ID, home, &live)
             .map_err(|e| format!("Electrum connection: {e:#}"))
+    }
+
+    /// Like [`probe_chain`], but VERIFIES the elected server's chain (genesis
+    /// match + not pruned) first, falling over to the next configured server
+    /// if the first is unreachable / wrong-chain / pruned. Restore probing
+    /// rides this: a pruned server serves only recent history, so a real
+    /// seed's older transactions look absent and the restore would report the
+    /// seed as "fresh" — a real-money-alarming false negative. A restore that
+    /// cannot verify ANY configured server therefore FAILS HARD rather than
+    /// probe blind against an unverifiable server.
+    pub fn verified_probe_chain(&self) -> Result<Arc<ElectrumBackend>, String> {
+        let config = self.get_config();
+        let servers = config.servers();
+        if servers.is_empty() {
+            return Err(format!(
+                "No Electrum server configured for {} — add one first",
+                config.network.as_str()
+            ));
+        }
+        let params = config.network.params();
+        let live: Vec<&str> = servers.iter().map(String::as_str).collect();
+        let mut last_err: Option<String> = None;
+        for url in &servers {
+            match self.pool.get(params, COIN_ID, url, &live) {
+                Ok(backend) => match backend.verify_chain() {
+                    Ok(()) => return Ok(backend),
+                    Err(e) => {
+                        log::warn!("btcx wallet: restore probe rejected {url}: {e:#}");
+                        last_err = Some(format!("{url}: {e:#}"));
+                    }
+                },
+                Err(e) => last_err = Some(format!("{url}: {e:#}")),
+            }
+        }
+        Err(format!(
+            "Electrum server is pruned or on the wrong chain — cannot verify wallet history. {}",
+            last_err.unwrap_or_default()
+        ))
+    }
+
+    /// Elect a home server whose chain is VERIFIED (genesis match + not
+    /// pruned), returning `(home_url, view_urls)` with the elected server
+    /// first and the rest in configured order. The first server that verifies
+    /// wins, preserving the user's primary preference. Verification rides the
+    /// pool (cheap: `verify_chain` caches its verdict per connection), while
+    /// the sync worker still dials the elected URL on its own connection.
+    ///
+    /// Fall-over verdicts:
+    /// - a server that VERIFIES → elected;
+    /// - NONE verify but every failure was a mere unreachable server →
+    ///   fall back to the configured primary so an offline unlock still opens
+    ///   and the sync worker can retry (no server ever DISAGREED about the
+    ///   chain — this is not the F3 hazard);
+    /// - NONE verify and at least one reachable server actively DISAGREED
+    ///   (wrong-chain / pruned [`ChainMismatch`]) → error, surfaced as a
+    ///   connection failure the UI already handles. We refuse to silently
+    ///   sync a wallet against an unverified / hostile server.
+    fn elect_verified_home(
+        &self,
+        servers: &[String],
+        params: &'static ChainParams,
+        network: &str,
+    ) -> Result<(String, Vec<String>), String> {
+        let live: Vec<&str> = servers.iter().map(String::as_str).collect();
+        let mut saw_mismatch = false;
+        let mut last_err: Option<String> = None;
+        for (i, url) in servers.iter().enumerate() {
+            let verdict = self
+                .pool
+                .get(params, COIN_ID, url, &live)
+                .and_then(|b| b.verify_chain());
+            match verdict {
+                Ok(()) => {
+                    let views = servers
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != i)
+                        .map(|(_, u)| u.clone())
+                        .collect();
+                    return Ok((url.clone(), views));
+                }
+                Err(e) => {
+                    if e.downcast_ref::<ChainMismatch>().is_some() {
+                        saw_mismatch = true;
+                    }
+                    log::warn!("btcx wallet: server {url} failed chain verification: {e:#}");
+                    last_err = Some(format!("{url}: {e:#}"));
+                }
+            }
+        }
+        if saw_mismatch {
+            Err(format!(
+                "No usable Electrum server for {network}: a reachable server is on the wrong \
+                 chain or pruned and no configured server could be verified — refusing to sync \
+                 against an unverified server. {}",
+                last_err.unwrap_or_default()
+            ))
+        } else {
+            // Every failure was an unreachable server, not a disagreement:
+            // keep the offline-open behavior (the sync worker retries) rather
+            // than brick a wallet whose servers are merely down right now.
+            log::warn!(
+                "btcx wallet: no Electrum server reachable for {network} at open — opening \
+                 offline, the sync worker will retry"
+            );
+            Ok((servers[0].clone(), servers[1..].to_vec()))
+        }
     }
 
     /// Broadcast a raw transaction over Electrum — chain-only: needs no
