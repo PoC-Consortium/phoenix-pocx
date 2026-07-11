@@ -494,9 +494,9 @@ interface ChainModalData {
                     <div class="radio-label-sub address-full">
                       {{ walletAddress() || ('setup_no_wallet_connected' | i18n) }}
                     </div>
-                  } @else if (btcxWallet.walletActive() && walletIsTaproot()) {
-                    <!-- Mobile: taproot wallet - cannot provide a mining address -->
-                    <div class="radio-label-sub">{{ 'setup_wallet_taproot_hint' | i18n }}</div>
+                  } @else if (btcxWallet.walletActive() && walletNotSegwit()) {
+                    <!-- Mobile: non-segwit wallet - cannot provide a mining address -->
+                    <div class="radio-label-sub">{{ walletGateHintKey() | i18n }}</div>
                   } @else if (btcxWallet.walletActive()) {
                     <!-- Mobile: address handed out by the nodeless BTCX wallet -->
                     <div class="radio-label-sub address-full">
@@ -2810,14 +2810,24 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   readonly walletUnlocking = signal(false);
   readonly walletUnlockError = signal(false);
   /**
-   * The ACTIVE nodeless wallet derives BIP-86 taproot addresses — which
-   * cannot receive mining rewards (plot addresses are the P2WPKH form).
-   * The wizard's honest hint tells the user to switch to a segwit wallet.
+   * The ACTIVE nodeless wallet derives addresses that cannot receive
+   * mining rewards: BIP-86 taproot, or an imported legacy (pkh / sh-wpkh)
+   * descriptor wallet — plot addresses are the P2WPKH form. The wizard's
+   * honest hint tells the user to switch to a segwit wallet.
    */
-  readonly walletIsTaproot = computed(() => this.btcxWallet.descriptorPolicy()?.kind === 'bip86');
-  /** "Use wallet address" is selectable unless mobile mode has no usable (open, non-taproot) wallet. */
+  readonly walletNotSegwit = computed(() => {
+    const kind = this.btcxWallet.descriptorPolicy()?.kind;
+    return !!kind && kind !== 'bip84';
+  });
+  /** The hint's wording, matched to the wallet's actual script class. */
+  readonly walletGateHintKey = computed(() =>
+    this.btcxWallet.descriptorPolicy()?.kind === 'legacy'
+      ? 'setup_wallet_legacy_hint'
+      : 'setup_wallet_taproot_hint'
+  );
+  /** "Use wallet address" is selectable unless mobile mode has no usable (open, segwit) wallet. */
   readonly useWalletAddressDisabled = computed(
-    () => this.appMode.isMobileMode() && (!this.btcxWallet.walletActive() || this.walletIsTaproot())
+    () => this.appMode.isMobileMode() && (!this.btcxWallet.walletActive() || this.walletNotSegwit())
   );
   readonly compressionLevel = signal('1');
   readonly escalation = signal(1); // default 1, min 1
@@ -3114,9 +3124,9 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     if (this.nodeService.isRemote()) {
       try {
         await this.btcxWallet.initialize();
-        // A taproot (BIP-86) wallet's addresses can't mine — leave the
-        // field on its "no wallet" text instead of fetching one.
-        if (this.btcxWallet.walletActive() && !this.walletIsTaproot()) {
+        // A non-segwit wallet's addresses can't mine — leave the field
+        // on its "no wallet" text instead of fetching one.
+        if (this.btcxWallet.walletActive() && !this.walletNotSegwit()) {
           const address = await this.btcxWallet.newAddress();
           this.walletAddress.set(address);
         }
@@ -3202,7 +3212,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       configuredPlottingAddress: this.customPlottingAddress(),
       seedState: this.btcxWallet.seedState(),
       walletActive: this.btcxWallet.walletActive(),
-      walletCanMine: !this.walletIsTaproot(),
+      walletCanMine: !this.walletNotSegwit(),
     });
     if (selection === 'wallet') {
       this.useCustomAddress.set(false);
@@ -3223,7 +3233,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
    */
   private async fetchMobileWalletAddress(): Promise<void> {
     if (this.walletAddressLoading() || this.walletAddress()) return;
-    if (!this.btcxWallet.walletActive() || this.walletIsTaproot()) return;
+    if (!this.btcxWallet.walletActive() || this.walletNotSegwit()) return;
 
     this.walletAddressLoading.set(true);
     try {

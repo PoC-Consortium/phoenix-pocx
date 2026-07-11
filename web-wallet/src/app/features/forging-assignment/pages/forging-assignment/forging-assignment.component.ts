@@ -109,13 +109,14 @@ interface WalletAddress {
       <div class="content">
         <div class="assignment-card">
           @if (assignmentsGated()) {
-            <!-- Remote mode + taproot wallet: a plot address is a 20-byte
-                 segwit-v0 witness program, so this wallet can never own one
-                 and assignments are gated (the mobile page's pattern) —
-                 switch to a SegWit wallet to manage assignments. -->
+            <!-- Remote mode + non-segwit wallet (taproot or imported
+                 legacy): a plot address is a 20-byte segwit-v0 witness
+                 program, so this wallet can never own one and assignments
+                 are gated (the mobile page's pattern) — switch to a SegWit
+                 wallet to manage assignments. -->
             <div class="description-box">
               <mat-icon class="description-icon">warning_amber</mat-icon>
-              <div class="description-text">{{ 'assignment_taproot_hint' | i18n }}</div>
+              <div class="description-text">{{ gateHintKey() | i18n }}</div>
             </div>
           } @else {
             <!-- Tab Navigation -->
@@ -1235,13 +1236,22 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   readonly isRemote = this.nodeService.isRemote;
 
   /**
-   * Remote mode with a taproot (BIP-86) btcx wallet: a plot address is a
+   * Remote mode with a NON-SEGWIT btcx wallet — taproot (BIP-86) or an
+   * imported legacy (pkh / sh-wpkh) descriptor wallet: a plot address is a
    * 20-byte segwit-v0 witness program, so this wallet can never own one —
    * the whole page is gated (the Rust command guard's UI counterpart).
    * Node mode (Core RPC wallets) is never gated here.
    */
-  readonly assignmentsGated = computed(
-    () => this.isRemote() && this.btcxWallet.descriptorPolicy()?.kind === 'bip86'
+  readonly assignmentsGated = computed(() => {
+    const kind = this.btcxWallet.descriptorPolicy()?.kind;
+    return this.isRemote() && !!kind && kind !== 'bip84';
+  });
+
+  /** The gate's explanation, matched to the wallet's actual script class. */
+  readonly gateHintKey = computed(() =>
+    this.btcxWallet.descriptorPolicy()?.kind === 'legacy'
+      ? 'assignment_legacy_hint'
+      : 'assignment_taproot_hint'
   );
 
   /**

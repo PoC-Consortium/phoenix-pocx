@@ -107,14 +107,15 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
             {{ 'back' | i18n }}
           </button>
         </div>
-      } @else if (walletIsTaproot()) {
-        <!-- Taproot (BIP-86) wallet: plot addresses are segwit-v0 witness
-             programs, so this wallet can never create or revoke an
-             assignment — gate the whole form (the wizard's taproot-hint
-             pattern); the header wallet chip is the switch remedy. -->
+      } @else if (walletNotSegwit()) {
+        <!-- Non-segwit wallet (taproot, or imported legacy descriptors):
+             plot addresses are segwit-v0 witness programs, so this wallet
+             can never create or revoke an assignment — gate the whole form
+             (the wizard's hint pattern); the header wallet chip is the
+             switch remedy. -->
         <div class="card empty-card">
           <mat-icon class="empty-icon">block</mat-icon>
-          <p class="hint-text">{{ 'assignment_taproot_hint' | i18n }}</p>
+          <p class="hint-text">{{ gateHintKey() | i18n }}</p>
           <button mat-stroked-button routerLink="/wallet">
             <mat-icon>arrow_back</mat-icon>
             {{ 'back' | i18n }}
@@ -753,11 +754,22 @@ export class WalletAssignmentComponent implements OnInit {
   readonly contacts = computed(() => this.contactsStore.forNetwork(this.wallet.network()));
 
   /**
-   * Taproot (BIP-86) wallets are gated off this page: a plot address is a
-   * 20-byte segwit-v0 witness program, so a P2TR address can never be one
-   * (the setup wizard's walletIsTaproot gate, applied to assignments).
+   * Non-segwit wallets — taproot (BIP-86) or imported legacy (pkh /
+   * sh-wpkh) descriptors — are gated off this page: a plot address is a
+   * 20-byte segwit-v0 witness program, so neither can ever own one (the
+   * setup wizard's gate, applied to assignments).
    */
-  readonly walletIsTaproot = computed(() => this.wallet.descriptorPolicy()?.kind === 'bip86');
+  readonly walletNotSegwit = computed(() => {
+    const kind = this.wallet.descriptorPolicy()?.kind;
+    return !!kind && kind !== 'bip84';
+  });
+
+  /** The gate's explanation, matched to the wallet's actual script class. */
+  readonly gateHintKey = computed(() =>
+    this.wallet.descriptorPolicy()?.kind === 'legacy'
+      ? 'assignment_legacy_hint'
+      : 'assignment_taproot_hint'
+  );
 
   /**
    * Forging addresses published by the configured pool chains, offered in

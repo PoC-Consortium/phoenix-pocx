@@ -275,6 +275,10 @@ interface NavGroup {
                         <span class="wallet-row-name">{{ w.name }}</span>
                         @if (w.policy.kind === 'bip86') {
                           <span class="wallet-row-badge">{{ 'mwallet_taproot_badge' | i18n }}</span>
+                        } @else if (w.policy.kind === 'legacy') {
+                          <span class="wallet-row-badge legacy">{{
+                            'mwallet_legacy_badge' | i18n
+                          }}</span>
                         } @else {
                           <span class="wallet-row-badge segwit">{{
                             'mwallet_segwit_badge' | i18n
@@ -299,6 +303,10 @@ interface NavGroup {
                   <button mat-menu-item routerLink="/wallet/restore">
                     <mat-icon>restore</mat-icon>
                     <span>{{ 'mwallet_restore_wallet' | i18n }}</span>
+                  </button>
+                  <button mat-menu-item routerLink="/wallet/import">
+                    <mat-icon>input</mat-icon>
+                    <span>{{ 'mwallet_import_wallet' | i18n }}</span>
                   </button>
                 </mat-menu>
 
@@ -646,6 +654,11 @@ interface NavGroup {
           /* BIP-84 sibling of the taproot badge: same family, neutral hue. */
           &.segwit {
             color: #546e7a;
+          }
+
+          /* Imported pre-segwit (pkh / sh-wpkh) wallets: amber hue. */
+          &.legacy {
+            color: #b26a00;
           }
         }
 

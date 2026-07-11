@@ -28,6 +28,13 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           import('./pages/restore/wallet-restore.component').then(m => m.WalletRestoreComponent),
       },
       {
+        path: 'import',
+        loadComponent: () =>
+          import('./pages/import-descriptor/wallet-import-descriptor.component').then(
+            m => m.WalletImportDescriptorComponent
+          ),
+      },
+      {
         path: 'receive',
         loadComponent: () =>
           import('./pages/receive/wallet-receive.component').then(m => m.WalletReceiveComponent),
