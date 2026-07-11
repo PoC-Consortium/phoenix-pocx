@@ -82,7 +82,7 @@ export interface SendConfirmDialogData {
           <mat-icon>report</mat-icon>
           <div class="high-fee-body">
             <span>{{
-              'fee_high_warning' | i18n: { rate: (((data.highFeeRate ?? 0) | number: '1.0-2') ?? '0') }
+              'fee_high_warning' | i18n: { rate: (data.highFeeRate ?? 0 | number: '1.0-2') ?? '0' }
             }}</span>
             <mat-checkbox
               [checked]="highFeeAcknowledged()"
