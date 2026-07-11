@@ -168,7 +168,7 @@ Below the priority buttons, a small summary block highlights the **fee increase*
 
 When you click **Confirm**, Phoenix calls Bitcoin-PoCX Core's `bumpfee` RPC. Core constructs the replacement transaction, signs it with your wallet's keys, and broadcasts it. A success notification displays the new transaction's ID; the original transaction's row in the list is replaced by the new one (or marked superseded, depending on your view), and the new fee figure now reflects what you just paid.
 
-If even the bumped transaction will not confirm — fees may have spiked further while you were watching — you can bump again with a higher rate, or wait for mempool conditions to settle. Chapter 26 covers the deeper troubleshooting cases.
+If even the bumped transaction will not confirm — fees may have spiked further while you were watching — you can bump again with a higher rate, or wait for mempool conditions to settle. Chapter 27 covers the deeper troubleshooting cases.
 
 ## Abandoning a stuck transaction
 

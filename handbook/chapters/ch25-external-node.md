@@ -82,7 +82,7 @@ External mode is selected and configured in two places: the first-launch wizard 
 
 The external-mode panel has a **Test connection** button. Click it before saving: Phoenix makes a lightweight RPC call and, on success, reports the node's **version**, **chain**, and **block height**. This confirms three things at once — the address and port are right, the credentials work, and the node is on the network you expect.
 
-If the test fails, the common causes are: the node is not running, RPC is not enabled (`server=1` missing), the credentials are wrong, the host or port is mistyped, or a firewall is blocking the connection. Chapter 26 covers diagnosis.
+If the test fails, the common causes are: the node is not running, RPC is not enabled (`server=1` missing), the credentials are wrong, the host or port is mistyped, or a firewall is blocking the connection. Chapter 27 covers diagnosis.
 
 Once the test passes, save. Phoenix connects to your node and behaves exactly as it does in managed mode — the wallet, sending, receiving, mining, and everything else work the same way. The only difference is that Phoenix no longer starts, stops, or updates the node; that is now your responsibility.
 
@@ -105,4 +105,6 @@ In practice this means: if you point Phoenix at an external node for solo mining
 
 ## What's next
 
-That completes Part IV. The remaining chapters are reference material: **Chapter 26 — Troubleshooting** works through the problems you are most likely to hit and how to diagnose them, including where Phoenix keeps its logs and how to wipe data directories cleanly. Chapters 27 to 29 are the FAQ, glossary, and where to get help.
+External mode and managed mode both assume a full Bitcoin-PoCX Core node — Phoenix's, or your own. The final chapter of Part IV covers the third option, which needs no local node at all: **Chapter 26 — Running Without a Local Node (Remote Mode)** connects the wallet to public Electrum servers instead, so it runs on a laptop or a phone with no blockchain to download.
+
+After that, Part V is reference material: **Chapter 27 — Troubleshooting** works through the problems you are most likely to hit and how to diagnose them, including where Phoenix keeps its logs and how to wipe data directories cleanly. Chapters 28 to 30 are the FAQ, glossary, and where to get help.

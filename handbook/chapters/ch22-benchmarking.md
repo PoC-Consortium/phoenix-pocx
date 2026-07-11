@@ -120,4 +120,4 @@ Do the plotting tuning once, properly, before you plot many terabytes — the ga
 
 ## What's next
 
-That completes Part III. Part IV covers special topics that not every miner needs: **Chapter 23 — Mining on Android**, **Chapter 24 — the multi-machine Aggregator**, and **Chapter 25 — Running Your Own Node**. If none of those apply to you, skip ahead to Part V for troubleshooting, the FAQ, and the glossary.
+That completes Part III. Part IV covers special topics that not every miner needs: **Chapter 23 — Phoenix on Android**, **Chapter 24 — the multi-machine Aggregator**, **Chapter 25 — Running Your Own Node**, and **Chapter 26 — Running Without a Local Node (Remote Mode)**. If none of those apply to you, skip ahead to Part V for troubleshooting, the FAQ, and the glossary.

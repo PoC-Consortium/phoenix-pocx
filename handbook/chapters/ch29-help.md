@@ -13,7 +13,7 @@ These are the canonical, project-run sources. Bookmark the website — it is the
 | **Whitepaper**     | <https://bitcoin-pocx.org/btcx_whitepaper_eng.pdf>            | The design document behind proof-of-capacity and Bitcoin-PoCX. |
 | **Block explorer** | <https://explorer.bitcoin-pocx.org/>                          | Look up transactions, addresses, and blocks on the live chain. |
 
-> **Tip** — The **block explorer** is the single most useful diagnostic tool outside Phoenix. When a payment seems missing or a transaction is stuck (Chapter 26), looking up the transaction ID on the explorer tells you immediately whether the network has seen it and how many confirmations it has.
+> **Tip** — The **block explorer** is the single most useful diagnostic tool outside Phoenix. When a payment seems missing or a transaction is stuck (Chapter 27), looking up the transaction ID on the explorer tells you immediately whether the network has seen it and how many confirmations it has.
 
 ## Community channels
 
@@ -49,7 +49,7 @@ Whether on a community channel or in a GitHub issue, you will get help faster if
 2. **What you expected to happen.**
 3. **What actually happened** — the exact error message, if any.
 4. **Your platform** — Windows / macOS / Linux / Android, and the Phoenix version (shown in the sidebar).
-5. **A recent log slice** — the last few hundred lines of the relevant log (Chapter 26 explains where to find them via **Settings → Debug & Logs**). The *Copy all* button on the Debug Logs tab gathers your version and platform for you.
+5. **A recent log slice** — the last few hundred lines of the relevant log (Chapter 27 explains where to find them via **Settings → Debug & Logs**). The *Copy all* button on the Debug Logs tab gathers your version and platform for you.
 
 > **Warning** — When sharing logs or screenshots for support, **never include your recovery phrase, and review for anything sensitive.** Logs can contain your addresses (public, but linkable to you); your 24-word phrase must *never* appear anywhere you share. No legitimate helper will ever ask for it, and anyone who does is trying to steal from you (Chapters 1 and 11).
 

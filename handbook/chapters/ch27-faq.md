@@ -17,7 +17,16 @@ No. To use the wallet, you need none of it. To mine, the working model in Chapte
 No. Your keys live inside Bitcoin-PoCX Core, the node program Phoenix drives. Phoenix is the interface; it generates your recovery phrase, hands it to Core, and forgets it. See Chapter 6.
 
 **Which platforms are supported?**
-Windows, macOS, and Linux as full wallets-plus-miners; Android as a mining-only client (no node, no wallet on the device). See Chapters 3 and 23.
+Windows, macOS, and Linux as full wallets-plus-miners; Android as a full wallet *and* miner that runs without a local node (it syncs over Electrum servers). Android cannot solo-mine, but it holds its own wallets and can pool-mine into them. See Chapters 3 and 23.
+
+**Do I need to run a node?**
+No. Choose **remote mode** at first launch and Phoenix keeps a wallet on your computer and syncs over Electrum servers — no blockchain download, nothing to maintain. Run a node (managed or external) if you want the strongest trust model or intend to *solo* mine. See Chapters 4 and 26.
+
+**What is remote (Electrum) mode?**
+A node mode where Phoenix runs no local Bitcoin-PoCX Core. Your keys and wallet live on your computer and every transaction is signed locally; the wallet reaches the network through Electrum servers. A server can inconvenience you (stall a broadcast, report stale data) but cannot steal — the chain is verified and the keys never leave your machine. Solo mining, the block explorer, and the peers page are unavailable in remote mode. See Chapter 26.
+
+**Can I use Phoenix on my phone as a real wallet now?**
+Yes. The Android app is a full wallet — create or restore wallets, send, receive, keep history and contacts — and it can mine your storage straight into a wallet it holds, with nothing to copy from another machine. See Chapter 23.
 
 ## Wallet and funds
 
@@ -37,7 +46,19 @@ No. Confirmed Bitcoin-PoCX transactions are irreversible. Always verify the reci
 If you sent it with Replace-By-Fee enabled, bump its fee (Chapter 9). If not, you generally wait for it to clear or be evicted from mempools. See Chapters 8 and 9.
 
 **Can I have more than one wallet?**
-Yes. Phoenix supports multiple wallets; switch between them from the toolbar. See Chapter 5.
+Yes. Phoenix supports multiple wallets; switch between them from the toolbar (desktop) or the header switcher (Android). You can name, rename, and delete them; deletion is safe — the files move to a trash folder and the recovery phrase always restores the funds. See Chapters 5 and 23.
+
+**A block explorer shows a different balance (or an address I don't recognise). Why?**
+Almost always *change addresses*. When you spend, the leftover comes back to a fresh address your wallet owns but you never see — so any single address on an explorer shows only part of the story. Your wallet's total is the sum across all its addresses, which Phoenix tracks for you; trust the wallet's balance, not one address on an explorer. See Chapters 8 and 9.
+
+**Why does restore find addresses I didn't expect?**
+A recovery phrase can hold funds on several *derivation branches* — different address types and coin types. Phoenix restore scans them all and imports every branch that holds coins, then shows a short branch report of what it found, so nothing stays hidden. You do not choose or configure anything. See Chapter 5.
+
+**What is the BTCX coin type, and do I need to do anything about it?**
+Bitcoin-PoCX has its own registered coin type (SLIP-44 `1347371864`); new wallets use it automatically, and restore still finds funds derived under the older Bitcoin coin type. It is invisible in normal use — there is nothing for you to set. See Chapter 5.
+
+**Can I import a wallet from a descriptor or a single private key?**
+In the nodeless (remote) wallet and on Android, yes — paste one or two output *descriptors*, or wrap a single WIF key as `wpkh(WIF)` to import it as a one-address wallet (handy for a vanity or plotting address). See Chapters 23 and 26.
 
 **Can I create a shared wallet that needs several people to approve a spend?**
 Yes — a *multisig* wallet. Click **Multisig** on the Wallets screen and pick an *M-of-N* policy such as 2-of-3. Every participant runs the same wizard with the same set of public keys. See Chapter 5.
@@ -58,6 +79,9 @@ For an everyday wallet, yes — it protects against local theft. For a *mining* 
 
 **Will anyone from the project ever ask for my recovery phrase?**
 Never. No legitimate person or service will. Anyone who asks is trying to steal from you. See Chapters 1 and 11.
+
+**Is my wallet backed up to the cloud on Android?**
+No — and this is deliberate. Android's automatic app-data backup is disabled for Phoenix specifically so your seed can never reach Google Drive. The 24-word phrase, written on paper, is the only backup. Set a device passphrase to protect the seed stored on the phone, and treat the phone wallet as a hot wallet — spending money, not a vault. See Chapter 23.
 
 **Do my contacts and settings get backed up by my recovery phrase?**
 No. The phrase restores *funds* only. Contacts, settings, and mining configuration live in Phoenix's data directory and are not derived from the phrase. See Chapters 10 and 11.
@@ -119,10 +143,10 @@ No. An assignment delegates *forging only* — the right to sign blocks. It cann
 ## Operations
 
 **My miner looks healthy but never forges. Why?**
-The most common cause is a drifting system clock — Bitcoin-PoCX rejects blocks more than 15 seconds off, so your blocks get rejected even though everything looks fine. Enable NTP. See Chapters 20 and 26.
+The most common cause is a drifting system clock — Bitcoin-PoCX rejects blocks more than 15 seconds off, so your blocks get rejected even though everything looks fine. Enable NTP. See Chapters 20 and 27.
 
 **Mining stopped after my computer restarted.**
-If your signing wallet is encrypted, it came back locked and cannot sign until unlocked. Unlock it, or set up the cold/hot key split so the mining wallet needs no unlock. See Chapters 19, 20, and 26.
+If your signing wallet is encrypted, it came back locked and cannot sign until unlocked. Unlock it, or set up the cold/hot key split so the mining wallet needs no unlock. See Chapters 19, 20, and 27.
 
 **My effective capacity is much lower than my plotted terabytes.**
 Usually one of: plots a PoW scaling level behind the network (each level halves effective size — upgrade them), an I/O bottleneck (scans taking too long), or a drive that went offline. See Chapters 18, 20, and 22.
@@ -131,10 +155,10 @@ Usually one of: plots a PoW scaling level behind the network (each level halves 
 Up to the point where its drive slots and I/O saturate. Beyond that, add machines and coordinate them with the aggregator. See Chapters 14 and 24.
 
 **Where are the logs if I need to diagnose something?**
-Settings → Debug & Logs has one-click access to Phoenix's log and the node's log. See Chapters 12 and 26.
+Settings → Debug & Logs has one-click access to Phoenix's log and the node's log. See Chapters 12 and 27.
 
 **Is the network live? Does BTCX have value?**
-Refer to the official project channels (Chapter 29) for the current network status and any market information — it changes over time and is not something this handbook can state authoritatively.
+Refer to the official project channels (Chapter 30) for the current network status and any market information — it changes over time and is not something this handbook can state authoritatively.
 
 ## What's next
 

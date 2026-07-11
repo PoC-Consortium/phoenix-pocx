@@ -13,7 +13,7 @@ A single application that bundles the wallet, the node manager, the plotter, the
 | Windows  | NSIS installer (`.exe`)   | Windows 10 or later                                                              |
 | macOS    | Disk image (`.dmg`)       | macOS 10.13 (High Sierra) or later                                               |
 | Linux    | `AppImage`, `.deb`, `.rpm`| Most modern distributions                                                        |
-| Android  | APK (`.apk`)              | Android 7 (API 24) or later — **mining-only** build, no node and no wallet creation |
+| Android  | APK (`.apk`)              | Android 7 (API 24) or later — full **wallet + miner**, nodeless (no solo mining)   |
 
 ## System requirements
 
@@ -161,7 +161,7 @@ The AppImage is self-contained and does not need to be installed system-wide. To
 
 The Android build is distributed as an APK on GitHub Releases — Phoenix PoCX is not currently published on Google Play or F-Droid.
 
-> **Note** — The Android build is **mining-only**. It does not run a node and does not let you create or manage a wallet on the device itself. It is meant to contribute mining capacity to a Phoenix instance running elsewhere (typically through the aggregator described in Chapter 24). If you are looking for a phone wallet to send and receive BTCX, install Phoenix on a desktop machine instead.
+> **Note** — The Android build is a full **wallet and miner**. It holds its own wallets and can mine into them, without running a local node — it syncs over Electrum servers, the nodeless (remote) model of Chapter 26. It cannot *solo* mine (that needs a full node), but it can send, receive, hold wallets, and pool-mine on its own. Chapter 23 covers Android in detail.
 
 1. On your Android device, open a browser and navigate to the project website or GitHub Releases.
 2. Download `phoenix-pocx-wallet-<version>.apk`. Android may warn that the file can be harmful — this caution appears for any APK downloaded outside the Play Store. If prompted, tap **Download anyway**.

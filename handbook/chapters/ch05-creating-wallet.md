@@ -21,7 +21,9 @@ A primary **Open Wallet** button on the right is greyed out for now — it becom
 
 > **Note** — Phoenix supports multiple wallets in parallel. Once you have one, this same screen lists all of them with their balance, encryption status, and a per-row Load/Unload control. We come back to multi-wallet operation at the end of this chapter.
 
-If you ever see a red **Connection failed** state on this screen instead of the welcome card, Bitcoin-PoCX Core is not reachable. The screen offers **Retry**, **Settings**, and **Re-run node setup** buttons to diagnose. Chapter 26 covers this case in detail.
+> **Note — this chapter describes the managed / external (Core-backed) wallet.** If you run Phoenix in **remote mode** (Chapter 26) — or on Android (Chapter 23) — the wallet is not held inside Bitcoin-PoCX Core but lives locally on your machine and syncs over Electrum servers. The choices are the same in spirit (create from a 24-word phrase, restore, or import), but the screens and a few options differ; Chapter 26 covers the nodeless flows, including importing a wallet from its **descriptors** or from a single **WIF** private key.
+
+If you ever see a red **Connection failed** state on this screen instead of the welcome card, Bitcoin-PoCX Core is not reachable. The screen offers **Retry**, **Settings**, and **Re-run node setup** buttons to diagnose. Chapter 27 covers this case in detail.
 
 ## Creating a new wallet
 
@@ -135,6 +137,12 @@ Same encryption choice as for new wallets. Below the encryption section, an info
 Click **Import wallet**. Phoenix imports the keys and starts the rescan. The dashboard opens immediately, balances and history may take some time to appear in full.
 
 > **Tip** — If you are importing a wallet that you know has only ever been used recently, the rescan is fast. If you are importing a wallet that has been around for years, leave Phoenix running until the rescan finishes — interrupting it just means it has to start again next time the wallet is loaded.
+
+#### Restore finds funds on every derivation branch
+
+You do not have to know how your phrase was originally set up. A recovery phrase can hold funds on several *derivation branches* — different address types (SegWit, taproot, legacy) and different *coin types* (see below) — and Phoenix restore imports **all** of them, so no funds stay hidden on a branch you did not know about. When the import finishes, Phoenix shows a short **branch report** — *"Funds found on: …"* — naming which branches held coins (for example *legacy desktop* and *mobile*). You do not need to choose or configure anything; the scan is automatic.
+
+> **Note — the BTCX coin type.** Bitcoin-PoCX has its own registered *coin type* (SLIP-44 `1347371864`), and **new** wallets use it automatically. Older wallets — and wallets from some other tools — were derived under Bitcoin's original coin type `0'`. This is invisible in day-to-day use: you never enter or see a coin type, new wallets simply use the BTCX one, and **restore finds funds under either**. There is nothing for you to do; the distinction is noted only so the *legacy desktop* / *mobile* labels in the branch report make sense.
 
 ## Setting up a watch-only wallet
 

@@ -13,22 +13,24 @@ The heavy lifting on a Bitcoin-PoCX system is done by a program called **Bitcoin
 
 Phoenix is the user interface that drives Core. When you click **Send**, Phoenix asks Core to build and sign the transaction; when you check a balance, Phoenix asks Core what it knows. Phoenix on its own does nothing — it always needs a Core instance to talk to. The wizard exists to set that up.
 
-You have two ways to provide Core:
+You have three ways to connect:
 
 - **Managed mode** *(recommended)* — Phoenix downloads, installs, runs, and updates Bitcoin-PoCX Core for you. You never have to interact with it directly. This is the right choice for almost everyone.
 - **External mode** — You bring your own Core instance. You have already installed Bitcoin-PoCX Core somewhere (your own server, a different machine on the network) and you tell Phoenix how to reach it. Useful for advanced users running a hardened or shared setup.
+- **Remote mode** — No local node at all. Phoenix keeps a wallet on this computer and reaches the network through public **Electrum servers**. Nothing to download or sync; ideal for a laptop, a low-disk machine, or when you just want a wallet. Solo mining is unavailable in this mode (pool mining works). Remote mode has its own chapter — Chapter 26.
 
 The wizard walks through mode selection first; if you choose managed mode, it then handles the Core download.
 
 ## Step 1 — Choose a mode
 
-The first screen asks: *"How would you like to connect to the Bitcoin-PoCX network?"* Below the question are two selectable cards.
+The first screen asks: *"How would you like to connect to the Bitcoin-PoCX network?"* Below the question are three selectable cards.
 
 
 | Card             | Pick this if…                                                                                                          |
 |------------------|------------------------------------------------------------------------------------------------------------------------|
 | **Managed Node** | You want Phoenix to take care of Core for you. *Recommended for almost all users, including miners.*                  |
 | **External Node** | You already run Bitcoin-PoCX Core somewhere and want Phoenix to connect to it via RPC. Configuration follows in Chapter 25. |
+| **Remote Node (Electrum)** | You want no local node — a wallet that syncs over Electrum servers and stores its data on this computer. No sync wait; solo mining unavailable. Configuration follows in Chapter 26. |
 
 Click the card you want; the chosen card is highlighted in blue.
 
@@ -52,7 +54,7 @@ Click **Continue** when you are happy with your choices.
 
 ## Step 2 — Install Bitcoin-PoCX Core (managed mode only)
 
-If you chose **External Node**, the wizard saves your network choice and skips ahead to Chapter 5; the rest of this section does not apply to you. Configuring how Phoenix reaches your existing Core instance is covered in Chapter 25.
+If you chose **External Node** or **Remote Node (Electrum)**, there is no node for Phoenix to download, so the wizard saves your network choice and skips this install step. For external mode, configuring how Phoenix reaches your existing Core instance is covered in Chapter 25; for remote mode, configuring the Electrum servers the wallet syncs through is covered in Chapter 26.
 
 If you chose **Managed Node**, the wizard now fetches information about the latest Bitcoin-PoCX Core release.
 
@@ -92,7 +94,7 @@ When the install screen reports success, click **Get Started**. Phoenix now:
 
 The button label changes briefly to *"Starting Node..."* with a spinning icon. On most machines this takes two to five seconds; on slower computers or first runs after a long shutdown it can take a little longer.
 
-If Core starts but its RPC interface is not yet responsive, Phoenix shows a small warning *"Node started but RPC not ready yet. You may need to wait."* You will be moved on to the next screen anyway, and Phoenix continues to wait for Core in the background. If you see this message frequently, raise it as a Chapter 26 troubleshooting item.
+If Core starts but its RPC interface is not yet responsive, Phoenix shows a small warning *"Node started but RPC not ready yet. You may need to wait."* You will be moved on to the next screen anyway, and Phoenix continues to wait for Core in the background. If you see this message frequently, raise it as a Chapter 27 troubleshooting item.
 
 ## What Bitcoin-PoCX Core does next, in the background
 

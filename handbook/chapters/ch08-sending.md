@@ -144,7 +144,7 @@ Most send failures fall into a small handful of categories. Phoenix shows the un
 | *Fee rate too low*                     | Your custom rate is below the network's minimum. Raise it.                       |
 | *Wallet locked*                        | The encrypted-wallet password dialog was cancelled. Re-click **Send** and enter the password. |
 | *Mempool full / replacement-too-low*   | Mempool conditions are unusual. Wait, or try again with a higher fee.            |
-| *Connection error*                     | Phoenix lost the connection to Bitcoin-PoCX Core. Check the node status indicator (Chapter 6) and Chapter 26 for diagnosis. |
+| *Connection error*                     | Phoenix lost the connection to Bitcoin-PoCX Core. Check the node status indicator (Chapter 6) and Chapter 27 for diagnosis. |
 
 A failed send does not consume any funds — nothing is broadcast until Core has built and signed a valid transaction.
 
@@ -198,6 +198,8 @@ A live **summary** shows what you are sending, the estimated fee, and the total.
 
 > **Note** — The fee and change shown while composing are *estimates*. The exact figures are fixed by the node when it builds the PSBT; the fee is paid on top of the output amounts and taken from the change. If a watch-only wallet cannot build the transaction because it holds no key information, Phoenix says so and points you to import it as a descriptor (xpub) instead.
 
+> **Note — remote mode composes with fewer options.** In a nodeless (remote) wallet (Chapter 26), the node-backed compose extras — manual coin control, `OP_RETURN` data, locktime, a custom change address, subtract-fee, and *Join* — are not available yet, and Phoenix greys them out. Ordinary composing, signing, combining, finalizing, and broadcasting all work.
+
 ### The four steps: Create, Sign, Finalize, Broadcast
 
 Once a PSBT exists, a step indicator across the top tracks it through its life: **Create → Sign → Finalize → Broadcast.** The review screen shows the transaction's inputs and outputs — each output tagged **recipient**, **mine**, **change**, or **data** — and a status badge with a one-line explanation of what to do next.
@@ -215,7 +217,7 @@ Once a PSBT exists, a step indicator across the top tracks it through its life: 
 
 **Finalize.** Once all required signatures are present (status *Signed*), **Finalize** seals the inputs. After finalizing, the transaction can no longer be edited.
 
-**Broadcast.** The final step sends the finalized transaction to the network. The only target today is your **local node**; broadcasting through a remote Electrum server is shown but marked *soon*. On success, Phoenix shows a **Transaction broadcast** confirmation with the copyable txid and buttons to view your transactions or start another.
+**Broadcast.** The final step sends the finalized transaction to the network. There are two possible targets: your **local node** (*"bitcoind on this machine"*) when Phoenix runs a managed or external node, and a **remote Electrum server** (*"Broadcast through a remote server — no local node required"*) when a server is configured — the latter is how a nodeless wallet broadcasts without any local node (Chapter 26). On success, Phoenix shows a **Transaction broadcast** confirmation with the copyable txid and buttons to view your transactions or start another.
 
 ![The final step: choosing where to broadcast the finalized transaction.](images/processed/ch08-psbt-broadcast.png){width=98%}
 

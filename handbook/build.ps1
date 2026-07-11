@@ -47,6 +47,7 @@ $inputs = @(
     "chapters/ch23-android.md",
     "chapters/ch24-aggregator.md",
     "chapters/ch25-external-node.md",
+    "chapters/ch25b-remote-node.md",
     "chapters/part5.md",
     "chapters/ch26-troubleshooting.md",
     "chapters/ch27-faq.md",

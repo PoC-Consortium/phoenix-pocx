@@ -22,6 +22,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **CMR (Conventional Magnetic Recording).** Hard-drive recording technology with non-overlapping tracks and consistent write performance. The recommended technology for plot storage. *(Chapter 14)*
 
+**Coin type.** A number in the derivation path that separates one chain's addresses from another's. Bitcoin-PoCX has its own registered value (SLIP-44 `1347371864`); new wallets use it, while restore still finds funds under the older Bitcoin coin type `0'`. Invisible in normal use. *(Chapter 5)*
+
 **Coinbase.** The special transaction in each block that pays the block reward. Coinbase rewards must mature before they can be spent. *(Chapters 9, 13)*
 
 **Coinbase maturity.** The waiting period before a newly forged block reward becomes spendable. Until then it shows as *immature*. *(Chapter 9)*
@@ -32,13 +34,17 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Deadline.** The number of seconds a plot would have to wait before being eligible to forge a given block. The smallest deadline on the network wins. Smaller is better. *(Chapter 13)*
 
-**Descriptor (output descriptor).** Bitcoin Core's expression for a whole family of addresses derived from a key, used for watch-only wallets and behind the scenes for ordinary wallets. *(Chapter 5)*
+**Derivation branch.** One of the several address families a single recovery phrase can produce — a combination of address type (SegWit, taproot, legacy) and coin type. Restore scans all of them and imports every branch that holds funds. *(Chapter 5)*
+
+**Descriptor (output descriptor).** A compact expression for a whole family of addresses derived from a key. Used for watch-only wallets, and — in the nodeless wallet — as a way to *import* a wallet by pasting its private descriptors. *(Chapters 5, 26)*
 
 **Difficulty.** A measure of how hard it is to forge a block, adjusted by the network via the base target. *(Chapters 13, 20)*
 
 **Direct I/O.** A setting that bypasses the operating system's file cache when reading or writing plots, often improving performance on large workloads. *(Chapters 15, 22)*
 
 **Effective capacity.** An estimate of how much usable plot space your miner *appears* to have, computed from your recent deadlines rather than from raw drive size. Converges over time toward your true participating capacity. *(Chapters 20, 22)*
+
+**Electrum server.** A lightweight indexer that answers address-history and transaction-broadcast queries for a light wallet. Phoenix's remote mode syncs through an ordered list of Electrum servers (primary plus failovers) instead of a local node. A server can see which addresses you query but cannot spend your funds. *(Chapter 26)*
 
 **External mode.** The node mode in which Phoenix connects to a Bitcoin-PoCX Core instance you run yourself, rather than one it manages. *(Chapter 25)*
 
@@ -70,9 +76,11 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Node.** The Bitcoin-PoCX Core program that connects to the network, downloads and validates the blockchain, and holds the wallet. Phoenix drives a node; it is not itself the node. *(Chapters 2, 6)*
 
+**Nodeless.** See *Remote mode*.
+
 **Nonce.** The smallest meaningful unit of plot data — a 256 KiB structure derived from the plotting address, a seed, and an index. Each nonce contains 4096 scoops. *(Chapter 13)*
 
-**NTP (Network Time Protocol).** The standard service that keeps a computer's clock synchronised. Essential for mining, given Bitcoin-PoCX's 15-second timestamp tolerance. *(Chapters 14, 26)*
+**NTP (Network Time Protocol).** The standard service that keeps a computer's clock synchronised. Essential for mining, given Bitcoin-PoCX's 15-second timestamp tolerance. *(Chapters 14, 27)*
 
 **OpenCL.** The open standard Phoenix's plotter uses to run on GPUs. Requires runtime drivers but no SDK. *(Chapter 17)*
 
@@ -104,6 +112,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Regtest.** A local-only test network for development, with instant low-difficulty blocks. Not exposed in Phoenix's wizard; reached via external mode. *(Chapters 4, 25)*
 
+**Remote mode.** The node mode in which Phoenix runs no local node at all — the wallet lives on your computer and syncs over Electrum servers. Fast to start and light on disk; solo mining, the block explorer, and the peers page are unavailable. Also called the *nodeless* or *Electrum* wallet. *(Chapter 26)*
+
 **RPC (Remote Procedure Call).** The interface Phoenix uses to talk to Bitcoin-PoCX Core. *(Chapters 12, 25)*
 
 **Satoshi.** The smallest unit of BTCX; one hundred-millionth of a BTCX. *(Chapter 2)*
@@ -112,11 +122,15 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Seed.** A per-plot value that lets one address have multiple non-overlapping plots without manual coordination. *(Chapter 13)*
 
+**SegWit (Segregated Witness).** The address family Bitcoin-PoCX uses for ordinary and plot addresses. Native SegWit **v0** addresses (BIP-84, `pocx1q…`) are the only kind that can be plot addresses, so only a SegWit wallet can mine or hold a forging assignment. *(Chapters 7, 23)*
+
 **SMART.** Drive self-monitoring data (reallocated sectors, temperature, and so on) used to spot a failing drive early. *(Chapter 14)*
 
 **SMR (Shingled Magnetic Recording).** Hard-drive technology with overlapping tracks that packs more data per platter but collapses under sustained writes. Fine for mining (reads), poison for plotting (writes). *(Chapter 14)*
 
 **Solo mining.** Mining for yourself against the network, keeping the full reward when you win — at the cost of rare, bursty wins for a small miner. *(Chapters 13, 19)*
+
+**Taproot (BIP-86).** A newer address family (`pocx1p…`) that a Phoenix wallet can use for ordinary funds. Taproot addresses can never be plot addresses, so a taproot wallet cannot mine or publish a forging assignment — use a SegWit wallet for mining. *(Chapters 5, 23)*
 
 **Testnet.** A public test network where coins have no value, used for development and experimentation. *(Chapter 4)*
 
@@ -134,7 +148,7 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Watch-only wallet.** A wallet that holds no private keys — it observes addresses or descriptors and reports their balance and history but cannot spend. *(Chapter 5)*
 
-**WIF (Wallet Import Format).** A standard encoding of a single private key, importable into a wallet via Settings. *(Chapter 12)*
+**WIF (Wallet Import Format).** A standard encoding of a single private key. On a Core-backed wallet it can be imported into the active wallet via Settings; in the nodeless wallet, wrapping it as `wpkh(WIF)` imports it as a stand-alone one-address wallet (useful for a vanity or plotting address). *(Chapters 12, 26)*
 
 **Xn.** See *PoW scaling level*.
 
