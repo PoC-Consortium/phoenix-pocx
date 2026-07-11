@@ -1,15 +1,4 @@
-import {
-  Component,
-  ElementRef,
-  NgZone,
-  OnDestroy,
-  OnInit,
-  computed,
-  effect,
-  inject,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -22,6 +11,7 @@ import { I18nPipe } from '../../../../core/i18n';
 import { BtcxPipe } from '../../../../shared/pipes';
 import { ContactsStoreService } from '../../../../shared/services';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
+import { FitRowsDirective } from '../../fit-rows.directive';
 import { BtcxWalletService, BtcxChainInfo } from '../../../../core/services/btcx-wallet.service';
 import { MiningService } from '../../../../mining/services';
 import {
@@ -62,6 +52,7 @@ import {
     BtcxPipe,
     I18nPipe,
     TxRowComponent,
+    FitRowsDirective,
   ],
   template: `
     <div class="page">
@@ -219,8 +210,8 @@ import {
         </div>
 
         <!-- Recent transactions: fills the viewport height left by the
-             cards above (as many rows as fit, min 3 / max 10 — measured
-             with a ResizeObserver, so rotation/resize recomputes). -->
+             cards above (as many rows as fit, min 3 / max 10 — the shared
+             FitRowsDirective, so rotation/resize recomputes). -->
         <div class="card recent-card">
           <div class="card-title plain">
             <mat-icon>history</mat-icon>
@@ -229,7 +220,13 @@ import {
           @if (recentTransactions().length === 0) {
             <p class="hint-text no-tx">{{ 'no_transactions' | i18n }}</p>
           } @else {
-            <div class="tx-list" #txList>
+            <div
+              class="tx-list"
+              appFitRows
+              [fitMinRows]="3"
+              [fitMaxRows]="10"
+              (fitRows)="visibleTxCount.set($event)"
+            >
               @for (tx of recentTransactions(); track tx.txid) {
                 <div class="tx-item" routerLink="/wallet/history">
                   <app-mwallet-tx-row [tx]="tx" />
@@ -549,11 +546,10 @@ import {
     `,
   ],
 })
-export class WalletHomeComponent implements OnInit, OnDestroy {
+export class WalletHomeComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly mining = inject(MiningService);
   private readonly contactsStore = inject(ContactsStoreService);
-  private readonly zone = inject(NgZone);
 
   readonly balance = computed(() => this.wallet.balance());
   readonly pendingSat = computed(() => {
@@ -564,17 +560,9 @@ export class WalletHomeComponent implements OnInit, OnDestroy {
 
   // --- Recent list viewport fill (round 6) -------------------------------
   // The card flex-fills the height left by the cards above (flex-basis 0,
-  // so its height never depends on its own rows); a ResizeObserver on the
-  // row container derives how many rows fit. Row height is measured from
-  // the first rendered row (full addresses wrap, so it isn't a constant),
-  // falling back to a typical row before anything rendered.
-  private static readonly MIN_ROWS = 3;
-  private static readonly MAX_ROWS = 10;
-  private static readonly FALLBACK_ROW_PX = 64;
-
-  private readonly txList = viewChild<ElementRef<HTMLElement>>('txList');
-  private readonly visibleTxCount = signal(WalletHomeComponent.MIN_ROWS);
-  private resizeObserver: ResizeObserver | null = null;
+  // so its height never depends on its own rows); the shared
+  // FitRowsDirective on the row container derives how many rows fit.
+  readonly visibleTxCount = signal(3);
 
   /** Recent activity preview — as many newest entries as fit the screen. */
   readonly recentTransactions = computed(() =>
@@ -606,37 +594,6 @@ export class WalletHomeComponent implements OnInit, OnDestroy {
         void this.refreshChain();
       }
     });
-
-    // (Re)attach the ResizeObserver whenever the row container (re)appears —
-    // it lives inside @if/@for branches, so it comes and goes.
-    effect(() => {
-      const list = this.txList()?.nativeElement ?? null;
-      this.resizeObserver?.disconnect();
-      if (!list) return;
-      this.resizeObserver ??= new ResizeObserver(() => {
-        // ResizeObserver isn't zone-patched — re-enter for change detection.
-        this.zone.run(() => this.measureVisibleRows());
-      });
-      this.resizeObserver.observe(list);
-      this.measureVisibleRows();
-    });
-  }
-
-  ngOnDestroy(): void {
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
-  }
-
-  /** floor(listHeight / rowHeight), clamped to MIN_ROWS..MAX_ROWS. */
-  private measureVisibleRows(): void {
-    const list = this.txList()?.nativeElement;
-    if (!list) return;
-    const first = list.querySelector<HTMLElement>('.tx-item');
-    const rowHeight = first?.getBoundingClientRect().height || WalletHomeComponent.FALLBACK_ROW_PX;
-    const fit = Math.floor(list.clientHeight / rowHeight);
-    this.visibleTxCount.set(
-      Math.min(WalletHomeComponent.MAX_ROWS, Math.max(WalletHomeComponent.MIN_ROWS, fit))
-    );
   }
 
   ngOnInit(): void {
