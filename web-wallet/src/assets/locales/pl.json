@@ -240,6 +240,8 @@
   "fee": "Oplata",
   "fee_custom": "Wlasna",
   "fee_fast": "Szybka",
+  "fee_high_ack": "Rozumiem — wyślij z tą wysoką opłatą",
+  "fee_high_warning": "Ta opłata jest niezwykle wysoka ({rate} sat/vB). Wadliwy lub wrogi serwer może zawyżać opłaty.",
   "fee_increase": "Zwiekszenie oplaty",
   "fee_normal": "Normalna",
   "fee_rate": "Stawka oplaty",

@@ -240,6 +240,8 @@
   "fee": "Frais",
   "fee_custom": "Personnalise",
   "fee_fast": "Rapide",
+  "fee_high_ack": "Je comprends — envoyer avec ces frais élevés",
+  "fee_high_warning": "Ces frais sont anormalement élevés ({rate} sat/vB). Un serveur défectueux ou malveillant peut gonfler les frais.",
   "fee_increase": "Augmentation des frais",
   "fee_normal": "Normal",
   "fee_rate": "Taux de frais",

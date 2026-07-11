@@ -240,6 +240,8 @@
   "fee": "Naknada",
   "fee_custom": "Prilagodeno",
   "fee_fast": "Brzo",
+  "fee_high_ack": "Razumijem — pošalji s ovom visokom naknadom",
+  "fee_high_warning": "Ova je naknada neobično visoka ({rate} sat/vB). Neispravan ili zlonamjeran poslužitelj može napuhati naknade.",
   "fee_increase": "Povecanje naknade",
   "fee_normal": "Normalno",
   "fee_rate": "Stopa naknade",

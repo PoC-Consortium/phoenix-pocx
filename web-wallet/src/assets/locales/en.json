@@ -225,6 +225,8 @@
   "fee": "Fee",
   "fee_custom": "Custom",
   "fee_fast": "Fast",
+  "fee_high_ack": "I understand — send with this high fee",
+  "fee_high_warning": "This fee is unusually high ({rate} sat/vB). A faulty or hostile server can inflate fees.",
   "fee_increase": "Fee Increase",
   "fee_normal": "Normal",
   "fee_rate": "Fee Rate",

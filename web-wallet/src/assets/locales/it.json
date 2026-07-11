@@ -240,6 +240,8 @@
   "fee": "Commissione",
   "fee_custom": "Personalizzato",
   "fee_fast": "Veloce",
+  "fee_high_ack": "Ho capito — invia con questa commissione alta",
+  "fee_high_warning": "Questa commissione è insolitamente alta ({rate} sat/vB). Un server difettoso o ostile può gonfiare le commissioni.",
   "fee_increase": "Aumento commissione",
   "fee_normal": "Normale",
   "fee_rate": "Tasso commissione",

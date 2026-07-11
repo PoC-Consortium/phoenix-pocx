@@ -240,6 +240,8 @@
   "fee": "Poplatek",
   "fee_custom": "Vlastni",
   "fee_fast": "Rychly",
+  "fee_high_ack": "Rozumím — odeslat s tímto vysokým poplatkem",
+  "fee_high_warning": "Tento poplatek je neobvykle vysoký ({rate} sat/vB). Vadný nebo nepřátelský server může poplatky nafouknout.",
   "fee_increase": "Zvyseni poplatku",
   "fee_normal": "Normalni",
   "fee_rate": "Sazba poplatku",

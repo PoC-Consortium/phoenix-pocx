@@ -240,6 +240,8 @@
   "fee": "Mokestis",
   "fee_custom": "Pasirinktinis",
   "fee_fast": "Greitas",
+  "fee_high_ack": "Suprantu — siųsti su šiuo dideliu mokesčiu",
+  "fee_high_warning": "Šis mokestis neįprastai didelis ({rate} sat/vB). Sugedęs arba priešiškas serveris gali išpūsti mokesčius.",
   "fee_increase": "Mokescio padidinimas",
   "fee_normal": "Normalus",
   "fee_rate": "Mokescio norma",
