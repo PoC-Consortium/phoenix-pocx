@@ -14,9 +14,9 @@ The most important tab. This is where you choose whether Phoenix manages Bitcoin
 
 ### Connection mode
 
-A pair of radio buttons at the top of the tab switches between **Managed** and **External**. Switching modes does *not* delete any wallet data — it only changes how Phoenix talks to a node. You can flip back and forth as you experiment.
+Radio buttons at the top of the tab switch between **Managed**, **External**, and **Remote (Electrum)**. Switching modes does *not* delete any wallet data — it only changes how Phoenix reaches the network. You can flip between them as you experiment.
 
-The rest of the tab changes depending on which mode is selected.
+The rest of the tab changes depending on which mode is selected. Managed and external are covered below and in Chapter 25; remote mode has its own panel (also below) and its own chapter (Chapter 26).
 
 ### Managed mode panel
 
@@ -99,6 +99,22 @@ The external panel collects the connection details Phoenix needs to reach a Bitc
 
 **Reset to defaults / Save & apply.** Two buttons at the bottom — *Reset* clears the form to the defaults for the selected network; *Save* commits.
 
+### Remote (Electrum) mode panel
+
+In remote mode there is no node to configure — instead this panel manages the **Electrum servers** the local wallet syncs through. (The full story is Chapter 26; this is the settings reference.)
+
+**Network selection.** *Mainnet*, *Testnet*, or *Regtest*. Each network keeps its own server list and its own wallet data.
+
+**Electrum servers.** An ordered list of endpoints — *"The first entry is the primary server; the rest are failovers."*
+
+| Control | What it does |
+|---------|--------------|
+| **Server URL** | Add an endpoint as `tcp://host:port` or `ssl://host:port` (prefer `ssl://`). |
+| **Test connection** | Makes a lightweight query to confirm the server is reachable before you rely on it. |
+| **Remove server** | Deletes an entry; the remaining order is the failover order. |
+
+For mainnet a default Bitcoin-PoCX server is present out of the box; testnet and regtest start empty. Put a server you run first if you have one, and keep a public server below it as a failover.
+
 ## Tab 2 — Notifications
 
 Phoenix can deliver native operating-system notifications for events of interest. This tab toggles which ones.
@@ -152,7 +168,7 @@ Use this when your mining configuration has become tangled (mismatched orphan fi
 
 Wipes Phoenix's view of the active wallet — settings, contacts associated with the wallet, internal caches. This does *not* delete the underlying Bitcoin-PoCX Core wallet or its keys; it removes Phoenix-side bookkeeping only. You can re-add the wallet from the Wallets screen (Chapter 5) afterwards.
 
-> **Warning** — Despite the name, this is a Phoenix-level reset, not a key deletion. To actually destroy the underlying wallet (and its keys), you must remove the wallet from Bitcoin-PoCX Core itself — typically by wiping the node's data directory, which Chapter 26 covers in detail. *Always confirm you have your recovery phrase before any wallet-related reset.*
+> **Warning** — Despite the name, this is a Phoenix-level reset, not a key deletion. To actually destroy the underlying wallet (and its keys), you must remove the wallet from Bitcoin-PoCX Core itself — typically by wiping the node's data directory, which Chapter 27 covers in detail. *Always confirm you have your recovery phrase before any wallet-related reset.*
 
 ### Import WIF private key
 

@@ -89,7 +89,9 @@ Two read-only views of what Bitcoin-PoCX Core sees:
 - **Blocks** — the recent block list, with height, time, and basic block details.
 - **Peers** — the nodes Core is currently connected to, with their addresses, ping times, and direction.
 
-Both are useful for diagnosing sync problems or seeing how well-connected Core is. They are covered briefly in Chapters 12 and 26.
+Both are useful for diagnosing sync problems or seeing how well-connected Core is. They are covered briefly in Chapters 12 and 27.
+
+> **Note** — Blocks and Peers read data only a full node has, so they are **hidden in remote mode** (Chapter 26); navigating to them returns you to the dashboard.
 
 ### Footer
 
@@ -116,7 +118,7 @@ A row of small icons that turn solid (active) when something is running. They ap
 
 | Icon              | Symbol      | Means…                                                                                                       |
 |-------------------|-------------|--------------------------------------------------------------------------------------------------------------|
-| **Node**          | `share`     | Bitcoin-PoCX Core is running. Visible only in managed mode (the icon is not shown if you use an external node). |
+| **Node**          | `share`     | Bitcoin-PoCX Core is running. Visible only in managed mode (the icon is not shown with an external node). In **remote mode** (Chapter 26) it is replaced by an **Electrum status** indicator showing whether the wallet is synced through its server, running on a failover, or disconnected. |
 | **Miner**         | `hardware`  | The miner is running and scanning plots. Visible only after you have configured mining (Chapter 15).         |
 | **Plotter**       | `storage`   | The plotter has work to do. Solid means actively plotting; outlined means a plan exists but is paused.       |
 | **Wallet lock**   | `lock` / `lock_open` | Visible only when at least one encrypted wallet is loaded. The icon shows whether any wallet is currently unlocked for spending. |
