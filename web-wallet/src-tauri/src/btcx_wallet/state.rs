@@ -64,6 +64,9 @@ pub struct BtcxWalletStatus {
     pub network: String,
     /// Name of the selected wallet on the active network.
     pub wallet_name: String,
+    /// The selected wallet is a single-address (`wpkh(WIF)`) wallet — one
+    /// address, change to self; the receive page hides "new address".
+    pub single_address: bool,
     /// Wallet-cache chain height (bdk checkpoint tip), once open.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub synced_height: Option<u32>,
@@ -272,7 +275,7 @@ impl BtcxWalletState {
                     &config.wallet_db_path(),
                     params,
                     &payload.external,
-                    &payload.internal,
+                    payload.internal.as_deref(),
                     descriptors::bdk_network(config.network),
                 )
                 .map_err(|e| format!("Failed to open wallet: {e:#}"))?
@@ -522,6 +525,11 @@ impl BtcxWalletState {
                 .unwrap_or(false),
             };
 
+        let single_address = config
+            .wallet_meta(config.network, &config.active_wallet_name())
+            .map(|m| m.single_address)
+            .unwrap_or(false);
+
         Ok(BtcxWalletStatus {
             seed,
             seed_encrypted,
@@ -529,6 +537,7 @@ impl BtcxWalletState {
             active: config.active,
             network: config.network.as_str().to_string(),
             wallet_name: config.active_wallet_name(),
+            single_address,
             synced_height,
             sync_age_secs,
         })

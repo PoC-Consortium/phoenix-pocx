@@ -43,6 +43,11 @@ export interface BtcxWalletStatus {
   network: BtcxNetwork;
   /** Name of the selected wallet on the active network. */
   walletName: string;
+  /**
+   * The selected wallet is a single-address (wpkh(WIF)) wallet — one
+   * address, change returns to it; the receive page hides "new address".
+   */
+  singleAddress: boolean;
   /** Wallet-cache chain height, once open. */
   syncedHeight?: number;
   /** Seconds since the last completed sync pass. */
@@ -132,6 +137,8 @@ export type BtcxImportErrorCode =
   | 'empty'
   | 'watch_only'
   | 'bare_key'
+  | 'bare_wif'
+  | 'wif_not_segwit'
   | 'wrong_network'
   | 'needs_internal'
   | 'unsupported_type'
@@ -156,6 +163,11 @@ export interface BtcxImportValidation {
   inferredInternal: boolean;
   /** Both branches came from one multipath `<0;1>` descriptor. */
   fromMultipath: boolean;
+  /**
+   * Single-address wpkh(WIF) wallet — one keychain, change returns to the
+   * same address (the verdict line notes it).
+   */
+  singleAddress: boolean;
 }
 
 /** What `btcx_wallet_import_descriptor` did. */
@@ -165,6 +177,8 @@ export interface BtcxImportResult {
   policy: BtcxDescriptorPolicy;
   inferredInternal: boolean;
   fromMultipath: boolean;
+  /** Single-address wpkh(WIF) wallet — the success screen notes it. */
+  singleAddress: boolean;
 }
 
 /** One probed derivation branch with history (`btcx_wallet_restore`). */
@@ -204,6 +218,8 @@ export interface BtcxWalletSummary {
   policy: BtcxDescriptorPolicy;
   /** Key-material source: seed (create/restore) or imported descriptors. */
   source: BtcxWalletSource;
+  /** Single-address wpkh(WIF) wallet — the switcher/settings badge. */
+  singleAddress: boolean;
   /** The selected wallet of the network. */
   isActive: boolean;
   /** Runtime open (only ever true for the active wallet). */
@@ -444,6 +460,12 @@ export class BtcxWalletService {
   readonly walletName = computed(() => this._status()?.walletName ?? 'default');
 
   /**
+   * The selected wallet is a single-address (wpkh(WIF)) wallet — one
+   * address, change to self; the receive page hides "new address".
+   */
+  readonly singleAddress = computed(() => this._status()?.singleAddress ?? false);
+
+  /**
    * Descriptor policy of the active network's selected wallet (null =
    * fresh default). Falls back to the legacy per-network map while the
    * startup migration has not run yet.
@@ -606,9 +628,11 @@ export class BtcxWalletService {
    * Import a wallet from one or two PRIVATE descriptors (single input,
    * whitespace/newline separated). A single standard descriptor infers its
    * /0/* ↔ /1/* sibling; a multipath <0;1> descriptor carries both
-   * branches. Public-only (xpub) material is rejected — watch-only is not
-   * supported yet. The optional passphrase encrypts the stored descriptors
-   * at rest. Throws on failure.
+   * branches; a wpkh(WIF) descriptor imports as a SINGLE-ADDRESS wallet
+   * (change returns to the same address — vanity/plot identities).
+   * Public-only (xpub) material is rejected — watch-only is not supported
+   * yet. The optional passphrase encrypts the stored descriptors at rest.
+   * Throws on failure.
    */
   async importDescriptor(
     input: string,

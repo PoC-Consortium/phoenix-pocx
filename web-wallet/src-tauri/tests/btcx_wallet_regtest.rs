@@ -851,6 +851,174 @@ fn regtest_import_descriptor_wallet() {
     );
 }
 
+/// Single-address `wpkh(WIF)` import (vanity/plot identities), live: a
+/// fresh random key wrapped as `wpkh(WIF)` imports as a SINGLE-ADDRESS
+/// named wallet — one keychain, no internal descriptor. The wallet opens,
+/// its one address is funded, and a partial spend back to the miner must
+/// return the CHANGE TO THE SAME ADDRESS (bdk `create_single` semantics,
+/// the identity-preserving point of the feature) with exact balance math
+/// (change value == funded − sent − fee, verified against the node's view
+/// of the tx). A re-import of the same WIF under another name must see the
+/// full history on its first sync — over its one revealed script, since a
+/// gap scan cannot even terminate on a non-wildcard descriptor.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_import_wif_single_address_wallet() {
+    let params = &params_btcx::params::BTCX_REGTEST;
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+    // Never touch the developer's real OS keychain from a test.
+    std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+    let state = phoenix_pocx_lib::btcx_wallet::create_btcx_wallet_state();
+    state
+        .update_config(|c| {
+            c.network = WalletNetwork::Regtest;
+            c.set_servers(WalletNetwork::Regtest, vec![ELECTRUM_URL.to_string()]);
+        })
+        .unwrap();
+
+    // A FRESH key every run — the shared regtest chain must not leak
+    // history from earlier runs. Constructed in the test (cleaner than
+    // dumpprivkey, which needs a legacy-enabled node wallet).
+    let secp = bitcoin::secp256k1::Secp256k1::new();
+    let secret = {
+        use rand::RngCore;
+        let mut b = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut b);
+        bitcoin::secp256k1::SecretKey::from_slice(&b).unwrap()
+    };
+    let privkey = bitcoin::PrivateKey::new(secret, bitcoin::NetworkKind::Test);
+    let wif = privkey.to_wif();
+    let our_spk = bitcoin::ScriptBuf::new_p2wpkh(
+        &privkey
+            .public_key(&secp)
+            .wpubkey_hash()
+            .expect("compressed key"),
+    );
+
+    // 1. Import `wpkh(WIF)`: single-address wallet, BIP-84 class (mining
+    //    and assignments stay allowed), no inferred internal.
+    let result = import_descriptor_wallet_impl(
+        &state,
+        None,
+        &format!("wpkh({wif})"),
+        None,
+        Some("wif-single".into()),
+    )
+    .expect("import wpkh(WIF)");
+    assert_eq!(result.status.wallet_name, "wif-single");
+    assert!(result.status.wallet_active);
+    assert!(result.single_address);
+    assert!(result.status.single_address);
+    assert!(!result.inferred_internal);
+    assert_eq!(result.policy.kind, DescriptorKindCfg::Bip84);
+
+    // 2. Current AND "new" address are THE address of the key — the
+    //    wallet's whole address space.
+    let address = state
+        .with_entry(|entry| current_address_of(entry, WalletNetwork::Regtest))
+        .unwrap();
+    assert!(address.starts_with("rpocx1q"), "{address}");
+    assert_eq!(
+        params.parse_address(&address).unwrap(),
+        our_spk,
+        "the wallet's address must be the WIF key's P2WPKH script"
+    );
+    let fresh = state.backend().unwrap().wallet_new_address().unwrap();
+    assert_eq!(
+        fresh, address,
+        "single-address: new == current == THE address"
+    );
+
+    // 3. Fund it, watch the background sync pick the coin up.
+    fund_and_mine(&address, 0.4);
+    wait_for_balance(&state, 40_000_000, "WIF wallet after funding");
+
+    // 4. Spend 0.1 BTCX back to the miner and PROVE the change returned to
+    //    the same address, against the NODE's view of the transaction.
+    let wallets = rpc(None, "listwallets", serde_json::json!([]));
+    let wallet_name = wallets[0]
+        .as_str()
+        .expect("a loaded miner wallet on the regtest node")
+        .to_string();
+    let miner_addr = rpc(Some(&wallet_name), "getnewaddress", serde_json::json!([]))
+        .as_str()
+        .unwrap()
+        .to_string();
+    let spend_txid = state
+        .backend()
+        .unwrap()
+        .wallet_send(
+            &miner_addr,
+            10_000_000,
+            electrum_btcx::SendFee::RatePerKvb(2000),
+        )
+        .expect("send from the WIF wallet");
+    println!("WIF wallet sent 0.1 BTCX back to the miner: {spend_txid}");
+
+    let decoded = rpc(
+        None,
+        "getrawtransaction",
+        serde_json::json!([spend_txid, true]),
+    );
+    let vout = decoded["vout"].as_array().unwrap();
+    assert_eq!(vout.len(), 2, "recipient + change: {decoded}");
+    let sat = |v: &serde_json::Value| (v["value"].as_f64().unwrap() * 1e8).round() as u64;
+    let spk_hex = |v: &serde_json::Value| v["scriptPubKey"]["hex"].as_str().unwrap().to_string();
+    let our_spk_hex = hex::encode(our_spk.as_bytes());
+    let change = vout
+        .iter()
+        .find(|v| spk_hex(v) == our_spk_hex)
+        .expect("CHANGE RETURNED TO THE SAME ADDRESS");
+    let recipient = vout
+        .iter()
+        .find(|v| spk_hex(v) != our_spk_hex)
+        .expect("recipient output");
+    assert_eq!(sat(recipient), 10_000_000);
+    let fee = 40_000_000 - sat(recipient) - sat(change);
+    assert!(fee > 0 && fee < 10_000, "sane fee, got {fee} sat");
+    assert_eq!(
+        sat(change),
+        40_000_000 - 10_000_000 - fee,
+        "exact balance math"
+    );
+
+    // 5. Confirm the spend; the wallet's balance must land EXACTLY on the
+    //    change value — all of it on the one address.
+    mine_block(&miner_addr);
+    wait_for_balance(&state, sat(change), "WIF wallet after the spend");
+    let still = state
+        .with_entry(|entry| current_address_of(entry, WalletNetwork::Regtest))
+        .unwrap();
+    assert_eq!(still, address, "identity preserved after spending");
+
+    // 6. Re-import the SAME WIF under another name: the fresh store's
+    //    first sync (revealed-spk path over the one script) sees the full
+    //    history and matches the balance exactly.
+    let result = import_descriptor_wallet_impl(
+        &state,
+        None,
+        &format!("wpkh({wif})"),
+        None,
+        Some("wif-single-2".into()),
+    )
+    .expect("re-import the same WIF");
+    assert!(result.single_address);
+    wait_for_balance(&state, sat(change), "re-imported WIF wallet history");
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    state.close_runtime();
+    std::env::remove_var("PHOENIX_DATA_DIR");
+    std::env::remove_var("PACT_DISABLE_KEYRING");
+    println!(
+        "wpkh(WIF) single-address smoke: OK (address {address}, funded 40000000, sent 10000000, \
+         fee {fee}, change {} back to the same address)",
+        sat(change)
+    );
+}
+
 /// Chain-only Electrum broadcast (Phase 6a): a raw transaction built and
 /// signed by the NODE's wallet — never broadcast by it — goes out through
 /// `broadcast_tx_over_electrum`, the seedless path behind the

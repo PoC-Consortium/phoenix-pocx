@@ -22,6 +22,8 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
   empty: '',
   watch_only: 'mwallet_import_watch_only',
   bare_key: 'mwallet_import_bare_key',
+  bare_wif: 'mwallet_import_bare_wif',
+  wif_not_segwit: 'mwallet_import_wif_not_segwit',
   wrong_network: 'mwallet_import_wrong_network',
   needs_internal: 'mwallet_import_needs_internal',
   unsupported_type: 'mwallet_import_unsupported',
@@ -37,10 +39,13 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
  *
  * One paste box, one or two PRIVATE descriptors (newline separated): a
  * single standard descriptor (`/0/*` or `/1/*` tail) infers its change
- * sibling; a multipath `<0;1>` descriptor carries both branches; anything
- * non-standard asks for both explicitly. Public-only (xpub) material is
- * rejected — watch-only wallets are not supported yet (this input is where
- * they will slot in later).
+ * sibling; a multipath `<0;1>` descriptor carries both branches; a
+ * `wpkh(WIF)` descriptor imports as a SINGLE-ADDRESS wallet (vanity/plot
+ * identities — change returns to the same address, the verdict says so);
+ * anything non-standard asks for both explicitly. A bare WIF paste gets
+ * the wrap-it-as-wpkh hint. Public-only (xpub) material is rejected —
+ * watch-only wallets are not supported yet (this input is where they will
+ * slot in later).
  *
  * The paste is validated live against `btcx_wallet_validate_import`
  * (debounced, offline): errors surface a translated message keyed by the
@@ -86,6 +91,9 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
             <p class="hint-text small">{{ 'mwallet_kind_legacy_desc' | i18n }}</p>
           } @else if (result()?.policy?.kind === 'bip86') {
             <p class="hint-text small">{{ 'mwallet_kind_taproot_desc' | i18n }}</p>
+          }
+          @if (result()?.singleAddress) {
+            <p class="hint-text small">{{ 'mwallet_import_single_desc' | i18n }}</p>
           }
           <p class="hint-text small">{{ 'mwallet_import_synced_note' | i18n }}</p>
           <button mat-raised-button color="primary" class="full-width" routerLink="/wallet">
@@ -150,7 +158,9 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
                 } @else if (validation()?.kind === 'bip86') {
                   <div class="verdict-detail">{{ 'mwallet_kind_taproot_desc' | i18n }}</div>
                 }
-                @if (validation()?.fromMultipath) {
+                @if (validation()?.singleAddress) {
+                  <div class="verdict-detail">{{ 'mwallet_import_single_desc' | i18n }}</div>
+                } @else if (validation()?.fromMultipath) {
                   <div class="verdict-detail">{{ 'mwallet_import_multipath' | i18n }}</div>
                 } @else if (validation()?.inferredInternal) {
                   <div class="verdict-detail">{{ 'mwallet_import_inferred' | i18n }}</div>

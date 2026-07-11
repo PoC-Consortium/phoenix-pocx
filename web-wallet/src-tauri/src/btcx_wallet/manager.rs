@@ -90,24 +90,28 @@ pub fn open_wallet(
         db_path,
         params,
         &external,
-        &internal,
+        Some(&internal),
         bitcoin::Network::Bitcoin,
     )
 }
 
-/// Open (or create) the bdk wallet store at `db_path` directly from a
-/// stored PRIVATE descriptor pair (a descriptor-imported wallet — it has no
-/// seed). Same honor checks as [`open_wallet`]: the stored descriptors AND
-/// the coin's genesis hash must match, so a store created from other
-/// descriptors refuses to load rather than silently mixing keys.
-/// `bdk_network` must match the pair's key serialization (xprv → Bitcoin,
-/// tprv → Testnet; see `descriptors::bdk_network`) — the chain binding is
-/// still the genesis hash.
+/// Open (or create) the bdk wallet store at `db_path` directly from stored
+/// PRIVATE descriptors (a descriptor-imported wallet — it has no seed):
+/// an external/internal pair, or a lone external descriptor for a
+/// SINGLE-ADDRESS (`wpkh(WIF)`) wallet — `internal: None` opens one
+/// keychain via bdk `create_single`, so change returns to the same
+/// address. Same honor checks as [`open_wallet`]: the stored descriptor
+/// shape (including the pair-vs-single form) AND the coin's genesis hash
+/// must match, so a store created from other descriptors refuses to load
+/// rather than silently mixing keys. `bdk_network` must match the keys'
+/// serialization (xprv/mainnet WIF → Bitcoin, tprv/testnet WIF → Testnet;
+/// see `descriptors::bdk_network`) — the chain binding is still the
+/// genesis hash.
 pub fn open_wallet_from_descriptors(
     db_path: &Path,
     params: &'static ChainParams,
     external: &str,
-    internal: &str,
+    internal: Option<&str>,
     bdk_network: bitcoin::Network,
 ) -> Result<WalletHandle> {
     open_wallet_with_descriptors(db_path, params, external, internal, bdk_network)
@@ -115,14 +119,26 @@ pub fn open_wallet_from_descriptors(
 
 /// The shared open/create core of [`open_wallet`] and
 /// [`open_wallet_from_descriptors`].
+///
+/// ## Single-address wallets and the first sync
+///
+/// For `internal: None` the store is created with bdk `create_single` and
+/// its ONE address is revealed (and persisted) immediately. This is not
+/// cosmetic: the sync layer's fresh-store path is a STOP_GAP window scan,
+/// and `peek_address` on a non-wildcard descriptor clamps every index to 0
+/// — a window of identical spks whose history never goes gap-quiet, so the
+/// scan cannot terminate on a used single-address wallet. With index 0
+/// revealed, the first sync takes the revealed-spks path over exactly the
+/// wallet's one script instead (which is also the complete script set — a
+/// single-address wallet has no gap to scan).
 fn open_wallet_with_descriptors(
     db_path: &Path,
     params: &'static ChainParams,
     external: &str,
-    internal: &str,
+    internal: Option<&str>,
     bdk_network: bitcoin::Network,
 ) -> Result<WalletHandle> {
-    let (external, internal) = (external.to_string(), internal.to_string());
+    let (external, internal) = (external.to_string(), internal.map(str::to_string));
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
@@ -133,21 +149,43 @@ fn open_wallet_with_descriptors(
     let genesis = BlockHash::from_str(params.genesis_hash)
         .context("coin genesis hash is not a block hash")?;
 
+    // The Internal expectation is part of the honor check: a pair store
+    // must hold the internal descriptor, a single-address store must hold
+    // NONE — loading one shape as the other fails instead of mixing forms.
     let loaded = Wallet::load()
         .descriptor(KeychainKind::External, Some(external.clone()))
-        .descriptor(KeychainKind::Internal, Some(internal.clone()))
+        .descriptor(KeychainKind::Internal, internal.clone())
         .extract_keys()
         .check_genesis_hash(genesis)
         .load_wallet(&mut conn)
         .map_err(|e| anyhow!("loading wallet db {}: {e}", db_path.display()))?;
-    let wallet = match loaded {
+    let mut wallet = match loaded {
         Some(wallet) => wallet,
-        None => Wallet::create(external.clone(), internal.clone())
-            .network(bdk_network)
-            .genesis_hash(genesis)
-            .create_wallet(&mut conn)
-            .map_err(|e| anyhow!("creating wallet db {}: {e}", db_path.display()))?,
+        None => match internal {
+            Some(internal) => Wallet::create(external.clone(), internal)
+                .network(bdk_network)
+                .genesis_hash(genesis)
+                .create_wallet(&mut conn)
+                .map_err(|e| anyhow!("creating wallet db {}: {e}", db_path.display()))?,
+            None => Wallet::create_single(external.clone())
+                .network(bdk_network)
+                .genesis_hash(genesis)
+                .create_wallet(&mut conn)
+                .map_err(|e| anyhow!("creating wallet db {}: {e}", db_path.display()))?,
+        },
     };
+
+    // Single-address wallet: make sure THE address is revealed (see the
+    // function docs — the fresh-store gap scan cannot terminate over a
+    // non-wildcard descriptor). Idempotent: a store that already revealed
+    // it persists a no-op.
+    if wallet.keychains().count() == 1 && wallet.derivation_index(KeychainKind::External).is_none()
+    {
+        let _ = wallet.reveal_next_address(KeychainKind::External);
+        wallet
+            .persist(&mut conn)
+            .context("persisting the single-address reveal")?;
+    }
 
     Ok(Arc::new(Mutex::new(WalletEntry { wallet, conn })))
 }
@@ -624,6 +662,97 @@ mod tests {
             guard.wallet.derivation_index(KeychainKind::External),
             Some(40)
         );
+    }
+
+    #[test]
+    fn open_single_address_wallet_reveals_its_one_address_and_refuses_shape_mixing() {
+        let dir = tempfile::tempdir().unwrap();
+        let params = super::super::config::WalletNetwork::Regtest.params();
+
+        let secret = bitcoin::secp256k1::SecretKey::from_slice(&[0x51u8; 32]).unwrap();
+        let wif = bitcoin::PrivateKey::new(secret, bitcoin::NetworkKind::Test).to_wif();
+        let external = format!("wpkh({wif})");
+
+        let db = dir.path().join("single").join("btcx.sqlite");
+        let handle =
+            open_wallet_from_descriptors(&db, params, &external, None, bitcoin::Network::Testnet)
+                .unwrap();
+        let the_address;
+        {
+            let mut guard = handle.lock().unwrap();
+            let entry = &mut *guard;
+            // ONE keychain; index 0 revealed at creation so the first sync
+            // takes the revealed-spks path (the gap scan cannot terminate
+            // over a non-wildcard descriptor — see the open docs).
+            assert_eq!(entry.wallet.keychains().count(), 1);
+            assert_eq!(
+                entry.wallet.derivation_index(KeychainKind::External),
+                Some(0)
+            );
+            // Internal keychain absence must not panic anywhere the sync
+            // layer looks: derivation_index(Internal) is None (skipped)...
+            assert_eq!(entry.wallet.derivation_index(KeychainKind::Internal), None);
+            // ...and every address handout resolves to THE address —
+            // current, fresh, change (Internal maps to External in bdk's
+            // single-keychain wallets), any peeked index.
+            the_address = entry
+                .wallet
+                .peek_address(KeychainKind::External, 0)
+                .address
+                .to_string();
+            for info in [
+                entry.wallet.next_unused_address(KeychainKind::External),
+                entry.wallet.reveal_next_address(KeychainKind::External),
+                entry.wallet.reveal_next_address(KeychainKind::Internal),
+                entry.wallet.peek_address(KeychainKind::External, 7),
+            ] {
+                assert_eq!(info.address.to_string(), the_address);
+                assert_eq!(info.index, 0);
+            }
+            // The revealed script set is exactly the one address.
+            let spks = electrum_btcx::revealed_spks(entry);
+            assert_eq!(spks.len(), 1);
+        }
+        drop(handle);
+
+        // Reopening with the SAME shape resumes the store.
+        let handle =
+            open_wallet_from_descriptors(&db, params, &external, None, bitcoin::Network::Testnet)
+                .unwrap();
+        {
+            let entry = handle.lock().unwrap();
+            assert_eq!(
+                entry
+                    .wallet
+                    .peek_address(KeychainKind::External, 0)
+                    .address
+                    .to_string(),
+                the_address
+            );
+        }
+        drop(handle);
+
+        // Loading the single-address store as a PAIR must refuse (shape is
+        // part of the honor check), and vice versa: a pair store must not
+        // load as single-address.
+        let err = open_wallet_from_descriptors(
+            &db,
+            params,
+            &external,
+            Some(&external),
+            bitcoin::Network::Testnet,
+        );
+        assert!(err.is_err(), "single store must refuse a pair load");
+
+        let pair_db = dir.path().join("pair").join("btcx.sqlite");
+        let handle = open_wallet(&pair_db, params, &seed(), DescriptorPolicy::default()).unwrap();
+        drop(handle);
+        let (ext, _int) = seed()
+            .wallet_descriptors(keys_btcx::DescriptorKind::Bip84, COIN_BTCX)
+            .unwrap();
+        let err =
+            open_wallet_from_descriptors(&pair_db, params, &ext, None, bitcoin::Network::Bitcoin);
+        assert!(err.is_err(), "pair store must refuse a single-address load");
     }
 
     #[test]

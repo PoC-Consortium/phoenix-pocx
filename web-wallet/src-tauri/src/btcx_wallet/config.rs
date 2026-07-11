@@ -141,6 +141,11 @@ pub struct WalletMeta {
     /// imported descriptors.
     #[serde(default)]
     pub source: WalletSourceCfg,
+    /// Single-address (`wpkh(WIF)`) wallet: one keychain, change returns
+    /// to the same address. Only ever true for descriptor-source wallets;
+    /// drives the UI badge and the receive page's hidden "new address".
+    #[serde(default)]
+    pub single_address: bool,
 }
 
 /// The `electrum_servers` map of a FRESH config: mainnet starts with the
@@ -379,6 +384,7 @@ impl BtcxWalletConfig {
             policy,
             created_at: existing.and_then(|m| m.created_at).or_else(now_unix),
             source: existing.map(|m| m.source).unwrap_or_default(),
+            single_address: existing.map(|m| m.single_address).unwrap_or(false),
         };
         self.set_wallet_meta(network, &name, meta);
     }
@@ -496,6 +502,7 @@ pub fn migrate_legacy_layout_at(
                     policy,
                     created_at: now_unix(),
                     source: WalletSourceCfg::Seed,
+                    single_address: false,
                 },
             );
         }
@@ -721,6 +728,7 @@ mod tests {
             policy: DescriptorPolicy::default(),
             created_at: Some(1),
             source: WalletSourceCfg::Seed,
+            single_address: false,
         };
         config.set_wallet_meta(WalletNetwork::Mainnet, "savings", meta);
         config.set_active_wallet(WalletNetwork::Mainnet, "savings");
@@ -768,12 +776,40 @@ mod tests {
             },
             created_at: Some(2),
             source: WalletSourceCfg::Descriptor,
+            single_address: false,
         };
         let json = serde_json::to_string(&meta).unwrap();
         assert!(json.contains(r#""source":"descriptor""#), "{json}");
         assert!(json.contains(r#""kind":"legacy""#), "{json}");
         let parsed: WalletMeta = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, meta);
+
+        // Older configs have no `singleAddress` field — defaults false.
+        assert!(!old.single_address);
+
+        // A single-address (wpkh(WIF)) wallet survives the JSON trip, and
+        // a policy update never loses the marker.
+        let single = WalletMeta {
+            policy: DescriptorPolicy::default(),
+            created_at: Some(3),
+            source: WalletSourceCfg::Descriptor,
+            single_address: true,
+        };
+        let json = serde_json::to_string(&single).unwrap();
+        assert!(json.contains(r#""singleAddress":true"#), "{json}");
+        let parsed: WalletMeta = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, single);
+
+        let mut config = BtcxWalletConfig::default();
+        config.set_wallet_meta(WalletNetwork::Mainnet, DEFAULT_WALLET, single);
+        config.set_policy(WalletNetwork::Mainnet, DescriptorPolicy::default());
+        assert!(
+            config
+                .wallet_meta(WalletNetwork::Mainnet, DEFAULT_WALLET)
+                .unwrap()
+                .single_address,
+            "set_policy must preserve the single-address marker"
+        );
 
         // Legacy has no seed-derivation family.
         assert_eq!(DescriptorKindCfg::Legacy.kind(), None);
