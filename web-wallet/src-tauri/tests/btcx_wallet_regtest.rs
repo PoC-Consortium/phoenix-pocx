@@ -26,8 +26,8 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use phoenix_pocx_lib::btcx_wallet::commands::{
-    create_wallet_impl, current_address_of, rename_wallet_impl, restore_wallet_impl,
-    select_wallet_impl, tx_display_address,
+    create_wallet_impl, current_address_of, import_descriptor_wallet_impl, rename_wallet_impl,
+    restore_wallet_impl, select_wallet_impl, tx_display_address,
 };
 use phoenix_pocx_lib::btcx_wallet::config::{DescriptorKindCfg, DescriptorPolicy, WalletNetwork};
 use phoenix_pocx_lib::btcx_wallet::manager::{
@@ -700,6 +700,155 @@ fn regtest_current_address_stable_until_used_or_new() {
     rpc(None, "setmocktime", serde_json::json!([0]));
     worker.shutdown();
     println!("current-address semantics smoke: OK (current {current}, fresh {fresh})");
+}
+
+/// Descriptor import (feature: import a wallet from descriptor strings),
+/// live: a fresh tprv-based `wpkh` EXTERNAL descriptor is imported as a NEW
+/// named wallet through `import_descriptor_wallet_impl` — the seam behind
+/// `btcx_wallet_import_descriptor` — with the internal descriptor INFERRED
+/// (`/0/*` → `/1/*`). The wallet opens, syncs, gets funded, and spends part
+/// of the funds back (build/sign/broadcast over Electrum). Then the SAME
+/// account is imported a second time as an EXPLICIT external+internal pair
+/// under another name: the fresh store's first gap scan must find the
+/// existing on-chain history (received AND change outputs) without any
+/// probe assist.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_import_descriptor_wallet() {
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+    // Never touch the developer's real OS keychain from a test.
+    std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+    let state = phoenix_pocx_lib::btcx_wallet::create_btcx_wallet_state();
+    state
+        .update_config(|c| {
+            c.network = WalletNetwork::Regtest;
+            c.set_servers(WalletNetwork::Regtest, vec![ELECTRUM_URL.to_string()]);
+        })
+        .unwrap();
+
+    // A FRESH key every run — the shared regtest chain must not leak
+    // history from earlier runs.
+    let secp = bitcoin::secp256k1::Secp256k1::new();
+    let seed_bytes: [u8; 32] = {
+        use rand::RngCore;
+        let mut b = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut b);
+        b
+    };
+    let master =
+        bitcoin::bip32::Xpriv::new_master(bitcoin::NetworkKind::Test, &seed_bytes).unwrap();
+    let path: Vec<bitcoin::bip32::ChildNumber> = [84u32, 1, 0]
+        .iter()
+        .map(|&i| bitcoin::bip32::ChildNumber::from_hardened_idx(i).unwrap())
+        .collect();
+    let account = master.derive_priv(&secp, &path).unwrap();
+    let fp = master.fingerprint(&secp);
+    let external = format!("wpkh([{fp}/84'/1'/0']{account}/0/*)");
+    let internal = format!("wpkh([{fp}/84'/1'/0']{account}/1/*)");
+
+    // 1. Import the external descriptor alone: the internal branch is
+    //    inferred, the wallet registers as descriptor-source BIP-84 and
+    //    opens.
+    let result = import_descriptor_wallet_impl(&state, None, &external, None, Some("desc".into()))
+        .expect("import external descriptor");
+    assert_eq!(result.status.wallet_name, "desc");
+    assert!(result.status.wallet_active);
+    assert!(result.inferred_internal);
+    assert_eq!(result.policy.kind, DescriptorKindCfg::Bip84);
+
+    // 2. Fresh receive address carries the regtest BTCX segwit-v0 HRP.
+    let address = state.backend().unwrap().wallet_new_address().unwrap();
+    assert!(
+        address.starts_with("rpocx1q"),
+        "expected an rpocx1q... address, got {address}"
+    );
+
+    // 3. Fund it, watch the background sync pick the coin up.
+    fund_and_mine(&address, 0.4);
+    wait_for_balance(&state, 40_000_000, "imported wallet after funding");
+
+    // 4. Spend 0.1 BTCX back to the miner: coin-select, sign (from the
+    //    imported descriptors), broadcast over Electrum, confirm.
+    let wallets = rpc(None, "listwallets", serde_json::json!([]));
+    let wallet_name = wallets[0]
+        .as_str()
+        .expect("a loaded miner wallet on the regtest node")
+        .to_string();
+    let miner_addr = rpc(Some(&wallet_name), "getnewaddress", serde_json::json!([]))
+        .as_str()
+        .unwrap()
+        .to_string();
+    let spend_txid = state
+        .backend()
+        .unwrap()
+        .wallet_send(
+            &miner_addr,
+            10_000_000,
+            electrum_btcx::SendFee::RatePerKvb(2000),
+        )
+        .expect("send from the imported wallet");
+    assert_eq!(spend_txid.len(), 64, "txid: {spend_txid}");
+    println!("imported wallet sent 0.1 BTCX back to the miner: {spend_txid}");
+    mine_block(&miner_addr);
+
+    let mut after = 0u64;
+    for _ in 0..30 {
+        state.poke().unwrap();
+        std::thread::sleep(Duration::from_secs(1));
+        after = state
+            .backend()
+            .unwrap()
+            .wallet_balance()
+            .unwrap_or_default();
+        if after != 40_000_000 && after < 30_000_000 {
+            break;
+        }
+    }
+    assert!(
+        after < 30_000_000 && after > 30_000_000 - 100_000,
+        "balance after the spend should be 0.4 - 0.1 BTCX - a small fee, got {after}"
+    );
+
+    // 5. Import the SAME account as an EXPLICIT pair (both descriptors,
+    //    internal first — order must not matter) under a new name: the
+    //    fresh store's first gap scan finds the existing history, received
+    //    AND change outputs, with no probe assist.
+    let pair_input = format!("{internal}\n{external}");
+    let result =
+        import_descriptor_wallet_impl(&state, None, &pair_input, None, Some("desc-pair".into()))
+            .expect("import explicit descriptor pair");
+    assert_eq!(result.status.wallet_name, "desc-pair");
+    assert!(!result.inferred_internal);
+    wait_for_balance(
+        &state,
+        after,
+        "explicit-pair reimport sees the same history",
+    );
+
+    // 6. Both named wallets are registered; switching back re-opens the
+    //    first one with its balance intact.
+    let config = state.get_config();
+    let names = config.wallet_names(WalletNetwork::Regtest);
+    for name in ["desc", "desc-pair"] {
+        assert!(
+            names.contains(&name.to_string()),
+            "missing {name}: {names:?}"
+        );
+    }
+    let status = select_wallet_impl(&state, None, "desc").expect("switch back to desc");
+    assert_eq!(status.wallet_name, "desc");
+    wait_for_balance(&state, after, "desc after switching back");
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    state.close_runtime();
+    std::env::remove_var("PHOENIX_DATA_DIR");
+    std::env::remove_var("PACT_DISABLE_KEYRING");
+    println!(
+        "descriptor import smoke: OK (funded 40000000, after spend {after}, pair reimport matched)"
+    );
 }
 
 /// Chain-only Electrum broadcast (Phase 6a): a raw transaction built and

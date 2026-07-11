@@ -441,7 +441,10 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
     const result = this.result();
     if (!result) return null;
     const other = result.hits.find(h => h.policy.kind !== result.selected.kind);
-    return other?.policy.kind ?? null;
+    // Seed probes only ever hit BIP-84/86 branches ('legacy' exists only
+    // on descriptor-imported wallets, never in restore hits).
+    const kind = other?.policy.kind;
+    return kind === 'bip84' || kind === 'bip86' ? kind : null;
   });
 
   /** Proposed name of the second wallet (first name + family qualifier). */

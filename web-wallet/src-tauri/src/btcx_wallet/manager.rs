@@ -77,6 +77,52 @@ pub fn open_wallet(
     seed: &WalletSeed,
     policy: DescriptorPolicy,
 ) -> Result<WalletHandle> {
+    let kind = policy
+        .kind
+        .kind()
+        .ok_or_else(|| anyhow!("legacy wallets have no seed-derivation branch"))?;
+    let (external, internal) = seed.wallet_descriptors(kind, policy.coin_type)?;
+    // Constant for seed wallets: the bitcoin::Network handed to bdk only
+    // affects xprv serialization and bdk's own (unused) address strings —
+    // the real chain binding is the genesis-hash checkpoint. See the
+    // wallet-btcx module docs.
+    open_wallet_with_descriptors(
+        db_path,
+        params,
+        &external,
+        &internal,
+        bitcoin::Network::Bitcoin,
+    )
+}
+
+/// Open (or create) the bdk wallet store at `db_path` directly from a
+/// stored PRIVATE descriptor pair (a descriptor-imported wallet — it has no
+/// seed). Same honor checks as [`open_wallet`]: the stored descriptors AND
+/// the coin's genesis hash must match, so a store created from other
+/// descriptors refuses to load rather than silently mixing keys.
+/// `bdk_network` must match the pair's key serialization (xprv → Bitcoin,
+/// tprv → Testnet; see `descriptors::bdk_network`) — the chain binding is
+/// still the genesis hash.
+pub fn open_wallet_from_descriptors(
+    db_path: &Path,
+    params: &'static ChainParams,
+    external: &str,
+    internal: &str,
+    bdk_network: bitcoin::Network,
+) -> Result<WalletHandle> {
+    open_wallet_with_descriptors(db_path, params, external, internal, bdk_network)
+}
+
+/// The shared open/create core of [`open_wallet`] and
+/// [`open_wallet_from_descriptors`].
+fn open_wallet_with_descriptors(
+    db_path: &Path,
+    params: &'static ChainParams,
+    external: &str,
+    internal: &str,
+    bdk_network: bitcoin::Network,
+) -> Result<WalletHandle> {
+    let (external, internal) = (external.to_string(), internal.to_string());
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("creating {}", parent.display()))?;
@@ -84,7 +130,6 @@ pub fn open_wallet(
     let mut conn = Connection::open(db_path)
         .with_context(|| format!("opening wallet db {}", db_path.display()))?;
 
-    let (external, internal) = seed.wallet_descriptors(policy.kind.kind(), policy.coin_type)?;
     let genesis = BlockHash::from_str(params.genesis_hash)
         .context("coin genesis hash is not a block hash")?;
 
@@ -97,12 +142,8 @@ pub fn open_wallet(
         .map_err(|e| anyhow!("loading wallet db {}: {e}", db_path.display()))?;
     let wallet = match loaded {
         Some(wallet) => wallet,
-        None => Wallet::create(external, internal)
-            // Constant: the bitcoin::Network handed to bdk only affects
-            // xprv serialization and bdk's own (unused) address strings —
-            // the real chain binding is the genesis-hash checkpoint. See
-            // the wallet-btcx module docs.
-            .network(bitcoin::Network::Bitcoin)
+        None => Wallet::create(external.clone(), internal.clone())
+            .network(bdk_network)
             .genesis_hash(genesis)
             .create_wallet(&mut conn)
             .map_err(|e| anyhow!("creating wallet db {}: {e}", db_path.display()))?,
@@ -145,18 +186,22 @@ pub fn candidate_spks(
     count: u32,
 ) -> Result<Vec<ScriptBuf>> {
     let secp = seed.secp();
-    let account = seed.wallet_account_xpriv(policy.kind.kind(), policy.coin_type)?;
+    let kind = policy
+        .kind
+        .kind()
+        .ok_or_else(|| anyhow!("legacy wallets are never a restore-probe candidate"))?;
+    let account = seed.wallet_account_xpriv(kind, policy.coin_type)?;
     let keychain = account.derive_priv(secp, &[ChildNumber::from_normal_idx(change)?])?;
     let mut spks = Vec::with_capacity(count as usize);
     for i in 0..count {
         let child = keychain.derive_priv(secp, &[ChildNumber::from_normal_idx(i)?])?;
         let pubkey = child.private_key.public_key(secp);
-        let spk = match policy.kind {
-            DescriptorKindCfg::Bip84 => {
+        let spk = match kind {
+            keys_btcx::DescriptorKind::Bip84 => {
                 let pk = bitcoin::PublicKey::new(pubkey);
                 ScriptBuf::new_p2wpkh(&pk.wpubkey_hash().context("derived key is compressed")?)
             }
-            DescriptorKindCfg::Bip86 => {
+            keys_btcx::DescriptorKind::Bip86 => {
                 let (xonly, _) = pubkey.x_only_public_key();
                 ScriptBuf::new_p2tr(secp, xonly, None)
             }

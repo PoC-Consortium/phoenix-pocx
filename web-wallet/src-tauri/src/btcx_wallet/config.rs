@@ -64,7 +64,8 @@ impl WalletNetwork {
 }
 
 /// Which standard single-key descriptor family a wallet derives —
-/// serde-friendly mirror of `keys_btcx::DescriptorKind`.
+/// serde-friendly mirror of `keys_btcx::DescriptorKind`, plus the `Legacy`
+/// script class only descriptor-IMPORTED wallets can carry.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum DescriptorKindCfg {
@@ -72,15 +73,35 @@ pub enum DescriptorKindCfg {
     Bip84,
     /// BIP-86 `tr` — taproot key-spend.
     Bip86,
+    /// Pre-segwit `pkh` / `sh(wpkh)` — accepted on descriptor import for
+    /// fund visibility and spending, but gated from mining/assignments
+    /// like taproot (a plot account_id is a segwit-v0 witness program).
+    /// Never derived from a seed: `kind()` has no mapping for it.
+    Legacy,
 }
 
 impl DescriptorKindCfg {
-    pub fn kind(self) -> keys_btcx::DescriptorKind {
+    /// The seed-derivation family, `None` for [`Self::Legacy`] — legacy
+    /// wallets only exist as imported descriptors, never as a seed branch.
+    pub fn kind(self) -> Option<keys_btcx::DescriptorKind> {
         match self {
-            DescriptorKindCfg::Bip84 => keys_btcx::DescriptorKind::Bip84,
-            DescriptorKindCfg::Bip86 => keys_btcx::DescriptorKind::Bip86,
+            DescriptorKindCfg::Bip84 => Some(keys_btcx::DescriptorKind::Bip84),
+            DescriptorKindCfg::Bip86 => Some(keys_btcx::DescriptorKind::Bip86),
+            DescriptorKindCfg::Legacy => None,
         }
     }
+}
+
+/// Where a wallet's key material comes from.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum WalletSourceCfg {
+    /// BIP39 mnemonic in `seed.mnemonic` (seedstore) — create/restore.
+    #[default]
+    Seed,
+    /// Imported private descriptor pair in `descriptor.secret`
+    /// (descstore) — the wallet has NO mnemonic.
+    Descriptor,
 }
 
 /// The descriptor branch a wallet was opened with: purpose family + BIP32
@@ -109,11 +130,17 @@ impl Default for DescriptorPolicy {
 #[serde(rename_all = "camelCase")]
 pub struct WalletMeta {
     /// The descriptor branch this wallet was created/restored on — reopens
-    /// the SAME branch on every later launch.
+    /// the SAME branch on every later launch. For descriptor-imported
+    /// wallets `kind` is the script class of the imported descriptors and
+    /// `coin_type` is informational (parsed from the derivation path).
     pub policy: DescriptorPolicy,
     /// Unix seconds at create/restore/migration time (display only).
     #[serde(default)]
     pub created_at: Option<u64>,
+    /// Key-material source: seed (default, pre-existing configs) or
+    /// imported descriptors.
+    #[serde(default)]
+    pub source: WalletSourceCfg,
 }
 
 /// The `electrum_servers` map of a FRESH config: mainnet starts with the
@@ -339,19 +366,19 @@ impl BtcxWalletConfig {
     }
 
     /// Record the descriptor policy of `network`'s ACTIVE wallet
-    /// (create/restore/reprobe time), registering it if needed.
+    /// (create/restore/reprobe time), registering it if needed. The
+    /// wallet's source and creation time survive a policy update.
     pub fn set_policy(&mut self, network: WalletNetwork, policy: DescriptorPolicy) {
         let name = self
             .active_wallet
             .get(network.as_str())
             .cloned()
             .unwrap_or_else(|| DEFAULT_WALLET.to_string());
+        let existing = self.wallet_meta(network, &name);
         let meta = WalletMeta {
             policy,
-            created_at: self
-                .wallet_meta(network, &name)
-                .and_then(|m| m.created_at)
-                .or_else(now_unix),
+            created_at: existing.and_then(|m| m.created_at).or_else(now_unix),
+            source: existing.map(|m| m.source).unwrap_or_default(),
         };
         self.set_wallet_meta(network, &name, meta);
     }
@@ -468,6 +495,7 @@ pub fn migrate_legacy_layout_at(
                 WalletMeta {
                     policy,
                     created_at: now_unix(),
+                    source: WalletSourceCfg::Seed,
                 },
             );
         }
@@ -692,6 +720,7 @@ mod tests {
         let meta = WalletMeta {
             policy: DescriptorPolicy::default(),
             created_at: Some(1),
+            source: WalletSourceCfg::Seed,
         };
         config.set_wallet_meta(WalletNetwork::Mainnet, "savings", meta);
         config.set_active_wallet(WalletNetwork::Mainnet, "savings");
@@ -721,6 +750,37 @@ mod tests {
         config.remove_wallet_meta(WalletNetwork::Mainnet, "savings");
         assert!(config.wallet_names(WalletNetwork::Mainnet).is_empty());
         assert_eq!(config.active_wallet_name(), DEFAULT_WALLET);
+    }
+
+    #[test]
+    fn wallet_source_defaults_to_seed_and_round_trips() {
+        // Older configs have no `source` field — they must parse as Seed.
+        let old: WalletMeta =
+            serde_json::from_str(r#"{"policy":{"kind":"bip84","coinType":0},"createdAt":1}"#)
+                .unwrap();
+        assert_eq!(old.source, WalletSourceCfg::Seed);
+
+        // A descriptor-source (legacy-kind) wallet survives the JSON trip.
+        let meta = WalletMeta {
+            policy: DescriptorPolicy {
+                kind: DescriptorKindCfg::Legacy,
+                coin_type: 0,
+            },
+            created_at: Some(2),
+            source: WalletSourceCfg::Descriptor,
+        };
+        let json = serde_json::to_string(&meta).unwrap();
+        assert!(json.contains(r#""source":"descriptor""#), "{json}");
+        assert!(json.contains(r#""kind":"legacy""#), "{json}");
+        let parsed: WalletMeta = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, meta);
+
+        // Legacy has no seed-derivation family.
+        assert_eq!(DescriptorKindCfg::Legacy.kind(), None);
+        assert_eq!(
+            DescriptorKindCfg::Bip84.kind(),
+            Some(keys_btcx::DescriptorKind::Bip84)
+        );
     }
 
     /// Some seed-file bytes; the migration never parses them, it only

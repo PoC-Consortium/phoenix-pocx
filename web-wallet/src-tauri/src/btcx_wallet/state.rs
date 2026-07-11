@@ -21,8 +21,9 @@ use seedstore::SeedStore;
 use tauri::Emitter;
 use wallet_btcx::BdkWalletBackend;
 
-use super::config::{BtcxWalletConfig, DescriptorPolicy, WalletNetwork, COIN_ID};
-use super::manager;
+use super::config::{BtcxWalletConfig, DescriptorPolicy, WalletNetwork, WalletSourceCfg, COIN_ID};
+use super::descstore::DescStore;
+use super::{descriptors, manager};
 
 /// Seed lifecycle as the frontend sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -98,6 +99,10 @@ pub struct BtcxWalletState {
     /// `<network>/<wallet name>` so a wallet/network switch reopens the
     /// right store (and drops the previous wallet's held passphrase).
     seed: Mutex<Option<(String, SeedStore)>>,
+    /// Descriptor store of ONE (descriptor-source) wallet — the same
+    /// lazily-opened, key-scoped pattern as `seed`, for wallets whose key
+    /// material is an imported descriptor pair instead of a mnemonic.
+    desc: Mutex<Option<(String, DescStore)>>,
     /// Long-lived Electrum connections, one per (coin, url).
     pool: ElectrumPool,
     /// The open wallet runtime, if any.
@@ -125,6 +130,7 @@ pub fn create_btcx_wallet_state() -> SharedBtcxWalletState {
     Arc::new(BtcxWalletState {
         config: Mutex::new(config),
         seed: Mutex::new(None),
+        desc: Mutex::new(None),
         pool: ElectrumPool::new(),
         runtime: Mutex::new(None),
     })
@@ -159,10 +165,44 @@ impl BtcxWalletState {
         f(&mut guard.as_mut().expect("seed store just opened").1)
     }
 
-    /// Drop the in-memory seed store (and with it any held passphrase).
-    /// The next `with_seed` reopens it without a passphrase.
+    /// Run `f` on the ACTIVE wallet's DESCRIPTOR store (descriptor-source
+    /// wallets), opening it on first use — the `with_seed` twin. The store
+    /// holds the unlock passphrase in memory across calls; selecting
+    /// another wallet or network drops it.
+    pub fn with_desc<T>(
+        &self,
+        f: impl FnOnce(&mut DescStore) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let config = self.get_config();
+        let key = Self::seed_key(&config);
+        let mut guard = self
+            .desc
+            .lock()
+            .map_err(|_| "descriptor store lock poisoned")?;
+        if guard.as_ref().map(|(k, _)| k.as_str()) != Some(key.as_str()) {
+            let store = DescStore::open(&config.active_wallet_root())?;
+            *guard = Some((key, store));
+        }
+        f(&mut guard.as_mut().expect("descriptor store just opened").1)
+    }
+
+    /// The key-material source of the ACTIVE wallet (registry lookup;
+    /// unregistered wallets default to seed).
+    pub fn active_source(&self, config: &BtcxWalletConfig) -> WalletSourceCfg {
+        config
+            .wallet_meta(config.network, &config.active_wallet_name())
+            .map(|m| m.source)
+            .unwrap_or_default()
+    }
+
+    /// Drop the in-memory seed AND descriptor stores (and with them any
+    /// held passphrase). The next `with_seed`/`with_desc` reopens them
+    /// without a passphrase.
     pub fn drop_seed_passphrase(&self) {
         if let Ok(mut guard) = self.seed.lock() {
+            *guard = None;
+        }
+        if let Ok(mut guard) = self.desc.lock() {
             *guard = None;
         }
     }
@@ -205,20 +245,39 @@ impl BtcxWalletState {
             );
             return Ok(false);
         }
-        // Locked or absent seed: not an error, the wallet just stays closed.
-        let Ok(mnemonic) = self.with_seed(|s| s.mnemonic().map_err(|e| format!("{e:#}"))) else {
-            return Ok(false);
-        };
-        let seed = WalletSeed::from_mnemonic(&mnemonic, "")
-            .map_err(|e| format!("Failed to derive wallet seed: {e:#}"))?;
-
         let params = config.network.params();
         let policy = config.policy();
         let home_url = servers[0].clone();
         let view_urls: Vec<String> = servers[1..].to_vec();
 
-        let handle = manager::open_wallet(&config.wallet_db_path(), params, &seed, policy)
-            .map_err(|e| format!("Failed to open wallet: {e:#}"))?;
+        let handle = match self.active_source(&config) {
+            WalletSourceCfg::Seed => {
+                // Locked or absent seed: not an error, the wallet just
+                // stays closed.
+                let Ok(mnemonic) = self.with_seed(|s| s.mnemonic().map_err(|e| format!("{e:#}")))
+                else {
+                    return Ok(false);
+                };
+                let seed = WalletSeed::from_mnemonic(&mnemonic, "")
+                    .map_err(|e| format!("Failed to derive wallet seed: {e:#}"))?;
+                manager::open_wallet(&config.wallet_db_path(), params, &seed, policy)
+                    .map_err(|e| format!("Failed to open wallet: {e:#}"))?
+            }
+            WalletSourceCfg::Descriptor => {
+                // Locked or absent descriptor store: same closed verdict.
+                let Ok(payload) = self.with_desc(|d| d.payload()) else {
+                    return Ok(false);
+                };
+                manager::open_wallet_from_descriptors(
+                    &config.wallet_db_path(),
+                    params,
+                    &payload.external,
+                    &payload.internal,
+                    descriptors::bdk_network(config.network),
+                )
+                .map_err(|e| format!("Failed to open wallet: {e:#}"))?
+            }
+        };
 
         // The worker gets its OWN connection to the home server (never the
         // pooled one) so each socket has exactly one caller domain — see
@@ -399,15 +458,33 @@ impl BtcxWalletState {
     }
 
     /// Current status snapshot (`btcx_wallet_status`).
+    ///
+    /// For descriptor-source wallets the "seed" lifecycle fields describe
+    /// the descriptor store instead — same states, same lock/unlock UX.
     pub fn status(&self) -> Result<BtcxWalletStatus, String> {
         let config = self.get_config();
-        let seed_status = self.with_seed(|s| s.wallet_status().map_err(|e| format!("{e:#}")))?;
-        let seed = if !seed_status.seed_exists {
-            SeedState::None
-        } else if seed_status.locked {
-            SeedState::Locked
-        } else {
-            SeedState::Unlocked
+        let seed = match self.active_source(&config) {
+            WalletSourceCfg::Seed => {
+                let seed_status =
+                    self.with_seed(|s| s.wallet_status().map_err(|e| format!("{e:#}")))?;
+                if !seed_status.seed_exists {
+                    SeedState::None
+                } else if seed_status.locked {
+                    SeedState::Locked
+                } else {
+                    SeedState::Unlocked
+                }
+            }
+            WalletSourceCfg::Descriptor => {
+                let desc_status = self.with_desc(|d| Ok(d.status()))?;
+                if !desc_status.exists {
+                    SeedState::None
+                } else if desc_status.locked {
+                    SeedState::Locked
+                } else {
+                    SeedState::Unlocked
+                }
+            }
         };
 
         let (wallet_active, synced_height, sync_age_secs) = {
@@ -429,10 +506,21 @@ impl BtcxWalletState {
         // "Encrypted" for the UI = passphrase-lockable. The keystore/
         // obfuscation wraps auto-read and must present like an unencrypted
         // Core wallet (no padlock).
-        let seed_encrypted = seed_status.seed_exists
-            && std::fs::read_to_string(config.active_wallet_root().join(seedstore::SEED_FILE))
-                .map(|contents| seed_needs_passphrase(&contents))
-                .unwrap_or(false);
+        let seed_encrypted = seed != SeedState::None
+            && match self.active_source(&config) {
+                WalletSourceCfg::Seed => {
+                    std::fs::read_to_string(config.active_wallet_root().join(seedstore::SEED_FILE))
+                        .map(|contents| seed_needs_passphrase(&contents))
+                        .unwrap_or(false)
+                }
+                WalletSourceCfg::Descriptor => std::fs::read_to_string(
+                    config
+                        .active_wallet_root()
+                        .join(super::descstore::DESCRIPTOR_FILE),
+                )
+                .map(|contents| super::descstore::is_passphrase_descriptor_file(&contents))
+                .unwrap_or(false),
+            };
 
         Ok(BtcxWalletStatus {
             seed,

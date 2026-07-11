@@ -13,8 +13,11 @@ use seedstore::SeedStore;
 use wallet_btcx::WalletTxInfo;
 
 use super::config::{
-    self, BtcxWalletConfig, DescriptorKindCfg, DescriptorPolicy, WalletNetwork, TRASH_SUBDIR,
+    self, BtcxWalletConfig, DescriptorKindCfg, DescriptorPolicy, WalletMeta, WalletNetwork,
+    WalletSourceCfg, TRASH_SUBDIR,
 };
+use super::descriptors::{self, ImportValidation};
+use super::descstore::{self, DescStore, DescriptorPayload};
 use super::manager::{self, BranchHit};
 use super::state::{BtcxWalletStatus, SharedBtcxWalletState};
 
@@ -76,15 +79,20 @@ fn resolve_new_wallet_name(
             network.as_str()
         ));
     }
-    if BtcxWalletConfig::wallet_root(network, &name)
-        .join(seedstore::SEED_FILE)
-        .exists()
-    {
+    if has_leftover_store(network, &name) {
         return Err(format!(
             "A wallet already exists on disk at '{name}' — pick another name",
         ));
     }
     Ok(name)
+}
+
+/// Whether a wallet directory holds leftover key material (a seed OR an
+/// imported descriptor store) — e.g. a wallet restored from `.trash` by
+/// hand. Creating/renaming onto it would mix unrelated wallets.
+fn has_leftover_store(network: WalletNetwork, name: &str) -> bool {
+    let root = BtcxWalletConfig::wallet_root(network, name);
+    root.join(seedstore::SEED_FILE).exists() || root.join(descstore::DESCRIPTOR_FILE).exists()
 }
 
 /// Write `mnemonic` into the named wallet's OWN data dir (standalone store
@@ -358,8 +366,142 @@ pub async fn btcx_wallet_reprobe(
     .await
 }
 
-/// Supply the passphrase of an encrypted seed (verified by trial
-/// decryption) and open the wallet.
+// ============================================================================
+// Descriptor Import
+// ============================================================================
+
+/// What a descriptor import did: the status after opening, plus how the
+/// paste was interpreted (for the success screen).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxImportResult {
+    pub status: BtcxWalletStatus,
+    /// Script class the wallet was registered with (`kind` drives the
+    /// badges and the mining/assignment gates; `coin_type` is
+    /// informational, parsed from the derivation path when present).
+    pub policy: DescriptorPolicy,
+    /// The internal (change) descriptor was inferred from the external one.
+    pub inferred_internal: bool,
+    /// Both branches came from one multipath `<0;1>` descriptor.
+    pub from_multipath: bool,
+}
+
+/// The full descriptor-import flow (parse/validate → resolve name → store
+/// the pair encrypted-at-rest → register as a descriptor-source wallet →
+/// open runtime), shared by the `btcx_wallet_import_descriptor` command and
+/// the regtest integration tests (which run it without an `AppHandle`).
+///
+/// Unlike restore there is no branch probing and no Electrum requirement —
+/// the descriptors say exactly which scripts the wallet owns; the fresh
+/// store's first sync gap-scans them the same way a restored branch is
+/// scanned. Nothing is written if the paste is invalid or the name is
+/// taken.
+pub fn import_descriptor_wallet_impl(
+    state: &SharedBtcxWalletState,
+    app: Option<AppHandle>,
+    input: &str,
+    passphrase: Option<&str>,
+    name: Option<String>,
+) -> Result<BtcxImportResult, String> {
+    let config = state.get_config();
+    let network = config.network;
+    let name = resolve_new_wallet_name(&config, network, name)?;
+    let parsed = descriptors::parse_import(input, network).map_err(|e| e.message)?;
+
+    let root = BtcxWalletConfig::wallet_root(network, &name);
+    let mut store = DescStore::open(&root)?;
+    store.import(
+        &DescriptorPayload {
+            version: 1,
+            external: parsed.external.clone(),
+            internal: parsed.internal.clone(),
+        },
+        passphrase,
+    )?;
+
+    // Adopt the wallet: close the old runtime, select the new name, record
+    // its classification, and re-hold the passphrase so an encrypted store
+    // opens without an extra unlock round trip (the create/restore flow).
+    state.close_runtime();
+    state.drop_seed_passphrase();
+    let policy = DescriptorPolicy {
+        kind: parsed.kind,
+        // Informational: the parsed coin type when the derivation path
+        // carries one, else the BTCX default. Gating reads `kind` only.
+        coin_type: parsed.coin_type.unwrap_or(keys_btcx::COIN_BTCX),
+    };
+    state.update_config(|c| {
+        c.set_active_wallet(network, &name);
+        c.set_wallet_meta(
+            network,
+            &name,
+            WalletMeta {
+                policy,
+                created_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .map(|d| d.as_secs()),
+                source: WalletSourceCfg::Descriptor,
+            },
+        );
+        c.active = true;
+    })?;
+    if let Some(pass) = passphrase.filter(|p| !p.is_empty()) {
+        state.with_desc(|d| d.unlock(pass))?;
+    }
+    // No Electrum server configured yet is fine — the runtime opens later,
+    // when one is (Ok(false)); the first sync then gap-scans the history.
+    state.open_runtime(app)?;
+    Ok(BtcxImportResult {
+        status: state.status()?,
+        policy,
+        inferred_internal: parsed.inferred_internal,
+        from_multipath: parsed.from_multipath,
+    })
+}
+
+/// Import a wallet from one or two PRIVATE descriptors (`wpkh`/`tr`, plus
+/// legacy `pkh`/`sh(wpkh)` — gated from mining/assignments). A single
+/// standard descriptor infers its `/0/*`↔`/1/*` sibling; a multipath
+/// `<0;1>` descriptor carries both branches. Public-only (xpub) material is
+/// rejected — watch-only wallets are not supported yet. The optional
+/// passphrase encrypts the stored descriptors at rest (same scheme as the
+/// seed store). `name` picks the named wallet (default: the active one);
+/// the imported wallet becomes active.
+#[tauri::command]
+pub async fn btcx_wallet_import_descriptor(
+    input: String,
+    passphrase: Option<String>,
+    name: Option<String>,
+    app: AppHandle,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxImportResult, String> {
+    let state = state.inner().clone();
+    blocking(move || {
+        import_descriptor_wallet_impl(&state, Some(app), &input, passphrase.as_deref(), name)
+    })
+    .await
+}
+
+/// Pre-submit validation of the import paste box: parses/classifies the
+/// input WITHOUT writing anything and returns structured feedback (error
+/// code for the translated message, script class, inferred-sibling and
+/// multipath flags). Offline and cheap — safe to call on every debounced
+/// input change.
+#[tauri::command]
+pub fn btcx_wallet_validate_import(
+    input: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<ImportValidation, String> {
+    let network = state.get_config().network;
+    Ok(ImportValidation::from_result(&descriptors::parse_import(
+        &input, network,
+    )))
+}
+
+/// Supply the passphrase of an encrypted seed — or of an imported
+/// wallet's encrypted descriptor store — (verified by trial decryption)
+/// and open the wallet.
 #[tauri::command]
 pub async fn btcx_wallet_unlock(
     passphrase: String,
@@ -368,7 +510,12 @@ pub async fn btcx_wallet_unlock(
 ) -> Result<BtcxWalletStatus, String> {
     let state = state.inner().clone();
     blocking(move || {
-        state.with_seed(|s| s.unlock(&passphrase).map_err(|e| format!("{e:#}")))?;
+        match state.active_source(&state.get_config()) {
+            WalletSourceCfg::Seed => {
+                state.with_seed(|s| s.unlock(&passphrase).map_err(|e| format!("{e:#}")))?
+            }
+            WalletSourceCfg::Descriptor => state.with_desc(|d| d.unlock(&passphrase))?,
+        }
         state.open_runtime(Some(app))?;
         state.status()
     })
@@ -399,6 +546,8 @@ pub struct BtcxWalletSummary {
     pub name: String,
     pub network: String,
     pub policy: DescriptorPolicy,
+    /// Key-material source: seed (create/restore) or imported descriptors.
+    pub source: WalletSourceCfg,
     /// The selected wallet of the network.
     pub is_active: bool,
     /// Runtime open (only ever true for the active wallet).
@@ -436,13 +585,18 @@ pub fn btcx_wallet_list(
         let Some(meta) = config.wallet_meta(network, &name) else {
             continue;
         };
-        let seed_contents = std::fs::read_to_string(
-            BtcxWalletConfig::wallet_root(network, &name).join(seedstore::SEED_FILE),
-        )
-        .unwrap_or_default();
-        // Only the passphrase wrap needs an unlock; keyring/obfuscation
-        // auto-read and present like unencrypted Core wallets.
-        let needs_passphrase = super::state::seed_needs_passphrase(&seed_contents);
+        // Only the passphrase wraps need an unlock; keyring/obfuscation
+        // auto-read and present like unencrypted Core wallets. Descriptor-
+        // source wallets read their descriptor store instead of the seed.
+        let root = BtcxWalletConfig::wallet_root(network, &name);
+        let needs_passphrase = match meta.source {
+            WalletSourceCfg::Seed => super::state::seed_needs_passphrase(
+                &std::fs::read_to_string(root.join(seedstore::SEED_FILE)).unwrap_or_default(),
+            ),
+            WalletSourceCfg::Descriptor => descstore::is_passphrase_descriptor_file(
+                &std::fs::read_to_string(root.join(descstore::DESCRIPTOR_FILE)).unwrap_or_default(),
+            ),
+        };
         let is_active = name == active_name;
         let is_open = is_active && runtime_open;
         let balance_sat = if is_open {
@@ -456,6 +610,7 @@ pub fn btcx_wallet_list(
             name,
             network: network.as_str().to_string(),
             policy: meta.policy,
+            source: meta.source,
             is_active,
             is_open,
             seed_encrypted: needs_passphrase,
@@ -614,10 +769,7 @@ pub fn rename_wallet_impl(
         }
         // A leftover on-disk store (e.g. restored from `.trash` by hand) is
         // refused too — renaming onto it would mix unrelated wallets.
-        if BtcxWalletConfig::wallet_root(network, new_name)
-            .join(seedstore::SEED_FILE)
-            .exists()
-        {
+        if has_leftover_store(network, new_name) {
             return Err(format!(
                 "A wallet already exists on disk at '{new_name}' — pick another name",
             ));
@@ -1035,6 +1187,11 @@ pub fn ensure_segwit_wallet(policy: DescriptorPolicy) -> Result<(), String> {
         DescriptorKindCfg::Bip86 => Err(
             "Forging assignments require a segwit-v0 wallet — the open wallet is taproot".into(),
         ),
+        DescriptorKindCfg::Legacy => Err(
+            "Forging assignments require a segwit-v0 wallet — the open wallet is legacy \
+             (pre-segwit)"
+                .into(),
+        ),
     }
 }
 
@@ -1280,12 +1437,18 @@ pub async fn btcx_chain_info(
 mod tests {
     use super::*;
 
+    /// `PHOENIX_DATA_DIR` is process-global: tests that redirect it must
+    /// not overlap. (A poisoned lock is fine — one failing test must not
+    /// cascade into the other.)
+    static DATA_DIR_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// The full named-wallet create flow (resolve → import → open runtime →
     /// status), OFFLINE: the configured Electrum server is unreachable, and
     /// creation must still succeed because the backend dials lazily.
     /// Exercises the exact code `btcx_wallet_create` runs.
     #[test]
     fn create_named_wallet_flow_works_offline() {
+        let _guard = DATA_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // 24-word all-zero-entropy BIP39 test vector.
         const MNEMONIC_24: &str = "abandon abandon abandon abandon abandon abandon abandon \
              abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon \
@@ -1375,6 +1538,114 @@ mod tests {
         .unwrap_err();
         assert!(err.contains("segwit-v0"), "{err}");
         assert!(err.contains("taproot"), "{err}");
+
+        // Legacy (imported pkh / sh(wpkh)) wallets can't mine either: a
+        // plot account_id is a segwit-v0 witness program.
+        let err = ensure_segwit_wallet(DescriptorPolicy {
+            kind: DescriptorKindCfg::Legacy,
+            coin_type: 0,
+        })
+        .unwrap_err();
+        assert!(err.contains("segwit-v0"), "{err}");
+        assert!(err.contains("legacy"), "{err}");
+    }
+
+    /// The full descriptor-import flow, OFFLINE (unreachable Electrum
+    /// server): unlike restore, an import never probes — the descriptors
+    /// already say which scripts the wallet owns. Exercises the exact code
+    /// `btcx_wallet_import_descriptor` runs: registry entry with
+    /// source=descriptor + classified kind, descriptor store on disk (no
+    /// seed file), runtime open, and the watch-only/bare-key rejections.
+    #[test]
+    fn import_descriptor_flow_works_offline() {
+        let _guard = DATA_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+        std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+        let state = super::super::state::create_btcx_wallet_state();
+        state
+            .update_config(|c| {
+                c.network = WalletNetwork::Regtest;
+                // Unreachable on purpose — import is an offline operation.
+                c.set_servers(
+                    WalletNetwork::Regtest,
+                    vec!["tcp://127.0.0.1:1".to_string()],
+                );
+            })
+            .unwrap();
+
+        // A deterministic tprv-based external descriptor (regtest keys).
+        let secp = bitcoin::secp256k1::Secp256k1::new();
+        let master =
+            bitcoin::bip32::Xpriv::new_master(bitcoin::NetworkKind::Test, &[9u8; 32]).unwrap();
+        let path: Vec<bitcoin::bip32::ChildNumber> = [84u32, 1, 0]
+            .iter()
+            .map(|&i| bitcoin::bip32::ChildNumber::from_hardened_idx(i).unwrap())
+            .collect();
+        let account = master.derive_priv(&secp, &path).unwrap();
+        let fp = master.fingerprint(&secp);
+        let external = format!("wpkh([{fp}/84'/1'/0']{account}/0/*)");
+
+        let result =
+            import_descriptor_wallet_impl(&state, None, &external, None, Some("imported".into()))
+                .expect("import");
+        assert_eq!(result.status.wallet_name, "imported");
+        assert!(result.status.wallet_active, "runtime opens (lazy dial)");
+        assert_eq!(result.policy.kind, DescriptorKindCfg::Bip84);
+        assert!(result.inferred_internal);
+
+        // Registry: descriptor source; disk: descriptor store, NO seed.
+        let config = state.get_config();
+        let meta = config
+            .wallet_meta(WalletNetwork::Regtest, "imported")
+            .unwrap();
+        assert_eq!(meta.source, WalletSourceCfg::Descriptor);
+        let root = BtcxWalletConfig::wallet_root(WalletNetwork::Regtest, "imported");
+        assert!(root.join(descstore::DESCRIPTOR_FILE).exists());
+        assert!(!root.join(seedstore::SEED_FILE).exists());
+
+        // The open wallet hands out regtest segwit-v0 addresses derived
+        // from the imported descriptors.
+        let address = state
+            .with_entry(|entry| current_address_of(entry, WalletNetwork::Regtest))
+            .unwrap();
+        assert!(address.starts_with("rpocx1q"), "{address}");
+
+        // Watch-only and bare-key pastes never write anything.
+        let tpub = bitcoin::bip32::Xpub::from_priv(&secp, &account);
+        let err = import_descriptor_wallet_impl(
+            &state,
+            None,
+            &format!("wpkh({tpub}/0/*)"),
+            None,
+            Some("watchonly".into()),
+        )
+        .unwrap_err();
+        assert!(err.contains("Watch-only"), "{err}");
+        let err = import_descriptor_wallet_impl(
+            &state,
+            None,
+            &master.to_string(),
+            None,
+            Some("barekey".into()),
+        )
+        .unwrap_err();
+        assert!(err.contains("full descriptor"), "{err}");
+        assert!(state
+            .get_config()
+            .wallet_meta(WalletNetwork::Regtest, "watchonly")
+            .is_none());
+
+        // Importing over a taken name is refused before anything parses.
+        let err =
+            import_descriptor_wallet_impl(&state, None, &external, None, Some("imported".into()))
+                .unwrap_err();
+        assert!(err.contains("already exists"), "{err}");
+
+        state.close_runtime();
+        std::env::remove_var("PHOENIX_DATA_DIR");
+        std::env::remove_var("PACT_DISABLE_KEYRING");
     }
 
     fn request(fee_target: Option<u16>, fee_rate_sat_vb: Option<f64>) -> BtcxSendRequest {

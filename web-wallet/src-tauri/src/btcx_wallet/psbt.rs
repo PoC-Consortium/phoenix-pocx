@@ -31,15 +31,29 @@ fn parse_psbt(psbt_base64: &str) -> Result<Psbt, String> {
     Psbt::from_str(psbt_base64.trim()).map_err(|e| format!("Not a valid PSBT: {e}"))
 }
 
-/// Render a segwit scriptPubKey as this network's bech32(m) address —
-/// v0 (P2WPKH/P2WSH) and v1 (P2TR); anything else has no display form here.
+/// Render a scriptPubKey as this network's address: bech32(m) for segwit
+/// v0 (P2WPKH/P2WSH) and v1 (P2TR), base58check with the network's version
+/// bytes for legacy P2PKH/P2SH (imported legacy-descriptor wallets must be
+/// able to display their own addresses); anything else has no display form.
 pub fn spk_to_address(network: WalletNetwork, spk: &ScriptBuf) -> Option<String> {
-    let hrp = bech32::Hrp::parse(network.params().bech32_hrp).ok()?;
+    let params = network.params();
     let bytes = spk.as_bytes();
     if spk.is_p2wpkh() || spk.is_p2wsh() {
+        let hrp = bech32::Hrp::parse(params.bech32_hrp).ok()?;
         bech32::segwit::encode_v0(hrp, &bytes[2..]).ok()
     } else if spk.is_p2tr() {
+        let hrp = bech32::Hrp::parse(params.bech32_hrp).ok()?;
         bech32::segwit::encode_v1(hrp, &bytes[2..]).ok()
+    } else if spk.is_p2pkh() {
+        // OP_DUP OP_HASH160 <20-byte hash> OP_EQUALVERIFY OP_CHECKSIG
+        let mut payload = vec![params.p2pkh_prefix];
+        payload.extend_from_slice(&bytes[3..23]);
+        Some(bitcoin::base58::encode_check(&payload))
+    } else if spk.is_p2sh() {
+        // OP_HASH160 <20-byte hash> OP_EQUAL
+        let mut payload = vec![params.p2sh_prefix];
+        payload.extend_from_slice(&bytes[2..22]);
+        Some(bitcoin::base58::encode_check(&payload))
     } else {
         None
     }

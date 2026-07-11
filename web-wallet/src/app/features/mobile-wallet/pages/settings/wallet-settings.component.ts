@@ -142,13 +142,30 @@ const DRAG_SLOP_PX = 8;
                 <div class="row-main">
                   <span class="row-name">{{ w.name }}</span>
                   <!-- Same badge family as the switcher menu: taproot
-                       purple, segwit neutral. -->
-                  <span class="row-badge" [class.segwit]="w.policy.kind !== 'bip86'">
-                    {{
-                      (w.policy.kind === 'bip86' ? 'mwallet_kind_taproot' : 'mwallet_kind_segwit')
-                        | i18n
-                    }}
-                  </span>
+                       purple, segwit neutral, legacy amber; imported
+                       (descriptor-source) wallets carry a subtle second
+                       marker. -->
+                  <div class="row-badges">
+                    <span
+                      class="row-badge"
+                      [class.segwit]="w.policy.kind === 'bip84'"
+                      [class.legacy]="w.policy.kind === 'legacy'"
+                    >
+                      {{
+                        (w.policy.kind === 'bip86'
+                          ? 'mwallet_kind_taproot'
+                          : w.policy.kind === 'legacy'
+                            ? 'mwallet_kind_legacy'
+                            : 'mwallet_kind_segwit'
+                        ) | i18n
+                      }}
+                    </span>
+                    @if (w.source === 'descriptor') {
+                      <span class="row-badge imported">
+                        {{ 'mwallet_imported_badge' | i18n }}
+                      </span>
+                    }
+                  </div>
                 </div>
                 @if (w.seedEncrypted && w.seedLocked) {
                   <mat-icon class="row-lock">lock</mat-icon>
@@ -198,6 +215,12 @@ const DRAG_SLOP_PX = 8;
             <button mat-stroked-button routerLink="/wallet/restore">
               <mat-icon>restore</mat-icon>
               {{ 'mwallet_restore_wallet' | i18n }}
+            </button>
+            <!-- Third path in, full width below Create/Restore: import an
+                 existing wallet from its descriptor strings. -->
+            <button mat-stroked-button class="import-descriptor" routerLink="/wallet/import">
+              <mat-icon>input</mat-icon>
+              {{ 'mwallet_import_wallet' | i18n }}
             </button>
           </div>
         </div>
@@ -422,6 +445,12 @@ const DRAG_SLOP_PX = 8;
             white-space: nowrap;
           }
 
+          .row-badges {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+          }
+
           .row-badge {
             align-self: flex-start;
             font-size: 10px;
@@ -436,6 +465,18 @@ const DRAG_SLOP_PX = 8;
 
             &.segwit {
               color: #546e7a;
+            }
+
+            /* Pre-segwit imports: same family, amber hue. */
+            &.legacy {
+              color: #b26a00;
+            }
+
+            /* Descriptor-source marker: quieter than the kind badge. */
+            &.imported {
+              color: #78909c;
+              border-style: dashed;
+              font-weight: 500;
             }
           }
         }
@@ -457,11 +498,17 @@ const DRAG_SLOP_PX = 8;
 
       .add-wallet-row {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
         margin-top: 12px;
 
         button {
-          flex: 1;
+          flex: 1 1 calc(50% - 4px);
+        }
+
+        /* Third path in, spanning both columns (owner's spec). */
+        .import-descriptor {
+          flex-basis: 100%;
         }
       }
 

@@ -106,10 +106,58 @@ export interface BtcxFeeEstimates {
   slow: number | null;
 }
 
-/** Descriptor branch recorded at create/restore time. */
+/**
+ * Descriptor branch recorded at create/restore/import time. 'legacy' only
+ * ever occurs on descriptor-IMPORTED wallets (pkh / sh(wpkh) scripts) —
+ * accepted for fund visibility and spending, gated from mining/assignments
+ * like taproot.
+ */
 export interface BtcxDescriptorPolicy {
-  kind: 'bip84' | 'bip86';
+  kind: 'bip84' | 'bip86' | 'legacy';
   coinType: number;
+}
+
+/** Key-material source of a registered wallet. */
+export type BtcxWalletSource = 'seed' | 'descriptor';
+
+/** Structured error codes of the descriptor-import validation. */
+export type BtcxImportErrorCode =
+  | 'empty'
+  | 'watch_only'
+  | 'bare_key'
+  | 'wrong_network'
+  | 'needs_internal'
+  | 'unsupported_type'
+  | 'not_ranged'
+  | 'pair_mismatch'
+  | 'multipath_nonstandard'
+  | 'too_many'
+  | 'parse';
+
+/** Pre-submit feedback of `btcx_wallet_validate_import`. */
+export interface BtcxImportValidation {
+  valid: boolean;
+  /** Error code keying the translated message (invalid input only). */
+  code?: BtcxImportErrorCode;
+  /** English error detail (secondary line under the translated message). */
+  message?: string;
+  /** Script-type classification of a VALID paste. */
+  kind?: BtcxDescriptorPolicy['kind'];
+  /** BIP32 coin type parsed from the derivation path (informational). */
+  coinType?: number;
+  /** The internal (change) descriptor was inferred automatically. */
+  inferredInternal: boolean;
+  /** Both branches came from one multipath `<0;1>` descriptor. */
+  fromMultipath: boolean;
+}
+
+/** What `btcx_wallet_import_descriptor` did. */
+export interface BtcxImportResult {
+  status: BtcxWalletStatus;
+  /** Script class + informational coin type the wallet registered with. */
+  policy: BtcxDescriptorPolicy;
+  inferredInternal: boolean;
+  fromMultipath: boolean;
 }
 
 /** One probed derivation branch with history (`btcx_wallet_restore`). */
@@ -147,6 +195,8 @@ export interface BtcxWalletSummary {
   name: string;
   network: BtcxNetwork;
   policy: BtcxDescriptorPolicy;
+  /** Key-material source: seed (create/restore) or imported descriptors. */
+  source: BtcxWalletSource;
   /** The selected wallet of the network. */
   isActive: boolean;
   /** Runtime open (only ever true for the active wallet). */
@@ -524,6 +574,39 @@ export class BtcxWalletService {
     await this.refreshConfig();
     await this.refreshAll();
     return result;
+  }
+
+  /**
+   * Import a wallet from one or two PRIVATE descriptors (single input,
+   * whitespace/newline separated). A single standard descriptor infers its
+   * /0/* ↔ /1/* sibling; a multipath <0;1> descriptor carries both
+   * branches. Public-only (xpub) material is rejected — watch-only is not
+   * supported yet. The optional passphrase encrypts the stored descriptors
+   * at rest. Throws on failure.
+   */
+  async importDescriptor(
+    input: string,
+    passphrase?: string,
+    name?: string
+  ): Promise<BtcxImportResult> {
+    const result = await invoke<BtcxImportResult>('btcx_wallet_import_descriptor', {
+      input,
+      passphrase: passphrase || null,
+      name: name ?? null,
+    });
+    this._status.set(result.status);
+    await this.refreshConfig();
+    await this.refreshAll();
+    return result;
+  }
+
+  /**
+   * Pre-submit validation of the import paste box: parses/classifies the
+   * input WITHOUT writing anything. Offline and cheap — call it on every
+   * debounced input change.
+   */
+  async validateImport(input: string): Promise<BtcxImportValidation> {
+    return invoke<BtcxImportValidation>('btcx_wallet_validate_import', { input });
   }
 
   /**
