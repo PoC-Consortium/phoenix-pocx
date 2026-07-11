@@ -76,4 +76,4 @@ Chapter 11 — *Backup, Security & Recovery* — covers these topics in depth.
 
 ## Where to get help
 
-If you run into a problem the handbook does not cover, see Chapter 28 — *Where to Get Help* — for community channels and instructions for filing an issue.
+If you run into a problem the handbook does not cover, see Chapter 30 — *Where to Get Help* — for community channels and instructions for filing an issue.

@@ -99,7 +99,7 @@ Two categories matter beyond the recovery phrase.
 
 ### Phoenix's application data
 
-A periodic copy of Phoenix's data directory — onto an external drive, an encrypted USB key, or your normal computer backups — captures contacts, settings, and mining configuration in one go. The exact directory location depends on your operating system, but you do not need to know it: **Settings → Debug & Logs → App Data Directory → Open folder** opens it directly in your file manager. Chapter 26 explains the two data directories and what each subdirectory contains.
+A periodic copy of Phoenix's data directory — onto an external drive, an encrypted USB key, or your normal computer backups — captures contacts, settings, and mining configuration in one go. The exact directory location depends on your operating system, but you do not need to know it: **Settings → Debug & Logs → App Data Directory → Open folder** opens it directly in your file manager. Chapter 27 explains the two data directories and what each subdirectory contains.
 
 > **Note** — Backing up the application data directory is *helpful*, not *essential*. The recovery phrase alone is sufficient to recover funds. Everything else is convenience and is reconstructable in an hour or two. Do this if losing a long contact list would annoy you; do not lose sleep if you do not.
 

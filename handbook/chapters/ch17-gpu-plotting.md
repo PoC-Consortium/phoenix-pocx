@@ -114,7 +114,7 @@ If the *Plotting device* section shows only the CPU and an info box reading *"No
 4. **On Linux, confirm the OpenCL ICD is installed.** OpenCL on Linux uses an *Installable Client Driver* loader; the vendor's compute package provides the ICD entry. Without it, no devices are enumerated even with working graphics drivers.
 5. **Check the 3 GiB VRAM floor.** A GPU with less than 3 GiB of available memory may be enumerated but fail to plot, or may not pass the detection kernel compile. If it is an APU, raise the firmware memory allocation; if it is a low-VRAM discrete card, see the sub-3 GiB workaround note above.
 
-If the GPU still does not appear after a current driver is installed, CPU plotting remains available — it is slower but works on every machine — and Chapter 26 covers deeper diagnosis.
+If the GPU still does not appear after a current driver is installed, CPU plotting remains available — it is slower but works on every machine — and Chapter 27 covers deeper diagnosis.
 
 ## What's next
 

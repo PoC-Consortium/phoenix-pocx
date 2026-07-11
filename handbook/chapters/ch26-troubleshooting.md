@@ -14,7 +14,7 @@ That tab gives you one-click access to:
 - **Bitcoin Core log** — the node's `debug.log`. *Open* launches it directly. This is the authoritative place for node-side problems: sync failures, RPC errors, block validation issues.
 - **Config files** — the node, mining, aggregator, and `bitcoin.conf` files, each with an *Open* button, when you need to inspect or compare what Phoenix has actually saved.
 
-> **Tip** — When asking for help (Chapter 29), a recent slice of the relevant log is the single most useful thing you can provide. Take the **last few hundred lines**, not the whole file — logs grow large, and the recent tail almost always contains the error. Be aware that logs can contain your addresses; review before sharing publicly.
+> **Tip** — When asking for help (Chapter 30), a recent slice of the relevant log is the single most useful thing you can provide. Take the **last few hundred lines**, not the whole file — logs grow large, and the recent tail almost always contains the error. Be aware that logs can contain your addresses; review before sharing publicly.
 
 ### The data directories
 
@@ -148,7 +148,7 @@ If a problem resists every check here:
 
 1. **Read the relevant log** (Bitcoin Core log for node/mining/sync issues, App log for interface/connection issues) — the actual error is usually named there.
 2. **Restart cleanly** — stop the miner and aggregator, stop the node, restart Phoenix. A surprising number of transient problems clear with a clean restart.
-3. **Ask for help** with specifics — what you did, what you expected, what happened, and a recent log slice (Chapter 29). "It doesn't work" is hard to help; a log excerpt and a clear sequence of steps is easy.
+3. **Ask for help** with specifics — what you did, what you expected, what happened, and a recent log slice (Chapter 30). "It doesn't work" is hard to help; a log excerpt and a clear sequence of steps is easy.
 
 ## What's next
 
