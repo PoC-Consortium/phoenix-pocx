@@ -63,6 +63,7 @@
   "assignment_details": "Detail penugasan",
   "assignment_revoked": "Penugasan telah dicabut",
   "assignment_status": "Status Penugasan",
+  "assignment_taproot_hint": "Penugasan forging memerlukan dompet SegWit — dompet aktif menggunakan alamat taproot, yang tidak pernah bisa menjadi alamat plot. Beralih ke dompet SegWit untuk melanjutkan.",
   "authentication": "Autentikasi",
   "back": "Kembali",
   "backup_phrase": "Frasa Cadangan",

@@ -63,6 +63,7 @@
   "assignment_details": "Detalles da asignación",
   "assignment_revoked": "A asignación foi revogada",
   "assignment_status": "Estado da asignación",
+  "assignment_taproot_hint": "As asignacións de forxa requiren unha carteira SegWit — a carteira activa usa enderezos taproot, que nunca poden ser enderezos de plot. Cambia a unha carteira SegWit para continuar.",
   "authentication": "Autenticación",
   "back": "Atrás",
   "backup_phrase": "Frase de copia de seguridade",

@@ -63,6 +63,7 @@
   "assignment_details": "Detalhes da atribuição",
   "assignment_revoked": "A atribuição foi revogada",
   "assignment_status": "Status da atribuição",
+  "assignment_taproot_hint": "Atribuições de forjamento exigem uma carteira SegWit — a carteira ativa usa endereços taproot, que nunca podem ser endereços de plot. Troque para uma carteira SegWit para continuar.",
   "authentication": "Autenticação",
   "back": "Voltar",
   "backup_phrase": "Frase de backup",

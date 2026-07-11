@@ -63,6 +63,7 @@
   "assignment_details": "Détails de l'affectation",
   "assignment_revoked": "L'affectation a ete revoquee",
   "assignment_status": "Statut de l'affectation",
+  "assignment_taproot_hint": "Les affectations de forging nécessitent un portefeuille SegWit — le portefeuille actif utilise des adresses taproot, qui ne peuvent jamais être des adresses de plot. Passez à un portefeuille SegWit pour continuer.",
   "authentication": "Authentification",
   "back": "Retour",
   "backup_phrase": "Phrase de sauvegarde",

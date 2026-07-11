@@ -63,6 +63,7 @@
   "assignment_details": "割り当ての詳細",
   "assignment_revoked": "割り当ては取り消されました",
   "assignment_status": "割り当てステータス",
+  "assignment_taproot_hint": "フォージング割り当てには SegWit ウォレットが必要です — アクティブなウォレットはプロットアドレスになり得ない taproot アドレスを使用しています。続行するには SegWit ウォレットに切り替えてください。",
   "authentication": "認証",
   "back": "戻る",
   "backup_phrase": "バックアップフレーズ",

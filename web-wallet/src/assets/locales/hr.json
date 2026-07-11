@@ -63,6 +63,7 @@
   "assignment_details": "Pojedinosti dodjele",
   "assignment_revoked": "Dodjela je opozvana",
   "assignment_status": "Status dodjele",
+  "assignment_taproot_hint": "Dodjele kovanja zahtijevaju SegWit novčanik — aktivni novčanik koristi taproot adrese, koje nikada ne mogu biti adrese plota. Prijeđite na SegWit novčanik za nastavak.",
   "authentication": "Autentifikacija",
   "back": "Natrag",
   "backup_phrase": "Sigurnosna fraza",

@@ -63,6 +63,7 @@
   "assignment_details": "Toimeksiannon tiedot",
   "assignment_revoked": "Siirto on peruttu",
   "assignment_status": "Siirron tila",
+  "assignment_taproot_hint": "Takontaoikeuden siirrot vaativat SegWit-lompakon — aktiivinen lompakko käyttää taproot-osoitteita, jotka eivät koskaan voi olla plot-osoitteita. Vaihda SegWit-lompakkoon jatkaaksesi.",
   "authentication": "Tunnistautuminen",
   "back": "Takaisin",
   "backup_phrase": "Varmuuskopiolause",

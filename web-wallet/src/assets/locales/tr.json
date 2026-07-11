@@ -63,6 +63,7 @@
   "assignment_details": "Atama ayrıntıları",
   "assignment_revoked": "Atama iptal edildi",
   "assignment_status": "Atama Durumu",
+  "assignment_taproot_hint": "Dövme atamaları bir SegWit cüzdanı gerektirir — etkin cüzdan, hiçbir zaman plot adresi olamayan taproot adresleri kullanıyor. Devam etmek için bir SegWit cüzdanına geçin.",
   "authentication": "Kimlik Doğrulama",
   "back": "Geri",
   "backup_phrase": "Yedek İfade",

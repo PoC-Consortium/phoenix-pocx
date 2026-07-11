@@ -1023,6 +1023,21 @@ pub fn btcx_wallet_sync_now(state: State<'_, SharedBtcxWalletState>) -> Result<(
 // Forging Assignments (remote node mode)
 // ============================================================================
 
+/// Refuse assignment operations on a taproot wallet. Plot addresses are
+/// 20-byte segwit-v0 witness programs (assignments are defined over P2WPKH
+/// per consensus), so a BIP-86 wallet can never own one — fail fast with a
+/// clear message instead of letting the UTXO lookup report "no coin on the
+/// plot address". The OPEN wallet is by invariant the ACTIVE wallet of the
+/// active network, whose descriptor policy the registry records.
+pub fn ensure_segwit_wallet(policy: DescriptorPolicy) -> Result<(), String> {
+    match policy.kind {
+        DescriptorKindCfg::Bip84 => Ok(()),
+        DescriptorKindCfg::Bip86 => Err(
+            "Forging assignments require a segwit-v0 wallet — the open wallet is taproot".into(),
+        ),
+    }
+}
+
 /// Create a forging assignment: delegate `plot_address`'s forging rights to
 /// `forging_address`, entirely client-side (BDK build + sign, Electrum
 /// broadcast) — the remote-mode replacement for the node's
@@ -1037,6 +1052,7 @@ pub async fn btcx_wallet_create_assignment(
 ) -> Result<super::assignments::CreateAssignmentDto, String> {
     let state = state.inner().clone();
     blocking(move || {
+        ensure_segwit_wallet(state.get_config().policy())?;
         super::assignments::create_assignment(
             &state,
             &plot_address,
@@ -1056,8 +1072,11 @@ pub async fn btcx_wallet_revoke_assignment(
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<super::assignments::RevokeAssignmentDto, String> {
     let state = state.inner().clone();
-    blocking(move || super::assignments::revoke_assignment(&state, &plot_address, fee_rate_sat_vb))
-        .await
+    blocking(move || {
+        ensure_segwit_wallet(state.get_config().policy())?;
+        super::assignments::revoke_assignment(&state, &plot_address, fee_rate_sat_vb)
+    })
+    .await
 }
 
 /// Assignment status of `plot_address`, derived from its Electrum script
@@ -1335,6 +1354,27 @@ mod tests {
         state.close_runtime();
         std::env::remove_var("PHOENIX_DATA_DIR");
         std::env::remove_var("PACT_DISABLE_KEYRING");
+    }
+
+    /// The segwit-only assignment gate: BIP-84 (either coin type — the
+    /// legacy coin-0 restore branch is still wpkh) passes, BIP-86 is
+    /// refused with the taproot message the UI surfaces verbatim.
+    #[test]
+    fn assignment_guard_refuses_taproot_wallets() {
+        assert!(ensure_segwit_wallet(DescriptorPolicy::default()).is_ok());
+        assert!(ensure_segwit_wallet(DescriptorPolicy {
+            kind: DescriptorKindCfg::Bip84,
+            coin_type: 0,
+        })
+        .is_ok());
+
+        let err = ensure_segwit_wallet(DescriptorPolicy {
+            kind: DescriptorKindCfg::Bip86,
+            coin_type: keys_btcx::COIN_BTCX,
+        })
+        .unwrap_err();
+        assert!(err.contains("segwit-v0"), "{err}");
+        assert!(err.contains("taproot"), "{err}");
     }
 
     fn request(fee_target: Option<u16>, fee_rate_sat_vb: Option<f64>) -> BtcxSendRequest {

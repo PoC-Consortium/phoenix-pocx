@@ -63,6 +63,7 @@
   "assignment_details": "Детаљи доделе",
   "assignment_revoked": "Додела је опозвана",
   "assignment_status": "Статус доделе",
+  "assignment_taproot_hint": "Доделе ковања захтевају SegWit новчаник — активни новчаник користи taproot адресе, које никада не могу бити адресе плота. Пређите на SegWit новчаник да наставите.",
   "authentication": "Аутентификација",
   "back": "Назад",
   "backup_phrase": "Фраза за резервну копију",

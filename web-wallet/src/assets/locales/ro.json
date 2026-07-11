@@ -63,6 +63,7 @@
   "assignment_details": "Detalii alocare",
   "assignment_revoked": "Atribuirea a fost revocată",
   "assignment_status": "Stare atribuire",
+  "assignment_taproot_hint": "Atribuirile de forjare necesită un portofel SegWit — portofelul activ folosește adrese taproot, care nu pot fi niciodată adrese de plot. Comutați la un portofel SegWit pentru a continua.",
   "authentication": "Autentificare",
   "back": "Înapoi",
   "backup_phrase": "Frază de backup",

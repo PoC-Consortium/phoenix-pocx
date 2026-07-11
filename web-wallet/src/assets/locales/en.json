@@ -57,6 +57,7 @@
   "assignment_details": "Assignment Details",
   "assignment_revoked": "Assignment has been revoked",
   "assignment_status": "Assignment Status",
+  "assignment_taproot_hint": "Forging assignments require a SegWit wallet — the active wallet uses taproot addresses, which can never be plot addresses. Switch to a SegWit wallet to continue.",
   "authentication": "Authentication",
   "back": "Back",
   "backup_phrase": "Backup Phrase",
