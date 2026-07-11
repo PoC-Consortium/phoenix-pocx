@@ -420,6 +420,68 @@ fn regtest_restore_probe_selects_funded_branch() {
     );
 }
 
+/// F3 (audit Batch A), live: the chain a wallet syncs/restores against is
+/// now VERIFIED before it is trusted, not only behind the manual "Test"
+/// button. Against the healthy regtest electrs:
+/// - a direct `verify_chain()` passes (right genesis, unpruned);
+/// - `verified_probe_chain` (the seam restore probing rides) elects the
+///   healthy server and returns a usable backend;
+/// - a fresh restore over that verified server opens the runtime — which
+///   itself now runs `elect_verified_home` before the first sync — and
+///   reports the honest "fresh" verdict.
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_verify_chain_runs_on_home_and_restore() {
+    let params = &params_btcx::params::BTCX_REGTEST;
+
+    // 1. A direct backend against the real electrs must verify: the genesis
+    //    hashes match and the server is not pruned.
+    let chain = electrum_btcx::ElectrumBackend::new(params, ELECTRUM_URL).unwrap();
+    chain
+        .verify_chain()
+        .expect("healthy regtest electrs must verify (right genesis, unpruned)");
+
+    // 2. Through the state seam restore rides: verified_probe_chain elects
+    //    the healthy electrs and hands back a verified backend.
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+    std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+    let state = phoenix_pocx_lib::btcx_wallet::create_btcx_wallet_state();
+    state
+        .update_config(|c| {
+            c.network = WalletNetwork::Regtest;
+            c.set_servers(WalletNetwork::Regtest, vec![ELECTRUM_URL.to_string()]);
+        })
+        .unwrap();
+    let verified = state
+        .verified_probe_chain()
+        .expect("verified_probe_chain must elect the healthy electrs");
+    verified
+        .verify_chain()
+        .expect("the elected chain re-verifies (cached verdict)");
+
+    // 3. A fresh restore over the verified server opens the runtime (which
+    //    runs elect_verified_home before its first sync) and reports fresh.
+    let seed_dir = tempfile::tempdir().unwrap();
+    let mut scratch = seedstore::SeedStore::open(seed_dir.path(), None).unwrap();
+    let mnemonic = scratch.create_seed(None, 24).unwrap();
+    let result = restore_wallet_impl(&state, None, &mnemonic, None, Some("verified".into()), None)
+        .expect("restore over a verified server");
+    assert!(result.fresh, "a brand-new seed must restore as fresh");
+    assert!(
+        result.status.wallet_active,
+        "the runtime must open after a verified restore"
+    );
+
+    // Leave the node's clock alone for whoever runs next.
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    state.close_runtime();
+    std::env::remove_var("PHOENIX_DATA_DIR");
+    std::env::remove_var("PACT_DISABLE_KEYRING");
+    println!("verify-chain-on-home/restore smoke: OK (verify_chain passed, fresh restore opened)");
+}
+
 /// Fund `address` from the node's miner wallet and confirm it with one
 /// mined block (PoCX regtest needs the clock nudged past the deadline).
 fn fund_and_mine(address: &str, amount_btcx: f64) {

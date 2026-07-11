@@ -49,6 +49,17 @@ interface FeeOption {
 }
 
 /**
+ * F5 (audit Batch A): sanity ceiling for a SERVER-resolved preset fee rate,
+ * in sat/vB. In remote (Electrum) mode the priority presets come from the
+ * server's fee estimates; this chain's floor is ~1 sat/vB, so a preset
+ * resolving above 200 means a faulty or hostile server is inflating the
+ * estimate. Above this the confirm dialog demands an explicit extra
+ * acknowledgement. A user-typed CUSTOM rate is the user's own choice and is
+ * never gated. Mirrors the mobile send guard.
+ */
+const SANE_PRESET_MAX_SAT_VB = 200;
+
+/**
  * SendComponent allows users to send Bitcoin.
  *
  * Features:
@@ -1294,6 +1305,19 @@ export class SendComponent implements OnInit, OnDestroy {
     );
   }
 
+  /**
+   * F5: true when a SERVER-resolved PRESET fee rate exceeds the sane ceiling
+   * in remote (Electrum) mode. Custom (user-typed) rates and Core-node
+   * estimates are never flagged — only a server-driven preset can be
+   * inflated by a faulty or hostile Electrum server.
+   */
+  isHighPresetFee(): boolean {
+    if (!this.isRemote()) return false;
+    const option = this.selectedFeeOption;
+    if (!option || option.label === 'fee_custom' || option.feeRate === null) return false;
+    return option.feeRate > SANE_PRESET_MAX_SAT_VB;
+  }
+
   async confirmAndSend(): Promise<void> {
     if (!this.canSubmit()) return;
 
@@ -1305,6 +1329,9 @@ export class SendComponent implements OnInit, OnDestroy {
         fee: this.selectedFeeOption?.estimatedFee ?? 0,
         total: this.getTotalAmount(),
         subtractFee: this.subtractFee,
+        // F5: when set, the dialog shows a high-fee warning and gates confirm
+        // behind an explicit acknowledgement checkbox.
+        highFeeRate: this.isHighPresetFee() ? (this.selectedFeeOption?.feeRate ?? null) : null,
       },
     });
 

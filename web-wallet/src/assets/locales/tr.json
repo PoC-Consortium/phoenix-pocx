@@ -240,6 +240,8 @@
   "fee": "Ücret",
   "fee_custom": "Özel",
   "fee_fast": "Hızlı",
+  "fee_high_ack": "Anlıyorum — bu yüksek ücretle gönder",
+  "fee_high_warning": "Bu ücret olağandışı derecede yüksek ({rate} sat/vB). Arızalı veya kötü niyetli bir sunucu ücretleri şişirebilir.",
   "fee_increase": "Ücret Artışı",
   "fee_normal": "Normal",
   "fee_rate": "Ücret Oranı",

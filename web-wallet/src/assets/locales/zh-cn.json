@@ -240,6 +240,8 @@
   "fee": "费用",
   "fee_custom": "自定义",
   "fee_fast": "快速",
+  "fee_high_ack": "我明白——以此高额手续费发送",
+  "fee_high_warning": "此手续费异常高（{rate} sat/vB）。故障或恶意的服务器可能会抬高手续费。",
   "fee_increase": "费用增加",
   "fee_normal": "普通",
   "fee_rate": "费率",

@@ -240,6 +240,8 @@
   "fee": "Maksu",
   "fee_custom": "Mukautettu",
   "fee_fast": "Nopea",
+  "fee_high_ack": "Ymmärrän — lähetä tällä korkealla maksulla",
+  "fee_high_warning": "Tämä maksu on epätavallisen korkea ({rate} sat/vB). Viallinen tai vihamielinen palvelin voi paisuttaa maksuja.",
   "fee_increase": "Maksun korotus",
   "fee_normal": "Normaali",
   "fee_rate": "Maksuaste",

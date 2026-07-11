@@ -240,6 +240,8 @@
   "fee": "手数料",
   "fee_custom": "カスタム",
   "fee_fast": "速い",
+  "fee_high_ack": "了解しました — この高い手数料で送信する",
+  "fee_high_warning": "この手数料は異常に高いです（{rate} sat/vB）。不具合のある、または悪意のあるサーバーは手数料を水増しできます。",
   "fee_increase": "手数料増加",
   "fee_normal": "通常",
   "fee_rate": "手数料率",

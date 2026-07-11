@@ -240,6 +240,8 @@
   "fee": "Comision",
   "fee_custom": "Personalizat",
   "fee_fast": "Rapid",
+  "fee_high_ack": "Înţeleg — trimite cu acest comision mare",
+  "fee_high_warning": "Acest comision este neobişnuit de mare ({rate} sat/vB). Un server defect sau ostil poate umfla comisioanele.",
   "fee_increase": "Mărire comision",
   "fee_normal": "Normal",
   "fee_rate": "Rată comision",

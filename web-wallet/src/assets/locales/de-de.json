@@ -240,6 +240,8 @@
   "fee": "Gebuehr",
   "fee_custom": "Benutzerdefiniert",
   "fee_fast": "Schnell",
+  "fee_high_ack": "Ich verstehe — mit dieser hohen Gebühr senden",
+  "fee_high_warning": "Diese Gebühr ist ungewöhnlich hoch ({rate} sat/vB). Ein fehlerhafter oder bösartiger Server kann Gebühren aufblähen.",
   "fee_increase": "Gebuehrerhoehung",
   "fee_normal": "Normal",
   "fee_rate": "Gebuehrensatz",

@@ -10,6 +10,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { HashTruncatePipe } from '../../../../shared/pipes';
 import { ClipboardService, Contact, ContactsStoreService } from '../../../../shared/services';
@@ -33,6 +34,17 @@ interface FeePreset {
 const PREVIEW_VSIZE_VB = 141;
 
 /**
+ * F5 (audit Batch A): sanity ceiling for a SERVER-resolved preset fee rate,
+ * in sat/vB. This chain's floor is ~1 sat/vB, so 200 is already extreme — a
+ * preset resolving above it means a faulty or hostile Electrum server is
+ * inflating the estimate. Above this the review step demands an explicit
+ * extra confirmation instead of silently accepting it. (A user-typed CUSTOM
+ * rate is the user's own choice and is never gated by this.) The hard crate
+ * cap (10,000 sat/vB) is the backstop; this is the user-facing guard.
+ */
+const SANE_PRESET_MAX_SAT_VB = 200;
+
+/**
  * WalletSendComponent - mobile send flow.
  *
  * Form (address, amount + MAX/send-all, fee preset or custom sat/vB) ->
@@ -52,6 +64,7 @@ const PREVIEW_VSIZE_VB = 141;
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatDividerModule,
+    MatCheckboxModule,
     DecimalPipe,
     HashTruncatePipe,
     I18nPipe,
@@ -140,6 +153,29 @@ const PREVIEW_VSIZE_VB = 141;
             <span>{{ 'transaction_irreversible' | i18n }}</span>
           </div>
 
+          <!-- F5: server-resolved preset fee is abnormally high — demand an
+               explicit extra confirmation before allowing the send. -->
+          @if (isHighPresetFee()) {
+            <div class="warning-box high-fee">
+              <mat-icon>report</mat-icon>
+              <div class="high-fee-body">
+                <span>
+                  {{
+                    'fee_high_warning'
+                      | i18n: { rate: (previewFeeRate() ?? 0 | number: '1.0-2') ?? '0' }
+                  }}
+                </span>
+                <mat-checkbox
+                  class="high-fee-ack"
+                  [checked]="highFeeAcknowledged()"
+                  (change)="highFeeAcknowledged.set($event.checked)"
+                >
+                  {{ 'fee_high_ack' | i18n }}
+                </mat-checkbox>
+              </div>
+            </div>
+          }
+
           @if (sendError()) {
             <p class="error-text">{{ 'mwallet_send_failed' | i18n }}: {{ sendError() }}</p>
           }
@@ -148,7 +184,12 @@ const PREVIEW_VSIZE_VB = 141;
             <button mat-stroked-button [disabled]="sending()" (click)="stage.set('form')">
               {{ 'back' | i18n }}
             </button>
-            <button mat-raised-button color="primary" [disabled]="sending()" (click)="send()">
+            <button
+              mat-raised-button
+              color="primary"
+              [disabled]="sending() || (isHighPresetFee() && !highFeeAcknowledged())"
+              (click)="send()"
+            >
               @if (sending()) {
                 <mat-spinner diameter="20"></mat-spinner>
               } @else {
@@ -512,6 +553,27 @@ const PREVIEW_VSIZE_VB = 141;
         }
       }
 
+      /* F5: the high-fee warning is a stronger, red-tinted alert with an
+         inline acknowledgement checkbox. */
+      .warning-box.high-fee {
+        align-items: flex-start;
+        background: rgba(244, 67, 54, 0.12);
+
+        mat-icon {
+          color: #e53935;
+        }
+
+        .high-fee-body {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .high-fee-ack {
+          font-size: 12px;
+        }
+      }
+
       .button-row {
         display: flex;
         justify-content: space-between;
@@ -645,6 +707,14 @@ const PREVIEW_VSIZE_VB = 141;
           }
         }
 
+        .warning-box.high-fee {
+          background: rgba(244, 67, 54, 0.2);
+
+          mat-icon {
+            color: #ef9a9a;
+          }
+        }
+
         .summary-row .summary-value.error {
           color: #ef9a9a;
         }
@@ -686,6 +756,8 @@ export class WalletSendComponent implements OnInit {
   readonly sending = signal(false);
   readonly sendError = signal<string | null>(null);
   readonly sentTxid = signal('');
+  /** F5: the user has acknowledged an abnormally-high preset fee. */
+  readonly highFeeAcknowledged = signal(false);
 
   address = '';
   amount: number | null = null;
@@ -787,6 +859,8 @@ export class WalletSendComponent implements OnInit {
 
   selectPreset(preset: FeePreset): void {
     this.selectedPreset.set(preset);
+    // F5: a changed preset invalidates any prior high-fee acknowledgement.
+    this.highFeeAcknowledged.set(false);
     if (preset.target === null && this.customFeeRate === null) {
       this.customFeeRate = this.minFeeRate();
     }
@@ -803,6 +877,17 @@ export class WalletSendComponent implements OnInit {
       return Math.max(this.customFeeRate ?? this.minFeeRate(), 0);
     }
     return this.presetRate(preset) ?? this.minFeeRate();
+  }
+
+  /**
+   * F5: true when a SERVER-resolved PRESET fee rate exceeds the sane
+   * ceiling. Custom (user-typed) rates are the user's own choice and are
+   * never flagged — only server-driven presets can be inflated by a faulty
+   * or hostile Electrum server.
+   */
+  isHighPresetFee(): boolean {
+    if (this.selectedPreset().target === null) return false;
+    return this.previewFeeRate() > SANE_PRESET_MAX_SAT_VB;
   }
 
   reviewFeeRateLabel(): string {
@@ -844,11 +929,16 @@ export class WalletSendComponent implements OnInit {
   review(): void {
     if (!this.canReview()) return;
     this.sendError.set(null);
+    // F5: each visit to review re-requires acknowledgement of a high fee.
+    this.highFeeAcknowledged.set(false);
     this.stage.set('review');
   }
 
   async send(): Promise<void> {
     if (this.sending()) return;
+    // F5: never send an abnormally-high preset fee without acknowledgement
+    // (the button is already disabled — this is the belt-and-suspenders gate).
+    if (this.isHighPresetFee() && !this.highFeeAcknowledged()) return;
     this.sending.set(true);
     this.sendError.set(null);
 

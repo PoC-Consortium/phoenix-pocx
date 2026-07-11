@@ -240,6 +240,8 @@
   "fee": "Vergoeding",
   "fee_custom": "Aangepast",
   "fee_fast": "Snel",
+  "fee_high_ack": "Ik begrijp het — verzenden met deze hoge vergoeding",
+  "fee_high_warning": "Deze vergoeding is ongewoon hoog ({rate} sat/vB). Een defecte of kwaadwillende server kan vergoedingen opblazen.",
   "fee_increase": "Vergoeding Verhoging",
   "fee_normal": "Normaal",
   "fee_rate": "Vergoedingstarief",

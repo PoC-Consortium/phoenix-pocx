@@ -240,6 +240,8 @@
   "fee": "Biaya",
   "fee_custom": "Kustom",
   "fee_fast": "Cepat",
+  "fee_high_ack": "Saya mengerti — kirim dengan biaya tinggi ini",
+  "fee_high_warning": "Biaya ini luar biasa tinggi ({rate} sat/vB). Server yang rusak atau berbahaya dapat menggelembungkan biaya.",
   "fee_increase": "Kenaikan Biaya",
   "fee_normal": "Normal",
   "fee_rate": "Tingkat Biaya",
