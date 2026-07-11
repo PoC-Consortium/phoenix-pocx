@@ -18,7 +18,7 @@ If you are already familiar with proof-of-capacity mining, feel free to skim thi
 
 Phoenix PoCX combines features that traditionally come from several different programs — a wallet, a node, a plotter, and a miner — into a single window. Whether you want to use it only as a wallet, only for mining, or as both at the same time, the application adapts to what you need.
 
-It runs on Windows, macOS, and Linux as a full-featured desktop application, and on Android as a **mining-only** client (no built-in node and no wallet creation; Android is covered separately in Chapter 24).
+It runs on Windows, macOS, and Linux as a full-featured desktop application, and on Android as a full **wallet and miner** — holding its own wallets and mining into them without a local node, syncing over Electrum servers instead. Android is covered separately in Chapter 23.
 
 ## What Bitcoin-PoCX is
 
