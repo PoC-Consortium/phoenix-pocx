@@ -69,6 +69,11 @@ bitcoin = { version = "0.32", features = ["serde", "rand-std"] }
 bdk_wallet = { version = "2", features = ["rusqlite"] }
 # bech32 with custom HRPs (pocx/tpocx/rpocx) — same version the btcx crates use
 bech32 = "0.11"
+# Descriptor-at-rest wraps for imported wallets (btcx_wallet::descstore) —
+# the same primitives and parameters seedstore uses for seed.mnemonic.
+scrypt = "0.11"
+chacha20poly1305 = "0.10"
+rand = "0.8"
 
 # SHA256 hashing for node binary verification
 sha2 = "0.10"

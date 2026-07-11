@@ -29,7 +29,9 @@
 //!   the named-wallet registry (per-wallet descriptor policy), the active
 //!   wallet per network, active flag.
 //! - `btcx-wallet/<network>/<name>/seed.mnemonic` — one seed PER named
-//!   wallet, never plaintext (see `seedstore`).
+//!   wallet, never plaintext (see `seedstore`). Descriptor-IMPORTED wallets
+//!   have `descriptor.secret` (the private descriptor pair, see
+//!   `descstore`) here instead — they carry no mnemonic.
 //! - `btcx-wallet/<network>/<name>/wallet/btcx.sqlite` — that wallet's bdk
 //!   store.
 //! - `btcx-wallet/<network>/.trash/<name>-<ts>/` — deleted wallets are
@@ -43,6 +45,8 @@
 pub mod assignments;
 pub mod commands;
 pub mod config;
+pub mod descriptors;
+pub mod descstore;
 pub mod manager;
 pub mod psbt;
 pub mod state;

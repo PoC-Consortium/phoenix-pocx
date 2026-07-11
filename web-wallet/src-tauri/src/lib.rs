@@ -931,6 +931,8 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_create,
             btcx_wallet::commands::btcx_wallet_restore,
             btcx_wallet::commands::btcx_wallet_reprobe,
+            btcx_wallet::commands::btcx_wallet_import_descriptor,
+            btcx_wallet::commands::btcx_wallet_validate_import,
             btcx_wallet::commands::btcx_wallet_unlock,
             btcx_wallet::commands::btcx_wallet_lock,
             // Nodeless BTCX wallet commands - Named-wallet registry
