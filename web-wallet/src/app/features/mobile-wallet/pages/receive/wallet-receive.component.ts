@@ -1,5 +1,4 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
-import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -8,6 +7,7 @@ import { QRCodeComponent } from 'angularx-qrcode';
 import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService } from '../../../../shared/services';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
 /**
  * WalletReceiveComponent - current receive address with QR and copy.
@@ -16,23 +16,18 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
   selector: 'app-wallet-receive',
   standalone: true,
   imports: [
-    RouterModule,
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
     QRCodeComponent,
     I18nPipe,
+    PageHeaderComponent,
   ],
   template: `
-    <div class="page">
-      <div class="header-row">
-        <button mat-icon-button routerLink="/wallet">
-          <mat-icon>arrow_back</mat-icon>
-        </button>
-        <h2>{{ 'receive' | i18n }}</h2>
-      </div>
+    <app-mwallet-page-header titleKey="receive" />
 
+    <div class="page">
       <div class="card">
         @if (address()) {
           <div class="qr-container">
@@ -88,18 +83,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         width: 100%;
         margin: 0 auto;
         box-sizing: border-box;
-      }
-
-      .header-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 500;
-        }
       }
 
       .card {

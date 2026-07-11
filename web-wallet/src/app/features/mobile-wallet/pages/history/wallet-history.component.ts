@@ -1,5 +1,4 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -8,51 +7,51 @@ import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
-
-/** Desktop transaction-list page sizes, defaulting to the mobile-sensible 25. */
-const PAGE_SIZE = 25;
+import { FitRowsDirective } from '../../fit-rows.directive';
+import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
 /**
  * WalletHistoryComponent - transaction list (newest first).
  *
  * Rows are the shared mobile TxRowComponent (same row the home preview
  * renders, including the per-row menu). Pagination mirrors the desktop
- * transaction-list: a mat-paginator with page-size options and first/last
- * buttons over a client-side slice, instead of the former "load more"
- * button. Refresh pokes the background sync worker (sync_now) and
- * re-reads the cached history. Tapping an item expands a simple detail:
- * txid with copy, address, fee, vsize.
+ * transaction-list's mat-paginator (first/last buttons over a client-side
+ * slice), but the page size is not chosen from a dropdown: the list card
+ * flex-fills the viewport and the shared FitRowsDirective (the home page's
+ * recent-list fill, round 6) derives how many rows fit without scrolling —
+ * that fit IS the page size, recomputed on resize/rotation. When the fit
+ * changes, the pager stays on the page containing the previously first
+ * visible transaction. Refresh pokes the background sync worker (sync_now)
+ * and re-reads the cached history. Tapping an item expands a simple
+ * detail: txid with copy, address, fee, vsize (the list scrolls the
+ * few overflowing pixels while a detail is open).
  */
 @Component({
   selector: 'app-wallet-history',
   standalone: true,
   imports: [
-    RouterModule,
     MatButtonModule,
     MatIconModule,
     MatPaginatorModule,
     MatTooltipModule,
     I18nPipe,
     TxRowComponent,
+    FitRowsDirective,
+    PageHeaderComponent,
   ],
   template: `
-    <div class="page">
-      <div class="header-row">
-        <button mat-icon-button routerLink="/wallet">
-          <mat-icon>arrow_back</mat-icon>
-        </button>
-        <h2>{{ 'transactions' | i18n }}</h2>
-        <span class="spacer"></span>
-        <button
-          mat-icon-button
-          [disabled]="refreshing()"
-          (click)="refresh()"
-          [matTooltip]="'refresh' | i18n"
-        >
-          <mat-icon [class.spinning]="refreshing()">refresh</mat-icon>
-        </button>
-      </div>
+    <app-mwallet-page-header titleKey="transactions">
+      <button
+        mat-icon-button
+        [disabled]="refreshing()"
+        (click)="refresh()"
+        [matTooltip]="'refresh' | i18n"
+      >
+        <mat-icon [class.spinning]="refreshing()">refresh</mat-icon>
+      </button>
+    </app-mwallet-page-header>
 
+    <div class="page">
       <div class="card list-card">
         @if (wallet.transactions().length === 0) {
           <div class="empty-state">
@@ -60,53 +59,64 @@ const PAGE_SIZE = 25;
             <span>{{ 'no_transactions' | i18n }}</span>
           </div>
         } @else {
-          @for (tx of visibleTransactions(); track tx.txid) {
-            <div class="tx-item" (click)="toggleDetail(tx)">
-              <app-mwallet-tx-row [tx]="tx" />
+          <div
+            class="tx-list"
+            appFitRows
+            [fitRowSelector]="'.tx-item:not(:has(.tx-detail))'"
+            [fitMinRows]="3"
+            (fitRows)="onFitRows($event)"
+          >
+            @for (tx of visibleTransactions(); track tx.txid) {
+              <div class="tx-item" (click)="toggleDetail(tx)">
+                <app-mwallet-tx-row [tx]="tx" />
 
-              @if (expandedTxid() === tx.txid) {
-                <div class="tx-detail">
-                  <div class="detail-line">
-                    <span class="detail-label">{{ 'transaction_id' | i18n }}</span>
-                    <div
-                      class="detail-value copyable"
-                      (click)="copyTxid(tx.txid); $event.stopPropagation()"
-                      [matTooltip]="'copy' | i18n"
-                    >
-                      <span class="mono">{{ tx.txid }}</span>
-                      <mat-icon class="copy-icon">content_copy</mat-icon>
-                    </div>
-                  </div>
-                  @if (tx.address) {
+                @if (expandedTxid() === tx.txid) {
+                  <div class="tx-detail">
                     <div class="detail-line">
-                      <span class="detail-label">{{ 'address' | i18n }}</span>
+                      <span class="detail-label">{{ 'transaction_id' | i18n }}</span>
                       <div
                         class="detail-value copyable"
-                        (click)="copyAddress(tx.address); $event.stopPropagation()"
+                        (click)="copyTxid(tx.txid); $event.stopPropagation()"
                         [matTooltip]="'copy' | i18n"
                       >
-                        <span class="mono">{{ tx.address }}</span>
+                        <span class="mono">{{ tx.txid }}</span>
                         <mat-icon class="copy-icon">content_copy</mat-icon>
                       </div>
                     </div>
-                  }
-                  @if (tx.feeSat !== null) {
-                    <div class="detail-line">
-                      <span class="detail-label">{{ 'fee' | i18n }}</span>
-                      <span class="detail-value mono">{{ tx.feeSat }} sat ({{ tx.vsize }} vB)</span>
-                    </div>
-                  }
-                </div>
-              }
-            </div>
-          }
+                    @if (tx.address) {
+                      <div class="detail-line">
+                        <span class="detail-label">{{ 'address' | i18n }}</span>
+                        <div
+                          class="detail-value copyable"
+                          (click)="copyAddress(tx.address); $event.stopPropagation()"
+                          [matTooltip]="'copy' | i18n"
+                        >
+                          <span class="mono">{{ tx.address }}</span>
+                          <mat-icon class="copy-icon">content_copy</mat-icon>
+                        </div>
+                      </div>
+                    }
+                    @if (tx.feeSat !== null) {
+                      <div class="detail-line">
+                        <span class="detail-label">{{ 'fee' | i18n }}</span>
+                        <span class="detail-value mono"
+                          >{{ tx.feeSat }} sat ({{ tx.vsize }} vB)</span
+                        >
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
 
-          <!-- Desktop transaction-list pagination, scaled to mobile -->
+          <!-- Desktop transaction-list pagination; the page size is the
+               measured fit, so there is no size dropdown. -->
           <mat-paginator
             [length]="wallet.transactions().length"
             [pageSize]="pageSize()"
             [pageIndex]="pageIndex()"
-            [pageSizeOptions]="pageSizeOptions"
+            [hidePageSize]="true"
             (page)="onPageChange($event)"
             [showFirstLastButtons]="true"
           >
@@ -117,31 +127,26 @@ const PAGE_SIZE = 25;
   `,
   styles: [
     `
+      /* Fill the wallet-content column so the list card can flex into the
+         leftover viewport height (same fill idiom as the home page). */
+      :host {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
       .page {
         padding: 16px;
         display: flex;
         flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
         gap: 16px;
         max-width: 480px;
         width: 100%;
         margin: 0 auto;
         box-sizing: border-box;
-      }
-
-      .header-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 500;
-        }
-
-        .spacer {
-          flex: 1;
-        }
       }
 
       .spinning {
@@ -163,8 +168,27 @@ const PAGE_SIZE = 25;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       }
 
+      /* Flex-fill: basis 0 so the card's height comes from the leftover
+         viewport space (never from its own rows); the min-height floor
+         keeps ~3 rows readable on tiny viewports (the page then scrolls
+         slightly instead). */
       .list-card {
         padding: 4px 0 0;
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 280px;
+        overflow: hidden;
+      }
+
+      /* The measured row viewport: exactly the space between card top and
+         paginator (basis 0: its height never depends on its own rows).
+         Steady-state the fit-sized page never scrolls; an expanded detail
+         scrolls its extra height here. */
+      .tx-list {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
       }
 
       .empty-state {
@@ -196,6 +220,7 @@ const PAGE_SIZE = 25;
       /* Compact paginator (the desktop transaction-list pager, mobile-sized). */
       mat-paginator {
         border-radius: 0 0 8px 8px;
+        flex-shrink: 0;
 
         ::ng-deep .mat-mdc-paginator-container {
           min-height: 44px;
@@ -203,11 +228,6 @@ const PAGE_SIZE = 25;
           justify-content: center;
         }
 
-        ::ng-deep .mat-mdc-paginator-page-size {
-          margin-right: 4px;
-        }
-
-        ::ng-deep .mat-mdc-paginator-page-size-label,
         ::ng-deep .mat-mdc-paginator-range-label {
           font-size: 11px;
           margin: 0 6px;
@@ -299,10 +319,10 @@ export class WalletHistoryComponent implements OnInit {
   readonly refreshing = signal(false);
   readonly expandedTxid = signal<string | null>(null);
 
-  // Desktop transaction-list pagination state (client-side slicing).
-  readonly pageSize = signal(PAGE_SIZE);
+  // Fit-derived pagination: the page size is whatever FitRowsDirective
+  // measures (initial value only covers the first paint before AfterViewInit).
+  readonly pageSize = signal(8);
   readonly pageIndex = signal(0);
-  readonly pageSizeOptions = [10, 25, 50];
 
   readonly visibleTransactions = computed(() => {
     const txs = this.wallet.transactions();
@@ -337,8 +357,21 @@ export class WalletHistoryComponent implements OnInit {
     }
   }
 
+  /**
+   * New measured fit (rotation, resize, first measurement): adopt it as
+   * the page size and keep the user on the page that contains the
+   * previously first visible transaction (cheap: one division) instead
+   * of resetting to page 0.
+   */
+  onFitRows(fit: number): void {
+    const oldSize = this.pageSize();
+    if (fit === oldSize) return;
+    const firstVisibleIndex = this.pageIndex() * oldSize;
+    this.pageSize.set(fit);
+    this.pageIndex.set(Math.floor(firstVisibleIndex / fit));
+  }
+
   onPageChange(event: PageEvent): void {
-    this.pageSize.set(event.pageSize);
     this.pageIndex.set(event.pageIndex);
     this.expandedTxid.set(null);
   }

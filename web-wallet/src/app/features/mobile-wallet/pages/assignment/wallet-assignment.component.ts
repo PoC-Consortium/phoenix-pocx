@@ -27,6 +27,7 @@ import type {
 } from '../../../../bitcoin/services/rpc/mining-rpc.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { MiningService } from '../../../../mining/services';
+import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 import {
   PoolAddressOption,
   poolAddressOptionsForChains,
@@ -82,25 +83,21 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
     NgTemplateOutlet,
     HashTruncatePipe,
     I18nPipe,
+    PageHeaderComponent,
   ],
   template: `
-    <div class="page">
-      <div class="header-row">
-        <button mat-icon-button routerLink="/wallet">
-          <mat-icon>arrow_back</mat-icon>
-        </button>
-        <h2>{{ 'forging_assignment' | i18n }}</h2>
-        <span class="spacer"></span>
-        <button
-          mat-icon-button
-          [disabled]="statusLoading() || !plotAddress"
-          (click)="checkStatus()"
-          [matTooltip]="'refresh' | i18n"
-        >
-          <mat-icon [class.spinning]="statusLoading()">refresh</mat-icon>
-        </button>
-      </div>
+    <app-mwallet-page-header titleKey="forging_assignment">
+      <button
+        mat-icon-button
+        [disabled]="statusLoading() || !plotAddress"
+        (click)="checkStatus()"
+        [matTooltip]="'refresh' | i18n"
+      >
+        <mat-icon [class.spinning]="statusLoading()">refresh</mat-icon>
+      </button>
+    </app-mwallet-page-header>
 
+    <div class="page">
       @if (!wallet.walletActive()) {
         <div class="card empty-card">
           <mat-icon class="empty-icon">lock</mat-icon>
@@ -401,22 +398,6 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
         width: 100%;
         margin: 0 auto;
         box-sizing: border-box;
-      }
-
-      .header-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 500;
-        }
-
-        .spacer {
-          flex: 1;
-        }
       }
 
       .spinning {

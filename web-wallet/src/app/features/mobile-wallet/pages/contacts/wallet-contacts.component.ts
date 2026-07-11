@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -22,6 +22,7 @@ import {
 } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
 /**
  * WalletContactsComponent - the mobile address book.
@@ -37,7 +38,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
   standalone: true,
   imports: [
     FormsModule,
-    RouterModule,
     MatButtonModule,
     MatIconModule,
     MatFormFieldModule,
@@ -47,20 +47,16 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
     MatTooltipModule,
     HashTruncatePipe,
     I18nPipe,
+    PageHeaderComponent,
   ],
   template: `
-    <div class="page">
-      <div class="header-row">
-        <button mat-icon-button routerLink="/wallet">
-          <mat-icon>arrow_back</mat-icon>
-        </button>
-        <h2>{{ 'contacts' | i18n }}</h2>
-        <span class="spacer"></span>
-        <button mat-icon-button (click)="startAdd()" [matTooltip]="'add_contact' | i18n">
-          <mat-icon>person_add</mat-icon>
-        </button>
-      </div>
+    <app-mwallet-page-header titleKey="contacts">
+      <button mat-icon-button (click)="startAdd()" [matTooltip]="'add_contact' | i18n">
+        <mat-icon>person_add</mat-icon>
+      </button>
+    </app-mwallet-page-header>
 
+    <div class="page">
       <!-- Add / edit form -->
       @if (formOpen()) {
         <div class="card">
@@ -168,22 +164,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         width: 100%;
         margin: 0 auto;
         box-sizing: border-box;
-      }
-
-      .header-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 500;
-        }
-
-        .spacer {
-          flex: 1;
-        }
       }
 
       .card {

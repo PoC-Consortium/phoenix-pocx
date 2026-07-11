@@ -19,6 +19,7 @@ import {
   BtcxFeeEstimates,
   BtcxSendRequest,
 } from '../../../../core/services/btcx-wallet.service';
+import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
 type SendStage = 'form' | 'review' | 'success';
 
@@ -54,18 +55,18 @@ const PREVIEW_VSIZE_VB = 141;
     DecimalPipe,
     HashTruncatePipe,
     I18nPipe,
+    PageHeaderComponent,
   ],
   template: `
-    <div class="page">
-      <div class="header-row">
-        <button mat-icon-button (click)="onBack()">
-          <mat-icon>arrow_back</mat-icon>
-        </button>
-        <h2>{{ 'send' | i18n }}</h2>
-        <span class="spacer"></span>
-        <span class="balance-hint"> {{ spendableSat() / 100000000 | number: '1.8-8' }} BTCX </span>
+    <app-mwallet-page-header titleKey="send" [backLink]="null" (back)="onBack()">
+      <!-- Desktop send header's available-balance chip, stacked for width -->
+      <div class="balance-display">
+        <span class="balance-label">{{ 'balance_available' | i18n }}</span>
+        <span class="balance-value"> {{ spendableSat() / 100000000 | number: '1.8-8' }} BTCX </span>
       </div>
+    </app-mwallet-page-header>
 
+    <div class="page">
       @if (stage() === 'success') {
         <div class="card success-card">
           <mat-icon class="success-icon">check_circle</mat-icon>
@@ -339,25 +340,28 @@ const PREVIEW_VSIZE_VB = 141;
         box-sizing: border-box;
       }
 
-      .header-row {
+      /* Desktop send header's .balance-display, stacked to fit a phone. */
+      .balance-display {
         display: flex;
-        align-items: center;
-        gap: 8px;
+        flex-direction: column;
+        align-items: flex-end;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 4px 10px;
+        border-radius: 8px;
+        min-width: 0;
 
-        h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 500;
+        .balance-label {
+          font-size: 10px;
+          color: rgba(255, 255, 255, 0.7);
+          white-space: nowrap;
         }
 
-        .spacer {
-          flex: 1;
-        }
-
-        .balance-hint {
+        .balance-value {
           font-size: 12px;
-          color: rgba(0, 0, 0, 0.55);
-          font-variant-numeric: tabular-nums;
+          font-weight: 600;
+          font-family: monospace;
+          color: white;
+          white-space: nowrap;
         }
       }
 
@@ -621,10 +625,6 @@ const PREVIEW_VSIZE_VB = 141;
       :host-context(.dark-theme) {
         .card {
           background: #424242;
-        }
-
-        .header-row .balance-hint {
-          color: rgba(255, 255, 255, 0.55);
         }
 
         .hint-text,
