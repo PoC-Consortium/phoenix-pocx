@@ -15,6 +15,7 @@ import {
 } from '../../../../core/services/btcx-wallet.service';
 import { isInvalidWalletName, isWalletNameTaken, suggestWalletName } from '../../wallet-name';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
+import { WalletNameSectionComponent } from '../../components/wallet-name-section/wallet-name-section.component';
 
 /** Error code → translated message key (backend `descriptors::ImportError`). */
 const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
@@ -45,8 +46,10 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
  * (debounced, offline): errors surface a translated message keyed by the
  * structured error code, a valid paste shows its script-type
  * classification (SegWit / Taproot / Legacy — legacy imports work for
- * funds but are gated from mining/assignments, same as taproot). Name
- * field and optional at-rest passphrase mirror the create/restore pages.
+ * funds but are gated from mining/assignments, same as taproot). The
+ * wallet name leads the page (owner rule, round 8: name first — the
+ * shared WalletNameSectionComponent) and the optional at-rest passphrase
+ * mirrors the create/restore pages.
  *
  * Unlike restore there is no branch probe: the descriptors already say
  * which scripts the wallet owns, and the fresh store's first sync
@@ -65,6 +68,7 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
     MatProgressSpinnerModule,
     I18nPipe,
     PageHeaderComponent,
+    WalletNameSectionComponent,
   ],
   template: `
     <app-mwallet-page-header titleKey="mwallet_import_wallet" />
@@ -90,6 +94,15 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
         </div>
       } @else {
         <div class="card">
+          <!-- Wallet name FIRST (owner rule, round 8) — shared section
+               with the pre-filled default and live desktop naming rules. -->
+          <app-mwallet-name-section
+            #nameSection
+            [(name)]="walletName"
+            [existingNames]="existingNames()"
+            [disabled]="importing()"
+          />
+
           <p class="hint-text">{{ 'mwallet_import_description' | i18n }}</p>
 
           <mat-form-field appearance="outline" class="full-width">
@@ -141,31 +154,6 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
             </div>
           }
 
-          <!-- Wallet name — same rules and pre-fill as create/restore. -->
-          <h3 class="name-heading">
-            <mat-icon class="name-icon">badge</mat-icon>
-            {{ 'wallet_name' | i18n }}
-          </h3>
-          <p class="hint-text small">{{ 'mwallet_name_hint' | i18n }}</p>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
-            <input
-              matInput
-              [(ngModel)]="walletName"
-              (ngModelChange)="onWalletNameChange()"
-              autocomplete="off"
-              autocapitalize="none"
-              spellcheck="false"
-            />
-            @if (walletNameConflict()) {
-              <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
-            } @else if (walletNameInvalid()) {
-              <mat-error>{{ 'wallet_name_invalid_local' | i18n }}</mat-error>
-            } @else {
-              <mat-hint>{{ 'wallet_name_hint_local' | i18n }}</mat-hint>
-            }
-          </mat-form-field>
-
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>{{ 'mwallet_passphrase_optional' | i18n }}</mat-label>
             <input matInput type="password" [(ngModel)]="passphrase" autocomplete="off" />
@@ -180,9 +168,7 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
             mat-raised-button
             color="primary"
             class="full-width"
-            [disabled]="
-              !validation()?.valid || walletNameConflict() || walletNameInvalid() || importing()
-            "
+            [disabled]="!validation()?.valid || nameSection.hasError() || importing()"
             (click)="importWallet()"
           >
             @if (importing()) {
@@ -281,19 +267,6 @@ const ERROR_KEYS: Record<BtcxImportErrorCode, string> = {
         }
       }
 
-      .name-heading {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-
-        .name-icon {
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
-          color: #1976d2;
-        }
-      }
-
       .full-width {
         width: 100%;
       }
@@ -341,10 +314,8 @@ export class WalletImportDescriptorComponent implements OnInit, OnDestroy {
 
   /** Wallet name — pre-filled with the next free default; desktop rules. */
   walletName = '';
-  readonly walletNameConflict = signal(false);
-  readonly walletNameInvalid = signal(false);
   /** Registry names for suggestion + case-insensitive conflict checks. */
-  private readonly existingNames = signal<string[]>([]);
+  readonly existingNames = signal<string[]>([]);
 
   /** Latest validation verdict of the CURRENT paste (null while empty). */
   readonly validation = signal<BtcxImportValidation | null>(null);
@@ -393,12 +364,6 @@ export class WalletImportDescriptorComponent implements OnInit, OnDestroy {
     this.passphrase = '';
   }
 
-  /** Mirror the Rust-side naming rules before the commit (desktop parity). */
-  onWalletNameChange(): void {
-    this.walletNameConflict.set(isWalletNameTaken(this.walletName, this.existingNames()));
-    this.walletNameInvalid.set(isInvalidWalletName(this.walletName));
-  }
-
   /** Debounced live validation against the backend parser (offline). */
   onInputChange(): void {
     if (this.validateTimer) {
@@ -423,7 +388,12 @@ export class WalletImportDescriptorComponent implements OnInit, OnDestroy {
 
   async importWallet(): Promise<void> {
     if (!this.validation()?.valid || this.importing()) return;
-    if (this.walletNameConflict() || this.walletNameInvalid()) return;
+    if (
+      isWalletNameTaken(this.walletName, this.existingNames()) ||
+      isInvalidWalletName(this.walletName)
+    ) {
+      return;
+    }
     this.importing.set(true);
     this.importError.set(null);
     try {

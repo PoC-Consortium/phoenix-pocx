@@ -22,14 +22,17 @@ import {
   suggestWalletName,
 } from '../../wallet-name';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
+import { WalletNameSectionComponent } from '../../components/wallet-name-section/wallet-name-section.component';
 
 /**
  * WalletRestoreComponent - restore-from-mnemonic flow.
  *
- * The phrase is entered through the shared MnemonicEntryComponent (the
- * desktop import-wallet grid): 12/24-word selector, per-word BIP39
- * autocomplete and validation, checksum warning. The wallet name is
- * pre-filled with the next free default (desktop naming rules).
+ * The wallet name leads the page (owner rule, round 8: name first — the
+ * shared WalletNameSectionComponent), pre-filled with the next free
+ * default (desktop naming rules). The phrase is then entered through the
+ * shared MnemonicEntryComponent (the desktop import-wallet grid):
+ * 12/24-word selector, per-word BIP39 autocomplete and validation,
+ * checksum warning.
  *
  * The backend probes EVERY descriptor branch the seed's history could live
  * on (BIP-84/86 x BTCX-coin-type/legacy coin-0') against the configured
@@ -64,6 +67,7 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
     MnemonicEntryComponent,
     I18nPipe,
     PageHeaderComponent,
+    WalletNameSectionComponent,
   ],
   template: `
     <app-mwallet-page-header titleKey="mwallet_restore_wallet" />
@@ -147,8 +151,6 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         </div>
       } @else {
         <div class="card">
-          <p class="hint-text">{{ 'import_mnemonic_description' | i18n }}</p>
-
           @if (!wallet.hasElectrumServer()) {
             <div class="notice-box">
               <mat-icon class="notice-icon">cloud_off</mat-icon>
@@ -159,36 +161,20 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
               {{ 'mwallet_server_settings' | i18n }}
             </button>
           } @else {
+            <!-- Wallet name FIRST (owner rule, round 8) — shared section
+                 with the pre-filled default and live desktop naming rules. -->
+            <app-mwallet-name-section
+              #nameSection
+              [(name)]="walletName"
+              [existingNames]="existingNames()"
+              [disabled]="restoring()"
+            />
+
+            <p class="hint-text">{{ 'import_mnemonic_description' | i18n }}</p>
             <app-mnemonic-entry
               [disabled]="restoring()"
               (changed)="onMnemonicChanged($event)"
             ></app-mnemonic-entry>
-
-            <!-- Wallet name — its own labeled section so the pre-filled
-                 default is a conscious choice, not something to overlook. -->
-            <h3 class="name-heading">
-              <mat-icon class="name-icon">badge</mat-icon>
-              {{ 'wallet_name' | i18n }}
-            </h3>
-            <p class="hint-text small">{{ 'mwallet_name_hint' | i18n }}</p>
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
-              <input
-                matInput
-                [(ngModel)]="walletName"
-                (ngModelChange)="onWalletNameChange()"
-                autocomplete="off"
-                autocapitalize="none"
-                spellcheck="false"
-              />
-              @if (walletNameConflict()) {
-                <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
-              } @else if (walletNameInvalid()) {
-                <mat-error>{{ 'wallet_name_invalid_local' | i18n }}</mat-error>
-              } @else {
-                <mat-hint>{{ 'wallet_name_hint_local' | i18n }}</mat-hint>
-              }
-            </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ 'mwallet_passphrase_optional' | i18n }}</mat-label>
@@ -206,9 +192,7 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
               mat-raised-button
               color="primary"
               class="full-width"
-              [disabled]="
-                !mnemonicValid() || walletNameConflict() || walletNameInvalid() || restoring()
-              "
+              [disabled]="!mnemonicValid() || nameSection.hasError() || restoring()"
               (click)="restore()"
             >
               @if (restoring()) {
@@ -264,19 +248,6 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         color: #c62828;
         font-size: 13px;
         margin: 0 0 12px;
-      }
-
-      .name-heading {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-
-        .name-icon {
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
-          color: #1976d2;
-        }
       }
 
       .notice-box {
@@ -375,10 +346,8 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
 
   /** Wallet name — pre-filled with the next free default; desktop rules. */
   walletName = '';
-  readonly walletNameConflict = signal(false);
-  readonly walletNameInvalid = signal(false);
   /** Registry names for suggestion + case-insensitive conflict checks. */
-  private readonly existingNames = signal<string[]>([]);
+  readonly existingNames = signal<string[]>([]);
 
   /** Lower-cased, space-joined phrase from the shared entry grid. */
   private mnemonic = '';
@@ -484,12 +453,6 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
     this.heldPassphrase = '';
   }
 
-  /** Mirror the Rust-side naming rules before the commit (desktop parity). */
-  onWalletNameChange(): void {
-    this.walletNameConflict.set(isWalletNameTaken(this.walletName, this.existingNames()));
-    this.walletNameInvalid.set(isInvalidWalletName(this.walletName));
-  }
-
   onMnemonicChanged(state: MnemonicEntryState): void {
     this.mnemonic = state.mnemonic;
     this.mnemonicValid.set(state.valid);
@@ -497,7 +460,12 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
 
   async restore(): Promise<void> {
     if (!this.mnemonicValid() || this.restoring()) return;
-    if (this.walletNameConflict() || this.walletNameInvalid()) return;
+    if (
+      isWalletNameTaken(this.walletName, this.existingNames()) ||
+      isInvalidWalletName(this.walletName)
+    ) {
+      return;
+    }
     this.restoring.set(true);
     this.restoreError.set(null);
     try {
