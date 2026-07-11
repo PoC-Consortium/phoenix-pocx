@@ -49,15 +49,22 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
             </div>
           </div>
 
-          <button
-            mat-stroked-button
-            class="full-width"
-            [disabled]="loading()"
-            (click)="newAddress()"
-          >
-            <mat-icon>refresh</mat-icon>
-            {{ 'generate_new_address' | i18n }}
-          </button>
+          @if (wallet.singleAddress()) {
+            <!-- Single-address (wpkh(WIF)) wallet: there IS no other
+                 address — "new address" would hand back the same one, so
+                 the button gives way to an honest hint. -->
+            <p class="single-hint">{{ 'mwallet_receive_single_hint' | i18n }}</p>
+          } @else {
+            <button
+              mat-stroked-button
+              class="full-width"
+              [disabled]="loading()"
+              (click)="newAddress()"
+            >
+              <mat-icon>refresh</mat-icon>
+              {{ 'generate_new_address' | i18n }}
+            </button>
+          }
         } @else if (loading()) {
           <div class="loading-inline">
             <mat-spinner diameter="28"></mat-spinner>
@@ -156,6 +163,12 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         margin: 0 0 12px;
       }
 
+      .single-hint {
+        color: rgba(0, 0, 0, 0.6);
+        font-size: 12px;
+        margin: 0;
+      }
+
       .full-width {
         width: 100%;
       }
@@ -172,12 +185,16 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         .address-value {
           color: #90caf9;
         }
+
+        .single-hint {
+          color: rgba(255, 255, 255, 0.6);
+        }
       }
     `,
   ],
 })
 export class WalletReceiveComponent implements OnInit {
-  private readonly wallet = inject(BtcxWalletService);
+  readonly wallet = inject(BtcxWalletService);
   private readonly clipboard = inject(ClipboardService);
 
   readonly address = signal('');

@@ -284,6 +284,11 @@ interface NavGroup {
                             'mwallet_segwit_badge' | i18n
                           }}</span>
                         }
+                        @if (w.singleAddress) {
+                          <span class="wallet-row-badge single">{{
+                            'mwallet_single_badge' | i18n
+                          }}</span>
+                        }
                         @if (w.seedEncrypted && w.seedLocked) {
                           <mat-icon class="wallet-row-lock">lock</mat-icon>
                         }
@@ -659,6 +664,11 @@ interface NavGroup {
           /* Imported pre-segwit (pkh / sh-wpkh) wallets: amber hue. */
           &.legacy {
             color: #b26a00;
+          }
+
+          /* Single-address (wpkh(WIF)) wallets: teal hue, beside segwit. */
+          &.single {
+            color: #00796b;
           }
         }
 

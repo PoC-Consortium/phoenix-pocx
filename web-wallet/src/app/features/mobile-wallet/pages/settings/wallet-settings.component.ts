@@ -142,9 +142,9 @@ const DRAG_SLOP_PX = 8;
                 <div class="row-main">
                   <span class="row-name">{{ w.name }}</span>
                   <!-- Same badge family as the switcher menu: taproot
-                       purple, segwit neutral, legacy amber; imported
-                       (descriptor-source) wallets carry a subtle second
-                       marker. -->
+                       purple, segwit neutral, legacy amber, single-address
+                       teal; imported (descriptor-source) wallets carry a
+                       subtle second marker. -->
                   <div class="row-badges">
                     <span
                       class="row-badge"
@@ -160,6 +160,11 @@ const DRAG_SLOP_PX = 8;
                         ) | i18n
                       }}
                     </span>
+                    @if (w.singleAddress) {
+                      <span class="row-badge single">
+                        {{ 'mwallet_single_badge' | i18n }}
+                      </span>
+                    }
                     @if (w.source === 'descriptor') {
                       <span class="row-badge imported">
                         {{ 'mwallet_imported_badge' | i18n }}
@@ -470,6 +475,11 @@ const DRAG_SLOP_PX = 8;
             /* Pre-segwit imports: same family, amber hue. */
             &.legacy {
               color: #b26a00;
+            }
+
+            /* Single-address (wpkh(WIF)) wallets: teal hue. */
+            &.single {
+              color: #00796b;
             }
 
             /* Descriptor-source marker: quieter than the kind badge. */
