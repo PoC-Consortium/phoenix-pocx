@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bitcoin wallet: the seed mnemonic and wallet database live in the app's
+  private files. Exclude EVERYTHING from both Android 12+ (API 31+) data
+  extraction paths so no wallet material can leave the device:
+    - cloud-backup:    Google Auto Backup / cloud device-to-device restore
+    - device-transfer: local device-to-device migration
+  This is the Android 12+ complement to android:allowBackup="false" (which
+  governs the legacy Auto Backup path only). Together they close the
+  seed-exfiltration surface that ships open by default.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="." />
+    </device-transfer>
+</data-extraction-rules>

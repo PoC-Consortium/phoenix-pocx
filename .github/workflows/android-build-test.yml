@@ -74,14 +74,31 @@ jobs:
 
           # Wallet app: the seed lives in app data — keep it out of Google
           # Auto-Backup and device-to-device migration (Android defaults
-          # allowBackup to true when unset).
-          sed -i 's|<application|<application android:allowBackup="false" tools:replace="android:allowBackup"|' "$MANIFEST"
+          # allowBackup to true when unset). dataExtractionRules additionally
+          # covers the Android 12+ (API 31+) device-transfer path that
+          # allowBackup alone does not.
+          sed -i 's|<application|<application android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" tools:replace="android:allowBackup"|' "$MANIFEST"
 
           # Add Samsung DeX meta-data for better process survival on Samsung devices
           sed -i '/<\/application>/i\        <meta-data android:name="com.samsung.android.keepalive.density" android:value="true" />\n        <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true" />\n        <meta-data android:name="com.sec.android.support.multiwindow" android:value="true" />' "$MANIFEST"
 
+          # Ship the data-extraction rules the manifest now references:
+          # exclude every app file from BOTH cloud-backup and device-transfer
+          # (Android 12+). Copied from the in-repo template so the rules stay
+          # reviewable — the same template-copy pattern as build.gradle.kts.
+          RES_XML="web-wallet/src-tauri/gen/android/app/src/main/res/xml"
+          mkdir -p "$RES_XML"
+          cp web-wallet/src-tauri/android-template/data_extraction_rules.xml \
+             "$RES_XML/data_extraction_rules.xml"
+
           echo "Modified manifest:"
           cat "$MANIFEST"
+
+          # Build assertions: a tauri/template change must NEVER silently
+          # reship backups. Fail the build if any backup guard is missing.
+          grep -q 'allowBackup="false"' "$MANIFEST" || { echo "allowBackup patch missing"; exit 1; }
+          grep -q 'android:dataExtractionRules="@xml/data_extraction_rules"' "$MANIFEST" || { echo "dataExtractionRules patch missing"; exit 1; }
+          test -f "$RES_XML/data_extraction_rules.xml" || { echo "data_extraction_rules.xml missing"; exit 1; }
 
       - name: Setup Android signing
         run: |
