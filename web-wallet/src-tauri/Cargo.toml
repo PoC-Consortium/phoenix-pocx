@@ -1,6 +1,6 @@
-[package]
+﻿[package]
 name = "phoenix-pocx"
-version = "2.0.5"
+version = "2.1.0"
 description = "Phoenix PoCX Wallet - Bitcoin-PoCX Desktop Wallet"
 authors = ["The Proof of Capacity Consortium <development@pocx.io>"]
 license = "GPL-3.0"
@@ -67,9 +67,9 @@ electrum-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "f1e2168
 wallet-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "f1e216897bae629a251f4bd83f95bb71b4ffb06e" }
 bitcoin = { version = "0.32", features = ["serde", "rand-std"] }
 bdk_wallet = { version = "2", features = ["rusqlite"] }
-# bech32 with custom HRPs (pocx/tpocx/rpocx) — same version the btcx crates use
+# bech32 with custom HRPs (pocx/tpocx/rpocx) â€” same version the btcx crates use
 bech32 = "0.11"
-# Descriptor-at-rest wraps for imported wallets (btcx_wallet::descstore) —
+# Descriptor-at-rest wraps for imported wallets (btcx_wallet::descstore) â€”
 # the same primitives and parameters seedstore uses for seed.mnemonic.
 scrypt = "0.11"
 chacha20poly1305 = "0.10"
@@ -115,7 +115,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 tempfile = "3"
 
 # tauri-plugin-sql (sqlx) links libsqlite3-sys 0.30.x while bdk_chain 0.23
-# asks for rusqlite 0.31 (libsqlite3-sys 0.28) — two versions of a `links =
+# asks for rusqlite 0.31 (libsqlite3-sys 0.28) â€” two versions of a `links =
 # "sqlite3"` crate cannot coexist in one build graph. The vendored bdk_chain
 # is byte-identical to crates.io 0.23.3 except its rusqlite requirement is
 # bumped to 0.32.1, which uses exactly the libsqlite3-sys 0.30.1 that sqlx
