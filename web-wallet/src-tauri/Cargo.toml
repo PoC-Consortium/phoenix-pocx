@@ -1,4 +1,4 @@
-﻿[package]
+[package]
 name = "phoenix-pocx"
 version = "2.1.0"
 description = "Phoenix PoCX Wallet - Bitcoin-PoCX Desktop Wallet"

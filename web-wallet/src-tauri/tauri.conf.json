@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Phoenix PoCX Wallet",
   "version": "2.1.0",
