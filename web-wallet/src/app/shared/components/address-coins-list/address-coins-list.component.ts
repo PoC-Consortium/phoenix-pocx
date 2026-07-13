@@ -100,7 +100,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
                 }}</span>
                 @if (row.exposed) {
                   <span class="reused-chip" [matTooltip]="'address_exposed_hint' | i18n">
-                    <mat-icon class="reused-icon">lock_open</mat-icon>
+                    <mat-icon class="reused-icon">key</mat-icon>
                     {{ 'address_exposed' | i18n }}
                   </span>
                 }

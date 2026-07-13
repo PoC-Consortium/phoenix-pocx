@@ -87,24 +87,13 @@ interface NavGroup {
         <!-- Wallet Info -->
         <div class="wallet-info">
           <div class="wallet-name">{{ currentWalletName() }}</div>
-          <div class="wallet-balance-row">
-            <app-balance-display
-              [amount]="currentBalance()"
-              [shortForm]="true"
-              [noSeparator]="true"
-              size="normal"
-            >
-            </app-balance-display>
-            <button
-              mat-icon-button
-              class="balance-details-btn"
-              routerLink="/coins"
-              (click)="isMobile() && sidenav.close()"
-              [matTooltip]="'coins_title' | i18n"
-            >
-              <mat-icon>toll</mat-icon>
-            </button>
-          </div>
+          <app-balance-display
+            [amount]="currentBalance()"
+            [shortForm]="true"
+            [noSeparator]="true"
+            size="normal"
+          >
+          </app-balance-display>
         </div>
 
         <!-- Navigation with Categories -->
@@ -310,29 +299,6 @@ interface NavGroup {
           font-size: 12px;
           opacity: 0.8;
           margin-bottom: 4px;
-        }
-
-        .wallet-balance-row {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-
-          .balance-details-btn {
-            width: 28px;
-            height: 28px;
-            line-height: 28px;
-            opacity: 0.7;
-
-            mat-icon {
-              font-size: 18px;
-              width: 18px;
-              height: 18px;
-            }
-
-            &:hover {
-              opacity: 1;
-            }
-          }
         }
 
         // Increase balance display size
