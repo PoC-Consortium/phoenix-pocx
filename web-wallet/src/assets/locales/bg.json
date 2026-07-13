@@ -1232,5 +1232,8 @@
   "setup_solo_not_available_remote": "Соло копаенето изисква локален възел — не е налично в отдалечен режим (Electrum)",
   "move_up": "Преместване нагоре",
   "move_down": "Преместване надолу",
-  "mwallet_about_title": "About"
+  "mwallet_about_title": "About",
+  "node_indicator_peers": "Node connected · {count} peers",
+  "node_indicator_no_peers": "Node connected · 0 peers — may be isolated on its own fork",
+  "node_indicator_disconnected": "Node not connected"
 }

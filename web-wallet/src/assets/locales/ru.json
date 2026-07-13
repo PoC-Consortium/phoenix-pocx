@@ -1232,5 +1232,8 @@
   "setup_solo_not_available_remote": "Соло-майнингу нужен локальный узел — недоступно в удалённом режиме (Electrum)",
   "move_up": "Переместить вверх",
   "move_down": "Переместить вниз",
-  "mwallet_about_title": "About"
+  "mwallet_about_title": "About",
+  "node_indicator_peers": "Node connected · {count} peers",
+  "node_indicator_no_peers": "Node connected · 0 peers — may be isolated on its own fork",
+  "node_indicator_disconnected": "Node not connected"
 }

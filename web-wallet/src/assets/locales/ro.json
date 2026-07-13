@@ -1232,5 +1232,8 @@
   "setup_solo_not_available_remote": "Mineritul solo necesită un nod local — indisponibil în modul la distanță (Electrum)",
   "move_up": "Mută în sus",
   "move_down": "Mută în jos",
-  "mwallet_about_title": "About"
+  "mwallet_about_title": "About",
+  "node_indicator_peers": "Node connected · {count} peers",
+  "node_indicator_no_peers": "Node connected · 0 peers — may be isolated on its own fork",
+  "node_indicator_disconnected": "Node not connected"
 }

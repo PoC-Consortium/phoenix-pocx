@@ -1232,5 +1232,8 @@
   "setup_solo_not_available_remote": "独立挖矿需要本地节点——在远程（Electrum）模式下不可用",
   "move_up": "上移",
   "move_down": "下移",
-  "mwallet_about_title": "About"
+  "mwallet_about_title": "About",
+  "node_indicator_peers": "Node connected · {count} peers",
+  "node_indicator_no_peers": "Node connected · 0 peers — may be isolated on its own fork",
+  "node_indicator_disconnected": "Node not connected"
 }

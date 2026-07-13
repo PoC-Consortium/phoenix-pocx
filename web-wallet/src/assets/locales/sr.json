@@ -1232,5 +1232,8 @@
   "setup_solo_not_available_remote": "Соло рударење захтева локални чвор — није доступно у удаљеном (Electrum) режиму",
   "move_up": "Помери горе",
   "move_down": "Помери доле",
-  "mwallet_about_title": "About"
+  "mwallet_about_title": "About",
+  "node_indicator_peers": "Node connected · {count} peers",
+  "node_indicator_no_peers": "Node connected · 0 peers — may be isolated on its own fork",
+  "node_indicator_disconnected": "Node not connected"
 }
