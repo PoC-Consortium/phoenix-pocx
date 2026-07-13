@@ -308,7 +308,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                 matInput
                 type="number"
                 [(ngModel)]="customFeeRate"
-                [min]="minFeeRate()"
+                min="0.1"
                 step="0.001"
                 autocomplete="off"
               />
