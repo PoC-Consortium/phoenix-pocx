@@ -31,6 +31,14 @@ export interface WalletBackend {
   /** Spendable outputs in the Core `listunspent` shape. */
   listUnspent(walletName: string): Promise<UTXO[]>;
 
+  /**
+   * Spendable coins with per-address change classification — the
+   * "Coins & Addresses" view. Distinct from `listUnspent` in that it
+   * carries `isChange`, resolved per source (Core `getaddressinfo`, BDK
+   * `keychain`).
+   */
+  listCoins(walletName: string): Promise<WalletCoin[]>;
+
   /** Send `amount` BTC to `address`; returns the txid. */
   sendToAddress(
     walletName: string,
@@ -47,6 +55,21 @@ export interface WalletBackend {
 
   /** What this backend can do — pages hide actions the backend lacks. */
   readonly capabilities: WalletCapabilities;
+}
+
+/**
+ * One spendable coin (UTXO) with the fields the coins view needs: the
+ * funding address and whether it belongs to the change keychain.
+ */
+export interface WalletCoin {
+  txid: string;
+  vout: number;
+  address: string;
+  /** Amount in BTC. */
+  amount: number;
+  confirmations: number;
+  isChange: boolean;
+  spendable: boolean;
 }
 
 /** Balance snapshot in BTC. */

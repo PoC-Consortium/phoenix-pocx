@@ -1237,5 +1237,14 @@
   "node_indicator_no_peers": "Node connected · 0 peers — may be isolated on its own fork",
   "node_indicator_disconnected": "Node not connected",
   "export_csv": "Export CSV",
-  "label": "Label"
+  "label": "Label",
+  "coins_title": "Coins & Addresses",
+  "coins_intro": "Your wallet spreads funds across many addresses for privacy — this is normal. Nothing is lost; your balance is simply the sum of the coins below.",
+  "coins_empty": "No coins yet. Received funds will appear here, grouped by address.",
+  "coins_view_hint": "View your coins grouped by address",
+  "coin_count": "{count} coins",
+  "address_kind_receive": "Receive",
+  "address_kind_change": "Change",
+  "address_tiny_utxo": "Tiny amount",
+  "address_tiny_utxo_hint": "Holds a very small output that may cost more in fees to spend than it is worth."
 }

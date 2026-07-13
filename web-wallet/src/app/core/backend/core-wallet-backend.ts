@@ -11,6 +11,7 @@ import {
   WalletBackendFeeEstimates,
   WalletBackendSendOptions,
   WalletCapabilities,
+  WalletCoin,
   CoreAddressType,
   CORE_CAPABILITIES,
 } from './wallet-backend.model';
@@ -60,6 +61,31 @@ export class CoreWalletBackend implements WalletBackend {
 
   async listUnspent(walletName: string): Promise<UTXO[]> {
     return this.walletRpc.listUnspent(walletName);
+  }
+
+  async listCoins(walletName: string): Promise<WalletCoin[]> {
+    const utxos = await this.walletRpc.listUnspent(walletName);
+    // Resolve change classification once per unique funded address.
+    const uniq = [...new Set(utxos.map(u => u.address))];
+    const change = new Map<string, boolean>();
+    await Promise.all(
+      uniq.map(async a => {
+        try {
+          change.set(a, (await this.walletRpc.getAddressInfo(walletName, a)).ischange);
+        } catch {
+          change.set(a, false);
+        }
+      })
+    );
+    return utxos.map(u => ({
+      txid: u.txid,
+      vout: u.vout,
+      address: u.address,
+      amount: u.amount,
+      confirmations: u.confirmations,
+      isChange: change.get(u.address) ?? false,
+      spendable: u.spendable,
+    }));
   }
 
   async sendToAddress(

@@ -8,6 +8,7 @@ import {
   WalletBackendFeeEstimates,
   WalletBackendSendOptions,
   WalletCapabilities,
+  WalletCoin,
   ELECTRUM_CAPABILITIES,
 } from './wallet-backend.model';
 
@@ -108,6 +109,21 @@ export class ElectrumWalletBackend implements WalletBackend {
   async listUnspent(): Promise<UTXO[]> {
     const utxos = await invoke<BtcxUtxoDto[]>('btcx_wallet_utxos');
     return utxos.map(mapBtcxUtxo);
+  }
+
+  async listCoins(): Promise<WalletCoin[]> {
+    // Map the raw DTO directly — it already carries `isChange` (which
+    // `mapBtcxUtxo`'s Core `UTXO` shape drops).
+    const utxos = await invoke<BtcxUtxoDto[]>('btcx_wallet_utxos');
+    return utxos.map(u => ({
+      txid: u.txid,
+      vout: u.vout,
+      address: u.address ?? '',
+      amount: u.amountSat / SATS_PER_BTC,
+      confirmations: u.confirmations,
+      isChange: u.isChange,
+      spendable: true,
+    }));
   }
 
   async sendToAddress(

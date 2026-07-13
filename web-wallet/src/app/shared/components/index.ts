@@ -24,6 +24,12 @@ export { UpdateDialogComponent } from './update-dialog/update-dialog.component';
 
 // Display Components
 export { AddressDisplayComponent } from './address-display/address-display.component';
+export {
+  AddressCoinsListComponent,
+  aggregateCoins,
+  DUST_BTC,
+} from './address-coins-list/address-coins-list.component';
+export type { AddressBalance } from './address-coins-list/address-coins-list.component';
 export { BalanceDisplayComponent } from './balance-display/balance-display.component';
 export { ElectrumServerListComponent } from './electrum-server-list/electrum-server-list.component';
 export { EmptyStateComponent } from './empty-state/empty-state.component';

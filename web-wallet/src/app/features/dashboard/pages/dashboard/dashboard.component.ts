@@ -122,7 +122,11 @@ import {
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <div class="total-balance">
+          <div
+            class="total-balance clickable"
+            (click)="goToCoins()"
+            [matTooltip]="'coins_view_hint' | i18n"
+          >
             <span class="amount">{{ getTotalAll() | btcx }}</span>
             <span class="unit">BTCX</span>
           </div>
@@ -591,6 +595,10 @@ import {
           gap: 8px;
           margin-bottom: 12px;
           white-space: nowrap;
+
+          &.clickable {
+            cursor: pointer;
+          }
 
           .amount {
             font-size: 32px;
@@ -1175,6 +1183,11 @@ export class DashboardComponent implements AfterViewInit {
   // Balance methods
   getTotalAll(): number {
     return this.totalBalance() + this.pendingBalance() + this.immatureBalance();
+  }
+
+  /** Open the per-address "Coins & Addresses" view. */
+  goToCoins(): void {
+    void this.router.navigate(['/coins']);
   }
 
   // Blockchain info methods

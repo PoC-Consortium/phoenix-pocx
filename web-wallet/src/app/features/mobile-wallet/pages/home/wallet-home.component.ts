@@ -151,7 +151,11 @@ import {
             <mat-icon>account_balance_wallet</mat-icon>
             {{ 'total_balance' | i18n }}
           </div>
-          <div class="total-balance">
+          <div
+            class="total-balance clickable"
+            routerLink="/wallet/coins"
+            [title]="'coins_view_hint' | i18n"
+          >
             <span class="amount">{{ (balance()?.totalSat ?? 0) / 100000000 | btcx }}</span>
             <span class="unit">BTCX</span>
           </div>
@@ -370,6 +374,10 @@ import {
         gap: 8px;
         margin-bottom: 10px;
         white-space: nowrap;
+
+        &.clickable {
+          cursor: pointer;
+        }
 
         .amount {
           font-size: 28px;
