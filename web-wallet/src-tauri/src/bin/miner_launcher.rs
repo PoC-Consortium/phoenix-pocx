@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
-    let main_app_name = "Phoenix PoCX Wallet.app";
+    let main_app_name = "Phoenix Wallet.app";
 
     // Get the path to this executable
     let exe_path = env::current_exe().unwrap_or_default();
@@ -53,7 +53,7 @@ fn main() {
             }
         }
         None => {
-            show_error("Phoenix PoCX Wallet is required but not found.\n\nPlease install the main wallet application first.");
+            show_error("Phoenix Wallet is required but not found.\n\nPlease install the main wallet application first.");
         }
     }
 }

@@ -1,4 +1,4 @@
-// Windows resource file for Phoenix PoCX Wallet
+// Windows resource file for Phoenix Wallet
 // Embeds the application manifest for UAC elevation
 
 #include <windows.h>

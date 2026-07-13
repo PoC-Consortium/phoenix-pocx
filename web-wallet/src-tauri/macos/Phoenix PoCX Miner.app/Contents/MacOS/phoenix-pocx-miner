@@ -2,7 +2,7 @@
 # Phoenix PoCX Miner Launcher
 # Launches the main wallet app in mining-only mode
 
-MAIN_APP_NAME="Phoenix PoCX Wallet.app"
+MAIN_APP_NAME="Phoenix Wallet.app"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
 
@@ -24,5 +24,5 @@ fi
 if [ -n "$MAIN_APP" ]; then
     open -a "$MAIN_APP" --args --mining-only
 else
-    osascript -e 'display dialog "Phoenix PoCX Wallet is required but not found.\n\nPlease install the main wallet application first." buttons {"OK"} default button "OK" with icon stop with title "Phoenix PoCX Miner"'
+    osascript -e 'display dialog "Phoenix Wallet is required but not found.\n\nPlease install the main wallet application first." buttons {"OK"} default button "OK" with icon stop with title "Phoenix PoCX Miner"'
 fi

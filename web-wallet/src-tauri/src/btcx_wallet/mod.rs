@@ -1,4 +1,4 @@
-//! Nodeless BTCX wallet module for Phoenix PoCX Wallet
+//! Nodeless BTCX wallet module for Phoenix Wallet
 //!
 //! A self-contained on-chain wallet that needs NO local bitcoind: a BIP39
 //! seed stored encrypted-at-rest (`seedstore`), a bdk wallet derived at the

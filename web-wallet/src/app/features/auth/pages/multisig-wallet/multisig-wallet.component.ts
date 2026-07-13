@@ -1027,7 +1027,7 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   saveDescriptorBackup(): void {
     const { publicReceiveDescriptor, publicChangeDescriptor } = this.buildDescriptors();
     const content = [
-      `# Phoenix PoCX multisig descriptor backup`,
+      `# Phoenix multisig descriptor backup`,
       `# Wallet: ${this.walletName}`,
       `# Policy: ${this.threshold} of ${this.totalKeys} (P2WSH sortedmulti)`,
       `# Restoring requires a participant seed AND these descriptors (all xpubs).`,

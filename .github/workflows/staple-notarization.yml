@@ -49,7 +49,7 @@ jobs:
             TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName')
           fi
           VERSION="${TAG#v}"
-          DMG_NAME="Phoenix-PoCX-Wallet-${VERSION}-macOS-${{ matrix.arch_name }}.dmg"
+          DMG_NAME="Phoenix-Wallet-${VERSION}-macOS-${{ matrix.arch_name }}.dmg"
 
           gh release download "$TAG" \
             --repo ${{ github.repository }} \
@@ -70,7 +70,7 @@ jobs:
             RUN_ID=$(gh run list --repo ${{ github.repository }} --workflow "desktop-build-test.yml" --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
 
-          ARTIFACT_NAME="Phoenix-PoCX-Wallet-${{ matrix.label }}-test"
+          ARTIFACT_NAME="Phoenix-Wallet-${{ matrix.label }}-test"
           echo "Downloading artifact $ARTIFACT_NAME from run $RUN_ID..."
 
           gh run download "$RUN_ID" \
@@ -160,6 +160,6 @@ jobs:
         if: inputs.source == 'artifact'
         uses: actions/upload-artifact@v4
         with:
-          name: Phoenix-PoCX-Wallet-${{ matrix.label }}-notarized
+          name: Phoenix-Wallet-${{ matrix.label }}-notarized
           path: ${{ env.DMG_NAME }}
           retention-days: 14

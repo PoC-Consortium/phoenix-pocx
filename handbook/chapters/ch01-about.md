@@ -1,6 +1,6 @@
 # About this Handbook
 
-Welcome to the *Phoenix PoCX Wallet User Handbook*. This guide walks you through everything you need to use Phoenix PoCX with confidence — from installing the wallet for the first time to running a fully configured mining rig.
+Welcome to the *Phoenix Wallet User Handbook*. This guide walks you through everything you need to use Phoenix with confidence — from installing the wallet for the first time to running a fully configured mining rig.
 
 ## Who this handbook is for
 
@@ -62,15 +62,15 @@ Throughout the handbook, screenshots illustrate the screens and dialogs being de
 
 ## Versions covered
 
-This handbook describes **Phoenix PoCX Wallet, Version 2.0**, released in May 2026. Both the wallet and the underlying Bitcoin-PoCX network evolve over time, so some screens and labels may differ slightly from those shown here. For the current state of the project, refer to the official repository.
+This handbook describes **Phoenix Wallet, Version 2.0**, released in May 2026. Both the wallet and the underlying Bitcoin-PoCX network evolve over time, so some screens and labels may differ slightly from those shown here. For the current state of the project, refer to the official repository.
 
 ## A word on safety
 
-Phoenix PoCX manages real funds. You alone hold the keys to your wallet, which means you alone are responsible for keeping those funds safe. Two rules are non-negotiable.
+Phoenix manages real funds. You alone hold the keys to your wallet, which means you alone are responsible for keeping those funds safe. Two rules are non-negotiable.
 
 > **Warning** — **Write down your recovery phrase the moment your wallet is created, and store it somewhere offline.** Anyone who has the phrase can move your funds. If you lose the phrase and also lose access to this device, the funds cannot be recovered.
 
-> **Warning** — **Never type or paste your recovery phrase into any website, chat, e-mail, or support form.** No member of the Phoenix PoCX project, no exchange, and no support agent will ever ask for it. Anyone who does is trying to steal from you.
+> **Warning** — **Never type or paste your recovery phrase into any website, chat, e-mail, or support form.** No member of the Phoenix project, no exchange, and no support agent will ever ask for it. Anyone who does is trying to steal from you.
 
 Chapter 11 — *Backup, Security & Recovery* — covers these topics in depth.
 

@@ -7,7 +7,7 @@ Short answers to the questions that come up most often. Each points to the chapt
 **What is Bitcoin-PoCX, in one sentence?**
 A fork of Bitcoin that replaces proof-of-work mining with *proof-of-capacity* — you commit disk space instead of computing power. See Chapter 2.
 
-**Is Phoenix PoCX a wallet or a miner?**
+**Is Phoenix a wallet or a miner?**
 Both, in one application. You can use it purely as a wallet, purely as a miner, or both at once. The wallet half is Parts I–II; mining is Part III. See Chapter 2.
 
 **Do I need to understand the technical details to use it?**

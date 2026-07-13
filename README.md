@@ -1,4 +1,4 @@
-# Phoenix PoCX Wallet
+# Phoenix Wallet
 
 A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 

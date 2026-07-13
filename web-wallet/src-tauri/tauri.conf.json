@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Phoenix PoCX Wallet",
+  "productName": "Phoenix Wallet",
   "version": "2.1.2",
   "identifier": "org.pocx.phoenix",
   "build": {
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Phoenix PoCX Wallet",
+        "title": "Phoenix Wallet",
         "width": 1400,
         "height": 900,
         "resizable": true,

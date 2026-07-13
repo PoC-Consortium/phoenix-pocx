@@ -1,4 +1,4 @@
-//! Aggregator module for Phoenix PoCX Wallet
+//! Aggregator module for Phoenix Wallet
 //!
 //! This module provides integration between the Tauri frontend and the
 //! pocx_aggregator library for running a local aggregator node.

@@ -40,7 +40,7 @@ import { getDefaultRpcPort } from '../../../store/settings/settings.state';
   template: `
     <div class="setup-container">
       <div class="logo-container">
-        <img src="assets/images/logos/phoenix_trans.svg" alt="Phoenix PoCX" class="logo" />
+        <img src="assets/images/logos/phoenix_trans.svg" alt="Phoenix" class="logo" />
       </div>
 
       <div class="setup-box">

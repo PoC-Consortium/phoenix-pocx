@@ -1,12 +1,12 @@
-# Introducing Phoenix PoCX
+# Introducing Phoenix
 
 This chapter introduces the wallet, the network it connects to, and the handful of ideas that explain how Bitcoin-PoCX actually works. If terms like *plotting*, *forging*, or *proof-of-capacity* are new to you, this is the right place to start — everything else in the handbook builds on what is covered here.
 
-If you are already familiar with proof-of-capacity mining, feel free to skim this chapter and continue to Chapter 3 (*Installing Phoenix PoCX*).
+If you are already familiar with proof-of-capacity mining, feel free to skim this chapter and continue to Chapter 3 (*Installing Phoenix*).
 
-## What Phoenix PoCX is
+## What Phoenix is
 
-**Phoenix PoCX** is a desktop and mobile wallet for the Bitcoin-PoCX network. From a single application you can:
+**Phoenix** is a desktop and mobile wallet for the Bitcoin-PoCX network. From a single application you can:
 
 - Create a wallet, back it up, and restore it from a recovery phrase.
 - Send and receive **BTCX**, the native currency unit of Bitcoin-PoCX.
@@ -16,7 +16,7 @@ If you are already familiar with proof-of-capacity mining, feel free to skim thi
 - Create and manage *forging assignments*, the mechanism Bitcoin-PoCX uses to delegate forging rights between addresses.
 - Coordinate multiple mining machines from a single Phoenix instance using the built-in **aggregator**.
 
-Phoenix PoCX combines features that traditionally come from several different programs — a wallet, a node, a plotter, and a miner — into a single window. Whether you want to use it only as a wallet, only for mining, or as both at the same time, the application adapts to what you need.
+Phoenix combines features that traditionally come from several different programs — a wallet, a node, a plotter, and a miner — into a single window. Whether you want to use it only as a wallet, only for mining, or as both at the same time, the application adapts to what you need.
 
 It runs on Windows, macOS, and Linux as a full-featured desktop application, and on Android as a full **wallet and miner** — holding its own wallets and mining into them without a local node, syncing over Electrum servers instead. Android is covered separately in Chapter 23.
 
@@ -58,7 +58,7 @@ When a new block arrives, your miner produces a *deadline* for it. The deadline 
 - Larger plots produce smaller deadlines on average, because more disk space means more chances for any single block to land on a low value.
 - A run of unlucky deadlines is normal — proof-of-capacity rewards are inherently bursty for small miners. Over time, however, your share of blocks tends towards your share of the network's total disk space.
 
-You will see deadlines reported throughout Phoenix PoCX's mining dashboard, often alongside an *effective capacity* number — an estimate, derived from your recent deadlines, of how much usable plot space your miner appears to have.
+You will see deadlines reported throughout Phoenix's mining dashboard, often alongside an *effective capacity* number — an estimate, derived from your recent deadlines, of how much usable plot space your miner appears to have.
 
 ### Solo and pool mining
 
@@ -67,7 +67,7 @@ You can earn block rewards in two ways.
 - **Solo mining.** You forge against the network on your own. When *your* plot wins a block, you receive the *full* reward. With a small plot, you may go a long time between wins; but every win is large.
 - **Pool mining.** Many miners contribute their plots to a shared pool. The pool earns rewards collectively and distributes them in proportion to each miner's contribution. Wins arrive far more frequently, and each individual share is correspondingly smaller.
 
-Phoenix PoCX supports both. Part III explains when to prefer one over the other and how to configure each.
+Phoenix supports both. Part III explains when to prefer one over the other and how to configure each.
 
 ### Forging assignments: letting someone else forge for you
 
@@ -85,7 +85,7 @@ Chapter 19 covers assignments in depth, including how to create, check, and revo
 
 ## The pieces of the system
 
-When you run Phoenix PoCX as a complete mining setup, several cooperating components are at work. You do not need to start, stop, or configure them individually — Phoenix manages all of them from one window — but it is helpful to know what each one does.
+When you run Phoenix as a complete mining setup, several cooperating components are at work. You do not need to start, stop, or configure them individually — Phoenix manages all of them from one window — but it is helpful to know what each one does.
 
 | Component                    | What it does                                                                                                                                                              |
 |------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -115,6 +115,6 @@ Chapter 14 (*Hardware Planning*) goes into specifics: how much storage is enough
 
 ## What's next
 
-You now have a working mental model of Phoenix PoCX, Bitcoin-PoCX, and proof-of-capacity. The next chapter walks you through installing the wallet on your operating system. From there, Chapter 4 takes you through your first launch, and Chapter 5 helps you create your first wallet.
+You now have a working mental model of Phoenix, Bitcoin-PoCX, and proof-of-capacity. The next chapter walks you through installing the wallet on your operating system. From there, Chapter 4 takes you through your first launch, and Chapter 5 helps you create your first wallet.
 
 If your end goal is to mine, complete Chapters 3 through 5 first to get the wallet working — then jump ahead to Part III, where the mining and plotting chapters begin.

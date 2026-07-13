@@ -1,4 +1,4 @@
-//! Mining module for Phoenix PoCX Wallet
+//! Mining module for Phoenix Wallet
 //!
 //! This module provides integration between the Tauri frontend and the
 //! pocx_miner and pocx_plotter libraries.

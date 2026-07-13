@@ -1,4 +1,4 @@
-# Phoenix PoCX Wallet (v2)
+# Phoenix Wallet (v2)
 
 Angular 21 + Tauri 2 implementation of the Phoenix Bitcoin-PoCX Wallet.
 
