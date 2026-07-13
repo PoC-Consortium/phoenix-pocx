@@ -77,6 +77,20 @@ export class CoreWalletBackend implements WalletBackend {
         }
       })
     );
+    // Address reuse: listreceivedbyaddress groups all received funds per
+    // address, so an entry with more than one txid was paid in more than one
+    // transaction. minconf=0 counts unconfirmed receives too; include_empty
+    // stays false (only funded addresses matter here). Best-effort — leave
+    // reuse unflagged if the RPC is unavailable.
+    const reused = new Set<string>();
+    try {
+      const received = await this.walletRpc.listReceivedByAddress(walletName, 0, false);
+      for (const r of received) {
+        if (r.txids.length > 1) reused.add(r.address);
+      }
+    } catch {
+      // ignore — coins still render without the reuse flag.
+    }
     return utxos.map(u => ({
       txid: u.txid,
       vout: u.vout,
@@ -85,6 +99,7 @@ export class CoreWalletBackend implements WalletBackend {
       confirmations: u.confirmations,
       isChange: change.get(u.address) ?? false,
       spendable: u.spendable,
+      reused: reused.has(u.address),
     }));
   }
 

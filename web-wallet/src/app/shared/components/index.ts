@@ -27,7 +27,6 @@ export { AddressDisplayComponent } from './address-display/address-display.compo
 export {
   AddressCoinsListComponent,
   aggregateCoins,
-  DUST_BTC,
 } from './address-coins-list/address-coins-list.component';
 export type { AddressBalance } from './address-coins-list/address-coins-list.component';
 export { BalanceDisplayComponent } from './balance-display/balance-display.component';

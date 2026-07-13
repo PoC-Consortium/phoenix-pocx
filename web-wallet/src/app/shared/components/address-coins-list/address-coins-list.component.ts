@@ -9,9 +9,6 @@ import { WalletCoin } from '../../../core/backend/wallet-backend.model';
 import { AddressDisplayComponent } from '../address-display/address-display.component';
 import { EmptyStateComponent } from '../empty-state/empty-state.component';
 
-/** Below this (BTC) an output is flagged as a "tiny amount" (dust-ish). */
-export const DUST_BTC = 0.00001;
-
 /** One address row of the coins view — coins of that address, aggregated. */
 export interface AddressBalance {
   address: string;
@@ -19,13 +16,16 @@ export interface AddressBalance {
   balanceBtc: number;
   coinCount: number;
   isChange: boolean;
-  /** Any coin on this address is below the tiny-amount threshold. */
-  hasTinyUtxo: boolean;
+  /**
+   * Address reuse — this address received funds in more than one
+   * transaction (a privacy concern: reuse links transactions together).
+   */
+  reused: boolean;
 }
 
 /**
  * Aggregate raw coins into per-address rows: group by address, sum amounts,
- * count coins, carry the change flag, flag tiny outputs. Sorted receive
+ * count coins, carry the change flag, derive the reuse flag. Sorted receive
  * addresses first, then change; within each group, balance descending.
  */
 export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
@@ -35,16 +35,23 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
     if (existing) {
       existing.balanceBtc += c.amount;
       existing.coinCount += 1;
-      existing.hasTinyUtxo ||= c.amount < DUST_BTC;
+      existing.reused ||= c.reused === true;
     } else {
       byAddress.set(c.address, {
         address: c.address,
         balanceBtc: c.amount,
         coinCount: 1,
         isChange: c.isChange,
-        hasTinyUtxo: c.amount < DUST_BTC,
+        reused: c.reused === true,
       });
     }
+  }
+  // Finalise reuse per address. Core sets `reused` per-coin accurately from
+  // listreceivedbyaddress (which also catches reuse where only one UTXO
+  // remains). Remote/BDK has no spend history, so `coinCount > 1` is the
+  // proxy: an address holding multiple UTXOs was received-to more than once.
+  for (const row of byAddress.values()) {
+    row.reused = row.reused || row.coinCount > 1;
   }
   return [...byAddress.values()].sort((a, b) => {
     if (a.isChange !== b.isChange) return a.isChange ? 1 : -1;
@@ -57,8 +64,11 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
  *
  * Shows the user their funds are spread across derived addresses (a normal
  * consequence of BIP-84 derivation), defusing "my money is gone" panic. Per
- * address: the address, its balance, a receive/change chip, a coin count and
- * a passive tiny-amount flag. Purely informational — no warnings/modals.
+ * address: the address, its balance, a coin count, and an amber "Reused" flag
+ * when the address was paid more than once. No receive/change labels — that
+ * keychain distinction confuses more than it helps (a payment received to a
+ * change address reads as "Change", reinforcing the very panic this defuses).
+ * Purely informational — no warnings/modals.
  */
 @Component({
   selector: 'app-address-coins-list',
@@ -90,21 +100,13 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
             <div class="coin-row-main">
               <app-address-display [address]="row.address" [showCopyButton]="true" />
               <div class="coin-tags">
-                <span class="kind-chip" [class.change]="row.isChange">
-                  {{
-                    (row.isChange ? 'address_kind_change' : 'address_kind_receive') | i18n
-                  }}
-                </span>
                 <span class="coin-count">{{
                   'coin_count' | i18n: { count: row.coinCount }
                 }}</span>
-                @if (row.hasTinyUtxo) {
-                  <span
-                    class="tiny-chip"
-                    [matTooltip]="'address_tiny_utxo_hint' | i18n"
-                  >
-                    <mat-icon class="tiny-icon">grain</mat-icon>
-                    {{ 'address_tiny_utxo' | i18n }}
+                @if (row.reused) {
+                  <span class="reused-chip" [matTooltip]="'address_reused_hint' | i18n">
+                    <mat-icon class="reused-icon">warning_amber</mat-icon>
+                    {{ 'address_reused' | i18n }}
                   </span>
                 }
               </div>
@@ -168,6 +170,8 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         gap: 8px;
       }
 
+      /* Subtle neutral tag, change addresses only. Receive addresses (the
+         normal case) carry no keychain tag. */
       .kind-chip {
         font-size: 11px;
         font-weight: 600;
@@ -175,13 +179,9 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         letter-spacing: 0.4px;
         padding: 2px 8px;
         border-radius: 10px;
-        background: rgba(25, 118, 210, 0.12);
-        color: #1565c0;
-
-        &.change {
-          background: rgba(120, 120, 120, 0.16);
-          color: #607080;
-        }
+        cursor: default;
+        background: rgba(120, 120, 120, 0.16);
+        color: #607080;
       }
 
       .coin-count {
@@ -189,7 +189,8 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         color: #7a8896;
       }
 
-      .tiny-chip {
+      /* Amber privacy flag — the address was received-to more than once. */
+      .reused-chip {
         display: inline-flex;
         align-items: center;
         gap: 3px;
@@ -201,7 +202,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         color: #a06a00;
         cursor: default;
 
-        .tiny-icon {
+        .reused-icon {
           font-size: 14px;
           width: 14px;
           height: 14px;

@@ -81,6 +81,13 @@ export interface WalletCoin {
   confirmations: number;
   isChange: boolean;
   spendable: boolean;
+  /**
+   * Whether the funding address has received in more than one transaction
+   * (address reuse). Set accurately by Core from listreceivedbyaddress;
+   * left undefined by the Electrum/BDK backend (no spend history), where
+   * the coins view falls back to a UTXO-count proxy.
+   */
+  reused?: boolean;
 }
 
 /** Balance snapshot in BTC. */

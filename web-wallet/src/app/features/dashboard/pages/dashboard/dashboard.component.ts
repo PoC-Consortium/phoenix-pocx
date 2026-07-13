@@ -120,6 +120,14 @@ import {
             <mat-icon>account_balance_wallet</mat-icon>
             {{ 'total_balance' | i18n }}
           </mat-card-title>
+          <button
+            mat-icon-button
+            class="coins-link-btn"
+            (click)="goToCoins()"
+            [matTooltip]="'coins_title' | i18n"
+          >
+            <mat-icon>toll</mat-icon>
+          </button>
         </mat-card-header>
         <mat-card-content>
           <div
@@ -580,6 +588,14 @@ import {
 
             mat-icon {
               color: #ffffff !important;
+            }
+          }
+
+          .coins-link-btn {
+            color: rgba(255, 255, 255, 0.8);
+
+            &:hover {
+              color: #ffffff;
             }
           }
         }

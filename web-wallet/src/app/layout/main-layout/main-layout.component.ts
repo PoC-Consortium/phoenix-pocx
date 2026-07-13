@@ -483,6 +483,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
 
     const transactionItems: NavItem[] = [
       { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },
+      { path: '/coins', icon: 'toll', labelKey: 'coins_title' },
       {
         path: '/send',
         icon: 'send',
