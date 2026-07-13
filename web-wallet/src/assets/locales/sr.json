@@ -1262,5 +1262,6 @@
   "address_kind_change_hint": "An address your wallet created to return change to itself from your own spends — the funds here are yours.",
   "address_exposed": "Public key known",
   "address_exposed_hint": "You have spent from this address before, so its public key is now visible on-chain. This is normal and your coins are safe — using a fresh address each time just keeps the strongest privacy and protection.",
-  "add_wallet": "Add wallet"
+  "add_wallet": "Add wallet",
+  "coins_col": "Coins"
 }

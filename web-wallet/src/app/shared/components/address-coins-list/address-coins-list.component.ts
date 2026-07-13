@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { MatChipsModule } from '@angular/material/chips';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { I18nPipe } from '../../../core/i18n';
 import { BtcxPipe } from '../../pipes';
 import { WalletCoin } from '../../../core/backend/wallet-backend.model';
@@ -70,10 +70,10 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    MatChipsModule,
     MatIconModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatPaginatorModule,
     I18nPipe,
     BtcxPipe,
     AddressDisplayComponent,
@@ -89,30 +89,41 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
     } @else if (rows().length === 0) {
       <app-empty-state icon="account_balance_wallet" [message]="'coins_empty' | i18n" />
     } @else {
-      <div class="coins-rows">
-        @for (row of rows(); track row.address) {
+      <div class="coins-table">
+        <div class="coin-row coin-head">
+          <span class="col-address">{{ 'address' | i18n }}</span>
+          <span class="col-coins">{{ 'coins_col' | i18n }}</span>
+          <span class="col-balance">{{ 'balance' | i18n }} (BTCX)</span>
+          <span class="col-flag"></span>
+        </div>
+        @for (row of pagedRows(); track row.address) {
           <div class="coin-row">
-            <div class="coin-row-main">
+            <div class="col-address">
               <app-address-display [address]="row.address" [showCopyButton]="true" />
-              <div class="coin-tags">
-                <span class="coin-count">{{
-                  'coin_count' | i18n: { count: row.coinCount }
-                }}</span>
-                @if (row.exposed) {
-                  <span class="reused-chip" [matTooltip]="'address_exposed_hint' | i18n">
-                    <mat-icon class="reused-icon">key</mat-icon>
-                    {{ 'address_exposed' | i18n }}
-                  </span>
-                }
-              </div>
             </div>
-            <div class="coin-balance">
-              <span class="amount">{{ row.balanceBtc | btcx }}</span>
-              <span class="unit">BTCX</span>
-            </div>
+            <span class="col-coins">{{ row.coinCount }}</span>
+            <span class="col-balance">{{ row.balanceBtc | btcx }}</span>
+            <span class="col-flag">
+              @if (row.exposed) {
+                <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
+                  >key</mat-icon
+                >
+              }
+            </span>
           </div>
         }
       </div>
+
+      @if (rows().length > pageSizeOptions[0]) {
+        <mat-paginator
+          [length]="rows().length"
+          [pageSize]="pageSize()"
+          [pageIndex]="pageIndex()"
+          [pageSizeOptions]="pageSizeOptions"
+          (page)="onPageChange($event)"
+          [showFirstLastButtons]="true"
+        ></mat-paginator>
+      }
     }
   `,
   styles: [
@@ -134,94 +145,69 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         padding: 32px 0;
       }
 
-      .coins-rows {
+      .coins-table {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 4px;
       }
 
+      /* One compact row: address | coins | balance | exposure flag. */
       .coin-row {
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 56px minmax(110px, auto) 28px;
         align-items: center;
-        justify-content: space-between;
         gap: 12px;
-        padding: 12px 14px;
+        padding: 10px 14px;
         background: #f5f7fa;
         border-radius: 8px;
       }
 
-      .coin-row-main {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-        min-width: 0;
-        flex: 1;
-      }
-
-      .coin-tags {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-
-      /* Subtle neutral tag, change addresses only. Receive addresses (the
-         normal case) carry no keychain tag. */
-      .kind-chip {
+      /* Column-header row: same grid, no background. */
+      .coin-head {
+        background: transparent;
+        padding: 2px 14px;
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.4px;
-        padding: 2px 8px;
-        border-radius: 10px;
-        cursor: default;
-        background: rgba(120, 120, 120, 0.16);
-        color: #607080;
+        color: #8a97a4;
       }
 
-      .coin-count {
-        font-size: 12px;
-        color: #7a8896;
+      .col-address {
+        min-width: 0;
       }
 
-      /* Amber privacy flag — the address was received-to more than once. */
-      .reused-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 3px;
-        font-size: 11px;
-        font-weight: 500;
-        padding: 2px 8px 2px 5px;
-        border-radius: 10px;
-        background: rgba(176, 122, 0, 0.12);
+      .col-coins {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        color: #5a6b7a;
+      }
+
+      .col-balance {
+        text-align: right;
+        font-family: monospace;
+        font-weight: 600;
+        color: #002341;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .col-flag {
+        display: flex;
+        justify-content: center;
+      }
+
+      .flag-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
         color: #a06a00;
         cursor: default;
-
-        .reused-icon {
-          font-size: 14px;
-          width: 14px;
-          height: 14px;
-        }
       }
 
-      .coin-balance {
-        display: flex;
-        align-items: baseline;
-        gap: 4px;
-        flex-shrink: 0;
-        white-space: nowrap;
-
-        .amount {
-          font-family: monospace;
-          font-size: 15px;
-          font-weight: 600;
-          color: #002341;
-        }
-
-        .unit {
-          font-size: 11px;
-          color: #8a97a4;
-        }
+      mat-paginator {
+        margin-top: 8px;
+        background: transparent;
       }
 
       :host-context(.dark-theme) {
@@ -233,11 +219,11 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
           background: #333;
         }
 
-        .coin-count {
+        .col-coins {
           color: #9aa7b3;
         }
 
-        .coin-balance .amount {
+        .col-balance {
           color: #90caf9;
         }
       }
@@ -249,4 +235,22 @@ export class AddressCoinsListComponent {
   readonly rows = input.required<AddressBalance[]>();
   /** Whether the source query is still loading. */
   readonly loading = input(false);
+
+  readonly pageSize = signal(10);
+  readonly pageIndex = signal(0);
+  readonly pageSizeOptions = [10, 25, 50];
+
+  /** The current page of rows (transactions-style pagination). */
+  readonly pagedRows = computed(() => {
+    const all = this.rows();
+    const size = this.pageSize();
+    const maxPage = Math.max(0, Math.ceil(all.length / size) - 1);
+    const page = Math.min(this.pageIndex(), maxPage);
+    return all.slice(page * size, page * size + size);
+  });
+
+  onPageChange(event: PageEvent): void {
+    this.pageIndex.set(event.pageIndex);
+    this.pageSize.set(event.pageSize);
+  }
 }
