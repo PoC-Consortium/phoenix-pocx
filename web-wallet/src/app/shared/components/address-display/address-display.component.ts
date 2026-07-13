@@ -102,14 +102,18 @@ import { ElectronService } from '../../../core/services/electron.service';
         }
       }
 
+      /* Flex-center the icon in the button. The default line-height baselined
+         the mat-icon low; explicit centering (with padding:0) sits the glyph
+         dead-center without moving the button/ripple. */
       .copy-button,
       .actions-button {
         width: 28px;
         height: 28px;
-        line-height: 28px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
 
-        /* Center the glyph inside the icon box — mat-icon defaults to an
-           inline-block whose ligature baseline sits low in the button. */
         .small-icon {
           display: inline-flex;
           align-items: center;
