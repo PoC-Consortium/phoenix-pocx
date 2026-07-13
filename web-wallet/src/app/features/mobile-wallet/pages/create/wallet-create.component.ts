@@ -127,7 +127,8 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
               <mat-label>{{ 'word_number' | i18n: { number: check.index + 1 } }}</mat-label>
               <input
                 matInput
-                [(ngModel)]="check.entered"
+                [ngModel]="check.entered"
+                (ngModelChange)="setCheckEntered(check.index, $event)"
                 autocomplete="off"
                 autocapitalize="none"
                 spellcheck="false"
@@ -466,6 +467,17 @@ export class WalletCreateComponent implements OnInit {
     this.checks.set([...indices].sort((a, b) => a - b).map(index => ({ index, entered: '' })));
     this.verifyError.set(false);
     this.step.set('verify');
+  }
+
+  /**
+   * Record a typed verify-word by replacing the checks array with a fresh
+   * copy (new array + new object). Mutating `check.entered` in place would
+   * leave the signal's reference unchanged, so the `allChecksFilled`
+   * computed would never recompute and the Next button would stay disabled
+   * forever — the 2.1.0 create-wallet showstopper.
+   */
+  setCheckEntered(index: number, value: string): void {
+    this.checks.update(arr => arr.map(c => (c.index === index ? { ...c, entered: value } : c)));
   }
 
   verify(): void {
