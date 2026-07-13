@@ -103,6 +103,17 @@ type TransactionFilter =
             </mat-select>
           </mat-form-field>
 
+          <!-- Export CSV -->
+          <button
+            mat-icon-button
+            [disabled]="loading() || filteredTransactions().length === 0"
+            (click)="exportCsv()"
+            [matTooltip]="'export_csv' | i18n"
+            class="refresh-button"
+          >
+            <mat-icon>file_download</mat-icon>
+          </button>
+
           <!-- Refresh Button -->
           <button
             mat-icon-button
@@ -1052,6 +1063,50 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     this.dateTo = null;
     this.pageIndex.set(0);
     this.filterVersion.update(v => v + 1);
+  }
+
+  /**
+   * Export the currently-filtered transactions as a CSV download (Blob +
+   * anchor, same mechanism as the mining dashboard's deadline export).
+   * Timestamps are ISO-8601 UTC so spreadsheets parse them unambiguously;
+   * amounts use a dot decimal via toFixed, independent of locale.
+   */
+  exportCsv(): void {
+    const txs = this.filteredTransactions();
+    if (txs.length === 0) return;
+    const headers = [
+      this.i18n.get('date'),
+      this.i18n.get('type'),
+      this.i18n.get('amount'),
+      this.i18n.get('fee'),
+      this.i18n.get('confirmations'),
+      this.i18n.get('transaction_id'),
+      this.i18n.get('address'),
+      this.i18n.get('label'),
+    ];
+    const rows = txs.map(tx => [
+      new Date(tx.time * 1000).toISOString(),
+      this.getTransactionType(tx),
+      tx.amount.toFixed(8),
+      tx.fee != null ? Math.abs(tx.fee).toFixed(8) : '',
+      tx.confirmations,
+      tx.txid,
+      tx.address ?? '',
+      tx.label ?? '',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => this.csvCell(c)).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'transactions.csv';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  /** Quote a CSV cell if it contains a comma, quote or newline (RFC 4180). */
+  private csvCell(value: string | number): string {
+    const s = String(value);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
   goBack(): void {

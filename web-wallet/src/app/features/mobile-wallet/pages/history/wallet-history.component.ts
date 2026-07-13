@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { I18nPipe } from '../../../../core/i18n';
+import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
@@ -47,6 +47,14 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
   ],
   template: `
     <app-mwallet-page-header titleKey="transactions">
+      <button
+        mat-icon-button
+        [disabled]="exporting() || wallet.transactionsTotal() === 0"
+        (click)="exportCsv()"
+        [matTooltip]="'export_csv' | i18n"
+      >
+        <mat-icon>file_download</mat-icon>
+      </button>
       <button
         mat-icon-button
         [disabled]="refreshing()"
@@ -321,8 +329,10 @@ export class WalletHistoryComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly clipboard = inject(ClipboardService);
   private readonly contactsStore = inject(ContactsStoreService);
+  private readonly i18n = inject(I18nService);
 
   readonly refreshing = signal(false);
+  readonly exporting = signal(false);
   readonly expandedTxid = signal<string | null>(null);
 
   // Fit-derived pagination: the page size is whatever FitRowsDirective
@@ -379,6 +389,55 @@ export class WalletHistoryComponent implements OnInit {
     } finally {
       this.refreshing.set(false);
     }
+  }
+
+  /**
+   * Export the FULL transaction history as a CSV download. Uses
+   * `fetchTransactionsPage()` (no args = all rows) so the paged UI window is
+   * left untouched. ISO-8601 UTC timestamps; amounts are signed by direction
+   * with a dot decimal, independent of locale.
+   */
+  async exportCsv(): Promise<void> {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      const { items } = await this.wallet.fetchTransactionsPage();
+      const headers = [
+        this.i18n.get('date'),
+        this.i18n.get('type'),
+        this.i18n.get('amount'),
+        this.i18n.get('fee'),
+        this.i18n.get('confirmations'),
+        this.i18n.get('transaction_id'),
+        this.i18n.get('address'),
+      ];
+      const rows = items.map(tx => [
+        tx.timestamp != null ? new Date(tx.timestamp * 1000).toISOString() : '',
+        this.i18n.get(tx.direction === 'received' ? 'tx_type_receive' : 'tx_type_send'),
+        (tx.direction === 'sent' ? '-' : '') + (tx.amountSat / 100000000).toFixed(8),
+        tx.feeSat != null ? (tx.feeSat / 100000000).toFixed(8) : '',
+        tx.confirmations,
+        tx.txid,
+        tx.address ?? '',
+      ]);
+      const csv = [headers, ...rows].map(r => r.map(c => this.csvCell(c)).join(',')).join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'transactions.csv';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error('Failed to export transactions:', err);
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
+  /** Quote a CSV cell if it contains a comma, quote or newline (RFC 4180). */
+  private csvCell(value: string | number): string {
+    const s = String(value);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }
 
   /**
