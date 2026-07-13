@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -32,6 +33,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
     RouterModule,
     MatButtonModule,
     MatIconModule,
+    MatMenuModule,
     MatTooltipModule,
     MatTableModule,
     MatProgressSpinnerModule,
@@ -247,24 +249,36 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         <!-- Bottom Actions -->
         <div class="box-actions">
           <div class="left-actions">
-            <button mat-stroked-button routerLink="/auth/create" [disabled]="!isConnected()">
+            <button
+              mat-stroked-button
+              [matMenuTriggerFor]="addWalletMenu"
+              [disabled]="!isConnected()"
+              class="add-wallet-button"
+            >
               <mat-icon>add</mat-icon>
-              {{ 'create_new' | i18n }}
+              {{ 'add_wallet' | i18n }}
+              <mat-icon class="add-wallet-caret">arrow_drop_down</mat-icon>
             </button>
-            <button mat-stroked-button routerLink="/auth/import" [disabled]="!isConnected()">
-              <mat-icon>import_export</mat-icon>
-              {{ 'import' | i18n }}
-            </button>
-            @if (!isRemote()) {
-              <button mat-stroked-button routerLink="/auth/watch-only" [disabled]="!isConnected()">
-                <mat-icon>visibility</mat-icon>
-                {{ 'watch_only' | i18n }}
+            <mat-menu #addWalletMenu="matMenu">
+              <button mat-menu-item routerLink="/auth/create">
+                <mat-icon>add</mat-icon>
+                <span>{{ 'create_new' | i18n }}</span>
               </button>
-              <button mat-stroked-button routerLink="/auth/multisig" [disabled]="!isConnected()">
-                <mat-icon>group</mat-icon>
-                {{ 'msig_multisig' | i18n }}
+              <button mat-menu-item routerLink="/auth/import">
+                <mat-icon>import_export</mat-icon>
+                <span>{{ 'import' | i18n }}</span>
               </button>
-            }
+              @if (!isRemote()) {
+                <button mat-menu-item routerLink="/auth/watch-only">
+                  <mat-icon>visibility</mat-icon>
+                  <span>{{ 'watch_only' | i18n }}</span>
+                </button>
+                <button mat-menu-item routerLink="/auth/multisig">
+                  <mat-icon>group</mat-icon>
+                  <span>{{ 'msig_multisig' | i18n }}</span>
+                </button>
+              }
+            </mat-menu>
           </div>
           <div class="right-actions">
             <button
@@ -646,6 +660,12 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
           button mat-icon {
             margin-right: 4px;
+          }
+
+          .add-wallet-caret {
+            margin-right: -4px;
+            margin-left: 2px;
+            opacity: 0.7;
           }
         }
 
