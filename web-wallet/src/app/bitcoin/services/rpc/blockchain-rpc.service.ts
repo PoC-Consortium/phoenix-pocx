@@ -204,6 +204,31 @@ export interface MempoolInfo {
 }
 
 /**
+ * Mempool entry (getmempoolentry) — subset of fields the wallet uses.
+ * `fees.base` is the transaction's own absolute fee in BTC.
+ */
+export interface MempoolEntry {
+  vsize: number;
+  weight: number;
+  time: number;
+  height: number;
+  descendantcount: number;
+  descendantsize: number;
+  ancestorcount: number;
+  ancestorsize: number;
+  fees: {
+    base: number;
+    modified: number;
+    ancestor: number;
+    descendant: number;
+  };
+  depends: string[];
+  spentby: string[];
+  'bip125-replaceable': boolean;
+  unbroadcast: boolean;
+}
+
+/**
  * A `scantxoutset` scanobject: a descriptor plus how many indices of a
  * ranged descriptor to derive.
  */
@@ -382,10 +407,11 @@ export class BlockchainRpcService {
   }
 
   /**
-   * Get mempool entry for a transaction
+   * Get mempool entry for a transaction. `vsize` is virtual bytes; `fees.base`
+   * is the transaction's own absolute fee in BTC (used for CPFP package math).
    */
-  async getMempoolEntry(txid: string): Promise<unknown> {
-    return this.rpc.call<unknown>('getmempoolentry', [txid]);
+  async getMempoolEntry(txid: string): Promise<MempoolEntry> {
+    return this.rpc.call<MempoolEntry>('getmempoolentry', [txid]);
   }
 
   /**

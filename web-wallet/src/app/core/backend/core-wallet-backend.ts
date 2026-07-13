@@ -112,6 +112,60 @@ export class CoreWalletBackend implements WalletBackend {
     return result.txid;
   }
 
+  async getCpfpParentInfo(
+    _walletName: string,
+    parentTxid: string
+  ): Promise<{ vsize: number; fee: number }> {
+    // getmempoolentry: vsize in vB, fees.base is the parent's own fee in BTC.
+    const entry = await this.blockchainRpc.getMempoolEntry(parentTxid);
+    return { vsize: entry.vsize, fee: entry.fees.base };
+  }
+
+  async cpfpBumpFee(
+    walletName: string,
+    parentTxid: string,
+    vout: number,
+    childFeeRateSatVb: number
+  ): Promise<string> {
+    // Resolve the value of the specific parent output we're going to spend —
+    // it becomes the child output, with the child fee subtracted from it.
+    const parent = await this.blockchainRpc.getRawTransaction(parentTxid, true);
+    if (typeof parent === 'string') {
+      throw new Error('Parent transaction not found');
+    }
+    const out = parent.vout.find(o => o.n === vout);
+    if (!out) {
+      throw new Error(`Parent output ${vout} not found`);
+    }
+
+    // Fresh receive address for the child output — keeps the swept funds in-wallet.
+    const childAddress = await this.walletRpc.getNewAddress(walletName);
+
+    // Explicit parent input drags the parent into the child's package; add_inputs
+    // lets Core add confirmed top-up coins if the parent output can't cover the
+    // fee. subtractFeeFromOutputs pays the fee from the child output so the bump
+    // needs no external funding. replaceable keeps the child itself RBF-able.
+    const funded = await this.walletRpc.walletCreateFundedPsbt(
+      walletName,
+      [{ txid: parentTxid, vout }],
+      [{ [childAddress]: out.value }],
+      0,
+      {
+        add_inputs: true,
+        subtractFeeFromOutputs: [0],
+        fee_rate: childFeeRateSatVb,
+        replaceable: true,
+      }
+    );
+
+    const processed = await this.walletRpc.walletProcessPsbt(walletName, funded.psbt);
+    const finalized = await this.walletRpc.finalizePsbt(processed.psbt);
+    if (!finalized.complete || !finalized.hex) {
+      throw new Error('Failed to finalize CPFP transaction');
+    }
+    return this.blockchainRpc.sendRawTransaction(finalized.hex);
+  }
+
   async feeEstimates(): Promise<WalletBackendFeeEstimates> {
     // estimatesmartfee returns BTC/kvB; sat/vB = BTC/kvB × 1e5.
     const at = async (target: number): Promise<number | null> => {

@@ -50,6 +50,17 @@ export interface WalletBackend {
   /** RBF-bump a wallet transaction; returns the replacement txid. */
   bumpFee(walletName: string, txid: string, feeRateSatVb?: number): Promise<string>;
 
+  /** CPFP-bump an incoming unconfirmed tx by spending its output with a high-fee child; returns the child txid. */
+  cpfpBumpFee(
+    walletName: string,
+    parentTxid: string,
+    vout: number,
+    childFeeRateSatVb: number
+  ): Promise<string>;
+
+  /** Parent vsize (vB) + absolute fee (BTC) for CPFP package math. */
+  getCpfpParentInfo(walletName: string, parentTxid: string): Promise<{ vsize: number; fee: number }>;
+
   /** Market fee estimates in sat/vB (null where the source has no data). */
   feeEstimates(): Promise<WalletBackendFeeEstimates>;
 
@@ -134,6 +145,8 @@ export interface WalletCapabilities {
   transactionDetail: boolean;
   /** `testmempoolaccept` before broadcast. */
   testMempoolAccept: boolean;
+  /** Child-pays-for-parent fee bump of an incoming unconfirmed tx (Core-only). */
+  cpfp: boolean;
 }
 
 export const CORE_CAPABILITIES: WalletCapabilities = {
@@ -148,6 +161,7 @@ export const CORE_CAPABILITIES: WalletCapabilities = {
   multisig: true,
   transactionDetail: true,
   testMempoolAccept: true,
+  cpfp: true,
 };
 
 export const ELECTRUM_CAPABILITIES: WalletCapabilities = {
@@ -162,4 +176,5 @@ export const ELECTRUM_CAPABILITIES: WalletCapabilities = {
   multisig: false,
   transactionDetail: false,
   testMempoolAccept: false,
+  cpfp: false,
 };

@@ -41,6 +41,11 @@ import {
   AbandonTxDialogData,
   AbandonTxDialogResult,
 } from '../../components/abandon-tx-dialog/abandon-tx-dialog.component';
+import {
+  CpfpDialogComponent,
+  CpfpDialogData,
+  CpfpDialogResult,
+} from '../../components/cpfp-dialog/cpfp-dialog.component';
 
 type TransactionFilter =
   | 'all'
@@ -318,6 +323,18 @@ type TransactionFilter =
                             <button mat-menu-item (click)="openBumpFeeDialog(tx)">
                               <mat-icon>speed</mat-icon>
                               <span>{{ 'bump_fee' | i18n }}</span>
+                            </button>
+                          }
+                          @if (
+                            tx.confirmations === 0 &&
+                            tx.category === 'receive' &&
+                            tx.vout !== undefined &&
+                            cpfpEnabled()
+                          ) {
+                            <mat-divider></mat-divider>
+                            <button mat-menu-item (click)="openCpfpDialog(tx)">
+                              <mat-icon>bolt</mat-icon>
+                              <span>{{ 'speed_up_cpfp' | i18n }}</span>
                             </button>
                           }
                           @if (tx.confirmations === 0 && tx.category === 'send') {
@@ -900,6 +917,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog);
   private readonly destroy$ = new Subject<void>();
 
+  /** CPFP (child-pays-for-parent) is Core-only — gated on the backend flag. */
+  readonly cpfpEnabled = (): boolean => this.backendRouter.capabilities().cpfp;
+
   loading = signal(false);
   transactions = signal<WalletTransaction[]>([]);
   activeFilter = signal<TransactionFilter>('all');
@@ -1242,6 +1262,49 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       this.walletService.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : this.i18n.get('bump_fee_error');
+      this.notification.error(message);
+    }
+  }
+
+  async openCpfpDialog(tx: WalletTransaction): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName || tx.vout === undefined) return;
+
+    const dialogRef = this.dialog.open(CpfpDialogComponent, {
+      width: '500px',
+      data: {
+        parentTxid: tx.txid,
+        vout: tx.vout,
+        receivedAmount: Math.abs(tx.amount),
+        walletName,
+      } as CpfpDialogData,
+    });
+
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as CpfpDialogResult | undefined;
+    if (result?.confirmed && result.childFeeRate !== undefined) {
+      await this.executeCpfp(tx, result.childFeeRate);
+    }
+  }
+
+  private async executeCpfp(tx: WalletTransaction, childFeeRate: number): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName || tx.vout === undefined) return;
+
+    try {
+      // Core-only: spends the parent's output with a high-fee child, dragging
+      // the parent into the same package.
+      const childTxid = await this.backendRouter
+        .wallet()
+        .cpfpBumpFee(walletName, tx.txid, tx.vout, childFeeRate);
+
+      this.notification.success(
+        this.i18n.get('cpfp_success').replace('{txid}', childTxid.substring(0, 16) + '...')
+      );
+
+      this.loadTransactions();
+      this.walletService.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : this.i18n.get('cpfp_error');
       this.notification.error(message);
     }
   }

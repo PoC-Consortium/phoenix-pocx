@@ -1246,5 +1246,15 @@
   "address_kind_receive": "Receive",
   "address_kind_change": "Change",
   "address_tiny_utxo": "Tiny amount",
-  "address_tiny_utxo_hint": "Holds a very small output that may cost more in fees to spend than it is worth."
+  "address_tiny_utxo_hint": "Holds a very small output that may cost more in fees to spend than it is worth.",
+  "speed_up_cpfp": "Speed up (CPFP)",
+  "cpfp_title": "Speed up incoming transaction",
+  "cpfp_description": "Spend this unconfirmed incoming payment with a high-fee child transaction to pull it into a block faster.",
+  "cpfp_package_fee": "Target package fee rate",
+  "cpfp_parent_fee": "Parent fee",
+  "cpfp_child_fee": "Child fee",
+  "cpfp_effective_rate": "Effective package rate",
+  "cpfp_success": "CPFP transaction broadcast: {txid}",
+  "cpfp_error": "Failed to create CPFP transaction",
+  "cpfp_insufficient": "This output is too small to speed up at the selected rate."
 }

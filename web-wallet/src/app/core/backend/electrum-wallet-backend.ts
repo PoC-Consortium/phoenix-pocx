@@ -159,6 +159,16 @@ export class ElectrumWalletBackend implements WalletBackend {
     return this.btcxWallet.bumpFee(txid, feeRateSatVb);
   }
 
+  async cpfpBumpFee(): Promise<string> {
+    // CPFP needs a parent vsize/fee source (getmempoolentry) the Electrum
+    // stack doesn't expose — gated off in the capability matrix.
+    throw new Error('feature_unavailable_remote');
+  }
+
+  async getCpfpParentInfo(): Promise<{ vsize: number; fee: number }> {
+    throw new Error('feature_unavailable_remote');
+  }
+
   async feeEstimates(): Promise<WalletBackendFeeEstimates> {
     const estimates = await this.btcxWallet.fetchFeeEstimates();
     return {
