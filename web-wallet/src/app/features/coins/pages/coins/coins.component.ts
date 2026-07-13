@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { Location } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,6 +10,7 @@ import {
 } from '../../../../shared/components';
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 
 /**
  * CoinsComponent — the desktop "Coins & Addresses" view. Shows the wallet's
@@ -106,16 +107,25 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
     `,
   ],
 })
-export class CoinsComponent implements OnInit {
+export class CoinsComponent {
   private readonly backend = inject(BackendRouterService);
   private readonly walletManager = inject(WalletManagerService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly location = inject(Location);
 
   readonly rows = signal<AddressBalance[]>([]);
   readonly loading = signal(false);
 
-  ngOnInit(): void {
-    void this.loadCoins();
+  constructor() {
+    // Remote (BDK) mode populates the UTXO set via the background sync, so a
+    // one-shot load can land before the coins arrive. Reload on each sync tick
+    // (lastSync). In Core mode lastSync never fires, so this just does the
+    // initial load. The list tracks by address → no flicker; untracked() keeps
+    // loadCoins' own signal reads out of the effect's dependency set.
+    effect(() => {
+      this.btcxWallet.lastSync();
+      untracked(() => void this.loadCoins());
+    });
   }
 
   goBack(): void {
@@ -126,13 +136,15 @@ export class CoinsComponent implements OnInit {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
-    this.loading.set(true);
+    // Spinner only while the list is still empty — background refreshes update
+    // silently so it doesn't flash on every sync tick; a transient error keeps
+    // the last-good rows.
+    if (this.rows().length === 0) this.loading.set(true);
     try {
       const coins = await this.backend.wallet().listCoins(walletName);
       this.rows.set(aggregateCoins(coins));
     } catch (error) {
       console.error('Failed to load coins:', error);
-      this.rows.set([]);
     } finally {
       this.loading.set(false);
     }

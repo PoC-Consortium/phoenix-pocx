@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -85,15 +85,24 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
     `,
   ],
 })
-export class WalletCoinsComponent implements OnInit {
+export class WalletCoinsComponent {
   private readonly backend = inject(BackendRouterService);
   private readonly wallet = inject(BtcxWalletService);
 
   readonly rows = signal<AddressBalance[]>([]);
   readonly loading = signal(false);
 
-  ngOnInit(): void {
-    void this.loadCoins();
+  constructor() {
+    // The coins/UTXO set is populated by the background sync, so a one-shot
+    // load can land BEFORE the coins arrive (the empty "no coins yet"). Reload
+    // on wallet switch (walletName) and on every sync tick (lastSync). The list
+    // tracks by address, so refreshing in place doesn't flicker; untracked()
+    // keeps loadCoins' own signal reads out of the effect's dependency set.
+    effect(() => {
+      this.wallet.walletName();
+      this.wallet.lastSync();
+      untracked(() => void this.loadCoins());
+    });
   }
 
   refresh(): void {
@@ -101,13 +110,15 @@ export class WalletCoinsComponent implements OnInit {
   }
 
   private async loadCoins(): Promise<void> {
-    this.loading.set(true);
+    // Spinner only while the list is still empty — background refreshes update
+    // silently so it doesn't flash on every sync tick. A transient error keeps
+    // the last-good rows rather than blanking the list.
+    if (this.rows().length === 0) this.loading.set(true);
     try {
       const coins = await this.backend.wallet().listCoins(this.wallet.walletName());
       this.rows.set(aggregateCoins(coins));
     } catch (error) {
       console.error('Failed to load coins:', error);
-      this.rows.set([]);
     } finally {
       this.loading.set(false);
     }
