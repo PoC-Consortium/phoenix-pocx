@@ -94,9 +94,9 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
           <thead>
             <tr>
               <th class="th-address">{{ 'address' | i18n }}</th>
+              <th class="th-flag" aria-hidden="true"></th>
               <th class="th-coins">{{ 'coins_col' | i18n }}</th>
               <th class="th-balance">{{ 'balance' | i18n }} (BTCX)</th>
-              <th class="th-flag" aria-hidden="true"></th>
             </tr>
           </thead>
           <tbody>
@@ -109,8 +109,6 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
                     [inline]="false"
                   />
                 </td>
-                <td class="td-coins">{{ row.coinCount }}</td>
-                <td class="td-balance">{{ row.balanceBtc | btcx }}</td>
                 <td class="td-flag">
                   @if (row.exposed) {
                     <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
@@ -118,6 +116,8 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
                     >
                   }
                 </td>
+                <td class="td-coins">{{ row.coinCount }}</td>
+                <td class="td-balance">{{ row.balanceBtc | btcx }}</td>
               </tr>
             }
           </tbody>
@@ -161,12 +161,18 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
       }
 
       /* A real table so the header and every row share column widths (a grid
-         per row can't align across rows). width:auto => columns hug content,
-         so they pack left with no gap after short addresses. */
+         per row can't align across rows). Full width with a greedy address
+         column pushes the number columns to the right edge, so their
+         right-alignment reads cleanly (like the transactions table). */
       .coins-table {
-        width: auto;
+        width: 100%;
         border-collapse: separate;
         border-spacing: 0 6px;
+      }
+
+      .td-address,
+      .th-address {
+        width: 100%;
       }
 
       thead th {
