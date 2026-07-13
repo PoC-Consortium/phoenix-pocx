@@ -1,4 +1,13 @@
-import { Component, inject, signal, computed, viewChild, OnInit } from '@angular/core';
+import {
+  Component,
+  inject,
+  signal,
+  computed,
+  viewChild,
+  viewChildren,
+  ElementRef,
+  OnInit,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -6,10 +15,12 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatRadioModule } from '@angular/material/radio';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
 import { sanitizeReturnTo } from '../../return-to';
 import { isInvalidWalletName, isWalletNameTaken, suggestWalletName } from '../../wallet-name';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
@@ -46,6 +57,7 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
     MatCheckboxModule,
     MatFormFieldModule,
     MatInputModule,
+    MatAutocompleteModule,
     MatProgressSpinnerModule,
     MatRadioModule,
     I18nPipe,
@@ -122,17 +134,30 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
           <h3>{{ 'mwallet_verify_title' | i18n }}</h3>
           <p class="hint-text">{{ 'mwallet_verify_hint' | i18n }}</p>
 
-          @for (check of checks(); track check.index) {
+          @for (check of checks(); track check.index; let pos = $index) {
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ 'word_number' | i18n: { number: check.index + 1 } }}</mat-label>
               <input
+                #wordInput
                 matInput
                 [ngModel]="check.entered"
-                (ngModelChange)="setCheckEntered(check.index, $event)"
+                (ngModelChange)="onCheckInput(check.index, $event)"
+                [matAutocomplete]="auto"
+                #trigger="matAutocompleteTrigger"
+                (keydown.enter)="onWordEnter(check.index, pos, $event, trigger)"
                 autocomplete="off"
                 autocapitalize="none"
                 spellcheck="false"
               />
+              <mat-autocomplete
+                #auto="matAutocomplete"
+                [autoActiveFirstOption]="true"
+                (optionSelected)="onWordSelected(check.index, pos, $event.option.value)"
+              >
+                @for (word of suggestionsFor(check.index); track word) {
+                  <mat-option [value]="word">{{ word }}</mat-option>
+                }
+              </mat-autocomplete>
             </mat-form-field>
           }
 
@@ -411,10 +436,15 @@ export class WalletCreateComponent implements OnInit {
   private readonly wallet = inject(BtcxWalletService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly descriptorService = inject(DescriptorService);
 
   readonly step = signal<CreateStep>('name');
   readonly words = signal<string[]>([]);
   readonly checks = signal<{ index: number; entered: string }[]>([]);
+  /** BIP39 suggestions per verify-word position (keyed by word index). */
+  readonly wordSuggestions = signal<Record<number, string[]>>({});
+  /** The verify-step inputs, for Enter-to-advance. */
+  readonly wordInputs = viewChildren<ElementRef<HTMLInputElement>>('wordInput');
   readonly verifyError = signal(false);
   readonly creating = signal(false);
   readonly createError = signal<string | null>(null);
@@ -478,6 +508,51 @@ export class WalletCreateComponent implements OnInit {
    */
   setCheckEntered(index: number, value: string): void {
     this.checks.update(arr => arr.map(c => (c.index === index ? { ...c, entered: value } : c)));
+  }
+
+  /** BIP39 suggestions for one verify-word position. */
+  suggestionsFor(index: number): string[] {
+    return this.wordSuggestions()[index] ?? [];
+  }
+
+  /** Record the typed word and refresh its BIP39 suggestions. */
+  onCheckInput(index: number, value: string): void {
+    this.setCheckEntered(index, value);
+    const suggestions = value?.length ? this.descriptorService.getWordSuggestions(value, 8) : [];
+    this.wordSuggestions.update(m => ({ ...m, [index]: suggestions }));
+  }
+
+  onWordSelected(index: number, pos: number, word: string): void {
+    this.setCheckEntered(index, word);
+    this.wordSuggestions.update(m => ({ ...m, [index]: [] }));
+    this.focusNext(pos);
+  }
+
+  /**
+   * Enter-to-accept, mirroring the import flow. If the autocomplete panel is
+   * open with a highlighted option, Material selects it (→ onWordSelected);
+   * otherwise, if the typed value is an exact BIP39 word, commit it and advance.
+   */
+  onWordEnter(index: number, pos: number, event: Event, trigger: MatAutocompleteTrigger): void {
+    if (event.defaultPrevented) return;
+    if (trigger.panelOpen && trigger.activeOption) return;
+    const typed = (this.checks().find(c => c.index === index)?.entered ?? '').toLowerCase().trim();
+    if (this.descriptorService.getWordlist().includes(typed)) {
+      event.preventDefault();
+      this.setCheckEntered(index, typed);
+      this.wordSuggestions.update(m => ({ ...m, [index]: [] }));
+      this.focusNext(pos);
+    }
+  }
+
+  private focusNext(pos: number): void {
+    const next = this.wordInputs()[pos + 1];
+    if (next) {
+      setTimeout(() => {
+        next.nativeElement.focus();
+        next.nativeElement.select();
+      });
+    }
   }
 
   verify(): void {
