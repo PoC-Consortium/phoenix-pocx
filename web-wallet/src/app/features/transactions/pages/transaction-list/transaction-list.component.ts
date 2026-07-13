@@ -31,6 +31,7 @@ import {
   WalletTransaction,
 } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
+import { downloadTextFile } from '../../../../shared/utils/download';
 import {
   FeeBumpDialogComponent,
   FeeBumpDialogData,
@@ -98,17 +99,7 @@ type TransactionFilter =
           <h1>{{ 'transactions' | i18n }}</h1>
         </div>
         <div class="header-right">
-          <!-- Load Limit -->
-          <mat-form-field appearance="outline" class="limit-field">
-            <mat-label>{{ 'load_limit' | i18n }}</mat-label>
-            <mat-select [(value)]="loadLimit" (selectionChange)="onLoadLimitChange()">
-              @for (option of loadLimitOptions; track option.value) {
-                <mat-option [value]="option.value">{{ option.label }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Export CSV -->
+          <!-- Export CSV (kept apart from the load-limit + refresh pair) -->
           <button
             mat-icon-button
             [disabled]="loading() || filteredTransactions().length === 0"
@@ -118,6 +109,16 @@ type TransactionFilter =
           >
             <mat-icon>file_download</mat-icon>
           </button>
+
+          <!-- Load Limit -->
+          <mat-form-field appearance="outline" class="limit-field">
+            <mat-label>{{ 'load_limit' | i18n }}</mat-label>
+            <mat-select [(value)]="loadLimit" (selectionChange)="onLoadLimitChange()">
+              @for (option of loadLimitOptions; track option.value) {
+                <mat-option [value]="option.value">{{ option.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
 
           <!-- Refresh Button -->
           <button
@@ -1115,12 +1116,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       tx.label ?? '',
     ]);
     const csv = [headers, ...rows].map(r => r.map(c => this.csvCell(c)).join(',')).join('\r\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'transactions.csv';
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadTextFile('transactions.csv', csv);
   }
 
   /** Quote a CSV cell if it contains a comma, quote or newline (RFC 4180). */

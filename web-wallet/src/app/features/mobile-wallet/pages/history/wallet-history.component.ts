@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
+import { downloadTextFile } from '../../../../shared/utils/download';
 import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
@@ -421,12 +422,7 @@ export class WalletHistoryComponent implements OnInit {
         tx.address ?? '',
       ]);
       const csv = [headers, ...rows].map(r => r.map(c => this.csvCell(c)).join(',')).join('\r\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'transactions.csv';
-      link.click();
-      URL.revokeObjectURL(link.href);
+      downloadTextFile('transactions.csv', csv);
     } catch (err) {
       console.error('Failed to export transactions:', err);
     } finally {
