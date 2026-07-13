@@ -284,6 +284,11 @@ interface NavGroup {
                             'mwallet_segwit_badge' | i18n
                           }}</span>
                         }
+                        @if (w.policy.coinType === 0) {
+                          <span class="wallet-row-badge legacy">{{
+                            'wallet_legacy_badge' | i18n
+                          }}</span>
+                        }
                         @if (w.singleAddress) {
                           <span class="wallet-row-badge single">{{
                             'mwallet_single_badge' | i18n
