@@ -679,6 +679,49 @@ function withListenPort(listenAddress: string, port: number): string {
                     />
                   </div>
 
+                  <!-- Wallets (the remote-mode switcher's list) — carries the
+                       "Legacy v30" badge on pre-v31 (coin-0') wallets, and the
+                       manual re-probe for older funds on the open wallet. -->
+                  @if (btcxWallet.wallets().length > 0) {
+                    <div class="config-section">
+                      <h3 class="section-title">{{ 'wallets' | i18n }}</h3>
+                      <div class="remote-wallet-list">
+                        @for (w of btcxWallet.wallets(); track w.name) {
+                          <div class="remote-wallet-row" [class.active]="w.isActive">
+                            <mat-icon class="remote-wallet-icon" [class.active]="w.isActive"
+                              >account_balance_wallet</mat-icon
+                            >
+                            <span class="remote-wallet-name">{{ w.name }}</span>
+                            @if (w.policy.coinType === 0) {
+                              <span class="remote-wallet-badge legacy">{{
+                                'wallet_legacy_badge' | i18n
+                              }}</span>
+                            }
+                            @if (w.isActive) {
+                              <mat-icon class="remote-wallet-check">check</mat-icon>
+                            }
+                          </div>
+                        }
+                      </div>
+
+                      @if (btcxWallet.walletActive()) {
+                        <button
+                          mat-stroked-button
+                          class="rescan-legacy-button"
+                          [disabled]="rescanningLegacy()"
+                          (click)="rescanLegacy()"
+                        >
+                          @if (rescanningLegacy()) {
+                            <mat-spinner diameter="18"></mat-spinner>
+                          } @else {
+                            <mat-icon>manage_search</mat-icon>
+                          }
+                          {{ 'wallet_rescan_legacy' | i18n }}
+                        </button>
+                      }
+                    </div>
+                  }
+
                   <!-- Action Buttons -->
                   <div class="action-buttons">
                     <button
@@ -1364,6 +1407,76 @@ function withListenPort(listenAddress: string, port: number): string {
         }
       }
 
+      /* Remote-mode wallet list (the switcher's list in settings) */
+      .remote-wallet-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 12px;
+      }
+
+      .remote-wallet-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.03);
+
+        &.active {
+          background: rgba(25, 118, 210, 0.08);
+        }
+
+        .remote-wallet-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+          color: rgba(0, 0, 0, 0.4);
+
+          &.active {
+            color: #1976d2;
+          }
+        }
+
+        .remote-wallet-name {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .remote-wallet-badge {
+          font-size: 10px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          border: 1px solid currentColor;
+          border-radius: 8px;
+          padding: 0 6px;
+          flex-shrink: 0;
+
+          /* v30 legacy wallets: amber hue (the kind-badge legacy family). */
+          &.legacy {
+            color: #b26a00;
+          }
+        }
+
+        .remote-wallet-check {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          color: #1976d2;
+          flex-shrink: 0;
+        }
+      }
+
+      .rescan-legacy-button {
+        mat-spinner {
+          display: inline-block;
+          margin-right: 8px;
+        }
+      }
+
       /* Notifications Styles */
       .notifications-container {
         max-width: 500px;
@@ -1885,8 +1998,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
   readonly nodeService = inject(NodeService);
   protected readonly aggregatorService = inject(AggregatorService);
   private readonly appMode = inject(AppModeService);
-  private readonly btcxWallet = inject(BtcxWalletService);
+  protected readonly btcxWallet = inject(BtcxWalletService);
   private readonly destroy$ = new Subject<void>();
+
+  /** True while a remote-mode legacy (v30) re-probe is in flight. */
+  readonly rescanningLegacy = signal(false);
 
   // Managed node state
   nodeMode = signal<NodeMode>('managed');
@@ -2491,6 +2607,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
   onRemoteNetworkChange(network: 'mainnet' | 'testnet' | 'regtest'): void {
     this.remoteNetwork.set(network);
     this.remoteServers.set(this.btcxWallet.serversFor(network));
+  }
+
+  /**
+   * Remote-mode "check for older (v30) funds": re-probe the legacy branch for
+   * the open BDK wallet and restore a counterpart if history turns up.
+   */
+  async rescanLegacy(): Promise<void> {
+    if (this.rescanningLegacy()) return;
+    this.rescanningLegacy.set(true);
+    try {
+      const result = await this.btcxWallet.rescanLegacy();
+      this.notification.success(
+        this.i18n.get(
+          result.outcome === 'created-v30' ? 'wallet_rescan_found' : 'wallet_rescan_none'
+        )
+      );
+    } catch (err) {
+      console.error('Failed to rescan legacy funds:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.rescanningLegacy.set(false);
+    }
   }
 
   async startManagedNode(): Promise<void> {

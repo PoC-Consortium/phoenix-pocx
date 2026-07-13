@@ -393,8 +393,16 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
     const policy = this.result()?.selected ?? this.wallet.descriptorPolicy();
     if (!policy) return '';
     const kind = policy.kind === 'bip86' ? 'BIP-86' : 'BIP-84';
-    const coin =
-      policy.coinType === BTCX_COIN_TYPE ? 'BTCX' : this.i18n.get('mwallet_branch_legacy');
+    // Only coin type 0' is legacy. The current branch is the BTCX coin type
+    // on mainnet, or 1' on testnet/regtest.
+    let coin: string;
+    if (policy.coinType === 0) {
+      coin = this.i18n.get('mwallet_branch_legacy');
+    } else if (policy.coinType === BTCX_COIN_TYPE) {
+      coin = 'BTCX';
+    } else {
+      coin = `${policy.coinType}'`;
+    }
     return `${kind} / ${coin}`;
   });
 

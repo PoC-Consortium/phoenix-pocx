@@ -161,6 +161,11 @@ const DRAG_SLOP_PX = 8;
                         ) | i18n
                       }}
                     </span>
+                    @if (w.policy.coinType === 0) {
+                      <span class="row-badge legacy">
+                        {{ 'wallet_legacy_badge' | i18n }}
+                      </span>
+                    }
                     @if (w.singleAddress) {
                       <span class="row-badge single">
                         {{ 'mwallet_single_badge' | i18n }}
@@ -271,6 +276,26 @@ const DRAG_SLOP_PX = 8;
           <button mat-stroked-button class="full-width" [disabled]="busy()" (click)="lock()">
             <mat-icon>lock</mat-icon>
             {{ 'mwallet_lock_wallet' | i18n }}
+          </button>
+        </div>
+      }
+
+      <!-- Older (v30) funds — re-probe the legacy branch for the open wallet -->
+      @if (wallet.walletActive()) {
+        <div class="card">
+          <h3>{{ 'wallet_rescan_legacy' | i18n }}</h3>
+          <button
+            mat-stroked-button
+            class="full-width"
+            [disabled]="busy() || rescanning()"
+            (click)="rescanLegacy()"
+          >
+            @if (rescanning()) {
+              <mat-spinner diameter="18"></mat-spinner>
+            } @else {
+              <mat-icon>manage_search</mat-icon>
+            }
+            {{ 'wallet_rescan_legacy' | i18n }}
           </button>
         </div>
       }
@@ -646,6 +671,9 @@ export class WalletSettingsComponent implements OnInit {
   readonly networks: BtcxNetwork[] = ['mainnet', 'testnet', 'regtest'];
   readonly busy = signal(false);
 
+  /** True while a legacy (v30) re-probe is in flight. */
+  readonly rescanning = signal(false);
+
   /** App version (e.g. "2.1.1") from the Tauri shell; null until loaded. */
   readonly appVersion = signal<string | null>(null);
 
@@ -924,6 +952,29 @@ export class WalletSettingsComponent implements OnInit {
       this.notification.success(this.i18n.get('mwallet_locked_title'));
     } finally {
       this.busy.set(false);
+    }
+  }
+
+  /**
+   * Re-probe the legacy (v30) branch for the open wallet and restore a
+   * counterpart if older funds turn up — the manual "check for older funds"
+   * lever (the silent auto-migration is a no-op once already migrated).
+   */
+  async rescanLegacy(): Promise<void> {
+    if (this.busy() || this.rescanning()) return;
+    this.rescanning.set(true);
+    try {
+      const result = await this.wallet.rescanLegacy();
+      this.notification.success(
+        this.i18n.get(
+          result.outcome === 'created-v30' ? 'wallet_rescan_found' : 'wallet_rescan_none'
+        )
+      );
+    } catch (err) {
+      console.error('Failed to rescan legacy funds:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.rescanning.set(false);
     }
   }
 }

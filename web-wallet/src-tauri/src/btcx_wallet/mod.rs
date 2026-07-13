@@ -48,6 +48,7 @@ pub mod config;
 pub mod descriptors;
 pub mod descstore;
 pub mod manager;
+pub mod migrate;
 pub mod psbt;
 pub mod state;
 

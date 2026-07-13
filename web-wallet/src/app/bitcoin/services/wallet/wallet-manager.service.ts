@@ -137,6 +137,15 @@ export interface WalletSummary {
 export const SESSION_UNLOCK_SECONDS = 2_147_483_647;
 
 /**
+ * Earliest moment a v31 (BTCX coin type) address could hold funds: the
+ * `importdescriptors` rescan floor for the v30→v31 upgrade. The v31 coin type
+ * shipped 2026-07-09, so nothing can exist on a v31 branch before this — a
+ * rescan from here (2026-07-01 UTC, a safe margin) catches any v31 funds
+ * received on the same seed via another install without a full genesis rescan.
+ */
+export const V31_BIRTHDAY_TIMESTAMP = 1782864000;
+
+/**
  * WalletManagerService handles wallet lifecycle operations.
  *
  * Responsibilities:
@@ -463,12 +472,15 @@ export class WalletManagerService {
         return { importLegacy: true, report: null };
       }
 
+      // The "current" coin type is per-network (mainnet: BTCX; testnet/
+      // regtest: 1'). A UTXO on the current branch is not legacy.
+      const currentCoinType = this.nodeService.network() === 'mainnet' ? BTCX_COIN_TYPE : 1;
       const legacy = new Set<string>();
       const pocx = new Set<string>();
       for (const unspent of result.unspents) {
         const branch = parseBranchFromDescriptor(unspent.desc);
         if (!branch) continue;
-        (branch.coinType === BTCX_COIN_TYPE ? pocx : legacy).add(branch.label);
+        (branch.coinType === currentCoinType ? pocx : legacy).add(branch.label);
       }
       return {
         importLegacy: legacy.size > 0,
@@ -608,6 +620,191 @@ export class WalletManagerService {
     } finally {
       this.isLoadingSubject.next(false);
     }
+  }
+
+  // ============================================================
+  // v30 → v31 Upgrade (BTCX coin-type migration)
+  // ============================================================
+  //
+  // OLD ("v30") Core wallets imported only the coin-type-0' descriptors.
+  // NEW ("v31") wallets import the BTCX coin type (0x504F4358) branch. Since
+  // Phoenix never persists a Core wallet's mnemonic, bitcoind cannot derive
+  // the BTCX branch on its own — upgrading an old wallet to see (and generate)
+  // v31 funds requires the user to RE-ENTER the seed, which is verified
+  // against the wallet's existing descriptors before anything is imported.
+
+  /**
+   * True only for a Core wallet that is both upgradeable AND not yet upgraded:
+   *
+   * - has at least one HD descriptor on a legacy (non-BTCX) coin type, AND
+   * - has NO active descriptor on the BTCX coin type, AND
+   * - has private keys (`getwalletinfo.private_keys_enabled`), AND
+   * - is not multisig.
+   *
+   * The private-keys gate excludes watch-only AND descriptor-imported wallets
+   * (Phoenix imports those with private keys disabled), and the "must have a
+   * legacy HD origin" gate excludes single-address (wpkh(WIF)) wallets, whose
+   * descriptors carry no `[fp/purpose'/coin'/…]` key origin. Together these
+   * enforce the product rule that a wallet created WITHOUT a mnemonic has no
+   * upgrade path and never shows an upgrade badge.
+   *
+   * Remote (local BDK) wallets always derive at the BTCX coin type — nothing
+   * to upgrade — so this is always false in remote mode.
+   */
+  async needsV31Upgrade(walletName: string): Promise<boolean> {
+    if (this.nodeService.isRemote()) return false;
+    // The v30→v31 split only exists on mainnet (coin 0' → BTCX coin type).
+    // Testnet/regtest use coin type 1' end to end, so their non-BTCX
+    // descriptors are the CURRENT branch, not a legacy one to upgrade.
+    if (this.nodeService.network() !== 'mainnet') return false;
+
+    let info: WalletInfo;
+    let descriptors: Array<{ desc: string; active: boolean }>;
+    try {
+      info = await this.walletRpc.getWalletInfo(walletName);
+      descriptors = (await this.walletRpc.listDescriptors(walletName)).descriptors;
+    } catch {
+      // Non-descriptor (legacy) wallet, or listing failed — no upgrade path.
+      return false;
+    }
+
+    // No keys → watch-only or descriptor-import → not upgradeable.
+    if (!info.private_keys_enabled) return false;
+
+    // Multisig descriptors embed their full original paths — excluded.
+    if (descriptors.some(d => parseMultisigDescriptor(d.desc) !== null)) return false;
+
+    // New receives only ever come from the address types Phoenix hands out —
+    // wpkh (84', bech32) and tr (86', taproot). Needs upgrade iff one of THOSE
+    // is still active on a legacy (non-BTCX) coin type; importing the v31
+    // branch active auto-deactivates them (one active descriptor per output
+    // type). This also catches a PARTIAL upgrade, so the badge stays until the
+    // legacy 84'/86' branches are actually inactive.
+    //
+    // Bitcoin Core's default pkh(44') and sh(wpkh)(49') descriptors are NEVER
+    // used by Phoenix and hold no history, so an active one is harmless and
+    // must NOT keep the badge lit.
+    let hasActiveLegacyReceiveBranch = false;
+    for (const d of descriptors) {
+      if (!d.active) continue;
+      const branch = parseBranchFromDescriptor(d.desc);
+      // Skip raw-key / single-address descriptors (no BIP32 key origin).
+      if (!branch) continue;
+      const isPhoenixAddressType = branch.purpose === 84 || branch.purpose === 86;
+      if (isPhoenixAddressType && branch.coinType !== BTCX_COIN_TYPE) {
+        hasActiveLegacyReceiveBranch = true;
+      }
+    }
+
+    return hasActiveLegacyReceiveBranch;
+  }
+
+  /**
+   * Safety gate for the upgrade: confirm a re-entered mnemonic (+ optional
+   * BIP39 passphrase) actually derives the wallet's existing descriptors.
+   *
+   * Compares the mnemonic's master fingerprint against the master fingerprint
+   * carried in the wallet descriptors' key origins (`[fp/…]`), case-insensitive.
+   * A wrong seed must be rejected here before any BTCX descriptor is imported.
+   */
+  async verifyMnemonicMatchesWallet(
+    walletName: string,
+    mnemonic: string,
+    passphrase?: string
+  ): Promise<boolean> {
+    if (!this.descriptorService.validateMnemonic(mnemonic)) return false;
+
+    const walletFingerprint = await this.getWalletMasterFingerprint(walletName);
+    if (!walletFingerprint) return false;
+
+    const mnemonicFingerprint = this.descriptorService.getMasterFingerprint(
+      mnemonic,
+      passphrase ?? ''
+    );
+    return walletFingerprint.toLowerCase() === mnemonicFingerprint.toLowerCase();
+  }
+
+  /**
+   * Upgrade an old (coin-type-0') Core wallet to v31 by importing the BTCX
+   * coin-type branch ACTIVE, using a re-entered mnemonic.
+   *
+   * Importing the v31 84'(wpkh) + 86'(tr) branches active is the ENTIRE job:
+   * Bitcoin Core allows one active descriptor per output type, so this
+   * automatically deactivates the previously-active legacy wpkh(84'/0') and
+   * tr(86'/0') branches. They stay watched/spendable — funds intact, draining
+   * into the v31 branch as change — but stop handing out new addresses. No
+   * explicit legacy re-import (or range juggling) is needed.
+   *
+   * Bitcoin Core's default pkh(44') and sh(wpkh)(49') descriptors are a
+   * different output type, so they stay active — but Phoenix only ever
+   * requests bech32/taproot addresses, so they're never used and hold no
+   * history. We deliberately leave them alone (`needsV31Upgrade` ignores
+   * them, so the badge still clears).
+   *
+   * The v31 branch is new to this wallet (it never handed out v31 addresses),
+   * so its only possible history is funds received on the SAME seed via
+   * another install (mobile/BDK) after the v31 coin type shipped — hence a
+   * rescan from the v31 birthday rather than genesis.
+   *
+   * Rejects a mismatched seed up front (`upgrade_seed_mismatch`). After
+   * success the wallet hands out v31 addresses and `needsV31Upgrade` is false.
+   */
+  async upgradeWalletToV31(
+    walletName: string,
+    mnemonic: string,
+    passphrase?: string
+  ): Promise<void> {
+    this.isLoadingSubject.next(true);
+
+    try {
+      if (!(await this.verifyMnemonicMatchesWallet(walletName, mnemonic, passphrase))) {
+        throw new Error('upgrade_seed_mismatch');
+      }
+
+      const pocxSet = this.descriptorService.generateNewWalletDescriptors(mnemonic, {
+        passphrase,
+        isTestnet: this.nodeService.network() !== 'mainnet',
+        account: 0,
+        addressRange: [0, 999],
+      });
+      const pocxEntries = this.descriptorService.formatForImport(pocxSet).map(entry => ({
+        ...entry,
+        active: true,
+        timestamp: V31_BIRTHDAY_TIMESTAMP as number | 'now',
+      }));
+
+      const importResults = await this.walletRpc.importDescriptors(walletName, pocxEntries);
+
+      const errors = importResults
+        .filter(r => !r.success)
+        .map(r => r.error?.message || 'Unknown import error');
+      if (errors.length > 0) {
+        throw new Error(errors.join(', '));
+      }
+
+      await this.refreshLoadedWallets();
+      this.walletsChangedSubject.next();
+    } finally {
+      this.isLoadingSubject.next(false);
+    }
+  }
+
+  /**
+   * Master-key fingerprint (8 hex) carried in a wallet's descriptor key
+   * origins (`[fp/…]`). Returns null for wallets whose descriptors have no
+   * origin (e.g. single-address / raw-key imports) or cannot be listed.
+   */
+  private async getWalletMasterFingerprint(walletName: string): Promise<string | null> {
+    try {
+      const { descriptors } = await this.walletRpc.listDescriptors(walletName);
+      for (const d of descriptors) {
+        const match = /\[([0-9a-fA-F]{8})\//.exec(d.desc);
+        if (match) return match[1];
+      }
+    } catch {
+      // Legacy wallet or listing failed.
+    }
+    return null;
   }
 
   // ============================================================

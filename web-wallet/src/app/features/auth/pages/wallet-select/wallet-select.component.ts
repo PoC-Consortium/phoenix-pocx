@@ -9,7 +9,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
+import {
+  UpgradeWalletDialogComponent,
+  UpgradeWalletDialogData,
+} from '../../components/upgrade-wallet-dialog/upgrade-wallet-dialog.component';
 import {
   WalletManagerService,
   WalletSummary,
@@ -38,6 +43,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
     MatTableModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
+    MatDialogModule,
     I18nPipe,
   ],
   template: `
@@ -161,6 +167,16 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                         "
                         >group</mat-icon
                       >
+                    }
+                    @if (needsUpgrade(wallet.name)) {
+                      <button
+                        mat-icon-button
+                        class="upgrade-badge"
+                        [matTooltip]="'wallet_upgrade_tooltip' | i18n"
+                        (click)="openUpgradeDialog(wallet, $event)"
+                      >
+                        <mat-icon>system_update_alt</mat-icon>
+                      </button>
                     }
                   </td>
                 </ng-container>
@@ -579,6 +595,23 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
           color: #9c27b0;
         }
 
+        /* v30→v31 upgrade affordance: amber, compact, inline after the name. */
+        .upgrade-badge {
+          width: 28px;
+          height: 28px;
+          padding: 0;
+          line-height: 28px;
+          vertical-align: middle;
+          margin-left: 4px;
+          color: #ff9800;
+
+          mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+          }
+        }
+
         .encryption-icon {
           font-size: 20px;
           width: 20px;
@@ -711,6 +744,7 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
   private readonly cookieAuth = inject(CookieAuthService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
   private readonly appUpdateService = inject(AppUpdateService);
   private readonly walletUnlock = inject(WalletUnlockService);
@@ -731,6 +765,13 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   connectionError = signal<string | null>(null);
   wallets = signal<WalletSummary[]>([]);
   selectedWallet = signal<string | null>(null);
+
+  /**
+   * Per-wallet v31-upgrade need, cached from `needsV31Upgrade` (an RPC call —
+   * never invoked from the template). Always empty in remote mode, where the
+   * local BDK wallets already derive at the BTCX coin type.
+   */
+  private readonly upgradeNeeded = signal<Record<string, boolean>>({});
 
   // Computed: are we connected to the node?
   isConnected = computed(() => !this.isConnecting() && !this.connectionError());
@@ -817,9 +858,53 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
           this.selectedWallet.set(firstLoaded.name);
         }
       }
+
+      void this.refreshUpgradeFlags(summaries);
     } finally {
       this.isLoading.set(false);
     }
+  }
+
+  /**
+   * Populate the upgrade-need cache for the listed wallets (one RPC each,
+   * `needsV31Upgrade` is a no-op in remote mode). Runs off the render path so
+   * the table paints immediately; the amber badge appears as answers arrive.
+   */
+  private async refreshUpgradeFlags(summaries: WalletSummary[]): Promise<void> {
+    const entries = await Promise.all(
+      summaries.map(async w => {
+        try {
+          return [w.name, await this.walletManager.needsV31Upgrade(w.name)] as const;
+        } catch {
+          return [w.name, false] as const;
+        }
+      })
+    );
+    this.upgradeNeeded.set(Object.fromEntries(entries));
+  }
+
+  /** Whether the named wallet needs a v31 upgrade (cached; template-safe). */
+  needsUpgrade(walletName: string): boolean {
+    return this.upgradeNeeded()[walletName] === true;
+  }
+
+  /**
+   * Open the guided re-enter upgrade dialog for a wallet. On success the
+   * wallet has been upgraded (badge clears) — reload the list.
+   */
+  openUpgradeDialog(wallet: WalletSummary, event: Event): void {
+    event.stopPropagation();
+    const data: UpgradeWalletDialogData = { walletName: wallet.name };
+    this.dialog
+      .open(UpgradeWalletDialogComponent, { data, width: '560px', disableClose: true })
+      .afterClosed()
+      .subscribe((upgraded: boolean | undefined) => {
+        if (!upgraded) return;
+        this.snackBar.open(this.i18n.get('wallet_upgrade_success'), this.i18n.get('dismiss'), {
+          duration: 4000,
+        });
+        void this.loadWallets();
+      });
   }
 
   retryConnection(): void {

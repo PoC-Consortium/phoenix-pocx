@@ -72,6 +72,7 @@ export interface MnemonicEntryState {
           <mat-autocomplete
             #auto="matAutocomplete"
             [autoActiveFirstOption]="true"
+            panelWidth="auto"
             (optionSelected)="onWordSelected(i, $event.option.value)"
           >
             @for (suggestion of wordSuggestions[i]; track suggestion) {

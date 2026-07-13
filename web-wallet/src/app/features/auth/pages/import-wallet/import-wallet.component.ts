@@ -25,6 +25,7 @@ import {
   BtcxWalletService,
   BtcxRestoreResult,
   BtcxDescriptorPolicy,
+  BTCX_COIN_TYPE,
 } from '../../../../core/services/btcx-wallet.service';
 
 /**
@@ -551,11 +552,13 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
 
   /**
    * Map the remote restore's probe hits onto the same branch-report shape
-   * the Core path renders (legacy = coin type 0', pocx = the BTCX type).
+   * the Core path renders. Only coin type 0' is legacy; the current branch
+   * is the BTCX coin type on mainnet or 1' on testnet/regtest.
    */
   private mapBtcxRestore(result: BtcxRestoreResult): RestoreBranchReport {
+    const coin = (ct: number) => (ct === BTCX_COIN_TYPE ? 'BTCX' : `${ct}'`);
     const label = (p: BtcxDescriptorPolicy) =>
-      `${p.kind === 'bip84' ? "84'" : "86'"}/${p.coinType === 0 ? "0'" : 'BTCX'}`;
+      `${p.kind === 'bip84' ? "84'" : "86'"}/${coin(p.coinType)}`;
     return {
       legacy: result.hits.filter(h => h.policy.coinType === 0).map(h => label(h.policy)),
       pocx: result.hits.filter(h => h.policy.coinType !== 0).map(h => label(h.policy)),

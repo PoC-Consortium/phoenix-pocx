@@ -50,10 +50,10 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use electrum_btcx::{ElectrumBackend, WalletEntry, WalletHandle, STOP_GAP};
-use keys_btcx::{WalletSeed, COIN_BTCX};
+use keys_btcx::WalletSeed;
 use params_btcx::params::ChainParams;
 
-use super::config::{DescriptorKindCfg, DescriptorPolicy};
+use super::config::{DescriptorKindCfg, DescriptorPolicy, WalletNetwork};
 
 /// External (receive) addresses checked per restore-probe candidate.
 /// Deliberately DEEPER than `electrum_btcx::STOP_GAP` (25) — hits beyond
@@ -190,26 +190,36 @@ fn open_wallet_with_descriptors(
     Ok(Arc::new(Mutex::new(WalletEntry { wallet, conn })))
 }
 
-/// The restore-probe candidates, in probe order (see module docs).
-pub fn probe_candidates() -> [DescriptorPolicy; 4] {
-    [
+/// The restore-probe candidates for a network, in probe order (see module
+/// docs). The current (asset) coin type is probed first so a wallet with
+/// history on both it and the legacy branch reopens on the modern one; the
+/// distinct legacy branch follows. Testnet/regtest have no separate legacy
+/// branch (current == legacy == 1'), so they probe just the two families
+/// at coin type 1'.
+pub fn probe_candidates(network: WalletNetwork) -> Vec<DescriptorPolicy> {
+    let asset = network.asset_coin_type();
+    let legacy = network.legacy_coin_type();
+    let mut candidates = vec![
         DescriptorPolicy {
             kind: DescriptorKindCfg::Bip84,
-            coin_type: COIN_BTCX,
+            coin_type: asset,
         },
         DescriptorPolicy {
             kind: DescriptorKindCfg::Bip86,
-            coin_type: COIN_BTCX,
+            coin_type: asset,
         },
-        DescriptorPolicy {
+    ];
+    if legacy != asset {
+        candidates.push(DescriptorPolicy {
             kind: DescriptorKindCfg::Bip84,
-            coin_type: 0,
-        },
-        DescriptorPolicy {
+            coin_type: legacy,
+        });
+        candidates.push(DescriptorPolicy {
             kind: DescriptorKindCfg::Bip86,
-            coin_type: 0,
-        },
-    ]
+            coin_type: legacy,
+        });
+    }
+    candidates
 }
 
 /// The first `count` scriptPubKeys of one keychain (`change` 0 = external
@@ -306,10 +316,19 @@ pub fn probe_branch_hits(
 /// (candidate priority order): the first hit, or the fresh-wallet default
 /// (BIP-84 / BTCX coin type) when no branch has history. The second value
 /// is the honest "fresh" verdict for the UI.
-pub fn select_restore_policy(hits: &[BranchHit]) -> (DescriptorPolicy, bool) {
+pub fn select_restore_policy(
+    hits: &[BranchHit],
+    network: WalletNetwork,
+) -> (DescriptorPolicy, bool) {
     match hits.first() {
         Some(hit) => (hit.policy, false),
-        None => (DescriptorPolicy::default(), true),
+        None => (
+            DescriptorPolicy {
+                kind: DescriptorKindCfg::Bip84,
+                coin_type: network.asset_coin_type(),
+            },
+            true,
+        ),
     }
 }
 
@@ -322,13 +341,14 @@ pub fn select_restore_policy(hits: &[BranchHit]) -> (DescriptorPolicy, bool) {
 pub fn select_restore_policy_for_kind(
     hits: &[BranchHit],
     kind: DescriptorKindCfg,
+    network: WalletNetwork,
 ) -> (DescriptorPolicy, bool) {
     match hits.iter().find(|hit| hit.policy.kind == kind) {
         Some(hit) => (hit.policy, false),
         None => (
             DescriptorPolicy {
                 kind,
-                coin_type: COIN_BTCX,
+                coin_type: network.asset_coin_type(),
             },
             true,
         ),
@@ -339,8 +359,12 @@ pub fn select_restore_policy_for_kind(
 /// scripthash-history call covering the first
 /// [`PROBE_EXTERNAL_ADDRESSES`] external plus [`PROBE_INTERNAL_ADDRESSES`]
 /// internal addresses.
-pub fn probe_all_branches(seed: &WalletSeed, chain: &ElectrumBackend) -> Result<Vec<BranchHit>> {
-    probe_branch_hits(&probe_candidates(), |candidate| {
+pub fn probe_all_branches(
+    seed: &WalletSeed,
+    chain: &ElectrumBackend,
+    network: WalletNetwork,
+) -> Result<Vec<BranchHit>> {
+    probe_branch_hits(&probe_candidates(network), |candidate| {
         let mut spks = candidate_spks(seed, candidate, 0, PROBE_EXTERNAL_ADDRESSES)?;
         spks.extend(candidate_spks(
             seed,
@@ -391,6 +415,7 @@ pub fn ensure_probe_reach(entry: &mut WalletEntry, hit: &BranchHit) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+    use keys_btcx::COIN_BTCX;
     use std::str::FromStr;
 
     /// The standard BIP39 test mnemonic (public test vectors).
@@ -406,17 +431,35 @@ mod tests {
 
     #[test]
     fn probe_candidate_ordering() {
-        // New-standard branches first, legacy Phoenix coin-0 branches after
-        // — the order decides which history a mixed seed restores to.
+        // Mainnet: new-standard (BTCX coin type) branches first, legacy
+        // Phoenix coin-0 branches after — the order decides which history a
+        // mixed seed restores to.
         assert_eq!(
-            probe_candidates(),
-            [
+            probe_candidates(WalletNetwork::Mainnet),
+            vec![
                 policy(DescriptorKindCfg::Bip84, COIN_BTCX),
                 policy(DescriptorKindCfg::Bip86, COIN_BTCX),
                 policy(DescriptorKindCfg::Bip84, 0),
                 policy(DescriptorKindCfg::Bip86, 0),
             ]
         );
+    }
+
+    #[test]
+    fn probe_candidates_testnet_is_coin_type_1_only() {
+        // Testnet/regtest use the shared SLIP-44 coin type 1' for both new
+        // and legacy — there is no distinct legacy branch, so only the two
+        // families at 1' are probed (no COIN_BTCX, no coin-0).
+        for network in [WalletNetwork::Testnet, WalletNetwork::Regtest] {
+            assert_eq!(
+                probe_candidates(network),
+                vec![
+                    policy(DescriptorKindCfg::Bip84, 1),
+                    policy(DescriptorKindCfg::Bip86, 1),
+                ],
+                "{network:?} must probe only coin type 1'",
+            );
+        }
     }
 
     #[test]
@@ -455,7 +498,7 @@ mod tests {
         // History on the legacy BIP-84/coin-0 branch AND the BIP-86/BTCX
         // branch: both are collected, priority order preserved, and the
         // selection opens the higher-priority BIP-86/BTCX branch.
-        let hits = probe_branch_hits(&probe_candidates(), |cand| {
+        let hits = probe_branch_hits(&probe_candidates(WalletNetwork::Mainnet), |cand| {
             let external = if cand == policy(DescriptorKindCfg::Bip84, 0) {
                 used_at(PROBE_EXTERNAL_ADDRESSES, &[3])
             } else if cand == policy(DescriptorKindCfg::Bip86, COIN_BTCX) {
@@ -472,7 +515,7 @@ mod tests {
         assert_eq!(hits[1].policy, policy(DescriptorKindCfg::Bip84, 0));
         assert_eq!(hits[1].deepest_external, Some(3));
 
-        let (selected, fresh) = select_restore_policy(&hits);
+        let (selected, fresh) = select_restore_policy(&hits, WalletNetwork::Mainnet);
         assert_eq!(selected, policy(DescriptorKindCfg::Bip86, COIN_BTCX));
         assert!(!fresh);
     }
@@ -481,7 +524,7 @@ mod tests {
     fn probe_detects_change_only_history() {
         // A swept / change-only wallet: history exclusively on the internal
         // keychain still counts as a hit.
-        let hits = probe_branch_hits(&probe_candidates(), |cand| {
+        let hits = probe_branch_hits(&probe_candidates(WalletNetwork::Mainnet), |cand| {
             let internal = if cand == policy(DescriptorKindCfg::Bip84, 0) {
                 used_at(PROBE_INTERNAL_ADDRESSES, &[2])
             } else {
@@ -511,11 +554,13 @@ mod tests {
             hit(policy(DescriptorKindCfg::Bip86, 0)),
         ];
 
-        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86);
+        let (selected, fresh) =
+            select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86, WalletNetwork::Mainnet);
         assert_eq!(selected, policy(DescriptorKindCfg::Bip86, 0));
         assert!(!fresh);
 
-        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip84);
+        let (selected, fresh) =
+            select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip84, WalletNetwork::Mainnet);
         assert_eq!(selected, policy(DescriptorKindCfg::Bip84, COIN_BTCX));
         assert!(!fresh);
 
@@ -525,21 +570,23 @@ mod tests {
             hit(policy(DescriptorKindCfg::Bip86, COIN_BTCX)),
             hit(policy(DescriptorKindCfg::Bip86, 0)),
         ];
-        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86);
+        let (selected, fresh) =
+            select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86, WalletNetwork::Mainnet);
         assert_eq!(selected, policy(DescriptorKindCfg::Bip86, COIN_BTCX));
         assert!(!fresh);
 
         // No hit of the forced family anywhere: fresh default of THAT
         // family at the BTCX coin type, with an honest fresh verdict.
         let hits = [hit(policy(DescriptorKindCfg::Bip84, COIN_BTCX))];
-        let (selected, fresh) = select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86);
+        let (selected, fresh) =
+            select_restore_policy_for_kind(&hits, DescriptorKindCfg::Bip86, WalletNetwork::Mainnet);
         assert_eq!(selected, policy(DescriptorKindCfg::Bip86, COIN_BTCX));
         assert!(fresh);
     }
 
     #[test]
     fn select_restore_policy_defaults_to_fresh_bip84_btcx() {
-        let (selected, fresh) = select_restore_policy(&[]);
+        let (selected, fresh) = select_restore_policy(&[], WalletNetwork::Mainnet);
         assert!(fresh, "no hits anywhere is an honest fresh verdict");
         assert_eq!(selected, DescriptorPolicy::default());
         assert_eq!(selected, policy(DescriptorKindCfg::Bip84, COIN_BTCX));
@@ -549,7 +596,7 @@ mod tests {
     fn probe_branch_hits_propagates_probe_errors() {
         // A dead server must fail the restore honestly, not silently open
         // a fresh wallet over a seed that may have history elsewhere.
-        let result = probe_branch_hits(&probe_candidates(), |_| {
+        let result = probe_branch_hits(&probe_candidates(WalletNetwork::Mainnet), |_| {
             anyhow::bail!("electrum unreachable")
         });
         assert!(result.is_err());
@@ -591,7 +638,7 @@ mod tests {
 
     #[test]
     fn candidate_spks_are_disjoint_across_candidates_and_keychains() {
-        let all: Vec<Vec<ScriptBuf>> = probe_candidates()
+        let all: Vec<Vec<ScriptBuf>> = probe_candidates(WalletNetwork::Mainnet)
             .into_iter()
             .flat_map(|c| {
                 [
