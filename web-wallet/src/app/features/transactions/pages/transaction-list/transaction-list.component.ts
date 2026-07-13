@@ -31,6 +31,7 @@ import {
   WalletTransaction,
 } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
+import { downloadTextFile } from '../../../../shared/utils/download';
 import {
   FeeBumpDialogComponent,
   FeeBumpDialogData,
@@ -41,6 +42,11 @@ import {
   AbandonTxDialogData,
   AbandonTxDialogResult,
 } from '../../components/abandon-tx-dialog/abandon-tx-dialog.component';
+import {
+  CpfpDialogComponent,
+  CpfpDialogData,
+  CpfpDialogResult,
+} from '../../components/cpfp-dialog/cpfp-dialog.component';
 
 type TransactionFilter =
   | 'all'
@@ -93,6 +99,17 @@ type TransactionFilter =
           <h1>{{ 'transactions' | i18n }}</h1>
         </div>
         <div class="header-right">
+          <!-- Export CSV (kept apart from the load-limit + refresh pair) -->
+          <button
+            mat-icon-button
+            [disabled]="loading() || filteredTransactions().length === 0"
+            (click)="exportCsv()"
+            [matTooltip]="'export_csv' | i18n"
+            class="refresh-button"
+          >
+            <mat-icon>file_download</mat-icon>
+          </button>
+
           <!-- Load Limit -->
           <mat-form-field appearance="outline" class="limit-field">
             <mat-label>{{ 'load_limit' | i18n }}</mat-label>
@@ -307,6 +324,18 @@ type TransactionFilter =
                             <button mat-menu-item (click)="openBumpFeeDialog(tx)">
                               <mat-icon>speed</mat-icon>
                               <span>{{ 'bump_fee' | i18n }}</span>
+                            </button>
+                          }
+                          @if (
+                            tx.confirmations === 0 &&
+                            tx.category === 'receive' &&
+                            tx.vout !== undefined &&
+                            cpfpEnabled()
+                          ) {
+                            <mat-divider></mat-divider>
+                            <button mat-menu-item (click)="openCpfpDialog(tx)">
+                              <mat-icon>bolt</mat-icon>
+                              <span>{{ 'speed_up_cpfp' | i18n }}</span>
                             </button>
                           }
                           @if (tx.confirmations === 0 && tx.category === 'send') {
@@ -889,6 +918,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog);
   private readonly destroy$ = new Subject<void>();
 
+  /** CPFP (child-pays-for-parent) is Core-only — gated on the backend flag. */
+  readonly cpfpEnabled = (): boolean => this.backendRouter.capabilities().cpfp;
+
   loading = signal(false);
   transactions = signal<WalletTransaction[]>([]);
   activeFilter = signal<TransactionFilter>('all');
@@ -1054,6 +1086,50 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     this.filterVersion.update(v => v + 1);
   }
 
+  /**
+   * Export the currently-filtered transactions as a CSV download (Blob +
+   * anchor, same mechanism as the mining dashboard's deadline export).
+   * Timestamps are ISO-8601 UTC so spreadsheets parse them unambiguously;
+   * amounts use a dot decimal via toFixed, independent of locale.
+   */
+  async exportCsv(): Promise<void> {
+    const txs = this.filteredTransactions();
+    if (txs.length === 0) return;
+    const headers = [
+      this.i18n.get('date'),
+      this.i18n.get('type'),
+      this.i18n.get('amount'),
+      this.i18n.get('fee'),
+      this.i18n.get('confirmations'),
+      this.i18n.get('transaction_id'),
+      this.i18n.get('address'),
+      this.i18n.get('label'),
+    ];
+    const rows = txs.map(tx => [
+      new Date(tx.time * 1000).toISOString(),
+      this.getTransactionType(tx),
+      tx.amount.toFixed(8),
+      tx.fee != null ? Math.abs(tx.fee).toFixed(8) : '',
+      tx.confirmations,
+      tx.txid,
+      tx.address ?? '',
+      tx.label ?? '',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => this.csvCell(c)).join(',')).join('\r\n');
+    try {
+      await downloadTextFile('transactions.csv', csv);
+    } catch (err) {
+      console.error('Failed to export transactions:', err);
+      this.notification.error(`${err}`);
+    }
+  }
+
+  /** Quote a CSV cell if it contains a comma, quote or newline (RFC 4180). */
+  private csvCell(value: string | number): string {
+    const s = String(value);
+    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
   goBack(): void {
     this.location.back();
   }
@@ -1187,6 +1263,49 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       this.walletService.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : this.i18n.get('bump_fee_error');
+      this.notification.error(message);
+    }
+  }
+
+  async openCpfpDialog(tx: WalletTransaction): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName || tx.vout === undefined) return;
+
+    const dialogRef = this.dialog.open(CpfpDialogComponent, {
+      width: '500px',
+      data: {
+        parentTxid: tx.txid,
+        vout: tx.vout,
+        receivedAmount: Math.abs(tx.amount),
+        walletName,
+      } as CpfpDialogData,
+    });
+
+    const result = (await firstValueFrom(dialogRef.afterClosed())) as CpfpDialogResult | undefined;
+    if (result?.confirmed && result.childFeeRate !== undefined) {
+      await this.executeCpfp(tx, result.childFeeRate);
+    }
+  }
+
+  private async executeCpfp(tx: WalletTransaction, childFeeRate: number): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName || tx.vout === undefined) return;
+
+    try {
+      // Core-only: spends the parent's output with a high-fee child, dragging
+      // the parent into the same package.
+      const childTxid = await this.backendRouter
+        .wallet()
+        .cpfpBumpFee(walletName, tx.txid, tx.vout, childFeeRate);
+
+      this.notification.success(
+        this.i18n.get('cpfp_success').replace('{txid}', childTxid.substring(0, 16) + '...')
+      );
+
+      this.loadTransactions();
+      this.walletService.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : this.i18n.get('cpfp_error');
       this.notification.error(message);
     }
   }

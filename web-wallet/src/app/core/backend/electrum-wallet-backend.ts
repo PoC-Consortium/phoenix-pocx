@@ -8,6 +8,7 @@ import {
   WalletBackendFeeEstimates,
   WalletBackendSendOptions,
   WalletCapabilities,
+  WalletCoin,
   ELECTRUM_CAPABILITIES,
 } from './wallet-backend.model';
 
@@ -21,6 +22,8 @@ interface BtcxUtxoDto {
   address?: string;
   confirmations: number;
   isChange: boolean;
+  /** The address' pubkey is on-chain (it has been spent from before). */
+  exposed: boolean;
 }
 
 /**
@@ -110,6 +113,22 @@ export class ElectrumWalletBackend implements WalletBackend {
     return utxos.map(mapBtcxUtxo);
   }
 
+  async listCoins(): Promise<WalletCoin[]> {
+    // Map the raw DTO directly — it already carries `isChange` (which
+    // `mapBtcxUtxo`'s Core `UTXO` shape drops).
+    const utxos = await invoke<BtcxUtxoDto[]>('btcx_wallet_utxos');
+    return utxos.map(u => ({
+      txid: u.txid,
+      vout: u.vout,
+      address: u.address ?? '',
+      amount: u.amountSat / SATS_PER_BTC,
+      confirmations: u.confirmations,
+      isChange: u.isChange,
+      spendable: true,
+      exposed: u.exposed,
+    }));
+  }
+
   async sendToAddress(
     _walletName: string,
     address: string,
@@ -141,6 +160,16 @@ export class ElectrumWalletBackend implements WalletBackend {
       feeRateSatVb = estimates.fast ?? estimates.normal ?? estimates.minSatPerVb * 2;
     }
     return this.btcxWallet.bumpFee(txid, feeRateSatVb);
+  }
+
+  async cpfpBumpFee(): Promise<string> {
+    // CPFP needs a parent vsize/fee source (getmempoolentry) the Electrum
+    // stack doesn't expose — gated off in the capability matrix.
+    throw new Error('feature_unavailable_remote');
+  }
+
+  async getCpfpParentInfo(): Promise<{ vsize: number; fee: number }> {
+    throw new Error('feature_unavailable_remote');
   }
 
   async feeEstimates(): Promise<WalletBackendFeeEstimates> {

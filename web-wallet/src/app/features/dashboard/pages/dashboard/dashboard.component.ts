@@ -120,6 +120,14 @@ import {
             <mat-icon>account_balance_wallet</mat-icon>
             {{ 'total_balance' | i18n }}
           </mat-card-title>
+          <button
+            mat-icon-button
+            class="coins-link-btn"
+            (click)="goToCoins()"
+            [matTooltip]="'coins_title' | i18n"
+          >
+            <mat-icon>toll</mat-icon>
+          </button>
         </mat-card-header>
         <mat-card-content>
           <div class="total-balance">
@@ -578,6 +586,14 @@ import {
               color: #ffffff !important;
             }
           }
+
+          .coins-link-btn {
+            color: rgba(255, 255, 255, 0.8);
+
+            &:hover {
+              color: #ffffff;
+            }
+          }
         }
 
         mat-card-content {
@@ -591,6 +607,10 @@ import {
           gap: 8px;
           margin-bottom: 12px;
           white-space: nowrap;
+
+          &.clickable {
+            cursor: pointer;
+          }
 
           .amount {
             font-size: 32px;
@@ -1175,6 +1195,11 @@ export class DashboardComponent implements AfterViewInit {
   // Balance methods
   getTotalAll(): number {
     return this.totalBalance() + this.pendingBalance() + this.immatureBalance();
+  }
+
+  /** Open the per-address "Coins & Addresses" view. */
+  goToCoins(): void {
+    void this.router.navigate(['/coins']);
   }
 
   // Blockchain info methods

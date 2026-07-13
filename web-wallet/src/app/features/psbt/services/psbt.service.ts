@@ -4,6 +4,7 @@ import type { DecodedPsbt, PsbtAnalysis } from '../../../bitcoin/services/rpc/wa
 import { WalletManagerService } from '../../../bitcoin/services/wallet/wallet-manager.service';
 import { NodeService } from '../../../node/services/node.service';
 import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
+import { downloadTextFile, downloadBinaryFile } from '../../../shared/utils/download';
 import type {
   FeeWarning,
   PsbtDocument,
@@ -401,15 +402,14 @@ export class PsbtService {
     throw new Error('not_a_psbt_file');
   }
 
-  /** Download the PSBT as a standard binary .psbt file */
-  savePsbtFile(name: string, base64: string): void {
-    const bytes = this.base64ToBytes(base64);
-    this.downloadBlob(new Blob([bytes], { type: 'application/octet-stream' }), `${name}.psbt`);
+  /** Save the PSBT as a standard binary .psbt file (native dialog in Tauri). */
+  async savePsbtFile(name: string, base64: string): Promise<void> {
+    await downloadBinaryFile(`${name}.psbt`, this.base64ToBytes(base64));
   }
 
-  /** Download the final raw transaction hex as a text file */
-  saveHexFile(name: string, hex: string): void {
-    this.downloadBlob(new Blob([hex], { type: 'text/plain' }), `${name}.txn`);
+  /** Save the final raw transaction hex as a text file. */
+  async saveHexFile(name: string, hex: string): Promise<void> {
+    await downloadTextFile(`${name}.txn`, hex, 'text/plain');
   }
 
   private bytesToBase64(bytes: Uint8Array): string {
@@ -426,13 +426,5 @@ export class PsbtService {
     const bytes = new Uint8Array(new ArrayBuffer(binary.length));
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
-  }
-
-  private downloadBlob(blob: Blob, filename: string): void {
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(link.href);
   }
 }

@@ -15,6 +15,7 @@ import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { HashTruncatePipe } from '../../../../shared/pipes';
 import { ClipboardService, Contact, ContactsStoreService } from '../../../../shared/services';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import { parsePaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import {
   BtcxWalletService,
   BtcxFeeEstimates,
@@ -207,7 +208,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
             <input
               matInput
               [(ngModel)]="address"
-              (ngModelChange)="validateAddress()"
+              (ngModelChange)="onAddressChange()"
               autocomplete="off"
               autocapitalize="none"
               spellcheck="false"
@@ -767,13 +768,35 @@ export class WalletSendComponent implements OnInit {
   readonly spendableSat = computed(() => this.wallet.balance()?.spendableSat ?? 0);
 
   ngOnInit(): void {
-    // Prefill from ?address= (contacts "send to", same as desktop).
-    const prefill = this.route.snapshot.queryParamMap.get('address');
+    // Prefill from a full ?uri= (deep link / scanned QR) or the ?address=
+    // contacts "send to" param. A URI splits into address + amount.
+    const q = this.route.snapshot.queryParamMap;
+    const prefill = q.get('uri') ?? q.get('address');
     if (prefill) {
-      this.address = prefill;
+      const parsed = parsePaymentUri(prefill);
+      if (parsed) {
+        this.address = parsed.address;
+        if (parsed.amount !== null) this.amount = parsed.amount;
+      }
     }
     this.contactsStore.load();
     void this.init();
+  }
+
+  /**
+   * Recipient-field change: split a pasted payment URI into address + amount,
+   * else just validate. Only triggers the split on `:` or `?` so normal
+   * address typing is untouched.
+   */
+  onAddressChange(): void {
+    if (this.address.includes(':') || this.address.includes('?')) {
+      const parsed = parsePaymentUri(this.address);
+      if (parsed) {
+        this.address = parsed.address;
+        if (parsed.amount !== null) this.amount = parsed.amount;
+      }
+    }
+    this.validateAddress();
   }
 
   private async init(): Promise<void> {

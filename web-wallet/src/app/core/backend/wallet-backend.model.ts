@@ -31,6 +31,14 @@ export interface WalletBackend {
   /** Spendable outputs in the Core `listunspent` shape. */
   listUnspent(walletName: string): Promise<UTXO[]>;
 
+  /**
+   * Spendable coins with per-address change classification — the
+   * "Coins & Addresses" view. Distinct from `listUnspent` in that it
+   * carries `isChange`, resolved per source (Core `getaddressinfo`, BDK
+   * `keychain`).
+   */
+  listCoins(walletName: string): Promise<WalletCoin[]>;
+
   /** Send `amount` BTC to `address`; returns the txid. */
   sendToAddress(
     walletName: string,
@@ -42,11 +50,50 @@ export interface WalletBackend {
   /** RBF-bump a wallet transaction; returns the replacement txid. */
   bumpFee(walletName: string, txid: string, feeRateSatVb?: number): Promise<string>;
 
+  /** CPFP-bump an incoming unconfirmed tx by spending its output with a high-fee child; returns the child txid. */
+  cpfpBumpFee(
+    walletName: string,
+    parentTxid: string,
+    vout: number,
+    childFeeRateSatVb: number
+  ): Promise<string>;
+
+  /** Parent vsize (vB) + absolute fee (BTC) for CPFP package math. */
+  getCpfpParentInfo(
+    walletName: string,
+    parentTxid: string
+  ): Promise<{ vsize: number; fee: number }>;
+
   /** Market fee estimates in sat/vB (null where the source has no data). */
   feeEstimates(): Promise<WalletBackendFeeEstimates>;
 
   /** What this backend can do — pages hide actions the backend lacks. */
   readonly capabilities: WalletCapabilities;
+}
+
+/**
+ * One spendable coin (UTXO) with the fields the coins view needs: the
+ * funding address and whether it belongs to the change keychain.
+ */
+export interface WalletCoin {
+  txid: string;
+  vout: number;
+  address: string;
+  /** Amount in BTC. */
+  amount: number;
+  confirmations: number;
+  isChange: boolean;
+  spendable: boolean;
+  /**
+   * Whether the funding address's public key has been revealed on-chain —
+   * i.e. the address has ever been SPENT from. For P2WPKH, coins are guarded
+   * by the pubkey HASH until the first spend, then only by the pubkey itself,
+   * so this flags the weaker-protected funds. Core derives it from
+   * total-received > current-unspent (spending is the only way received can
+   * exceed the balance still held); the Electrum/BDK backend derives it from
+   * the wallet's spent outputs (`list_output().is_spent`) per script.
+   */
+  exposed?: boolean;
 }
 
 /** Balance snapshot in BTC. */
@@ -111,6 +158,8 @@ export interface WalletCapabilities {
   transactionDetail: boolean;
   /** `testmempoolaccept` before broadcast. */
   testMempoolAccept: boolean;
+  /** Child-pays-for-parent fee bump of an incoming unconfirmed tx (Core-only). */
+  cpfp: boolean;
 }
 
 export const CORE_CAPABILITIES: WalletCapabilities = {
@@ -125,6 +174,7 @@ export const CORE_CAPABILITIES: WalletCapabilities = {
   multisig: true,
   transactionDetail: true,
   testMempoolAccept: true,
+  cpfp: true,
 };
 
 export const ELECTRUM_CAPABILITIES: WalletCapabilities = {
@@ -139,4 +189,5 @@ export const ELECTRUM_CAPABILITIES: WalletCapabilities = {
   multisig: false,
   transactionDetail: false,
   testMempoolAccept: false,
+  cpfp: false,
 };

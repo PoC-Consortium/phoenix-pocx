@@ -11,6 +11,7 @@ import {
   WalletBackendFeeEstimates,
   WalletBackendSendOptions,
   WalletCapabilities,
+  WalletCoin,
   CoreAddressType,
   CORE_CAPABILITIES,
 } from './wallet-backend.model';
@@ -62,6 +63,56 @@ export class CoreWalletBackend implements WalletBackend {
     return this.walletRpc.listUnspent(walletName);
   }
 
+  async listCoins(walletName: string): Promise<WalletCoin[]> {
+    const utxos = await this.walletRpc.listUnspent(walletName);
+    // Resolve change classification once per unique funded address.
+    const uniq = [...new Set(utxos.map(u => u.address))];
+    const change = new Map<string, boolean>();
+    await Promise.all(
+      uniq.map(async a => {
+        try {
+          change.set(a, (await this.walletRpc.getAddressInfo(walletName, a)).ischange);
+        } catch {
+          change.set(a, false);
+        }
+      })
+    );
+    // Pubkey exposure: an address reveals its pubkey the first time it is
+    // SPENT from. We detect that without walking tx inputs — listreceivedbyaddress
+    // gives the TOTAL ever received per address; if that exceeds what the address
+    // still holds unspent, some was spent, so the address appeared as a tx input
+    // and its pubkey is on-chain. (received only grows, so received==unspent iff
+    // never spent.) Compared in sats to avoid float drift. Best-effort.
+    const exposed = new Set<string>();
+    try {
+      const unspentSatByAddr = new Map<string, number>();
+      for (const u of utxos) {
+        unspentSatByAddr.set(
+          u.address,
+          (unspentSatByAddr.get(u.address) ?? 0) + Math.round(u.amount * 1e8)
+        );
+      }
+      const received = await this.walletRpc.listReceivedByAddress(walletName, 0, false);
+      for (const r of received) {
+        const receivedSat = Math.round(r.amount * 1e8);
+        const unspentSat = unspentSatByAddr.get(r.address) ?? 0;
+        if (receivedSat > unspentSat) exposed.add(r.address);
+      }
+    } catch {
+      // ignore — coins still render without the exposure flag.
+    }
+    return utxos.map(u => ({
+      txid: u.txid,
+      vout: u.vout,
+      address: u.address,
+      amount: u.amount,
+      confirmations: u.confirmations,
+      isChange: change.get(u.address) ?? false,
+      spendable: u.spendable,
+      exposed: exposed.has(u.address),
+    }));
+  }
+
   async sendToAddress(
     walletName: string,
     address: string,
@@ -84,6 +135,65 @@ export class CoreWalletBackend implements WalletBackend {
       feeRateSatVb !== undefined ? { feeRate: feeRateSatVb } : undefined
     );
     return result.txid;
+  }
+
+  async getCpfpParentInfo(
+    _walletName: string,
+    parentTxid: string
+  ): Promise<{ vsize: number; fee: number }> {
+    // getmempoolentry: vsize in vB, fees.base is the parent's own fee in BTC.
+    const entry = await this.blockchainRpc.getMempoolEntry(parentTxid);
+    return { vsize: entry.vsize, fee: entry.fees.base };
+  }
+
+  async cpfpBumpFee(
+    walletName: string,
+    parentTxid: string,
+    vout: number,
+    childFeeRateSatVb: number
+  ): Promise<string> {
+    // Resolve the value of the specific parent output we're going to spend —
+    // it becomes the child output, with the child fee subtracted from it.
+    const parent = await this.blockchainRpc.getRawTransaction(parentTxid, true);
+    if (typeof parent === 'string') {
+      throw new Error('Parent transaction not found');
+    }
+    const out = parent.vout.find(o => o.n === vout);
+    if (!out) {
+      throw new Error(`Parent output ${vout} not found`);
+    }
+
+    // Fresh receive address for the child output — keeps the swept funds in-wallet.
+    const childAddress = await this.walletRpc.getNewAddress(walletName);
+
+    // Explicit parent input drags the parent into the child's package; add_inputs
+    // lets Core add confirmed top-up coins if the parent output can't cover the
+    // fee. subtractFeeFromOutputs pays the fee from the child output so the bump
+    // needs no external funding. replaceable keeps the child itself RBF-able.
+    //
+    // NOTE: for an unconfirmed wallet input, Core's walletcreatefundedpsbt does
+    // ancestor-aware bumping — fee_rate is the TARGET PACKAGE rate (it lifts the
+    // child's own fee to bring parent+child to that rate). So childFeeRateSatVb
+    // is the package target, not the child's isolated rate (see cpfp-dialog).
+    const funded = await this.walletRpc.walletCreateFundedPsbt(
+      walletName,
+      [{ txid: parentTxid, vout }],
+      [{ [childAddress]: out.value }],
+      0,
+      {
+        add_inputs: true,
+        subtractFeeFromOutputs: [0],
+        fee_rate: childFeeRateSatVb,
+        replaceable: true,
+      }
+    );
+
+    const processed = await this.walletRpc.walletProcessPsbt(walletName, funded.psbt);
+    const finalized = await this.walletRpc.finalizePsbt(processed.psbt);
+    if (!finalized.complete || !finalized.hex) {
+      throw new Error('Failed to finalize CPFP transaction');
+    }
+    return this.blockchainRpc.sendRawTransaction(finalized.hex);
   }
 
   async feeEstimates(): Promise<WalletBackendFeeEstimates> {

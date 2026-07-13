@@ -229,6 +229,21 @@ fn get_cookie_path(options: CookieReadOptions) -> Option<String> {
     Some(path.to_string_lossy().to_string())
 }
 
+/// Write UTF-8 text to a file path. Used by the frontend file-export flow
+/// (CSV etc.): the webview can't trigger a real download, so the frontend
+/// picks a destination via the save dialog and writes it here.
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    fs::write(&path, contents).map_err(|e| format!("Failed to write {}: {}", path, e))
+}
+
+/// Write raw bytes to a file path — the binary counterpart of
+/// `write_text_file` (e.g. a `.psbt` export). Same save-dialog flow.
+#[tauri::command]
+fn write_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
+    fs::write(&path, contents).map_err(|e| format!("Failed to write {}: {}", path, e))
+}
+
 /// Get the current platform (win32, darwin, linux, android)
 #[tauri::command]
 fn get_platform() -> String {
@@ -970,6 +985,8 @@ pub fn run() {
             btcx_wallet::commands::btcx_electrum_health,
             btcx_wallet::commands::btcx_electrum_probe,
             btcx_wallet::commands::btcx_chain_info,
+            write_text_file,
+            write_binary_file,
             // Update commands
             update::get_app_version,
             update::check_wallet_update,

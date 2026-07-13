@@ -50,6 +50,11 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           import('./pages/history/wallet-history.component').then(m => m.WalletHistoryComponent),
       },
       {
+        path: 'coins',
+        loadComponent: () =>
+          import('./pages/coins/wallet-coins.component').then(m => m.WalletCoinsComponent),
+      },
+      {
         path: 'assignment',
         loadComponent: () =>
           import('./pages/assignment/wallet-assignment.component').then(

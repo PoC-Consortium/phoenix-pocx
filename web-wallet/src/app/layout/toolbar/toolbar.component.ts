@@ -33,6 +33,7 @@ import { NodeService } from '../../node';
 import { MiningService } from '../../mining/services';
 import { ClockDriftService } from '../../core/services/clock-drift.service';
 import { ElectrumStatusService } from '../../core/services/electrum-status.service';
+import { BlockchainStateService } from '../../bitcoin/services/blockchain-state.service';
 import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-dialog/clock-drift-dialog.component';
 import { ElectrumServerListComponent } from '../../shared/components/electrum-server-list/electrum-server-list.component';
 
@@ -87,15 +88,17 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
 
           <!-- Status Indicators -->
           <div class="status-indicators">
-            <!-- Node Indicator (only for managed node) -->
-            @if (nodeService.isManaged()) {
-              <div
-                class="status-indicator"
-                [matTooltip]="
-                  nodeService.isRunning() ? ('node_running' | i18n) : ('node_stopped' | i18n)
-                "
-              >
-                <mat-icon [class.active]="nodeService.isRunning()">share</mat-icon>
+            <!-- Node Indicator (Core/RPC modes: managed + external) — traffic
+                 light: green = peers, orange = connected but 0 peers (own-fork
+                 risk), red = disconnected. -->
+            @if (!nodeService.isRemote()) {
+              <div class="status-indicator" [matTooltip]="nodeIndicatorTooltip()">
+                <mat-icon
+                  [class.node-ok]="nodeIndicatorState() === 'peers'"
+                  [class.node-warning]="nodeIndicatorState() === 'no-peers'"
+                  [class.node-critical]="nodeIndicatorState() === 'disconnected'"
+                  >share</mat-icon
+                >
               </div>
             }
 
@@ -547,11 +550,17 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
             color: #ff9800;
           }
 
-          &.clock-ok {
+          &.clock-ok,
+          &.node-ok {
             color: #4caf50;
           }
 
-          &.clock-critical {
+          &.node-warning {
+            color: #ff9800;
+          }
+
+          &.clock-critical,
+          &.node-critical {
             color: #e53935;
           }
 
@@ -659,6 +668,7 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   readonly miningService = inject(MiningService);
   readonly clockDrift = inject(ClockDriftService);
   readonly electrumStatus = inject(ElectrumStatusService);
+  readonly blockchainState = inject(BlockchainStateService);
   private readonly destroy$ = new Subject<void>();
 
   /** Tooltip of the remote-mode Electrum indicator. */
@@ -696,6 +706,34 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   );
   readonly hasEncryptedWalletsLoaded = computed(() => this.encryptedWallets().length > 0);
   readonly anyWalletUnlocked = computed(() => this.unlockedEncryptedWallets().length > 0);
+
+  /**
+   * Node traffic-light state (Core/RPC modes). A managed process that isn't
+   * running is definitively disconnected; otherwise "connected" means the last
+   * chain refresh succeeded (no error, at least one update). Green when peers,
+   * orange when connected with 0 peers (isolated / own-fork risk), red when
+   * unreachable. No debounce — a brief orange at startup is accurate.
+   */
+  readonly nodeIndicatorState = computed<'peers' | 'no-peers' | 'disconnected'>(() => {
+    if (this.nodeService.isManaged() && !this.nodeService.isRunning()) return 'disconnected';
+    const connected =
+      this.blockchainState.lastError() === null && this.blockchainState.lastUpdated() !== null;
+    if (!connected) return 'disconnected';
+    return this.blockchainState.peerCount() > 0 ? 'peers' : 'no-peers';
+  });
+
+  readonly nodeIndicatorTooltip = computed(() => {
+    // Re-evaluate when language changes
+    this.i18n.translations();
+    switch (this.nodeIndicatorState()) {
+      case 'peers':
+        return this.i18n.get('node_indicator_peers', { count: this.blockchainState.peerCount() });
+      case 'no-peers':
+        return this.i18n.get('node_indicator_no_peers');
+      default:
+        return this.i18n.get('node_indicator_disconnected');
+    }
+  });
 
   readonly clockDriftTooltip = computed(() => {
     // Re-evaluate when language changes

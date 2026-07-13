@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxPipe } from '../../../../shared/pipes';
 import { ContactsStoreService } from '../../../../shared/services';
@@ -52,6 +53,7 @@ import {
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     DecimalPipe,
     BtcxPipe,
     I18nPipe,
@@ -150,6 +152,14 @@ import {
           <div class="card-title">
             <mat-icon>account_balance_wallet</mat-icon>
             {{ 'total_balance' | i18n }}
+            <button
+              mat-icon-button
+              class="coins-link-btn"
+              routerLink="/wallet/coins"
+              [matTooltip]="'coins_title' | i18n"
+            >
+              <mat-icon>toll</mat-icon>
+            </button>
           </div>
           <div class="total-balance">
             <span class="amount">{{ (balance()?.totalSat ?? 0) / 100000000 | btcx }}</span>
@@ -331,6 +341,22 @@ import {
         &.plain mat-icon {
           color: #42a5f5;
         }
+
+        /* Coins & Addresses shortcut, pinned to the card's top-right. */
+        .coins-link-btn {
+          margin-left: auto;
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          flex-shrink: 0;
+          color: rgba(255, 255, 255, 0.85);
+
+          mat-icon {
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+          }
+        }
       }
 
       /* Two compact stats: Height | Network Capacity (last-block time
@@ -370,6 +396,10 @@ import {
         gap: 8px;
         margin-bottom: 10px;
         white-space: nowrap;
+
+        &.clickable {
+          cursor: pointer;
+        }
 
         .amount {
           font-size: 28px;

@@ -1,4 +1,12 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import {
+  Component,
+  inject,
+  signal,
+  viewChildren,
+  ElementRef,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -10,7 +18,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
@@ -187,15 +195,19 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                 <mat-form-field appearance="outline" class="full-width">
                   <mat-label>{{ 'word_number' | i18n: { number: idx + 1 } }}</mat-label>
                   <input
+                    #wordInput
                     matInput
                     [(ngModel)]="verifyWords[i]"
                     [disabled]="creating()"
                     [matAutocomplete]="auto"
+                    #trigger="matAutocompleteTrigger"
                     (input)="updateSuggestions(i, verifyWords[i])"
+                    (keydown.enter)="onWordEnter(i, $event, trigger)"
                     autocomplete="off"
                   />
                   <mat-autocomplete
                     #auto="matAutocomplete"
+                    [autoActiveFirstOption]="true"
                     (optionSelected)="onWordSelected(i, $event.option.value)"
                   >
                     @for (word of wordSuggestions[i]; track word) {
@@ -420,6 +432,7 @@ export class CreateWalletComponent implements OnInit, OnDestroy {
   verifyIndices: number[] = [];
   verifyWords: string[] = ['', '', ''];
   wordSuggestions: string[][] = [[], [], []];
+  readonly wordInputs = viewChildren<ElementRef<HTMLInputElement>>('wordInput');
 
   ngOnInit(): void {
     this.generateMnemonic();
@@ -519,6 +532,35 @@ export class CreateWalletComponent implements OnInit, OnDestroy {
   onWordSelected(index: number, word: string): void {
     this.verifyWords[index] = word;
     this.wordSuggestions[index] = [];
+    this.focusNext(index);
+  }
+
+  /**
+   * Enter-to-accept, mirroring the import flow's mnemonic entry. When the
+   * autocomplete panel is open with a highlighted option, Material selects it
+   * (→ onWordSelected). Otherwise, if the typed value is an exact BIP39 word,
+   * commit it and advance to the next verification field.
+   */
+  onWordEnter(index: number, event: Event, trigger: MatAutocompleteTrigger): void {
+    if (event.defaultPrevented) return;
+    if (trigger.panelOpen && trigger.activeOption) return;
+    const typed = (this.verifyWords[index] ?? '').toLowerCase().trim();
+    if (this.descriptorService.getWordlist().includes(typed)) {
+      event.preventDefault();
+      this.verifyWords[index] = typed;
+      this.wordSuggestions[index] = [];
+      this.focusNext(index);
+    }
+  }
+
+  private focusNext(index: number): void {
+    const next = this.wordInputs()[index + 1];
+    if (next) {
+      setTimeout(() => {
+        next.nativeElement.focus();
+        next.nativeElement.select();
+      });
+    }
   }
 
   bip39PassphraseValid(): boolean {

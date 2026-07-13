@@ -601,6 +601,27 @@ export class WalletRpcService {
     return this.rpc.call('listlockunspent', [], walletName);
   }
 
+  /**
+   * List balances by receiving address (listreceivedbyaddress).
+   * Each entry's `txids` array holds every transaction that paid the address,
+   * so `txids.length > 1` marks address reuse (a privacy concern).
+   */
+  async listReceivedByAddress(
+    walletName: string,
+    minconf = 1,
+    includeEmpty = false
+  ): Promise<
+    Array<{
+      address: string;
+      amount: number;
+      confirmations: number;
+      label: string;
+      txids: string[];
+    }>
+  > {
+    return this.rpc.call('listreceivedbyaddress', [minconf, includeEmpty], walletName);
+  }
+
   // ============================================================
   // Descriptors & Import
   // ============================================================

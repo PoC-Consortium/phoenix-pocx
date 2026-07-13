@@ -2194,16 +2194,24 @@ export class PsbtComponent implements OnInit {
     this.notification.success(this.i18n.get('psbt_copied'));
   }
 
-  savePsbtFile(): void {
+  async savePsbtFile(): Promise<void> {
     const document = this.doc();
     if (!document) return;
-    this.psbtService.savePsbtFile(this.fileBaseName(), document.base64);
+    try {
+      await this.psbtService.savePsbtFile(this.fileBaseName(), document.base64);
+    } catch (err) {
+      console.error('Failed to save PSBT file:', err);
+    }
   }
 
-  saveHexFile(): void {
+  async saveHexFile(): Promise<void> {
     const hex = this.finalHex();
     if (!hex) return;
-    this.psbtService.saveHexFile(this.fileBaseName(), hex);
+    try {
+      await this.psbtService.saveHexFile(this.fileBaseName(), hex);
+    } catch (err) {
+      console.error('Failed to save transaction file:', err);
+    }
   }
 
   private fileBaseName(): string {

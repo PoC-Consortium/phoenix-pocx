@@ -133,6 +133,10 @@ export const routes: Routes = [
         loadChildren: () => import('./features/receive/receive.routes').then(m => m.RECEIVE_ROUTES),
       },
       {
+        path: 'coins',
+        loadChildren: () => import('./features/coins/coins.routes').then(m => m.COINS_ROUTES),
+      },
+      {
         path: 'transactions',
         loadChildren: () =>
           import('./features/transactions/transactions.routes').then(m => m.TRANSACTIONS_ROUTES),
