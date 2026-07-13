@@ -1263,5 +1263,16 @@
   "address_exposed": "公钥已公开",
   "address_exposed_hint": "您此前曾从该地址支出过资金，因此其公钥现已在链上可见。这属于正常情况，您的币是安全的 — 每次使用新地址只是为了保持最强的隐私和保护。",
   "add_wallet": "添加钱包",
-  "coins_col": "币"
+  "coins_col": "币",
+  "wallet_upgrade_tooltip": "To stay compatible with v31 wallets, this wallet needs to upgrade.",
+  "wallet_upgrade_title": "Upgrade this wallet",
+  "wallet_upgrade_body": "A quick, safe update keeps this wallet compatible with v31. Re-enter this wallet's recovery phrase to confirm it's yours — your coins stay exactly where they are, and nothing is sent anywhere.",
+  "wallet_upgrade_cta": "Upgrade",
+  "wallet_upgrade_seed_mismatch": "That recovery phrase doesn't match this wallet.",
+  "wallet_upgrade_success": "Wallet upgraded.",
+  "wallet_legacy_badge": "Legacy v30",
+  "wallet_v30_migrated_notice": "Your wallet was upgraded — older coins are under '…-v30' and move to your main wallet as you spend.",
+  "wallet_rescan_legacy": "Check for older (v30) funds",
+  "wallet_rescan_found": "Found and restored older funds",
+  "wallet_rescan_none": "No older funds found"
 }

@@ -149,8 +149,32 @@ export class DescriptorService {
   }
 
   /**
-   * The descriptor set for a NEW wallet: BIP-84 (wpkh) + BIP-86 (tr) at
-   * the BTCX coin type, on every network.
+   * Master key fingerprint (8 hex chars) for a mnemonic (+ optional BIP39
+   * passphrase). Network-independent — the fingerprint hashes the master
+   * public key, not the extended-key serialization.
+   *
+   * Used by the v30→v31 upgrade path to prove a re-entered seed matches the
+   * seed a Core wallet's descriptors were derived from before importing the
+   * BTCX-coin-type branch.
+   */
+  getMasterFingerprint(mnemonic: string, passphrase = ''): string {
+    if (!this.validateMnemonic(mnemonic)) {
+      throw new Error('Invalid mnemonic phrase');
+    }
+    const seed = bip39.mnemonicToSeedSync(mnemonic.trim().toLowerCase(), passphrase);
+    const masterKey = HDKey.fromMasterSeed(seed);
+    return this.getFingerprint(masterKey);
+  }
+
+  /**
+   * The descriptor set for a NEW wallet: BIP-84 (wpkh) + BIP-86 (tr).
+   *
+   * Coin type is per-network: mainnet uses the registered per-asset BTCX
+   * coin type (spec §4.1); testnet/regtest use the shared SLIP-44 testnet
+   * coin type 1', matching Bitcoin Core and the Rust BDK backend
+   * (`WalletNetwork::asset_coin_type`). It keys off the same `isTestnet`
+   * flag that drives key serialization, so a wallet's coin type and its
+   * tprv/tpub encoding always agree.
    *
    * Deliberately NO 44'/49' branches: a freshly generated seed cannot have
    * history at any legacy purpose, and Phoenix never hands out legacy or
@@ -164,7 +188,7 @@ export class DescriptorService {
   ): WalletDescriptors {
     return this.generateDescriptors(mnemonic, {
       ...options,
-      coinType: BTCX_COIN_TYPE,
+      coinType: options.isTestnet ? 1 : BTCX_COIN_TYPE,
       enableLegacy: false,
       enableNestedSegwit: false,
       enableNativeSegwit: true,

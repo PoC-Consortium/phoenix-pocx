@@ -1263,5 +1263,16 @@
   "address_exposed": "Veřejný klíč znám",
   "address_exposed_hint": "Z této adresy jste již dříve utráceli, takže její veřejný klíč je nyní viditelný v blockchainu. To je normální a vaše mince jsou v bezpečí — použití vždy nové adresy jen zachovává nejsilnější soukromí a ochranu.",
   "add_wallet": "Přidat peněženku",
-  "coins_col": "Mince"
+  "coins_col": "Mince",
+  "wallet_upgrade_tooltip": "To stay compatible with v31 wallets, this wallet needs to upgrade.",
+  "wallet_upgrade_title": "Upgrade this wallet",
+  "wallet_upgrade_body": "A quick, safe update keeps this wallet compatible with v31. Re-enter this wallet's recovery phrase to confirm it's yours — your coins stay exactly where they are, and nothing is sent anywhere.",
+  "wallet_upgrade_cta": "Upgrade",
+  "wallet_upgrade_seed_mismatch": "That recovery phrase doesn't match this wallet.",
+  "wallet_upgrade_success": "Wallet upgraded.",
+  "wallet_legacy_badge": "Legacy v30",
+  "wallet_v30_migrated_notice": "Your wallet was upgraded — older coins are under '…-v30' and move to your main wallet as you spend.",
+  "wallet_rescan_legacy": "Check for older (v30) funds",
+  "wallet_rescan_found": "Found and restored older funds",
+  "wallet_rescan_none": "No older funds found"
 }

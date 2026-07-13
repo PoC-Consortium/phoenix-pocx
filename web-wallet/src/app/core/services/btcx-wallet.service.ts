@@ -1,6 +1,8 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { NotificationService } from '../../shared/services/notification.service';
+import { I18nService } from '../i18n';
 
 /**
  * BTCX Wallet Service
@@ -232,6 +234,34 @@ export interface BtcxWalletSummary {
   balanceSat?: number;
 }
 
+/**
+ * What one v30→v31 migration pass did (`btcx_wallet_migrate_v30` /
+ * `btcx_wallet_rescan_legacy`):
+ * - `noop` — nothing to create; the seed has no counterpart to build.
+ * - `created-v31` — a v31 (BTCX coin type) counterpart was created + activated.
+ * - `created-v30` — a legacy v30 (coin type 0') counterpart was restored.
+ * - `already` — the migrate flag was already set (migrate pass only).
+ * - `deferred` — skipped without weakening the seed at rest (locked/encrypted).
+ */
+export type BtcxV30MigrationOutcome =
+  | 'noop'
+  | 'created-v31'
+  | 'created-v30'
+  | 'already'
+  | 'deferred';
+
+/** Result of a v30→v31 migration pass (`btcx_wallet_migrate_v30` / rescan). */
+export interface BtcxV30MigrationResult {
+  outcome: BtcxV30MigrationOutcome;
+  /** The wallet selected after the pass. */
+  activeWallet: string;
+  /** The counterpart wallet created (v31 or v30), if any. */
+  createdWallet?: string;
+  /** Human-readable note — e.g. why the pass deferred. */
+  detail?: string;
+  status: BtcxWalletStatus;
+}
+
 /** Persisted wallet configuration (`btcx_wallet_get_config`). */
 export interface BtcxWalletConfig {
   network: BtcxNetwork;
@@ -397,6 +427,9 @@ export function mapWalletTx(dto: BtcxWalletTxDto): BtcxWalletTx {
 
 @Injectable({ providedIn: 'root' })
 export class BtcxWalletService {
+  private readonly notification = inject(NotificationService);
+  private readonly i18n = inject(I18nService);
+
   // Signals for reactive state
   private readonly _status = signal<BtcxWalletStatus | null>(null);
   private readonly _balance = signal<BtcxBalance | null>(null);
@@ -509,6 +542,8 @@ export class BtcxWalletService {
       await Promise.all([this.refreshStatus(), this.refreshConfig()]);
       if (this.walletActive()) {
         await Promise.all([this.refreshBalance(), this.refreshTransactions(RECENT_TX_LIMIT)]);
+        // An already-open wallet on launch may still be a pre-v31 seed.
+        void this.autoMigrateV30();
       }
       this._initialized.set(true);
     } catch (err) {
@@ -678,6 +713,9 @@ export class BtcxWalletService {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_unlock', { passphrase });
     this._status.set(status);
     await this.refreshAll();
+    // Unlocking is the deferred-migration retry: a seed that could not be
+    // migrated while locked can be now that it is open.
+    void this.autoMigrateV30();
     return status;
   }
 
@@ -735,7 +773,61 @@ export class BtcxWalletService {
     this._lastSync.set(null);
     await this.refreshConfig();
     await this.refreshAll();
+    // A newly-opened wallet may still be a pre-v31 (coin-0') seed — migrate
+    // it (and surface the one-time notice) once it is open.
+    void this.autoMigrateV30();
     return status;
+  }
+
+  // ============================================================================
+  // v30 → v31 Migration
+  // ============================================================================
+
+  /**
+   * Silently upgrade a pre-v31 (legacy coin-0') seed to the new BTCX coin
+   * type: when the open wallet's seed has an unregistered counterpart, the
+   * backend creates it (`created-v31` for the v31 branch, `created-v30` for a
+   * legacy branch with history) and records the pass; a locked/encrypted seed
+   * `deferred`s so a later open retries. Refreshes config/status on success.
+   * Throws on failure — callers decide whether to surface it.
+   */
+  async migrateV30(): Promise<BtcxV30MigrationResult> {
+    const result = await invoke<BtcxV30MigrationResult>('btcx_wallet_migrate_v30');
+    this._status.set(result.status);
+    await this.refreshConfig();
+    return result;
+  }
+
+  /**
+   * Re-run the legacy (v30) probe for the open wallet, ignoring the migrate
+   * flag — the "check for older funds" affordance. Restores a legacy
+   * counterpart when history turns up (`created-v30`), otherwise `noop`.
+   * Refreshes config/status. Throws on failure.
+   */
+  async rescanLegacy(): Promise<BtcxV30MigrationResult> {
+    const result = await invoke<BtcxV30MigrationResult>('btcx_wallet_rescan_legacy');
+    this._status.set(result.status);
+    await this.refreshConfig();
+    return result;
+  }
+
+  /**
+   * Fire-and-forget v30 migration run for the open wallet, showing the calm
+   * one-time notice only when a counterpart was actually created. Naturally
+   * idempotent: once migrated the backend returns `already`/`noop`, and a
+   * locked seed `deferred`s silently — so this is safe to call on every open.
+   */
+  private async autoMigrateV30(): Promise<void> {
+    if (!this.walletActive()) return;
+    try {
+      const result = await this.migrateV30();
+      if (result.outcome === 'created-v31' || result.outcome === 'created-v30') {
+        this.notification.info(this.i18n.get('wallet_v30_migrated_notice'), undefined, 8000);
+      }
+    } catch (err) {
+      // A migration hiccup must never block using the wallet — log and move on.
+      console.warn('v30 auto-migration failed:', err);
+    }
   }
 
   /**

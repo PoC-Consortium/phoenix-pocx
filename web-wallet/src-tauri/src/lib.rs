@@ -946,6 +946,8 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_create,
             btcx_wallet::commands::btcx_wallet_restore,
             btcx_wallet::commands::btcx_wallet_reprobe,
+            btcx_wallet::commands::btcx_wallet_migrate_v30,
+            btcx_wallet::commands::btcx_wallet_rescan_legacy,
             btcx_wallet::commands::btcx_wallet_import_descriptor,
             btcx_wallet::commands::btcx_wallet_validate_import,
             btcx_wallet::commands::btcx_wallet_unlock,

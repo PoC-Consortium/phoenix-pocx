@@ -61,6 +61,27 @@ impl WalletNetwork {
             WalletNetwork::Regtest => &BTCX_REGTEST,
         }
     }
+
+    /// BIP-32 coin type for NEW wallets on this network. Delegates to the
+    /// shared single source of truth (`params_btcx::registry::btcx_coin_type`)
+    /// so Phoenix and Satchel can never drift: mainnet uses the registered
+    /// per-asset BTCX coin type (`0x504F4358`, spec §4.1); testnet and regtest
+    /// use the shared SLIP-44 testnet coin type (1').
+    pub fn asset_coin_type(&self) -> u32 {
+        params_btcx::registry::btcx_coin_type(self.params().network)
+    }
+
+    /// The legacy (pre-v31) coin type probed for drainable history on this
+    /// network. Only mainnet has a distinct legacy branch: v30 wallets sat
+    /// at coin type 0'. Testnet/regtest only ever used 1' — which is also
+    /// the current coin type — so there is no separate legacy branch and
+    /// nothing to migrate there.
+    pub fn legacy_coin_type(&self) -> u32 {
+        match self {
+            WalletNetwork::Mainnet => 0,
+            WalletNetwork::Testnet | WalletNetwork::Regtest => 1,
+        }
+    }
 }
 
 /// Which standard single-key descriptor family a wallet derives —
@@ -146,6 +167,12 @@ pub struct WalletMeta {
     /// drives the UI badge and the receive page's hidden "new address".
     #[serde(default)]
     pub single_address: bool,
+    /// Whether the one-time v30→v31 auto-migration has already run for this
+    /// wallet (see `btcx_wallet_migrate_v30`). Gates the migration so it
+    /// executes at most once per wallet; defaults false on pre-existing
+    /// configs so they get their first pass.
+    #[serde(default)]
+    pub v30_migrated: bool,
 }
 
 /// The `electrum_servers` map of a FRESH config: mainnet starts with the
@@ -385,8 +412,46 @@ impl BtcxWalletConfig {
             created_at: existing.and_then(|m| m.created_at).or_else(now_unix),
             source: existing.map(|m| m.source).unwrap_or_default(),
             single_address: existing.map(|m| m.single_address).unwrap_or(false),
+            // The migration flag is orthogonal to the descriptor policy and
+            // must survive a policy update (a reprobe/branch switch).
+            v30_migrated: existing.map(|m| m.v30_migrated).unwrap_or(false),
         };
         self.set_wallet_meta(network, &name, meta);
+    }
+
+    /// Whether the v30→v31 auto-migration has run for the named wallet on
+    /// `network` (unregistered wallets report false).
+    pub fn v30_migrated(&self, network: WalletNetwork, name: &str) -> bool {
+        self.wallet_meta(network, name)
+            .map(|m| m.v30_migrated)
+            .unwrap_or(false)
+    }
+
+    /// Set the v30-migration flag of the named wallet on `network`,
+    /// preserving the rest of its metadata. No-op if the wallet is not
+    /// registered.
+    pub fn set_v30_migrated(&mut self, network: WalletNetwork, name: &str, value: bool) {
+        if let Some(mut meta) = self.wallet_meta(network, name) {
+            meta.v30_migrated = value;
+            self.set_wallet_meta(network, name, meta);
+        }
+    }
+
+    /// Whether any of the given `names` is a registered wallet on `network`
+    /// whose descriptor policy sits on `coin_type` — the v30 migration uses
+    /// this over the active seed's counterpart-name set to tell whether a
+    /// v31 (`keys_btcx::COIN_BTCX`) or v30 (coin type 0) wallet already
+    /// exists for the seed.
+    pub fn has_wallet_on_coin_type(
+        &self,
+        network: WalletNetwork,
+        names: &[String],
+        coin_type: u32,
+    ) -> bool {
+        names.iter().any(|name| {
+            self.wallet_meta(network, name)
+                .is_some_and(|m| m.policy.coin_type == coin_type)
+        })
     }
 
     /// Root of the wallet stores: `<app data dir>/btcx-wallet`.
@@ -503,6 +568,7 @@ pub fn migrate_legacy_layout_at(
                     created_at: now_unix(),
                     source: WalletSourceCfg::Seed,
                     single_address: false,
+                    v30_migrated: false,
                 },
             );
         }
@@ -729,6 +795,7 @@ mod tests {
             created_at: Some(1),
             source: WalletSourceCfg::Seed,
             single_address: false,
+            v30_migrated: false,
         };
         config.set_wallet_meta(WalletNetwork::Mainnet, "savings", meta);
         config.set_active_wallet(WalletNetwork::Mainnet, "savings");
@@ -777,6 +844,7 @@ mod tests {
             created_at: Some(2),
             source: WalletSourceCfg::Descriptor,
             single_address: false,
+            v30_migrated: false,
         };
         let json = serde_json::to_string(&meta).unwrap();
         assert!(json.contains(r#""source":"descriptor""#), "{json}");
@@ -794,21 +862,30 @@ mod tests {
             created_at: Some(3),
             source: WalletSourceCfg::Descriptor,
             single_address: true,
+            v30_migrated: true,
         };
         let json = serde_json::to_string(&single).unwrap();
         assert!(json.contains(r#""singleAddress":true"#), "{json}");
+        assert!(json.contains(r#""v30Migrated":true"#), "{json}");
         let parsed: WalletMeta = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, single);
+
+        // Older configs have no `v30Migrated` field — defaults false.
+        assert!(!old.v30_migrated);
 
         let mut config = BtcxWalletConfig::default();
         config.set_wallet_meta(WalletNetwork::Mainnet, DEFAULT_WALLET, single);
         config.set_policy(WalletNetwork::Mainnet, DescriptorPolicy::default());
+        let updated = config
+            .wallet_meta(WalletNetwork::Mainnet, DEFAULT_WALLET)
+            .unwrap();
         assert!(
-            config
-                .wallet_meta(WalletNetwork::Mainnet, DEFAULT_WALLET)
-                .unwrap()
-                .single_address,
+            updated.single_address,
             "set_policy must preserve the single-address marker"
+        );
+        assert!(
+            updated.v30_migrated,
+            "set_policy must preserve the v30-migration flag"
         );
 
         // Legacy has no seed-derivation family.
@@ -817,6 +894,48 @@ mod tests {
             DescriptorKindCfg::Bip84.kind(),
             Some(keys_btcx::DescriptorKind::Bip84)
         );
+    }
+
+    #[test]
+    fn v30_migration_flag_get_set_and_coin_type_probe() {
+        let mut config = BtcxWalletConfig::default();
+        let net = WalletNetwork::Mainnet;
+
+        // A v30 (coin type 0) wallet and its v31 (COIN_BTCX) counterpart.
+        let v30 = WalletMeta {
+            policy: DescriptorPolicy {
+                kind: DescriptorKindCfg::Bip84,
+                coin_type: 0,
+            },
+            created_at: Some(1),
+            source: WalletSourceCfg::Seed,
+            single_address: false,
+            v30_migrated: false,
+        };
+        let v31 = WalletMeta {
+            policy: DescriptorPolicy::default(),
+            ..v30
+        };
+        config.set_wallet_meta(net, "acct-v30", v30);
+        config.set_wallet_meta(net, "acct", v31);
+
+        // Unregistered wallets report not-migrated; set/get round-trips.
+        assert!(!config.v30_migrated(net, "acct"));
+        assert!(!config.v30_migrated(net, "missing"));
+        config.set_v30_migrated(net, "acct", true);
+        assert!(config.v30_migrated(net, "acct"));
+        // Setting the flag on a missing wallet is a no-op (no phantom entry).
+        config.set_v30_migrated(net, "missing", true);
+        assert!(config.wallet_meta(net, "missing").is_none());
+
+        // Coin-type probe over the counterpart-name set.
+        let names = vec!["acct".to_string(), "acct-v30".to_string()];
+        assert!(config.has_wallet_on_coin_type(net, &names, keys_btcx::COIN_BTCX));
+        assert!(config.has_wallet_on_coin_type(net, &names, 0));
+        // A name set without a v30 counterpart sees only the v31 branch.
+        let v31_only = vec!["acct".to_string()];
+        assert!(config.has_wallet_on_coin_type(net, &v31_only, keys_btcx::COIN_BTCX));
+        assert!(!config.has_wallet_on_coin_type(net, &v31_only, 0));
     }
 
     /// Some seed-file bytes; the migration never parses them, it only

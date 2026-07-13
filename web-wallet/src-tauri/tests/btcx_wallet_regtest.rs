@@ -337,12 +337,17 @@ fn regtest_restore_probe_selects_funded_branch() {
 
     // 1. Brand-new seed: no branch has history — the probe must say so
     //    honestly and the selection must fall back to the fresh default.
-    let hits = probe_all_branches(&seed, &chain).expect("probe against live electrs");
+    // Probe the mainnet (BTCX) candidate set explicitly: electrs serves by
+    // scripthash regardless of network, so the regtest node is valid infra
+    // for exercising the real mainnet coin-0'/BTCX probe path even though
+    // the wallet config elsewhere runs on regtest (coin type 1').
+    let hits = probe_all_branches(&seed, &chain, WalletNetwork::Mainnet)
+        .expect("probe against live electrs");
     assert!(
         hits.is_empty(),
         "a fresh seed cannot have history: {hits:?}"
     );
-    let (selected, fresh) = select_restore_policy(&hits);
+    let (selected, fresh) = select_restore_policy(&hits, WalletNetwork::Mainnet);
     assert!(fresh);
     assert_eq!(selected, DescriptorPolicy::default());
 
@@ -397,7 +402,8 @@ fn regtest_restore_probe_selects_funded_branch() {
 
     // 3. The probe now finds EXACTLY the funded branch, selects it, and
     //    reports the funded index in the hit list.
-    let hits = probe_all_branches(&seed, &chain).expect("probe against live electrs");
+    let hits = probe_all_branches(&seed, &chain, WalletNetwork::Mainnet)
+        .expect("probe against live electrs");
     assert_eq!(
         hits.len(),
         1,
@@ -406,7 +412,7 @@ fn regtest_restore_probe_selects_funded_branch() {
     assert_eq!(hits[0].policy, funded_policy);
     assert_eq!(hits[0].deepest_external, Some(0));
     assert_eq!(hits[0].deepest_internal, None);
-    let (selected, fresh) = select_restore_policy(&hits);
+    let (selected, fresh) = select_restore_policy(&hits, WalletNetwork::Mainnet);
     assert!(!fresh);
     assert_eq!(selected, funded_policy);
 
@@ -611,8 +617,11 @@ fn regtest_named_dual_kind_wallets() {
     );
     assert_eq!(
         result.selected,
-        DescriptorPolicy::default(),
-        "priority order opens BIP-84 / BTCX"
+        DescriptorPolicy {
+            kind: DescriptorKindCfg::Bip84,
+            coin_type: WalletNetwork::Regtest.asset_coin_type(),
+        },
+        "priority order opens BIP-84 at the regtest coin type (1')"
     );
     assert_eq!(result.status.wallet_name, "gamma");
     wait_for_balance(&state, 30_000_000, "gamma (restored BIP-84 branch)");
@@ -630,7 +639,10 @@ fn regtest_named_dual_kind_wallets() {
     .expect("kind-forced restore");
     assert!(!result.fresh);
     assert_eq!(result.selected.kind, DescriptorKindCfg::Bip86);
-    assert_eq!(result.selected.coin_type, keys_btcx::COIN_BTCX);
+    assert_eq!(
+        result.selected.coin_type,
+        WalletNetwork::Regtest.asset_coin_type()
+    );
     assert_eq!(result.status.wallet_name, "gamma-taproot");
     wait_for_balance(&state, 20_000_000, "gamma-taproot (restored BIP-86 branch)");
     let gamma_taproot_addr = state.backend().unwrap().wallet_new_address().unwrap();

@@ -1263,5 +1263,17 @@
   "address_exposed": "Public key known",
   "address_exposed_hint": "You have spent from this address before, so its public key is now visible on-chain. This is normal and your coins are safe — using a fresh address each time just keeps the strongest privacy and protection.",
   "add_wallet": "Add wallet",
-  "coins_col": "Coins"
+  "coins_col": "Coins",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from.",
+  "wallet_upgrade_tooltip": "To stay compatible with v31 wallets, this wallet needs to upgrade.",
+  "wallet_upgrade_title": "Upgrade this wallet",
+  "wallet_upgrade_body": "A quick, safe update keeps this wallet compatible with v31. Re-enter this wallet's recovery phrase to confirm it's yours — your coins stay exactly where they are, and nothing is sent anywhere.",
+  "wallet_upgrade_cta": "Upgrade",
+  "wallet_upgrade_seed_mismatch": "That recovery phrase doesn't match this wallet.",
+  "wallet_upgrade_success": "Wallet upgraded.",
+  "wallet_legacy_badge": "Legacy v30",
+  "wallet_v30_migrated_notice": "Your wallet was upgraded — older coins are under '…-v30' and move to your main wallet as you spend.",
+  "wallet_rescan_legacy": "Check for older (v30) funds",
+  "wallet_rescan_found": "Found and restored older funds",
+  "wallet_rescan_none": "No older funds found"
 }

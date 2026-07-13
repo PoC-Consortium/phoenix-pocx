@@ -19,6 +19,7 @@ use super::config::{
 use super::descriptors::{self, ImportValidation};
 use super::descstore::{self, DescStore, DescriptorPayload};
 use super::manager::{self, BranchHit};
+use super::migrate::{self, V30MigrationPlan};
 use super::state::{BtcxWalletStatus, SharedBtcxWalletState};
 
 /// Run a blocking wallet operation off the async runtime.
@@ -145,7 +146,7 @@ pub fn create_wallet_impl(
     let name = resolve_new_wallet_name(&config, network, name)?;
     let policy = DescriptorPolicy {
         kind: kind.unwrap_or(DescriptorKindCfg::Bip84),
-        ..DescriptorPolicy::default()
+        coin_type: network.asset_coin_type(),
     };
     import_into_named_wallet(state, network, &name, mnemonic, passphrase, policy)?;
     // No Electrum server configured yet is fine — the runtime opens
@@ -249,11 +250,11 @@ pub fn restore_wallet_impl(
     // A pruned server hides older history, so a real seed would probe as
     // "fresh" — verified_probe_chain fails hard (or falls over) instead.
     let chain = state.verified_probe_chain()?;
-    let hits = manager::probe_all_branches(&seed, &chain)
+    let hits = manager::probe_all_branches(&seed, &chain, network)
         .map_err(|e| format!("Restore probing failed: {e:#}"))?;
     let (selected, fresh) = match kind {
-        Some(kind) => manager::select_restore_policy_for_kind(&hits, kind),
-        None => manager::select_restore_policy(&hits),
+        Some(kind) => manager::select_restore_policy_for_kind(&hits, kind, network),
+        None => manager::select_restore_policy(&hits, network),
     };
 
     import_into_named_wallet(state, network, &name, mnemonic, passphrase, selected)?;
@@ -324,13 +325,14 @@ pub async fn btcx_wallet_reprobe(
         // F3: same verified-chain guard as the first restore probe — a pruned
         // or wrong-chain server must not drive a "fresh" verdict.
         let chain = state.verified_probe_chain()?;
-        let hits = manager::probe_all_branches(&seed, &chain)
+        let config = state.get_config();
+        let network = config.network;
+        let hits = manager::probe_all_branches(&seed, &chain, network)
             .map_err(|e| format!("Restore probing failed: {e:#}"))?;
 
-        let config = state.get_config();
         let current = config.policy();
         let current_has_history = hits.iter().any(|h| h.policy == current);
-        let (mut selected, fresh) = manager::select_restore_policy(&hits);
+        let (mut selected, fresh) = manager::select_restore_policy(&hits, network);
         if current_has_history {
             // Never abandon a branch that holds history.
             selected = current;
@@ -369,6 +371,378 @@ pub async fn btcx_wallet_reprobe(
         })
     })
     .await
+}
+
+// ============================================================================
+// v30 → v31 Wallet Migration
+// ============================================================================
+
+/// What one migration pass did (`btcx_wallet_migrate_v30` /
+/// `btcx_wallet_rescan_legacy`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum V30MigrationOutcome {
+    /// Nothing to create; the wallet is recorded as migrated.
+    Noop,
+    /// A v31 (BTCX coin type) counterpart was created and made active.
+    CreatedV31,
+    /// A legacy v30 (coin type 0') counterpart was created; the v31 wallet
+    /// stays active.
+    CreatedV30,
+    /// The pass was skipped because the flag was already set (migrate only).
+    Already,
+    /// The pass could not run WITHOUT weakening the seed at rest (locked, or
+    /// passphrase-encrypted) — the flag is left UNSET so a later pass retries.
+    Deferred,
+}
+
+/// Result of a migration pass: what it did, the wallet left active, any
+/// counterpart created, an optional note, and the post-pass status.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxV30MigrationResult {
+    pub outcome: V30MigrationOutcome,
+    /// The wallet selected after the pass.
+    pub active_wallet: String,
+    /// The counterpart wallet created (v31 or v30), if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_wallet: Option<String>,
+    /// Human-readable note — e.g. why the pass deferred.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub status: BtcxWalletStatus,
+}
+
+/// The base (v31) name of a wallet: its own name with a trailing `-v30`
+/// stripped, so `default` and `default-v30` share the base `default`.
+fn base_name(name: &str) -> String {
+    name.strip_suffix("-v30").unwrap_or(name).to_string()
+}
+
+/// The canonical counterpart names of a seed's migration pair: the clean
+/// v31 base name and the `-v30` legacy name. Used to look up whether either
+/// branch already has a registered wallet (existence check only — creation
+/// disambiguates collisions via [`resolve_counterpart_name`]).
+fn counterpart_names(base: &str) -> Vec<String> {
+    vec![base.to_string(), format!("{base}-v30")]
+}
+
+/// A free wallet name for a counterpart being CREATED: `<base><suffix>`,
+/// truncated to the 32-char limit and disambiguated with `-2`, `-3`, … if
+/// the plain form is taken in the registry or holds a leftover on-disk store.
+fn resolve_counterpart_name(
+    state: &SharedBtcxWalletState,
+    network: WalletNetwork,
+    base: &str,
+    suffix: &str,
+) -> Result<String, String> {
+    let config = state.get_config();
+    // Keep within the 32-char wallet-name limit, suffix included.
+    let max_base = 32usize.saturating_sub(suffix.len());
+    let trimmed: String = base.chars().take(max_base).collect();
+    let existing: Vec<String> = config
+        .wallet_names(network)
+        .into_iter()
+        .map(|n| n.to_ascii_lowercase())
+        .collect();
+    let taken = |candidate: &str| {
+        existing.contains(&candidate.to_ascii_lowercase())
+            || has_leftover_store(network, candidate)
+            || config::validate_wallet_name(candidate).is_err()
+    };
+    let plain = format!("{trimmed}{suffix}");
+    if !taken(&plain) {
+        return Ok(plain);
+    }
+    for n in 2..=99 {
+        // Re-trim so the numeric tail also fits the 32-char limit.
+        let tail = format!("{suffix}-{n}");
+        let base_n: String = base
+            .chars()
+            .take(32usize.saturating_sub(tail.len()))
+            .collect();
+        let candidate = format!("{base_n}{tail}");
+        if !taken(&candidate) {
+            return Ok(candidate);
+        }
+    }
+    Err("Could not find a free counterpart wallet name".into())
+}
+
+/// Build the migration result and read the post-pass status.
+fn migration_result(
+    state: &SharedBtcxWalletState,
+    outcome: V30MigrationOutcome,
+    created_wallet: Option<String>,
+    detail: Option<String>,
+) -> Result<BtcxV30MigrationResult, String> {
+    Ok(BtcxV30MigrationResult {
+        outcome,
+        active_wallet: state.get_config().active_wallet_name(),
+        created_wallet,
+        detail,
+        status: state.status()?,
+    })
+}
+
+/// Read the active wallet's stored mnemonic for a migration pass, or return
+/// `Ok(None)` to DEFER (leaving the flag unset) when the seed cannot be
+/// faithfully reproduced onto a counterpart wallet:
+/// - a locked passphrase seed cannot be read at all;
+/// - an unlocked passphrase-ENCRYPTED seed reads fine, but the counterpart
+///   would have to be re-wrapped WITHOUT the passphrase (an unlocked store
+///   never surrenders its plaintext), a security downgrade of the seed at
+///   rest — so it is deferred rather than silently weakened.
+///
+/// The counterpart is therefore always created from the mnemonic with the
+/// unattended at-rest wrap (never plaintext, same as an unencrypted create).
+fn read_migratable_mnemonic(
+    state: &SharedBtcxWalletState,
+    config: &BtcxWalletConfig,
+) -> (Option<String>, Option<String>) {
+    let Ok(mnemonic) = state.with_seed(|s| s.mnemonic().map_err(|e| format!("{e:#}"))) else {
+        return (
+            None,
+            Some("The wallet seed is locked — unlock it, then retry.".into()),
+        );
+    };
+    let seed_file = std::fs::read_to_string(config.active_wallet_root().join(seedstore::SEED_FILE))
+        .unwrap_or_default();
+    if super::state::seed_needs_passphrase(&seed_file) {
+        return (
+            None,
+            Some(
+                "Passphrase-encrypted seeds are not auto-migrated yet — the counterpart wallet \
+                 cannot inherit the passphrase protection."
+                    .into(),
+            ),
+        );
+    }
+    (Some(mnemonic), None)
+}
+
+/// Create the seed's legacy v30 counterpart from `mnemonic` on `policy` as a
+/// new named wallet, leaving the ORIGINALLY active wallet (`keep_active`)
+/// selected afterwards. `set_flags` records both wallets as migrated (the
+/// one-time pass) — the danger-zone rescan leaves the flag alone. Returns
+/// the created wallet's name.
+#[allow(clippy::too_many_arguments)]
+fn create_v30_counterpart(
+    state: &SharedBtcxWalletState,
+    app: Option<AppHandle>,
+    network: WalletNetwork,
+    keep_active: &str,
+    base: &str,
+    mnemonic: &str,
+    policy: DescriptorPolicy,
+    set_flags: bool,
+) -> Result<String, String> {
+    let legacy_name = resolve_counterpart_name(state, network, base, "-v30")?;
+    // import_into_named_wallet closes the runtime and switches the active
+    // wallet to the newly created legacy one.
+    import_into_named_wallet(state, network, &legacy_name, mnemonic, None, policy)?;
+    if set_flags {
+        state.update_config(|c| {
+            c.set_v30_migrated(network, keep_active, true);
+            c.set_v30_migrated(network, &legacy_name, true);
+        })?;
+    }
+    // The v31 wallet must stay active — switch back to it (which reopens it).
+    select_wallet_impl(state, app, keep_active)?;
+    Ok(legacy_name)
+}
+
+/// The one-time v30→v31 migration for the OPEN wallet's seed. Idempotent via
+/// the `v30Migrated` flag; a locked/encrypted seed defers WITHOUT setting it.
+/// Requires a verified Electrum server (same guard as restore) so a
+/// missing/pruned server is a hard error, never a silent "migrated".
+pub fn migrate_v30_impl(
+    state: &SharedBtcxWalletState,
+    app: Option<AppHandle>,
+) -> Result<BtcxV30MigrationResult, String> {
+    let config = state.get_config();
+    let network = config.network;
+    let active_name = config.active_wallet_name();
+
+    // Already migrated — nothing to do (leave the open runtime untouched).
+    if config.v30_migrated(network, &active_name) {
+        return migration_result(state, V30MigrationOutcome::Already, None, None);
+    }
+    // Descriptor-imported wallets have no seed branches to migrate: record
+    // them done so the pass never re-checks.
+    if state.active_source(&config) == WalletSourceCfg::Descriptor {
+        state.update_config(|c| c.set_v30_migrated(network, &active_name, true))?;
+        return migration_result(state, V30MigrationOutcome::Noop, None, None);
+    }
+
+    // The v30→v31 split only exists on mainnet (coin 0' → BTCX coin type).
+    // Testnet/regtest use coin type 1' for both new and legacy wallets, so
+    // there is nothing to migrate — record it done (skipping the Electrum
+    // probe) and leave the runtime be.
+    if network != WalletNetwork::Mainnet {
+        state.update_config(|c| c.set_v30_migrated(network, &active_name, true))?;
+        return migration_result(state, V30MigrationOutcome::Noop, None, None);
+    }
+
+    let (mnemonic, detail) = read_migratable_mnemonic(state, &config);
+    let Some(mnemonic) = mnemonic else {
+        return migration_result(state, V30MigrationOutcome::Deferred, None, detail);
+    };
+
+    // Probe the seed's branches against a verified server (hard error if none).
+    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+    let chain = state.verified_probe_chain()?;
+    let hits = manager::probe_all_branches(&seed, &chain, network)
+        .map_err(|e| format!("Migration probing failed: {e:#}"))?;
+
+    let base = base_name(&active_name);
+    let names = counterpart_names(&base);
+    let existing: Vec<DescriptorPolicy> = names
+        .iter()
+        .filter_map(|n| config.wallet_meta(network, n).map(|m| m.policy))
+        .collect();
+    let active_policy = config.policy();
+
+    match migrate::plan_v30_migration(active_policy, &hits, &existing) {
+        V30MigrationPlan::Noop => {
+            state.update_config(|c| {
+                c.set_v30_migrated(network, &active_name, true);
+                for n in &names {
+                    c.set_v30_migrated(network, n, true);
+                }
+            })?;
+            migration_result(state, V30MigrationOutcome::Noop, None, None)
+        }
+        V30MigrationPlan::CreateV31 { policy } => {
+            // Close the open runtime so the legacy wallet can be renamed off
+            // the clean base name, then hand that name to the new v31 wallet.
+            state.close_runtime();
+            let legacy_name = resolve_counterpart_name(state, network, &base, "-v30")?;
+            rename_wallet_impl(state, &active_name, &legacy_name)?;
+            let v31_name =
+                resolve_new_wallet_name(&state.get_config(), network, Some(base.clone()))?;
+            import_into_named_wallet(state, network, &v31_name, &mnemonic, None, policy)?;
+            state.update_config(|c| {
+                c.set_v30_migrated(network, &v31_name, true);
+                c.set_v30_migrated(network, &legacy_name, true);
+            })?;
+            // import_into_named_wallet already made the v31 wallet active;
+            // open its runtime.
+            state.open_runtime(app)?;
+            migration_result(state, V30MigrationOutcome::CreatedV31, Some(v31_name), None)
+        }
+        V30MigrationPlan::CreateV30Legacy { policy } => {
+            let created = create_v30_counterpart(
+                state,
+                app,
+                network,
+                &active_name,
+                &base,
+                &mnemonic,
+                policy,
+                true,
+            )?;
+            migration_result(state, V30MigrationOutcome::CreatedV30, Some(created), None)
+        }
+    }
+}
+
+/// The danger-zone "check for older (v30) funds" pass: re-probe the open
+/// wallet's seed and create the legacy v30 counterpart if the coin-0' branch
+/// holds history and no v30 wallet exists yet. Unlike the one-time migration
+/// it IGNORES the flag (always re-checks) and never touches it, so the user
+/// can run it again after later legacy activity.
+pub fn rescan_legacy_impl(
+    state: &SharedBtcxWalletState,
+    app: Option<AppHandle>,
+) -> Result<BtcxV30MigrationResult, String> {
+    let config = state.get_config();
+    let network = config.network;
+    let active_name = config.active_wallet_name();
+
+    // No legacy branch to rescan off-mainnet — testnet/regtest are coin
+    // type 1' end to end.
+    if network != WalletNetwork::Mainnet {
+        return migration_result(state, V30MigrationOutcome::Noop, None, None);
+    }
+
+    if state.active_source(&config) == WalletSourceCfg::Descriptor {
+        return migration_result(
+            state,
+            V30MigrationOutcome::Noop,
+            None,
+            Some("Descriptor-imported wallets have no legacy seed branch.".into()),
+        );
+    }
+
+    let (mnemonic, detail) = read_migratable_mnemonic(state, &config);
+    let Some(mnemonic) = mnemonic else {
+        return migration_result(state, V30MigrationOutcome::Deferred, None, detail);
+    };
+
+    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+    let chain = state.verified_probe_chain()?;
+    let hits = manager::probe_all_branches(&seed, &chain, network)
+        .map_err(|e| format!("Legacy probing failed: {e:#}"))?;
+
+    let base = base_name(&active_name);
+    let names = counterpart_names(&base);
+    // A v30 counterpart already exists over this seed — nothing to recover.
+    if config.has_wallet_on_coin_type(network, &names, 0) {
+        return migration_result(
+            state,
+            V30MigrationOutcome::Noop,
+            None,
+            Some("A legacy (v30) wallet already exists for this seed.".into()),
+        );
+    }
+    // Recover the highest-priority legacy branch that holds history.
+    match hits.iter().find(|h| h.policy.coin_type == 0) {
+        Some(hit) => {
+            let created = create_v30_counterpart(
+                state,
+                app,
+                network,
+                &active_name,
+                &base,
+                &mnemonic,
+                hit.policy,
+                false,
+            )?;
+            migration_result(state, V30MigrationOutcome::CreatedV30, Some(created), None)
+        }
+        None => migration_result(
+            state,
+            V30MigrationOutcome::Noop,
+            None,
+            Some("No legacy (v30) funds found for this seed.".into()),
+        ),
+    }
+}
+
+/// Run the one-time v30→v31 auto-migration for the open wallet (the frontend
+/// calls this once after opening a wallet). Idempotent: a wallet already
+/// migrated returns `already`, a locked/encrypted seed returns `deferred`
+/// without recording the pass. See [`migrate_v30_impl`].
+#[tauri::command]
+pub async fn btcx_wallet_migrate_v30(
+    app: AppHandle,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxV30MigrationResult, String> {
+    let state = state.inner().clone();
+    blocking(move || migrate_v30_impl(&state, Some(app))).await
+}
+
+/// Danger-zone rescan for older (v30) funds: re-probe the open wallet's seed
+/// and create the legacy counterpart if the coin-0' branch holds history,
+/// ignoring the migration flag (always re-checks). See [`rescan_legacy_impl`].
+#[tauri::command]
+pub async fn btcx_wallet_rescan_legacy(
+    app: AppHandle,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxV30MigrationResult, String> {
+    let state = state.inner().clone();
+    blocking(move || rescan_legacy_impl(&state, Some(app))).await
 }
 
 // ============================================================================
@@ -447,6 +821,9 @@ pub fn import_descriptor_wallet_impl(
                     .map(|d| d.as_secs()),
                 source: WalletSourceCfg::Descriptor,
                 single_address: parsed.single_address(),
+                // Descriptor-imported wallets are never part of the seed
+                // v30→v31 migration — mark them done so it never re-checks.
+                v30_migrated: true,
             },
         );
         c.active = true;
@@ -1823,5 +2200,216 @@ mod tests {
             serde_json::from_str(r#"{"address":"rpocx1qxyz","sendAll":true}"#).unwrap();
         assert!(sweep.send_all);
         assert_eq!(sweep.amount_sat, None);
+    }
+
+    #[test]
+    fn base_and_counterpart_naming() {
+        // A `-v30` suffix folds back to the clean base; anything else is its
+        // own base.
+        assert_eq!(base_name("default"), "default");
+        assert_eq!(base_name("default-v30"), "default");
+        assert_eq!(base_name("savings-v30-2"), "savings-v30-2");
+        assert_eq!(
+            counterpart_names("default"),
+            vec!["default".to_string(), "default-v30".to_string()]
+        );
+    }
+
+    /// 24-word all-zero-entropy BIP39 test vector (shared by the migration
+    /// tests below).
+    const MNEMONIC_24: &str = "abandon abandon abandon abandon abandon abandon abandon \
+         abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon \
+         abandon abandon abandon abandon abandon abandon art";
+
+    /// Spin up a regtest state rooted at a temp data dir with an unreachable
+    /// server — enough to exercise the migration's OFFLINE early-return paths
+    /// (before any probe).
+    fn offline_state(network: WalletNetwork) -> SharedBtcxWalletState {
+        let state = super::super::state::create_btcx_wallet_state();
+        state
+            .update_config(|c| {
+                c.network = network;
+                c.set_servers(network, vec!["tcp://127.0.0.1:1".to_string()]);
+            })
+            .unwrap();
+        state
+    }
+
+    fn offline_regtest_state() -> SharedBtcxWalletState {
+        offline_state(WalletNetwork::Regtest)
+    }
+
+    #[test]
+    fn resolve_counterpart_name_disambiguates_and_fits_limit() {
+        let _guard = DATA_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+        std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+        let state = offline_regtest_state();
+        let net = WalletNetwork::Regtest;
+
+        // Free name: the plain `<base>-v30`.
+        assert_eq!(
+            resolve_counterpart_name(&state, net, "default", "-v30").unwrap(),
+            "default-v30"
+        );
+
+        // Register `default-v30`, so the next resolution disambiguates.
+        state
+            .update_config(|c| {
+                c.set_wallet_meta(
+                    net,
+                    "default-v30",
+                    WalletMeta {
+                        policy: DescriptorPolicy::default(),
+                        created_at: Some(1),
+                        source: WalletSourceCfg::Seed,
+                        single_address: false,
+                        v30_migrated: false,
+                    },
+                );
+            })
+            .unwrap();
+        assert_eq!(
+            resolve_counterpart_name(&state, net, "default", "-v30").unwrap(),
+            "default-v30-2"
+        );
+
+        // A 32-char base still yields a valid (<=32) counterpart name.
+        let long = "x".repeat(32);
+        let resolved = resolve_counterpart_name(&state, net, &long, "-v30").unwrap();
+        assert!(resolved.len() <= 32, "{resolved}");
+        assert!(
+            config::validate_wallet_name(&resolved).is_ok(),
+            "{resolved}"
+        );
+
+        std::env::remove_var("PHOENIX_DATA_DIR");
+        std::env::remove_var("PACT_DISABLE_KEYRING");
+    }
+
+    #[test]
+    fn create_wallet_coin_type_is_network_aware() {
+        let _guard = DATA_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+        std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+        // A new wallet's persisted coin type follows the network: mainnet
+        // gets the per-asset BTCX coin type, testnet/regtest the shared
+        // SLIP-44 testnet coin type 1'.
+        for (network, expected) in [
+            (WalletNetwork::Mainnet, keys_btcx::COIN_BTCX),
+            (WalletNetwork::Testnet, 1u32),
+            (WalletNetwork::Regtest, 1u32),
+        ] {
+            let state = offline_state(network);
+            create_wallet_impl(&state, None, MNEMONIC_24, None, Some("w".into()), None).unwrap();
+            assert_eq!(
+                state.get_config().policy().coin_type,
+                expected,
+                "new wallet on {network:?} must derive at coin type {expected:#x}",
+            );
+        }
+
+        std::env::remove_var("PHOENIX_DATA_DIR");
+        std::env::remove_var("PACT_DISABLE_KEYRING");
+    }
+
+    #[test]
+    fn migrate_v30_skips_descriptor_wallets() {
+        let _guard = DATA_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+        std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+        let state = offline_regtest_state();
+        // A deterministic tprv-based external descriptor (regtest keys).
+        let secp = bitcoin::secp256k1::Secp256k1::new();
+        let master =
+            bitcoin::bip32::Xpriv::new_master(bitcoin::NetworkKind::Test, &[7u8; 32]).unwrap();
+        let path: Vec<bitcoin::bip32::ChildNumber> = [84u32, 1, 0]
+            .iter()
+            .map(|&i| bitcoin::bip32::ChildNumber::from_hardened_idx(i).unwrap())
+            .collect();
+        let account = master.derive_priv(&secp, &path).unwrap();
+        let fp = master.fingerprint(&secp);
+        let external = format!("wpkh([{fp}/84'/1'/0']{account}/0/*)");
+        import_descriptor_wallet_impl(&state, None, &external, None, Some("imported".into()))
+            .unwrap();
+
+        // Import already flags descriptor wallets as migrated — the pass is
+        // a no-op `already`, needing no (unreachable) Electrum server.
+        assert!(state
+            .get_config()
+            .v30_migrated(WalletNetwork::Regtest, "imported"));
+        assert_eq!(
+            migrate_v30_impl(&state, None).unwrap().outcome,
+            V30MigrationOutcome::Already
+        );
+
+        // Clear the flag to exercise the descriptor-skip branch directly (an
+        // older config predating the import-time flag): a descriptor wallet
+        // has no seed branch, so the pass is a no-op that re-records it —
+        // still without touching the server.
+        state
+            .update_config(|c| c.set_v30_migrated(WalletNetwork::Regtest, "imported", false))
+            .unwrap();
+        let result = migrate_v30_impl(&state, None).unwrap();
+        assert_eq!(result.outcome, V30MigrationOutcome::Noop);
+        assert!(state
+            .get_config()
+            .v30_migrated(WalletNetwork::Regtest, "imported"));
+
+        std::env::remove_var("PHOENIX_DATA_DIR");
+        std::env::remove_var("PACT_DISABLE_KEYRING");
+    }
+
+    #[test]
+    fn migrate_v30_early_returns_already_and_defers_encrypted() {
+        let _guard = DATA_DIR_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+        std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+        // Mainnet: this exercises the migration's own already/defer branches,
+        // which only run on mainnet (testnet/regtest short-circuit to a
+        // no-op before the seed is ever read).
+        let state = offline_state(WalletNetwork::Mainnet);
+
+        // (1) A passphrase-encrypted (but unlocked) seed wallet DEFERS —
+        // the counterpart can't inherit the passphrase, so the pass must not
+        // silently weaken it, and must NOT set the flag.
+        create_wallet_impl(
+            &state,
+            None,
+            MNEMONIC_24,
+            Some("hunter2"),
+            Some("enc".into()),
+            None,
+        )
+        .unwrap();
+        let result = migrate_v30_impl(&state, None).unwrap();
+        assert_eq!(result.outcome, V30MigrationOutcome::Deferred);
+        assert!(result.detail.is_some());
+        assert!(
+            !state
+                .get_config()
+                .v30_migrated(WalletNetwork::Mainnet, "enc"),
+            "a deferred pass must not record the wallet as migrated"
+        );
+
+        // (2) A wallet already flagged returns `already` without touching the
+        // (unreachable) server.
+        create_wallet_impl(&state, None, MNEMONIC_24, None, Some("plain".into()), None).unwrap();
+        state
+            .update_config(|c| c.set_v30_migrated(WalletNetwork::Mainnet, "plain", true))
+            .unwrap();
+        let result = migrate_v30_impl(&state, None).unwrap();
+        assert_eq!(result.outcome, V30MigrationOutcome::Already);
+
+        std::env::remove_var("PHOENIX_DATA_DIR");
+        std::env::remove_var("PACT_DISABLE_KEYRING");
     }
 }
