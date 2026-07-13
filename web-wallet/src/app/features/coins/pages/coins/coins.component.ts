@@ -49,7 +49,7 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
       .page-layout {
         display: flex;
         flex-direction: column;
-        height: 100%;
+        min-height: 100%;
       }
 
       .header {
@@ -80,7 +80,6 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
         padding: 24px;
         display: flex;
         justify-content: center;
-        overflow-y: auto;
       }
 
       .coins-card {

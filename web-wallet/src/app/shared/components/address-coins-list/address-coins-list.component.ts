@@ -89,29 +89,39 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
     } @else if (rows().length === 0) {
       <app-empty-state icon="account_balance_wallet" [message]="'coins_empty' | i18n" />
     } @else {
-      <div class="coins-table">
-        <div class="coin-row coin-head">
-          <span class="col-address">{{ 'address' | i18n }}</span>
-          <span class="col-coins">{{ 'coins_col' | i18n }}</span>
-          <span class="col-balance">{{ 'balance' | i18n }} (BTCX)</span>
-          <span class="col-flag"></span>
-        </div>
-        @for (row of pagedRows(); track row.address) {
-          <div class="coin-row">
-            <div class="col-address">
-              <app-address-display [address]="row.address" [showCopyButton]="true" />
-            </div>
-            <span class="col-coins">{{ row.coinCount }}</span>
-            <span class="col-balance">{{ row.balanceBtc | btcx }}</span>
-            <span class="col-flag">
-              @if (row.exposed) {
-                <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
-                  >key</mat-icon
-                >
-              }
-            </span>
-          </div>
-        }
+      <div class="coins-scroll">
+        <table class="coins-table">
+          <thead>
+            <tr>
+              <th class="th-address">{{ 'address' | i18n }}</th>
+              <th class="th-coins">{{ 'coins_col' | i18n }}</th>
+              <th class="th-balance">{{ 'balance' | i18n }} (BTCX)</th>
+              <th class="th-flag" aria-hidden="true"></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of pagedRows(); track row.address) {
+              <tr>
+                <td class="td-address">
+                  <app-address-display
+                    [address]="row.address"
+                    [showCopyButton]="true"
+                    [inline]="false"
+                  />
+                </td>
+                <td class="td-coins">{{ row.coinCount }}</td>
+                <td class="td-balance">{{ row.balanceBtc | btcx }}</td>
+                <td class="td-flag">
+                  @if (row.exposed) {
+                    <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
+                      >key</mat-icon
+                    >
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
 
       @if (rows().length > pageSizeOptions[0]) {
@@ -145,50 +155,57 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         padding: 32px 0;
       }
 
-      .coins-table {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
+      /* Only scrolls if a very long address can't fit the card. */
+      .coins-scroll {
         overflow-x: auto;
       }
 
-      /* One compact row: address | coins | balance | exposure flag.
-         The address column sizes to its content (not 1fr) so the columns
-         pack left with no gap; justify-content:start leaves any slack on the
-         right instead of stretching the address column. */
-      .coin-row {
-        display: grid;
-        grid-template-columns: auto 56px minmax(110px, auto) 28px;
-        justify-content: start;
-        align-items: center;
-        gap: 16px;
-        padding: 10px 14px;
-        background: #f5f7fa;
-        border-radius: 8px;
+      /* A real table so the header and every row share column widths (a grid
+         per row can't align across rows). width:auto => columns hug content,
+         so they pack left with no gap after short addresses. */
+      .coins-table {
+        width: auto;
+        border-collapse: separate;
+        border-spacing: 0 6px;
       }
 
-      /* Column-header row: same grid, no background. */
-      .coin-head {
-        background: transparent;
-        padding: 2px 14px;
+      thead th {
+        padding: 0 16px 4px;
+        text-align: left;
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.4px;
         color: #8a97a4;
+        white-space: nowrap;
       }
 
-      .col-address {
-        min-width: 0;
+      .th-coins,
+      .th-balance {
+        text-align: right;
       }
 
-      .col-coins {
+      tbody td {
+        background: #f5f7fa;
+        padding: 8px 16px;
+        vertical-align: middle;
+      }
+
+      tbody td:first-child {
+        border-radius: 8px 0 0 8px;
+      }
+
+      tbody td:last-child {
+        border-radius: 0 8px 8px 0;
+      }
+
+      .td-coins {
         text-align: right;
         font-variant-numeric: tabular-nums;
         color: #5a6b7a;
       }
 
-      .col-balance {
+      .td-balance {
         text-align: right;
         font-family: monospace;
         font-weight: 600;
@@ -197,9 +214,9 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         white-space: nowrap;
       }
 
-      .col-flag {
-        display: flex;
-        justify-content: center;
+      .td-flag {
+        text-align: center;
+        width: 1%;
       }
 
       .flag-icon {
@@ -208,6 +225,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         height: 18px;
         color: #a06a00;
         cursor: default;
+        vertical-align: middle;
       }
 
       mat-paginator {
@@ -220,15 +238,15 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
           color: #9fb0bf;
         }
 
-        .coin-row {
+        tbody td {
           background: #333;
         }
 
-        .col-coins {
+        .td-coins {
           color: #9aa7b3;
         }
 
-        .col-balance {
+        .td-balance {
           color: #90caf9;
         }
       }
