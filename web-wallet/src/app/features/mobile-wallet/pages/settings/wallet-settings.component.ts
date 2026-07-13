@@ -171,7 +171,10 @@ const DRAG_SLOP_PX = 8;
                         {{ 'mwallet_single_badge' | i18n }}
                       </span>
                     }
-                    @if (w.source === 'descriptor') {
+                    <!-- Single-address wallets are always imported, so the
+                         "imported" marker there is redundant — show it only for
+                         descriptor-imported HD wallets. -->
+                    @if (w.source === 'descriptor' && !w.singleAddress) {
                       <span class="row-badge imported">
                         {{ 'mwallet_imported_badge' | i18n }}
                       </span>

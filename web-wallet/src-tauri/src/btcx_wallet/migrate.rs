@@ -58,7 +58,7 @@ pub enum V30MigrationPlan {
 ///
 /// - both counterparts already registered → [`V30MigrationPlan::Noop`];
 /// - only the v30 wallet exists (open wallet on coin type `0'`) → create the
-///   v31 counterpart at BIP-84 / `COIN_BTCX` ([`V30MigrationPlan::CreateV31`]);
+///   v31 counterpart at the SAME kind / `COIN_BTCX` ([`V30MigrationPlan::CreateV31`]);
 /// - only the v31 wallet exists (open wallet on `COIN_BTCX`) → create the
 ///   legacy v30 counterpart ONLY if the seed's coin-0' branch has history
 ///   ([`V30MigrationPlan::CreateV30Legacy`], highest-priority legacy hit),
@@ -81,8 +81,13 @@ pub fn plan_v30_migration(
     // whether or not it already has on-chain history).
     if is_v30(&active_policy) && !has_v31 {
         return V30MigrationPlan::CreateV31 {
-            // BIP-84 @ COIN_BTCX — the new-wallet default.
-            policy: DescriptorPolicy::default(),
+            // Preserve the wallet's address type (BIP-84 wpkh vs BIP-86
+            // taproot); only the coin type moves to COIN_BTCX. A taproot v30
+            // wallet must migrate to a taproot v31 wallet, not segwit.
+            policy: DescriptorPolicy {
+                kind: active_policy.kind,
+                coin_type: COIN_BTCX,
+            },
         };
     }
 
@@ -149,10 +154,12 @@ mod tests {
         let plan = plan_v30_migration(V30, &[], &[V30]);
         assert_eq!(plan, V30MigrationPlan::CreateV31 { policy: V31 });
 
-        // A BIP-86 legacy wallet still gets the standard BIP-84 v31 default.
+        // A BIP-86 (taproot) legacy wallet migrates to a BIP-86 v31 wallet —
+        // the address type is preserved, only the coin type moves to BTCX.
         let v30_tr = policy(DescriptorKindCfg::Bip86, 0);
+        let v31_tr = policy(DescriptorKindCfg::Bip86, COIN_BTCX);
         let plan = plan_v30_migration(v30_tr, &[hit(v30_tr)], &[v30_tr]);
-        assert_eq!(plan, V30MigrationPlan::CreateV31 { policy: V31 });
+        assert_eq!(plan, V30MigrationPlan::CreateV31 { policy: v31_tr });
     }
 
     #[test]
