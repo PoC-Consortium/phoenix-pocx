@@ -180,7 +180,10 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         white-space: nowrap;
       }
 
-      .th-coins,
+      .th-coins {
+        text-align: center;
+      }
+
       .th-balance {
         text-align: right;
       }
@@ -200,7 +203,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
       }
 
       .td-coins {
-        text-align: right;
+        text-align: center;
         font-variant-numeric: tabular-nums;
         color: #5a6b7a;
       }

@@ -108,7 +108,12 @@ import { ElectronService } from '../../../core/services/electron.service';
         height: 28px;
         line-height: 28px;
 
+        /* Center the glyph inside the icon box — mat-icon defaults to an
+           inline-block whose ligature baseline sits low in the button. */
         .small-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           font-size: 16px;
           width: 16px;
           height: 16px;
