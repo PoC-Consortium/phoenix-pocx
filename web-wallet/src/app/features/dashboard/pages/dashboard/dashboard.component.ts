@@ -75,7 +75,7 @@ import {
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          @if (isLoadingBlockchain()) {
+          @if (isLoadingBlockchain() && !hasLoadedBlockchain()) {
             <div class="loading-state">
               <mat-spinner diameter="24"></mat-spinner>
               <span>{{ 'loading_blockchain_info' | i18n }}</span>
@@ -226,7 +226,7 @@ import {
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          @if (isLoadingTransactions()) {
+          @if (isLoadingTransactions() && !hasLoadedTransactions()) {
             <div class="loading-state">
               <mat-spinner diameter="24"></mat-spinner>
               <span>{{ 'loading_transactions' | i18n }}</span>
@@ -964,6 +964,13 @@ export class DashboardComponent implements AfterViewInit {
   // Loading states derived from services
   isLoadingBlockchain = computed(() => this.blockchainState.isLoading());
   isLoadingTransactions = computed(() => this.walletService.isLoading());
+
+  // True once each source has completed at least one refresh. Used to gate the
+  // loading spinner so it only shows on the initial load — background refreshes
+  // (15s/30s poll or btcx-wallet:sync) keep the existing content on screen
+  // instead of flashing the spinner and remounting the card body.
+  hasLoadedBlockchain = computed(() => this.blockchainState.lastUpdated() !== null);
+  hasLoadedTransactions = computed(() => this.walletService.lastUpdated() !== null);
 
   // Blockchain info - wrap service signals for template compatibility
   blockchainInfo = computed(() => ({
