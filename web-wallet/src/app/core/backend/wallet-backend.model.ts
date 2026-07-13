@@ -59,7 +59,10 @@ export interface WalletBackend {
   ): Promise<string>;
 
   /** Parent vsize (vB) + absolute fee (BTC) for CPFP package math. */
-  getCpfpParentInfo(walletName: string, parentTxid: string): Promise<{ vsize: number; fee: number }>;
+  getCpfpParentInfo(
+    walletName: string,
+    parentTxid: string
+  ): Promise<{ vsize: number; fee: number }>;
 
   /** Market fee estimates in sat/vB (null where the source has no data). */
   feeEstimates(): Promise<WalletBackendFeeEstimates>;

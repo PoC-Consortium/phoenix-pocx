@@ -493,7 +493,9 @@ export class CpfpDialogComponent implements OnInit {
   private receivedSats = computed(() => Math.round(this.data.receivedAmount * SATS_PER_BTC));
 
   /** The received output can't cover the child fee it must pay. */
-  insufficient = computed(() => this.childFeeSats() > 0 && this.receivedSats() <= this.childFeeSats());
+  insufficient = computed(
+    () => this.childFeeSats() > 0 && this.receivedSats() <= this.childFeeSats()
+  );
 
   ngOnInit(): void {
     void this.load();

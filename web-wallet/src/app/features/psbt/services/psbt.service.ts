@@ -427,5 +427,4 @@ export class PsbtService {
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
   }
-
 }
