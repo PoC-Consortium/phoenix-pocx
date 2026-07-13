@@ -127,7 +127,7 @@ interface FeeOption {
                   type="number"
                   [(ngModel)]="customFeeRate"
                   (ngModelChange)="onCustomFeeChange()"
-                  min="1"
+                  [min]="minBumpRate()"
                   step="0.001"
                   autocomplete="off"
                 />
@@ -152,7 +152,7 @@ interface FeeOption {
             </div>
           </div>
 
-          @if (getFeeIncrease() <= 0) {
+          @if (belowMinBump()) {
             <div class="warning-box">
               <mat-icon>warning</mat-icon>
               <span>{{ 'new_fee_must_be_higher' | i18n }}</span>
@@ -434,8 +434,18 @@ export class FeeBumpDialogComponent implements OnInit {
 
   selectedFeeOption: FeeOption | null = null;
 
+  /**
+   * Smallest feerate that yields a valid RBF replacement (BIP-125 rule 3/4).
+   * Computed from the original tx's real feerate; presets and the custom
+   * default are floored to it so the first bump attempt isn't rejected.
+   */
+  minBumpRate = signal(1);
+
   // Estimate transaction size for fee calculation (typical P2WPKH: ~170 vbytes)
   private readonly estimatedVBytes = 170;
+
+  /** Core's default `incrementalrelayfee`, in sat/vB (BIP-125 rule 4). */
+  private readonly INCREMENTAL_RELAY_SAT_VB = 1;
 
   ngOnInit(): void {
     this.loadFeeEstimates();
@@ -444,6 +454,15 @@ export class FeeBumpDialogComponent implements OnInit {
   async loadFeeEstimates(): Promise<void> {
     this.isLoadingFees.set(true);
     try {
+      // Establish the minimum valid bump first. On a chain that sits at the
+      // feerate floor the network estimates equal the original tx's rate, so
+      // without this floor every preset would be rejected on the first attempt.
+      await this.computeMinBumpRate();
+
+      // Prefill custom with the minimum valid bump — kept even if the estimate
+      // fetch below throws (e.g. no Core RPC), so custom always has a sane rate.
+      this.customFeeRate = this.minBumpRate();
+
       for (const option of this.feeOptions) {
         if (option.label === 'fee_custom') continue;
         const result = await this.blockchainRpc.estimateSmartFee(option.blocks);
@@ -451,14 +470,43 @@ export class FeeBumpDialogComponent implements OnInit {
           // feerate is in BTC/kvB, convert to sat/vB (0.001 resolution)
           option.feeRate = Math.round(result.feerate * 100000000) / 1000;
         }
+        // Never offer a preset below a valid bump — floor it (0.001 resolution).
+        const floored = Math.max(option.feeRate ?? 0, this.minBumpRate());
+        option.feeRate = Math.round(floored * 1000) / 1000;
       }
-      // Default to normal fee
+
+      // Default to normal fee (already floored to a valid bump).
       this.selectedFeeOption = this.feeOptions[1];
     } catch (error) {
       console.error('Failed to load fee estimates:', error);
     } finally {
       this.isLoadingFees.set(false);
     }
+  }
+
+  /**
+   * Derive the smallest feerate that yields a valid RBF replacement from the
+   * original tx's real feerate (original fee ÷ its vsize). Fetches the tx's
+   * vsize; falls back to a typical P2WPKH size if it can't (e.g. remote mode).
+   * Adds a comfortable margin — the greater of the incremental relay fee or
+   * 10% — so the first attempt clears BIP-125 rule 4 even with vsize drift.
+   */
+  private async computeMinBumpRate(): Promise<void> {
+    const originalFeeSats = this.data.originalFee * 100000000;
+    let vsize = this.estimatedVBytes;
+    try {
+      const raw = await this.blockchainRpc.getRawTransaction(this.data.txid, true);
+      if (typeof raw !== 'string' && raw.vsize > 0) {
+        vsize = raw.vsize;
+      }
+    } catch {
+      // Original tx not fetchable (e.g. remote/Electrum mode) — keep the
+      // typical-size fallback; the user can still adjust via custom.
+    }
+    const originalRate = originalFeeSats / vsize;
+    const margin = Math.max(this.INCREMENTAL_RELAY_SAT_VB, originalRate * 0.1);
+    // Round the floor UP to 0.001 so it never lands just under the requirement.
+    this.minBumpRate.set(Math.ceil((originalRate + margin) * 1000) / 1000);
   }
 
   selectFeeOption(option: FeeOption): void {
@@ -491,13 +539,23 @@ export class FeeBumpDialogComponent implements OnInit {
     return newFee - this.data.originalFee;
   }
 
-  canConfirm(): boolean {
-    const hasValidFeeRate =
+  /** Selected feerate, or null when custom is empty. */
+  private selectedRate(): number | null {
+    const rate =
       this.selectedFeeOption?.label === 'fee_custom'
-        ? this.customFeeRate !== null && this.customFeeRate > 0
-        : this.selectedFeeOption?.feeRate !== null;
+        ? this.customFeeRate
+        : this.selectedFeeOption?.feeRate;
+    return rate ?? null;
+  }
 
-    return hasValidFeeRate && this.getFeeIncrease() > 0;
+  /** True when the chosen rate is below the minimum valid RBF bump. */
+  belowMinBump(): boolean {
+    const rate = this.selectedRate();
+    return rate === null || rate < this.minBumpRate();
+  }
+
+  canConfirm(): boolean {
+    return !this.belowMinBump();
   }
 
   cancel(): void {

@@ -645,7 +645,7 @@ interface WalletAddress {
                 type="number"
                 [(ngModel)]="customFeeRate"
                 (ngModelChange)="onCustomFeeChange()"
-                min="1"
+                min="0.1"
                 step="0.001"
                 autocomplete="off"
               />
