@@ -33,9 +33,45 @@ export async function downloadTextFile(
     return;
   }
 
-  // Browser: blob + anchor. The anchor must be connected to the DOM for the
-  // synthetic click to register, and the object URL must outlive the click.
-  const blob = new Blob([contents], { type: mime });
+  downloadViaAnchor(new Blob([contents], { type: mime }), filename);
+}
+
+/**
+ * Save raw bytes to a file (binary counterpart of {@link downloadTextFile},
+ * e.g. a `.psbt` export). Same Tauri-vs-browser split.
+ */
+export async function downloadBinaryFile(
+  filename: string,
+  bytes: Uint8Array<ArrayBuffer>,
+  mime = 'application/octet-stream'
+): Promise<void> {
+  const isTauri =
+    typeof window !== 'undefined' &&
+    (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ != null;
+
+  if (isTauri) {
+    const [{ save }, { invoke }] = await Promise.all([
+      import('@tauri-apps/plugin-dialog'),
+      import('@tauri-apps/api/core'),
+    ]);
+    const ext = filename.includes('.') ? filename.slice(filename.lastIndexOf('.') + 1) : 'bin';
+    const path = await save({
+      defaultPath: filename,
+      filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    });
+    if (!path) return;
+    await invoke('write_binary_file', { path, contents: Array.from(bytes) });
+    return;
+  }
+
+  downloadViaAnchor(new Blob([bytes], { type: mime }), filename);
+}
+
+/**
+ * Browser blob download. The anchor must be connected to the DOM for the
+ * synthetic click to register, and the object URL must outlive the click.
+ */
+function downloadViaAnchor(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

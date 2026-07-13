@@ -237,6 +237,13 @@ fn write_text_file(path: String, contents: String) -> Result<(), String> {
     fs::write(&path, contents).map_err(|e| format!("Failed to write {}: {}", path, e))
 }
 
+/// Write raw bytes to a file path — the binary counterpart of
+/// `write_text_file` (e.g. a `.psbt` export). Same save-dialog flow.
+#[tauri::command]
+fn write_binary_file(path: String, contents: Vec<u8>) -> Result<(), String> {
+    fs::write(&path, contents).map_err(|e| format!("Failed to write {}: {}", path, e))
+}
+
 /// Get the current platform (win32, darwin, linux, android)
 #[tauri::command]
 fn get_platform() -> String {
@@ -979,6 +986,7 @@ pub fn run() {
             btcx_wallet::commands::btcx_electrum_probe,
             btcx_wallet::commands::btcx_chain_info,
             write_text_file,
+            write_binary_file,
             // Update commands
             update::get_app_version,
             update::check_wallet_update,
