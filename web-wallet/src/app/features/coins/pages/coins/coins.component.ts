@@ -89,7 +89,7 @@ import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         /* Wide enough for a full bech32(m) address + the coins/balance/flag
            columns without the address wrapping (word-break). */
-        max-width: 900px;
+        max-width: 780px;
         width: 100%;
         padding: 20px 24px;
         box-sizing: border-box;

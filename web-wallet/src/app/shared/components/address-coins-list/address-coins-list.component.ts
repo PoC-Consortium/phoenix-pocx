@@ -149,14 +149,19 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         display: flex;
         flex-direction: column;
         gap: 4px;
+        overflow-x: auto;
       }
 
-      /* One compact row: address | coins | balance | exposure flag. */
+      /* One compact row: address | coins | balance | exposure flag.
+         The address column sizes to its content (not 1fr) so the columns
+         pack left with no gap; justify-content:start leaves any slack on the
+         right instead of stretching the address column. */
       .coin-row {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 56px minmax(110px, auto) 28px;
+        grid-template-columns: auto 56px minmax(110px, auto) 28px;
+        justify-content: start;
         align-items: center;
-        gap: 12px;
+        gap: 16px;
         padding: 10px 14px;
         background: #f5f7fa;
         border-radius: 8px;
