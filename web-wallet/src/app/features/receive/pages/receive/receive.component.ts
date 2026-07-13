@@ -17,6 +17,7 @@ import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService, NotificationService } from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
+import { buildPaymentUri } from '../../../../bitcoin/utils/payment-uri';
 
 interface AddressInfo {
   address: string;
@@ -526,15 +527,11 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   paymentUri(): string {
-    const address = this.currentAddress();
-    if (!address) return '';
-
-    let uri = `btcx:${address}`;
-    const params: string[] = [];
-    if (this.amount && this.amount > 0) params.push(`amount=${this.amount}`);
-    if (this.label?.trim()) params.push(`label=${encodeURIComponent(this.label.trim())}`);
-    if (params.length > 0) uri += '?' + params.join('&');
-    return uri;
+    return buildPaymentUri({
+      address: this.currentAddress(),
+      amount: this.amount,
+      label: this.label,
+    });
   }
 
   ngOnInit(): void {

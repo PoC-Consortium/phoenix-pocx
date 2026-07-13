@@ -35,6 +35,7 @@ import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchai
 import { SendConfirmDialogComponent } from '../../components/send-confirm-dialog/send-confirm-dialog.component';
 import { Store } from '@ngrx/store';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import { parsePaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
 import { NodeService } from '../../../../node/services/node.service';
@@ -150,7 +151,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                     matInput
                     [(ngModel)]="recipientAddress"
                     placeholder="tb1q... / m... / n..."
-                    (ngModelChange)="validateAddress()"
+                    (ngModelChange)="onRecipientChange()"
                     autocomplete="off"
                   />
                   @if (addressValid()) {
@@ -1107,12 +1108,44 @@ export class SendComponent implements OnInit, OnDestroy {
     this.loadFeeEstimates();
     // Note: Balance is now handled by WalletService with auto-refresh
 
-    // Check for prepopulated address from query param
-    const toAddress = this.route.snapshot.queryParamMap.get('to');
-    if (toAddress) {
-      this.recipientAddress = toAddress;
+    // Prefill from query params: a full ?uri= (deep link / scanned QR), or the
+    // legacy ?to= / ?address= plain-address params. `applyPaymentInput` splits
+    // a URI into address + amount; a bare address flows straight through.
+    const q = this.route.snapshot.queryParamMap;
+    const rawInput = q.get('uri') ?? q.get('to') ?? q.get('address');
+    if (rawInput) {
+      this.applyPaymentInput(rawInput);
+    }
+    const amountParam = q.get('amount');
+    if (amountParam && Number.isFinite(Number(amountParam)) && Number(amountParam) > 0) {
+      this.amount = Number(amountParam);
+      this.updateEstimatedFee();
+    }
+  }
+
+  /**
+   * Called on every recipient-field change. When the value looks like a
+   * payment URI (has a scheme colon or query), split it into address + amount;
+   * otherwise just validate the typed address. Plain address typing is
+   * untouched — the split only triggers on `:` or `?`.
+   */
+  onRecipientChange(): void {
+    const raw = this.recipientAddress;
+    if (raw.includes(':') || raw.includes('?')) {
+      this.applyPaymentInput(raw);
+    } else {
       this.validateAddress();
     }
+  }
+
+  /** Parse a payment URI (or bare address) into the form fields. */
+  private applyPaymentInput(raw: string): void {
+    const parsed = parsePaymentUri(raw);
+    if (!parsed) return;
+    this.recipientAddress = parsed.address; // strip scheme/params back into the field
+    if (parsed.amount !== null) this.amount = parsed.amount;
+    this.validateAddress();
+    this.updateEstimatedFee();
   }
 
   ngOnDestroy(): void {
