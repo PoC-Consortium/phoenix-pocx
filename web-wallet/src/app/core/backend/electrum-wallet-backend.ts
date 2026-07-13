@@ -22,6 +22,8 @@ interface BtcxUtxoDto {
   address?: string;
   confirmations: number;
   isChange: boolean;
+  /** The address' pubkey is on-chain (it has been spent from before). */
+  exposed: boolean;
 }
 
 /**
@@ -123,6 +125,7 @@ export class ElectrumWalletBackend implements WalletBackend {
       confirmations: u.confirmations,
       isChange: u.isChange,
       spendable: true,
+      exposed: u.exposed,
     }));
   }
 

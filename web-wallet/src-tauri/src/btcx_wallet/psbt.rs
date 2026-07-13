@@ -466,6 +466,11 @@ pub struct WalletUtxoDto {
     pub confirmations: u32,
     /// External (receive) or internal (change) keychain.
     pub is_change: bool,
+    /// The address' public key is revealed on-chain — an output at this script
+    /// has already been spent, so the address appeared as a tx input. For
+    /// P2WPKH the coins are then guarded only by the pubkey, not its hash; the
+    /// coins view surfaces this as "Public key known".
+    pub exposed: bool,
 }
 
 /// The wallet's unspent outputs, from the background-synced cache.
@@ -473,6 +478,15 @@ pub fn wallet_utxos(state: &SharedBtcxWalletState) -> Result<Vec<WalletUtxoDto>,
     let network = state.get_config().network;
     state.with_entry(|entry| {
         let tip = entry.wallet.latest_checkpoint().height();
+        // Scripts whose pubkey is revealed on-chain: any output the wallet owns
+        // at the script has been spent (so it appeared as a tx input). All
+        // coins currently at such a script are pubkey-exposed.
+        let exposed_scripts: std::collections::HashSet<_> = entry
+            .wallet
+            .list_output()
+            .filter(|o| o.is_spent)
+            .map(|o| o.txout.script_pubkey.clone())
+            .collect();
         Ok(entry
             .wallet
             .list_unspent()
@@ -488,6 +502,7 @@ pub fn wallet_utxos(state: &SharedBtcxWalletState) -> Result<Vec<WalletUtxoDto>,
                     address: spk_to_address(network, &utxo.txout.script_pubkey),
                     confirmations,
                     is_change: utxo.keychain == bdk_wallet::KeychainKind::Internal,
+                    exposed: exposed_scripts.contains(&utxo.txout.script_pubkey),
                 }
             })
             .collect())

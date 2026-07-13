@@ -87,8 +87,8 @@ export interface WalletCoin {
    * by the pubkey HASH until the first spend, then only by the pubkey itself,
    * so this flags the weaker-protected funds. Core derives it from
    * total-received > current-unspent (spending is the only way received can
-   * exceed the balance still held). Left undefined by the Electrum/BDK
-   * backend (no spend history exposed yet).
+   * exceed the balance still held); the Electrum/BDK backend derives it from
+   * the wallet's spent outputs (`list_output().is_spent`) per script.
    */
   exposed?: boolean;
 }
