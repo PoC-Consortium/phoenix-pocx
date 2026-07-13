@@ -427,7 +427,7 @@ const UTXO_PAGE_SIZE = 10;
                   <span><mat-icon class="tune-icon">tune</mat-icon></span>
                 } @else {
                   <span>{{
-                    chip.rate !== null ? (chip.rate | number: '1.0-1') + ' sat/vB' : '--'
+                    chip.rate !== null ? (chip.rate | number: '1.3-3') + ' sat/vB' : '--'
                   }}</span>
                 }
               </button>
@@ -436,7 +436,7 @@ const UTXO_PAGE_SIZE = 10;
           @if (selectedFee?.custom) {
             <mat-form-field appearance="outline" class="custom-fee-field">
               <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
-              <input matInput type="number" min="0.1" step="0.1" [(ngModel)]="customFeeRate" />
+              <input matInput type="number" min="0.1" step="0.001" [(ngModel)]="customFeeRate" />
             </mat-form-field>
           }
         </div>
@@ -1633,15 +1633,15 @@ export class PsbtComposeComponent implements OnInit {
         this.feeChips.forEach((chip, i) => {
           if (chip.custom) return;
           const rate = bySpeed[i];
-          chip.rate = rate != null ? Math.round(rate * 10) / 10 : null;
+          chip.rate = rate != null ? Math.round(rate * 1000) / 1000 : null;
         });
       } else {
         for (const chip of this.feeChips) {
           if (chip.custom) continue;
           const result = await this.blockchainRpc.estimateSmartFee(chip.blocks);
           if (result.feerate) {
-            // BTC/kvB → sat/vB, one decimal
-            chip.rate = Math.round((result.feerate * 1e8) / 100) / 10;
+            // BTC/kvB → sat/vB, 0.001 resolution
+            chip.rate = Math.round(result.feerate * 1e8) / 1000;
           }
         }
       }

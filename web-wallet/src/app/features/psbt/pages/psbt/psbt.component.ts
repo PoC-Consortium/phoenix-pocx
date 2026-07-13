@@ -270,7 +270,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
                 <div class="stat-key">{{ 'psbt_fee_rate' | i18n }}</div>
                 <div class="stat-value mono">
                   @if (document.feeRate !== undefined) {
-                    {{ document.feeRate | number: '1.0-1' }}
+                    {{ document.feeRate | number: '1.3-3' }}
                     <small>sat/vB · {{ document.vsize }} vB</small>
                   } @else {
                     — <small>{{ 'psbt_unknown' | i18n }}</small>

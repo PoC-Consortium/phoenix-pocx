@@ -291,7 +291,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                 @if (preset.target !== null) {
                   <span class="fee-rate">
                     @if (presetRate(preset) !== null) {
-                      {{ presetRate(preset) | number: '1.0-2' }} sat/vB
+                      {{ presetRate(preset) | number: '1.3-3' }} sat/vB
                     } @else {
                       --
                     }
@@ -309,7 +309,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                 type="number"
                 [(ngModel)]="customFeeRate"
                 [min]="minFeeRate()"
-                step="0.1"
+                step="0.001"
                 autocomplete="off"
               />
             </mat-form-field>
