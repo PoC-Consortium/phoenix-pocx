@@ -1259,5 +1259,7 @@
   "cpfp_insufficient": "This output is too small to speed up at the selected rate.",
   "address_reused": "Reused",
   "address_reused_hint": "This address has received funds more than once. Reusing addresses links your transactions together and weakens privacy — prefer a fresh address each time.",
-  "address_kind_change_hint": "An address your wallet created to return change to itself from your own spends — the funds here are yours."
+  "address_kind_change_hint": "An address your wallet created to return change to itself from your own spends — the funds here are yours.",
+  "address_exposed": "Key exposed",
+  "address_exposed_hint": "You have spent from this address before, so its public key is published on-chain. Coins held here are guarded only by that public key, not by its hash — a smaller safety margin. For maximum security, move them to a fresh address."
 }

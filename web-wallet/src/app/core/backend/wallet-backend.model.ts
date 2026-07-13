@@ -82,12 +82,15 @@ export interface WalletCoin {
   isChange: boolean;
   spendable: boolean;
   /**
-   * Whether the funding address has received in more than one transaction
-   * (address reuse). Set accurately by Core from listreceivedbyaddress;
-   * left undefined by the Electrum/BDK backend (no spend history), where
-   * the coins view falls back to a UTXO-count proxy.
+   * Whether the funding address's public key has been revealed on-chain —
+   * i.e. the address has ever been SPENT from. For P2WPKH, coins are guarded
+   * by the pubkey HASH until the first spend, then only by the pubkey itself,
+   * so this flags the weaker-protected funds. Core derives it from
+   * total-received > current-unspent (spending is the only way received can
+   * exceed the balance still held). Left undefined by the Electrum/BDK
+   * backend (no spend history exposed yet).
    */
-  reused?: boolean;
+  exposed?: boolean;
 }
 
 /** Balance snapshot in BTC. */

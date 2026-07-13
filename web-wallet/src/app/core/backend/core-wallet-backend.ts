@@ -77,19 +77,29 @@ export class CoreWalletBackend implements WalletBackend {
         }
       })
     );
-    // Address reuse: listreceivedbyaddress groups all received funds per
-    // address, so an entry with more than one txid was paid in more than one
-    // transaction. minconf=0 counts unconfirmed receives too; include_empty
-    // stays false (only funded addresses matter here). Best-effort — leave
-    // reuse unflagged if the RPC is unavailable.
-    const reused = new Set<string>();
+    // Pubkey exposure: an address reveals its pubkey the first time it is
+    // SPENT from. We detect that without walking tx inputs — listreceivedbyaddress
+    // gives the TOTAL ever received per address; if that exceeds what the address
+    // still holds unspent, some was spent, so the address appeared as a tx input
+    // and its pubkey is on-chain. (received only grows, so received==unspent iff
+    // never spent.) Compared in sats to avoid float drift. Best-effort.
+    const exposed = new Set<string>();
     try {
+      const unspentSatByAddr = new Map<string, number>();
+      for (const u of utxos) {
+        unspentSatByAddr.set(
+          u.address,
+          (unspentSatByAddr.get(u.address) ?? 0) + Math.round(u.amount * 1e8)
+        );
+      }
       const received = await this.walletRpc.listReceivedByAddress(walletName, 0, false);
       for (const r of received) {
-        if (r.txids.length > 1) reused.add(r.address);
+        const receivedSat = Math.round(r.amount * 1e8);
+        const unspentSat = unspentSatByAddr.get(r.address) ?? 0;
+        if (receivedSat > unspentSat) exposed.add(r.address);
       }
     } catch {
-      // ignore — coins still render without the reuse flag.
+      // ignore — coins still render without the exposure flag.
     }
     return utxos.map(u => ({
       txid: u.txid,
@@ -99,7 +109,7 @@ export class CoreWalletBackend implements WalletBackend {
       confirmations: u.confirmations,
       isChange: change.get(u.address) ?? false,
       spendable: u.spendable,
-      reused: reused.has(u.address),
+      exposed: exposed.has(u.address),
     }));
   }
 

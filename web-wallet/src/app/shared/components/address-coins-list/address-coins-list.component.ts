@@ -17,16 +17,17 @@ export interface AddressBalance {
   coinCount: number;
   isChange: boolean;
   /**
-   * Address reuse — this address received funds in more than one
-   * transaction (a privacy concern: reuse links transactions together).
+   * The address' public key has been revealed on-chain (it has been spent
+   * from before) — a security signal: coins here are guarded only by the
+   * pubkey, not its hash. Undefined-per-coin (remote/BDK) folds to false.
    */
-  reused: boolean;
+  exposed: boolean;
 }
 
 /**
  * Aggregate raw coins into per-address rows: group by address, sum amounts,
- * count coins, carry the change flag, derive the reuse flag. Sorted receive
- * addresses first, then change; within each group, balance descending.
+ * count coins, carry the change flag and the pubkey-exposure flag. Sorted
+ * receive addresses first, then change; within each group, balance descending.
  */
 export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
   const byAddress = new Map<string, AddressBalance>();
@@ -35,23 +36,16 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
     if (existing) {
       existing.balanceBtc += c.amount;
       existing.coinCount += 1;
-      existing.reused ||= c.reused === true;
+      existing.exposed ||= c.exposed === true;
     } else {
       byAddress.set(c.address, {
         address: c.address,
         balanceBtc: c.amount,
         coinCount: 1,
         isChange: c.isChange,
-        reused: c.reused === true,
+        exposed: c.exposed === true,
       });
     }
-  }
-  // Finalise reuse per address. Core sets `reused` per-coin accurately from
-  // listreceivedbyaddress (which also catches reuse where only one UTXO
-  // remains). Remote/BDK has no spend history, so `coinCount > 1` is the
-  // proxy: an address holding multiple UTXOs was received-to more than once.
-  for (const row of byAddress.values()) {
-    row.reused = row.reused || row.coinCount > 1;
   }
   return [...byAddress.values()].sort((a, b) => {
     if (a.isChange !== b.isChange) return a.isChange ? 1 : -1;
@@ -64,8 +58,9 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
  *
  * Shows the user their funds are spread across derived addresses (a normal
  * consequence of BIP-84 derivation), defusing "my money is gone" panic. Per
- * address: the address, its balance, a coin count, and an amber "Reused" flag
- * when the address was paid more than once. No receive/change labels — that
+ * address: the address, its balance, a coin count, and a "Key exposed" flag
+ * when the address' pubkey is already on-chain (it has been spent from before)
+ * — a security signal, not a privacy one. No receive/change labels — that
  * keychain distinction confuses more than it helps (a payment received to a
  * change address reads as "Change", reinforcing the very panic this defuses).
  * Purely informational — no warnings/modals.
@@ -103,10 +98,10 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
                 <span class="coin-count">{{
                   'coin_count' | i18n: { count: row.coinCount }
                 }}</span>
-                @if (row.reused) {
-                  <span class="reused-chip" [matTooltip]="'address_reused_hint' | i18n">
-                    <mat-icon class="reused-icon">warning_amber</mat-icon>
-                    {{ 'address_reused' | i18n }}
+                @if (row.exposed) {
+                  <span class="reused-chip" [matTooltip]="'address_exposed_hint' | i18n">
+                    <mat-icon class="reused-icon">lock_open</mat-icon>
+                    {{ 'address_exposed' | i18n }}
                   </span>
                 }
               </div>
