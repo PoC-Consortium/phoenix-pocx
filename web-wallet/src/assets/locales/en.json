@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "This feature is not available in remote (Electrum) mode",
   "setup_solo_not_available_remote": "Solo mining needs a local node — not available in remote (Electrum) mode",
   "move_up": "Move up",
-  "move_down": "Move down"
+  "move_down": "Move down",
+  "mwallet_about_title": "About"
 }

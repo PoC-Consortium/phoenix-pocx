@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Bu özellik uzak (Electrum) modda kullanılamaz",
   "setup_solo_not_available_remote": "Solo madencilik yerel bir düğüm gerektirir — uzak (Electrum) modda kullanılamaz",
   "move_up": "Yukarı taşı",
-  "move_down": "Aşağı taşı"
+  "move_down": "Aşağı taşı",
+  "mwallet_about_title": "About"
 }

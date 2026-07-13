@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Fitur ini tidak tersedia dalam mode jarak jauh (Electrum)",
   "setup_solo_not_available_remote": "Penambangan solo memerlukan node lokal — tidak tersedia dalam mode jarak jauh (Electrum)",
   "move_up": "Pindahkan ke atas",
-  "move_down": "Pindahkan ke bawah"
+  "move_down": "Pindahkan ke bawah",
+  "mwallet_about_title": "About"
 }

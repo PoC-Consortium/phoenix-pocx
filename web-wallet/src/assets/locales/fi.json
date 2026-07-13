@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Tämä ominaisuus ei ole käytettävissä etätilassa (Electrum)",
   "setup_solo_not_available_remote": "Yksinlouhinta tarvitsee paikallisen solmun — ei käytettävissä etätilassa (Electrum)",
   "move_up": "Siirrä ylös",
-  "move_down": "Siirrä alas"
+  "move_down": "Siirrä alas",
+  "mwallet_about_title": "About"
 }

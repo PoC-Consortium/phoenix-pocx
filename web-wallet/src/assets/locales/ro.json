@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Această funcție nu este disponibilă în modul la distanță (Electrum)",
   "setup_solo_not_available_remote": "Mineritul solo necesită un nod local — indisponibil în modul la distanță (Electrum)",
   "move_up": "Mută în sus",
-  "move_down": "Mută în jos"
+  "move_down": "Mută în jos",
+  "mwallet_about_title": "About"
 }

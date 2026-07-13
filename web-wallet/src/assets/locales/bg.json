@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Тази функция не е налична в отдалечен режим (Electrum)",
   "setup_solo_not_available_remote": "Соло копаенето изисква локален възел — не е налично в отдалечен режим (Electrum)",
   "move_up": "Преместване нагоре",
-  "move_down": "Преместване надолу"
+  "move_down": "Преместване надолу",
+  "mwallet_about_title": "About"
 }

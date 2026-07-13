@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Ова функција није доступна у удаљеном (Electrum) режиму",
   "setup_solo_not_available_remote": "Соло рударење захтева локални чвор — није доступно у удаљеном (Electrum) режиму",
   "move_up": "Помери горе",
-  "move_down": "Помери доле"
+  "move_down": "Помери доле",
+  "mwallet_about_title": "About"
 }

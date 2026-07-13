@@ -26,6 +26,7 @@ import {
 import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 import { isInvalidWalletName, isWalletNameTaken } from '../../wallet-name';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
+import { ElectronService } from '../../../../core/services/electron.service';
 
 /** Width of ONE swipe-revealed action button, px. */
 const ACTION_PX = 56;
@@ -273,6 +274,15 @@ const DRAG_SLOP_PX = 8;
           </button>
         </div>
       }
+
+      <!-- About (app version) -->
+      <div class="card about-card">
+        <h3>{{ 'mwallet_about_title' | i18n }}</h3>
+        <div class="about-row">
+          <span class="about-app">Phoenix PoCX</span>
+          <span class="about-version">{{ appVersion() ?? '…' }}</span>
+        </div>
+      </div>
     </div>
   `,
   styles: [
@@ -305,6 +315,29 @@ const DRAG_SLOP_PX = 8;
         color: rgba(0, 0, 0, 0.6);
         font-size: 13px;
         margin: 0 0 16px;
+      }
+
+      .about-card h3 {
+        margin-bottom: 0;
+      }
+
+      .about-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-top: 8px;
+      }
+
+      .about-app {
+        font-size: 14px;
+        color: rgba(0, 0, 0, 0.75);
+      }
+
+      .about-version {
+        font-size: 14px;
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+        color: rgba(0, 0, 0, 0.6);
       }
 
       .full-width {
@@ -608,9 +641,13 @@ export class WalletSettingsComponent implements OnInit {
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
+  private readonly electron = inject(ElectronService);
 
   readonly networks: BtcxNetwork[] = ['mainnet', 'testnet', 'regtest'];
   readonly busy = signal(false);
+
+  /** App version (e.g. "2.1.1") from the Tauri shell; null until loaded. */
+  readonly appVersion = signal<string | null>(null);
 
   /** Name of the wallet a switch is in flight for, or null. */
   readonly switching = signal<string | null>(null);
@@ -635,6 +672,18 @@ export class WalletSettingsComponent implements OnInit {
 
   ngOnInit(): void {
     void this.wallet.initialize().then(() => this.wallet.refreshWallets());
+    void this.loadAppVersion();
+  }
+
+  /** Read the app version from the Tauri shell (`get_app_version`). */
+  private async loadAppVersion(): Promise<void> {
+    if (!this.electron.isTauri) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      this.appVersion.set(await invoke<string>('get_app_version'));
+    } catch (err) {
+      console.error('Failed to read app version:', err);
+    }
   }
 
   /** Switch the active wallet (same flow as the header switcher). */

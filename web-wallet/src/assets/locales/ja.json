@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "この機能はリモート（Electrum）モードでは利用できません",
   "setup_solo_not_available_remote": "ソロマイニングにはローカルノードが必要です — リモート（Electrum）モードでは利用できません",
   "move_up": "上へ移動",
-  "move_down": "下へ移動"
+  "move_down": "下へ移動",
+  "mwallet_about_title": "About"
 }

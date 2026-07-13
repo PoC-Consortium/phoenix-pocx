@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "यह सुविधा रिमोट (Electrum) मोड में उपलब्ध नहीं है",
   "setup_solo_not_available_remote": "सोलो माइनिंग के लिए स्थानीय नोड आवश्यक है — रिमोट (Electrum) मोड में उपलब्ध नहीं है",
   "move_up": "ऊपर ले जाएं",
-  "move_down": "नीचे ले जाएं"
+  "move_down": "नीचे ले जाएं",
+  "mwallet_about_title": "About"
 }

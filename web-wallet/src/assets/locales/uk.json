@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Ця функція недоступна у віддаленому режимі (Electrum)",
   "setup_solo_not_available_remote": "Соло-майнінгу потрібен локальний вузол — недоступно у віддаленому режимі (Electrum)",
   "move_up": "Перемістити вгору",
-  "move_down": "Перемістити вниз"
+  "move_down": "Перемістити вниз",
+  "mwallet_about_title": "About"
 }

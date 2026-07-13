@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Ova značajka nije dostupna u udaljenom (Electrum) načinu rada",
   "setup_solo_not_available_remote": "Solo rudarenje treba lokalni čvor — nije dostupno u udaljenom (Electrum) načinu rada",
   "move_up": "Pomakni gore",
-  "move_down": "Pomakni dolje"
+  "move_down": "Pomakni dolje",
+  "mwallet_about_title": "About"
 }

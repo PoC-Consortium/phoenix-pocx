@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Táto funkcia nie je k dispozícii vo vzdialenom (Electrum) režime",
   "setup_solo_not_available_remote": "Sólo ťažba vyžaduje lokálny uzol — nie je k dispozícii vo vzdialenom (Electrum) režime",
   "move_up": "Presunúť nahor",
-  "move_down": "Presunúť nadol"
+  "move_down": "Presunúť nadol",
+  "mwallet_about_title": "About"
 }

@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Tato funkce není ve vzdáleném režimu (Electrum) k dispozici",
   "setup_solo_not_available_remote": "Sólo těžba vyžaduje lokální uzel — není k dispozici ve vzdáleném režimu (Electrum)",
   "move_up": "Přesunout nahoru",
-  "move_down": "Přesunout dolů"
+  "move_down": "Přesunout dolů",
+  "mwallet_about_title": "About"
 }

@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "此功能在远程（Electrum）模式下不可用",
   "setup_solo_not_available_remote": "独立挖矿需要本地节点——在远程（Electrum）模式下不可用",
   "move_up": "上移",
-  "move_down": "下移"
+  "move_down": "下移",
+  "mwallet_about_title": "About"
 }

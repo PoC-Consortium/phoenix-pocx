@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Deze functie is niet beschikbaar in externe modus (Electrum)",
   "setup_solo_not_available_remote": "Solo-mining vereist een lokale node — niet beschikbaar in externe modus (Electrum)",
   "move_up": "Omhoog verplaatsen",
-  "move_down": "Omlaag verplaatsen"
+  "move_down": "Omlaag verplaatsen",
+  "mwallet_about_title": "About"
 }

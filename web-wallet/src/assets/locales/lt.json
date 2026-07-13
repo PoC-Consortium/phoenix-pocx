@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Ši funkcija negalima nuotoliniu (Electrum) režimu",
   "setup_solo_not_available_remote": "Solo kasybai reikia vietinio mazgo — negalima nuotoliniu (Electrum) režimu",
   "move_up": "Perkelti aukštyn",
-  "move_down": "Perkelti žemyn"
+  "move_down": "Perkelti žemyn",
+  "mwallet_about_title": "About"
 }

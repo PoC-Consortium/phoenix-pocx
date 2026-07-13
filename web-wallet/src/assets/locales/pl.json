@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Ta funkcja nie jest dostępna w trybie zdalnym (Electrum)",
   "setup_solo_not_available_remote": "Kopanie solo wymaga lokalnego węzła — niedostępne w trybie zdalnym (Electrum)",
   "move_up": "Przenieś w górę",
-  "move_down": "Przenieś w dół"
+  "move_down": "Przenieś w dół",
+  "mwallet_about_title": "About"
 }

@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Este recurso não está disponível no modo remoto (Electrum)",
   "setup_solo_not_available_remote": "A mineração solo precisa de um nó local — não disponível no modo remoto (Electrum)",
   "move_up": "Mover para cima",
-  "move_down": "Mover para baixo"
+  "move_down": "Mover para baixo",
+  "mwallet_about_title": "About"
 }

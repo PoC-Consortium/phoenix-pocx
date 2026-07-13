@@ -1231,5 +1231,6 @@
   "feature_unavailable_remote": "Esta función non está dispoñible no modo remoto (Electrum)",
   "setup_solo_not_available_remote": "A minaría en solitario precisa dun nodo local — non dispoñible no modo remoto (Electrum)",
   "move_up": "Mover arriba",
-  "move_down": "Mover abaixo"
+  "move_down": "Mover abaixo",
+  "mwallet_about_title": "About"
 }
