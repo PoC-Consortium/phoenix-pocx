@@ -137,6 +137,15 @@ export interface WalletSummary {
 export const SESSION_UNLOCK_SECONDS = 2_147_483_647;
 
 /**
+ * Earliest moment a v31 (BTCX coin type) address could hold funds: the
+ * `importdescriptors` rescan floor for the v30→v31 upgrade. The v31 coin type
+ * shipped 2026-07-09, so nothing can exist on a v31 branch before this — a
+ * rescan from here (2026-07-01 UTC, a safe margin) catches any v31 funds
+ * received on the same seed via another install without a full genesis rescan.
+ */
+export const V31_BIRTHDAY_TIMESTAMP = 1782864000;
+
+/**
  * WalletManagerService handles wallet lifecycle operations.
  *
  * Responsibilities:
@@ -665,20 +674,29 @@ export class WalletManagerService {
     // Multisig descriptors embed their full original paths — excluded.
     if (descriptors.some(d => parseMultisigDescriptor(d.desc) !== null)) return false;
 
-    let hasLegacyHd = false;
-    let hasActiveBtcx = false;
+    // New receives only ever come from the address types Phoenix hands out —
+    // wpkh (84', bech32) and tr (86', taproot). Needs upgrade iff one of THOSE
+    // is still active on a legacy (non-BTCX) coin type; importing the v31
+    // branch active auto-deactivates them (one active descriptor per output
+    // type). This also catches a PARTIAL upgrade, so the badge stays until the
+    // legacy 84'/86' branches are actually inactive.
+    //
+    // Bitcoin Core's default pkh(44') and sh(wpkh)(49') descriptors are NEVER
+    // used by Phoenix and hold no history, so an active one is harmless and
+    // must NOT keep the badge lit.
+    let hasActiveLegacyReceiveBranch = false;
     for (const d of descriptors) {
+      if (!d.active) continue;
       const branch = parseBranchFromDescriptor(d.desc);
       // Skip raw-key / single-address descriptors (no BIP32 key origin).
       if (!branch) continue;
-      if (branch.coinType === BTCX_COIN_TYPE) {
-        if (d.active) hasActiveBtcx = true;
-      } else {
-        hasLegacyHd = true;
+      const isPhoenixAddressType = branch.purpose === 84 || branch.purpose === 86;
+      if (isPhoenixAddressType && branch.coinType !== BTCX_COIN_TYPE) {
+        hasActiveLegacyReceiveBranch = true;
       }
     }
 
-    return hasLegacyHd && !hasActiveBtcx;
+    return hasActiveLegacyReceiveBranch;
   }
 
   /**
@@ -708,18 +726,28 @@ export class WalletManagerService {
 
   /**
    * Upgrade an old (coin-type-0') Core wallet to v31 by importing the BTCX
-   * coin-type branch, using a re-entered mnemonic.
+   * coin-type branch ACTIVE, using a re-entered mnemonic.
    *
-   * - Rejects a mismatched seed up front (`upgrade_seed_mismatch`).
-   * - Imports the BTCX 84'+86' branches ACTIVE and rescanned from genesis
-   *   (timestamp 0) so any v31-derivation history received on another install
-   *   of the same seed is discovered.
-   * - Re-imports the legacy branch INACTIVE (`active: false`) so bitcoind stops
-   *   handing out new addresses from it but keeps watching/spending the coins
-   *   already there; those coins drain into the BTCX branch as change over time.
+   * Importing the v31 84'(wpkh) + 86'(tr) branches active is the ENTIRE job:
+   * Bitcoin Core allows one active descriptor per output type, so this
+   * automatically deactivates the previously-active legacy wpkh(84'/0') and
+   * tr(86'/0') branches. They stay watched/spendable — funds intact, draining
+   * into the v31 branch as change — but stop handing out new addresses. No
+   * explicit legacy re-import (or range juggling) is needed.
    *
-   * After success the wallet hands out v31 addresses and `needsV31Upgrade`
-   * becomes false.
+   * Bitcoin Core's default pkh(44') and sh(wpkh)(49') descriptors are a
+   * different output type, so they stay active — but Phoenix only ever
+   * requests bech32/taproot addresses, so they're never used and hold no
+   * history. We deliberately leave them alone (`needsV31Upgrade` ignores
+   * them, so the badge still clears).
+   *
+   * The v31 branch is new to this wallet (it never handed out v31 addresses),
+   * so its only possible history is funds received on the SAME seed via
+   * another install (mobile/BDK) after the v31 coin type shipped — hence a
+   * rescan from the v31 birthday rather than genesis.
+   *
+   * Rejects a mismatched seed up front (`upgrade_seed_mismatch`). After
+   * success the wallet hands out v31 addresses and `needsV31Upgrade` is false.
    */
   async upgradeWalletToV31(
     walletName: string,
@@ -733,38 +761,19 @@ export class WalletManagerService {
         throw new Error('upgrade_seed_mismatch');
       }
 
-      const isTestnet = this.nodeService.network() !== 'mainnet';
-      const descriptorOptions = {
+      const pocxSet = this.descriptorService.generateNewWalletDescriptors(mnemonic, {
         passphrase,
-        isTestnet,
+        isTestnet: this.nodeService.network() !== 'mainnet',
         account: 0,
-        addressRange: [0, 999] as [number, number],
-      };
+        addressRange: [0, 999],
+      });
+      const pocxEntries = this.descriptorService.formatForImport(pocxSet).map(entry => ({
+        ...entry,
+        active: true,
+        timestamp: V31_BIRTHDAY_TIMESTAMP as number | 'now',
+      }));
 
-      // BTCX branch: ACTIVE + rescan from genesis to pick up existing history.
-      const pocxSet = this.descriptorService.generateNewWalletDescriptors(
-        mnemonic,
-        descriptorOptions
-      );
-      const pocxEntries = this.descriptorService
-        .formatForImport(pocxSet)
-        .map(entry => ({ ...entry, active: true, timestamp: 0 as number | 'now' }));
-
-      // Legacy branch: re-import INACTIVE to deactivate address generation
-      // while keeping the funds watched/spendable. Already tracked, so no
-      // rescan is needed (timestamp 'now').
-      const legacySet = this.descriptorService.generateLegacyRestoreDescriptors(
-        mnemonic,
-        descriptorOptions
-      );
-      const legacyEntries = this.descriptorService
-        .formatForImport(legacySet)
-        .map(entry => ({ ...entry, active: false, timestamp: 'now' as number | 'now' }));
-
-      const importResults = await this.walletRpc.importDescriptors(walletName, [
-        ...pocxEntries,
-        ...legacyEntries,
-      ]);
+      const importResults = await this.walletRpc.importDescriptors(walletName, pocxEntries);
 
       const errors = importResults
         .filter(r => !r.success)

@@ -53,6 +53,11 @@ export interface UpgradeWalletDialogData {
     <mat-dialog-content>
       <p class="dialog-body">{{ 'wallet_upgrade_body' | i18n }}</p>
 
+      <p class="rescan-note">
+        <mat-icon>schedule</mat-icon>
+        {{ 'wallet_upgrade_rescan_warning' | i18n }}
+      </p>
+
       <app-mnemonic-entry [disabled]="upgrading()" (changed)="onMnemonicChange($event)" />
 
       <mat-form-field appearance="outline" class="full-width">
@@ -113,6 +118,27 @@ export interface UpgradeWalletDialogData {
         margin-bottom: 16px;
       }
 
+      .rescan-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        color: #b26a00;
+        background: rgba(255, 152, 0, 0.1);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        margin: 0 0 16px;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          margin-top: 1px;
+          flex-shrink: 0;
+        }
+      }
+
       mat-dialog-content {
         max-width: 560px;
       }
@@ -144,6 +170,11 @@ export interface UpgradeWalletDialogData {
       :host-context(.dark-theme) {
         .dialog-body {
           color: rgba(255, 255, 255, 0.8);
+        }
+
+        .rescan-note {
+          color: #ffb74d;
+          background: rgba(255, 152, 0, 0.16);
         }
       }
     `,
