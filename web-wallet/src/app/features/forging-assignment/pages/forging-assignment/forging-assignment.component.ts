@@ -626,7 +626,7 @@ interface WalletAddress {
                 @if (option.label === 'fee_custom') {
                   <mat-icon class="custom-icon">tune</mat-icon>
                 } @else if (option.feeRate !== null) {
-                  <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
+                  <span class="fee-rate">{{ option.feeRate | number: '1.3-3' }} sat/vB</span>
                   <span class="fee-time">{{ option.timeEstimate }}</span>
                 } @else {
                   <span class="fee-rate">--</span>
@@ -646,7 +646,7 @@ interface WalletAddress {
                 [(ngModel)]="customFeeRate"
                 (ngModelChange)="onCustomFeeChange()"
                 min="1"
-                step="1"
+                step="0.001"
                 autocomplete="off"
               />
             </mat-form-field>
@@ -1529,15 +1529,16 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
         for (const option of this.feeOptions) {
           if (option.label === 'fee_custom') continue;
           const rate = bySpeed[option.label];
-          option.feeRate = rate != null ? Math.max(1, Math.round(rate)) : null;
+          // floor stays (hard-coded 1); apply it at 0.001 resolution, no integer rounding
+          option.feeRate = rate != null ? Math.max(1, Math.round(rate * 1000) / 1000) : null;
         }
       } else {
         for (const option of this.feeOptions) {
           if (option.label === 'fee_custom') continue;
           const result = await this.blockchainRpc.estimateSmartFee(option.blocks);
           if (result.feerate) {
-            // feerate is in BTC/kvB, convert to sat/vB
-            option.feeRate = Math.round((result.feerate * 100000000) / 1000);
+            // feerate is in BTC/kvB, convert to sat/vB (0.001 resolution)
+            option.feeRate = Math.round(result.feerate * 100000000) / 1000;
           }
         }
       }

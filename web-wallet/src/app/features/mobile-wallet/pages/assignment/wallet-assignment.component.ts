@@ -350,7 +350,7 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
               @if (option.label === 'fee_custom') {
                 <mat-icon class="custom-icon">tune</mat-icon>
               } @else if (option.feeRate !== null) {
-                <span class="fee-rate">{{ option.feeRate }} sat/vB</span>
+                <span class="fee-rate">{{ option.feeRate | number: '1.3-3' }} sat/vB</span>
               } @else {
                 <span class="fee-rate">--</span>
               }
@@ -367,7 +367,7 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
               [(ngModel)]="customFeeRate"
               (ngModelChange)="onCustomFeeChange()"
               min="1"
-              step="1"
+              step="0.001"
               autocomplete="off"
             />
           </mat-form-field>
@@ -847,7 +847,8 @@ export class WalletAssignmentComponent implements OnInit {
       for (const option of this.feeOptions) {
         if (option.label === 'fee_custom') continue;
         const rate = byLabel[option.label];
-        option.feeRate = rate != null ? Math.max(1, Math.round(rate)) : null;
+        // floor stays (hard-coded 1); apply it at 0.001 resolution, no integer rounding
+        option.feeRate = rate != null ? Math.max(1, Math.round(rate * 1000) / 1000) : null;
       }
     } catch (error) {
       console.error('Failed to load fee estimates:', error);

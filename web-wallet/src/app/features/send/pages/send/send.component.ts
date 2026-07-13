@@ -254,7 +254,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                       @if (option.label === 'fee_custom') {
                         <mat-icon class="custom-icon">tune</mat-icon>
                       } @else if (option.feeRate !== null) {
-                        <span class="fee-rate">{{ option.feeRate | number: '1.0-1' }} sat/vB</span>
+                        <span class="fee-rate">{{ option.feeRate | number: '1.3-3' }} sat/vB</span>
                         <span class="fee-time">{{ option.timeEstimate }}</span>
                       } @else {
                         <span class="fee-rate">--</span>
@@ -275,7 +275,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                       [(ngModel)]="customFeeRate"
                       (ngModelChange)="onCustomFeeChange()"
                       min="0.1"
-                      step="0.1"
+                      step="0.001"
                       autocomplete="off"
                     />
                   </mat-form-field>
@@ -1146,15 +1146,15 @@ export class SendComponent implements OnInit, OnDestroy {
         this.feeOptions.forEach((option, i) => {
           const rate = bySpeed[i];
           if (rate != null) {
-            option.feeRate = Math.round(rate * 10) / 10;
+            option.feeRate = Math.round(rate * 1000) / 1000;
           }
         });
       } else {
         for (const option of this.feeOptions) {
           const result = await this.blockchainRpc.estimateSmartFee(option.blocks);
           if (result.feerate) {
-            // feerate is in BTC/kvB, convert to sat/vB (one decimal)
-            option.feeRate = Math.round((result.feerate * 100000000) / 100) / 10;
+            // feerate is in BTC/kvB, convert to sat/vB (0.001 resolution)
+            option.feeRate = Math.round(result.feerate * 100000000) / 1000;
           }
         }
       }
