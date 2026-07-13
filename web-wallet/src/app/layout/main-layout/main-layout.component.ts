@@ -67,7 +67,7 @@ interface NavGroup {
         <div class="sidenav-header">
           <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix" class="logo" />
           <div class="logo-section">
-            <span class="logo-text">Phoenix</span>
+            <span class="logo-text">Phoenix Wallet</span>
             @if (appVersion()) {
               <div class="header-version" (click)="onVersionClick()">
                 <span class="version-text">v{{ appVersion() }}</span>
