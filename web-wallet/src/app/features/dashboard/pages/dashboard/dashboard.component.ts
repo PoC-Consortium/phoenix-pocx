@@ -130,11 +130,7 @@ import {
           </button>
         </mat-card-header>
         <mat-card-content>
-          <div
-            class="total-balance clickable"
-            (click)="goToCoins()"
-            [matTooltip]="'coins_view_hint' | i18n"
-          >
+          <div class="total-balance">
             <span class="amount">{{ getTotalAll() | btcx }}</span>
             <span class="unit">BTCX</span>
           </div>

@@ -1238,7 +1238,7 @@
   "node_indicator_disconnected": "Node not connected",
   "export_csv": "Export CSV",
   "label": "Label",
-  "coins_title": "Coins & Addresses",
+  "coins_title": "Balance details",
   "coins_intro": "Your wallet spreads funds across many addresses for privacy — this is normal. Nothing is lost; your balance is simply the sum of the coins below.",
   "coins_empty": "No coins yet. Received funds will appear here, grouped by address.",
   "coins_view_hint": "View your coins grouped by address",

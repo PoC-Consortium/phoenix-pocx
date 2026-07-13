@@ -985,7 +985,6 @@ export class MobileWalletLayoutComponent implements OnInit {
       titleKey: 'transactions',
       items: [
         { path: '/wallet/history', icon: 'compare_arrows', labelKey: 'transactions' },
-        { path: '/wallet/coins', icon: 'toll', labelKey: 'coins_title', needsWallet: true },
         { path: '/wallet/send', icon: 'send', labelKey: 'send', needsWallet: true },
         { path: '/wallet/receive', icon: 'call_received', labelKey: 'receive', needsWallet: true },
         { path: '/wallet/contacts', icon: 'contacts', labelKey: 'contacts' },

@@ -161,11 +161,7 @@ import {
               <mat-icon>toll</mat-icon>
             </button>
           </div>
-          <div
-            class="total-balance clickable"
-            routerLink="/wallet/coins"
-            [title]="'coins_view_hint' | i18n"
-          >
+          <div class="total-balance">
             <span class="amount">{{ (balance()?.totalSat ?? 0) / 100000000 | btcx }}</span>
             <span class="unit">BTCX</span>
           </div>

@@ -5,7 +5,7 @@ import { formatNumber } from '@angular/common';
  * Bitcoin unit constants
  */
 const SATOSHIS_PER_BTC = 100_000_000;
-const CURRENCY_SYMBOL = 'BTC';
+const CURRENCY_SYMBOL = 'BTCX';
 
 /**
  * Amount formatting options
@@ -87,9 +87,9 @@ export function btcToSatoshis(btc: number | string): number {
  * AmountPipe formats Bitcoin amounts in templates.
  *
  * Usage:
- * {{ balance | amount }}                    → "BTC 1.23456789"
- * {{ balance | amount:'satoshis' }}         → "BTC 0.00000123" (converts from satoshis)
- * {{ balance | amount:'btc':true }}         → "BTC 1.2346" (short form)
+ * {{ balance | amount }}                    → "BTCX 1.23456789"
+ * {{ balance | amount:'satoshis' }}         → "BTCX 0.00000123" (converts from satoshis)
+ * {{ balance | amount:'btc':true }}         → "BTCX 1.2346" (short form)
  * {{ balance | amount:'btc':false:true }}   → "1.23456789" (no unit)
  *
  * @param value - The amount to format
