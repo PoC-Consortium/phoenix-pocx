@@ -257,7 +257,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
             >
               <mat-icon>add</mat-icon>
               {{ 'add_wallet' | i18n }}
-              <mat-icon class="add-wallet-caret">arrow_drop_down</mat-icon>
             </button>
             <mat-menu #addWalletMenu="matMenu">
               <button mat-menu-item routerLink="/auth/create">
@@ -660,12 +659,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
           button mat-icon {
             margin-right: 4px;
-          }
-
-          .add-wallet-caret {
-            margin-right: -4px;
-            margin-left: 2px;
-            opacity: 0.7;
           }
         }
 
