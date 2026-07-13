@@ -422,7 +422,7 @@ export class WalletHistoryComponent implements OnInit {
         tx.address ?? '',
       ]);
       const csv = [headers, ...rows].map(r => r.map(c => this.csvCell(c)).join(',')).join('\r\n');
-      downloadTextFile('transactions.csv', csv);
+      await downloadTextFile('transactions.csv', csv);
     } catch (err) {
       console.error('Failed to export transactions:', err);
     } finally {

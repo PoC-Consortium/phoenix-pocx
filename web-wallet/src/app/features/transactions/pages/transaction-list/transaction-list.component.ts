@@ -1092,7 +1092,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
    * Timestamps are ISO-8601 UTC so spreadsheets parse them unambiguously;
    * amounts use a dot decimal via toFixed, independent of locale.
    */
-  exportCsv(): void {
+  async exportCsv(): Promise<void> {
     const txs = this.filteredTransactions();
     if (txs.length === 0) return;
     const headers = [
@@ -1116,7 +1116,12 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       tx.label ?? '',
     ]);
     const csv = [headers, ...rows].map(r => r.map(c => this.csvCell(c)).join(',')).join('\r\n');
-    downloadTextFile('transactions.csv', csv);
+    try {
+      await downloadTextFile('transactions.csv', csv);
+    } catch (err) {
+      console.error('Failed to export transactions:', err);
+      this.notification.error(`${err}`);
+    }
   }
 
   /** Quote a CSV cell if it contains a comma, quote or newline (RFC 4180). */
