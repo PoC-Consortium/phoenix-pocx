@@ -1,7 +1,7 @@
 [package]
 name = "phoenix-pocx"
 version = "2.1.2"
-description = "Phoenix PoCX Wallet - Bitcoin-PoCX Desktop Wallet"
+description = "Phoenix Wallet - Bitcoin-PoCX Desktop Wallet"
 authors = ["The Proof of Capacity Consortium <development@pocx.io>"]
 license = "GPL-3.0"
 repository = "https://github.com/PoC-Consortium/phoenix-pocx"

@@ -279,7 +279,7 @@ const DRAG_SLOP_PX = 8;
       <div class="card about-card">
         <h3>{{ 'mwallet_about_title' | i18n }}</h3>
         <div class="about-row">
-          <span class="about-app">Phoenix PoCX</span>
+          <span class="about-app">Phoenix</span>
           <span class="about-version">{{ appVersion() ?? '…' }}</span>
         </div>
       </div>

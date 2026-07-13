@@ -1,4 +1,4 @@
-//! Node management module for Phoenix PoCX Wallet
+//! Node management module for Phoenix Wallet
 //!
 //! This module provides the ability to download, manage, and run
 //! a Bitcoin-PoCX node directly from the wallet.

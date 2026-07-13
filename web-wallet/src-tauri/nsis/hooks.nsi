@@ -1,4 +1,4 @@
-; Custom NSIS hooks for Phoenix PoCX Wallet
+; Custom NSIS hooks for Phoenix Wallet
 ; This script adds a "Phoenix PoCX Miner" shortcut alongside the main wallet shortcut
 
 !macro NSIS_HOOK_POSTINSTALL

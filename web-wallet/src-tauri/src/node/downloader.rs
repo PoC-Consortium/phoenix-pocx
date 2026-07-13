@@ -188,7 +188,7 @@ pub fn find_platform_asset(assets: &[ReleaseAsset]) -> Option<&ReleaseAsset> {
 /// Create HTTP client with appropriate headers
 fn create_client() -> Result<Client, String> {
     Client::builder()
-        .user_agent("Phoenix-PoCX-Wallet/2.0")
+        .user_agent("Phoenix-Wallet/2.0")
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))
 }

@@ -1,6 +1,6 @@
-# Phoenix PoCX Wallet — User Handbook
+# Phoenix Wallet — User Handbook
 
-Source files for the Phoenix PoCX Wallet User Handbook. The handbook is written in Markdown (one file per chapter) and built into a single PDF using Pandoc + xelatex.
+Source files for the Phoenix Wallet User Handbook. The handbook is written in Markdown (one file per chapter) and built into a single PDF using Pandoc + xelatex.
 
 ## Prerequisites
 
@@ -67,4 +67,4 @@ Callouts are written as blockquotes with a leading bold tag. Three variants are 
 
 ## License
 
-The handbook is distributed alongside Phoenix PoCX under the GPL-3.0 licence. See `LICENSE` in the wallet repository for details.
+The handbook is distributed alongside Phoenix under the GPL-3.0 licence. See `LICENSE` in the wallet repository for details.

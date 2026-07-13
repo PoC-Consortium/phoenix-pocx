@@ -1,6 +1,6 @@
 # First Launch & Node Setup
 
-The first time you start Phoenix PoCX, the application opens a short setup wizard rather than the wallet itself. The wizard does one thing: it gets you connected to **Bitcoin-PoCX Core**, the program that holds your wallet and talks to the network on your behalf. This chapter walks you through the wizard end to end.
+The first time you start Phoenix, the application opens a short setup wizard rather than the wallet itself. The wizard does one thing: it gets you connected to **Bitcoin-PoCX Core**, the program that holds your wallet and talks to the network on your behalf. This chapter walks you through the wizard end to end.
 
 ![The first-launch setup wizard: choosing between a managed and an external node.](images/processed/ch04-wizard-mode.png){width=70%}
 

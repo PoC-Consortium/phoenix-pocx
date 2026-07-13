@@ -1,6 +1,6 @@
 # Where to Get Help
 
-This handbook covers Phoenix PoCX as it works today, but software and networks evolve, and some questions are best answered by the community and the project's live resources. This chapter points you to them.
+This handbook covers Phoenix as it works today, but software and networks evolve, and some questions are best answered by the community and the project's live resources. This chapter points you to them.
 
 ## Official resources
 
@@ -30,7 +30,7 @@ Discord and Telegram are best for real-time troubleshooting; Reddit is better fo
 
 ## Source code and issues
 
-Phoenix PoCX and Bitcoin-PoCX are open source. If you have found a bug, want to request a feature, or simply want to read the code, these are the repositories:
+Phoenix and Bitcoin-PoCX are open source. If you have found a bug, want to request a feature, or simply want to read the code, these are the repositories:
 
 | Repository            | Where                                                  | What it is                                          |
 |-----------------------|--------------------------------------------------------|-----------------------------------------------------|
@@ -62,7 +62,7 @@ Questions about whether the network is live, what BTCX is worth, or what the cur
 
 ## A final word
 
-Phoenix PoCX puts a full wallet, node, plotter, miner, and farm coordinator into a single application, and proof-of-capacity makes mining accessible on hardware most people already own — or that others are throwing away. The learning curve is real, but it is front-loaded: once your wallet is backed up, your drives are plotted, and your miner is running cleanly, the day-to-day is quiet.
+Phoenix puts a full wallet, node, plotter, miner, and farm coordinator into a single application, and proof-of-capacity makes mining accessible on hardware most people already own — or that others are throwing away. The learning curve is real, but it is front-loaded: once your wallet is backed up, your drives are plotted, and your miner is running cleanly, the day-to-day is quiet.
 
 The two things worth repeating one last time, because they are the ones that matter most:
 

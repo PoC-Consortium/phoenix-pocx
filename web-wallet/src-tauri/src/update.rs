@@ -44,7 +44,7 @@ pub async fn check_wallet_update() -> Result<WalletUpdateInfo, String> {
 
     // Fetch latest release from GitHub API
     let client = reqwest::Client::builder()
-        .user_agent("Phoenix-PoCX-Wallet")
+        .user_agent("Phoenix-Wallet")
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 

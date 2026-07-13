@@ -173,21 +173,21 @@ jobs:
           # Copy AppImage
           for f in "$BUNDLE_DIR/appimage/"*.AppImage; do
             if [ -f "$f" ]; then
-              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
+              cp "$f" "artifacts/Phoenix-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
             fi
           done
 
           # Copy deb
           for f in "$BUNDLE_DIR/deb/"*.deb; do
             if [ -f "$f" ]; then
-              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
+              cp "$f" "artifacts/Phoenix-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
             fi
           done
 
           # Copy rpm
           for f in "$BUNDLE_DIR/rpm/"*.rpm; do
             if [ -f "$f" ]; then
-              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
+              cp "$f" "artifacts/Phoenix-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
             fi
           done
 
@@ -225,7 +225,7 @@ jobs:
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
           MAIN_APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d | head -1)
           MINER_APP="web-wallet/src-tauri/macos/Phoenix PoCX Miner.app"
-          ICON_SRC="$MAIN_APP/Contents/Resources/Phoenix PoCX Wallet.icns"
+          ICON_SRC="$MAIN_APP/Contents/Resources/Phoenix Wallet.icns"
           MINER_BIN="web-wallet/src-tauri/target/${{ matrix.target }}/release/phoenix-pocx-miner"
 
           # Verify main app was built
@@ -280,10 +280,10 @@ jobs:
 
           # Remove old DMG and create new one with both apps
           rm -f "$BUNDLE_DIR/dmg/"*.dmg
-          hdiutil create -volname "Phoenix PoCX Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+          hdiutil create -volname "Phoenix Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-Wallet.dmg"
 
           # Sign the DMG
-          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$BUNDLE_DIR/dmg/Phoenix-Wallet.dmg"
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
@@ -295,7 +295,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
-          DMG="$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+          DMG="$BUNDLE_DIR/dmg/Phoenix-Wallet.dmg"
 
           # Submit for notarization (don't wait — staple separately)
           xcrun notarytool submit "$DMG" \
@@ -312,14 +312,14 @@ jobs:
           # Copy dmg
           for f in "$BUNDLE_DIR/dmg/"*.dmg; do
             if [ -f "$f" ]; then
-              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
+              cp "$f" "artifacts/Phoenix-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
             fi
           done
 
           # Copy app.tar.gz
           for f in "$BUNDLE_DIR/macos/"*.tar.gz; do
             if [ -f "$f" ]; then
-              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
+              cp "$f" "artifacts/Phoenix-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
             fi
           done
 
@@ -333,14 +333,14 @@ jobs:
           # Copy NSIS installer
           for f in "$BUNDLE_DIR/nsis/"*-setup.exe; do
             if [ -f "$f" ]; then
-              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
+              cp "$f" "artifacts/Phoenix-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
             fi
           done
 
           # Copy MSI
           for f in "$BUNDLE_DIR/msi/"*.msi; do
             if [ -f "$f" ]; then
-              cp "$f" "artifacts/Phoenix-PoCX-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
+              cp "$f" "artifacts/Phoenix-Wallet-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
             fi
           done
 
@@ -351,6 +351,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Phoenix-PoCX-Wallet-${{ matrix.label }}-test
+          name: Phoenix-Wallet-${{ matrix.label }}-test
           path: artifacts/*
           retention-days: 14

@@ -89,7 +89,7 @@ pub struct CookieReadResult {
     pub path: Option<String>,
 }
 
-/// Get the consolidated app data directory for all Phoenix PoCX data.
+/// Get the consolidated app data directory for all Phoenix data.
 ///
 /// All configs, logs, node binary, and databases go here.
 /// - Windows: `%LocalAppData%\Phoenix PoCX Data`
@@ -816,7 +816,7 @@ pub fn run() {
                         let version = env!("CARGO_PKG_VERSION");
                         let _ = window.eval(format!(
                             r#"
-                            alert('Phoenix PoCX Wallet v{}\n\nA secure and easy-to-use wallet for Bitcoin-PoCX.\n\nhttps://www.bitcoin-pocx.org\n\n© 2025 The Proof of Capacity Consortium');
+                            alert('Phoenix Wallet v{}\n\nA secure and easy-to-use wallet for Bitcoin-PoCX.\n\nhttps://www.bitcoin-pocx.org\n\n© 2025 The Proof of Capacity Consortium');
                             "#,
                             version
                         ));

@@ -1,4 +1,4 @@
-# Phoenix PoCX Wallet 2.1.1
+# Phoenix Wallet 2.1.1
 
 A quick fix release on top of 2.1.0.
 

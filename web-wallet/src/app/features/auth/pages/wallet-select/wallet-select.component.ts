@@ -44,7 +44,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
     <!-- Main Content - uses shared toolbar from app.component -->
     <div class="wallet-select-container">
       <div class="logo-container">
-        <img src="assets/images/logos/phoenix_trans.svg" alt="Phoenix PoCX" class="logo" />
+        <img src="assets/images/logos/phoenix_trans.svg" alt="Phoenix" class="logo" />
       </div>
 
       <div class="wallet-selector-box">

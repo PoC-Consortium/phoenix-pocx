@@ -6,7 +6,7 @@
     name="org.pocx.phoenix"
     type="win32"
   />
-  <description>Phoenix PoCX Wallet</description>
+  <description>Phoenix Wallet</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>

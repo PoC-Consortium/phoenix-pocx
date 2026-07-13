@@ -1,6 +1,6 @@
 # A Tour of the Interface
 
-You now have a working wallet. This chapter steps through every part of the Phoenix PoCX main window so you know where to find things before we start receiving and sending coins in the next two chapters.
+You now have a working wallet. This chapter steps through every part of the Phoenix main window so you know where to find things before we start receiving and sending coins in the next two chapters.
 
 ## Before the tour — Phoenix does not hold your keys
 

@@ -26,7 +26,7 @@ Installation is covered in Chapter 3 and recapped here. The Android build is dis
 
 1. On the device, download `phoenix-pocx-wallet-<version>.apk` from the project site or GitHub Releases.
 2. Open the APK; when Android warns that your browser or file manager is not allowed to install apps, tap **Settings**, enable **Allow from this source**, and return.
-3. Tap **Install**, then open **Phoenix PoCX Wallet** from the app drawer.
+3. Tap **Install**, then open **Phoenix Wallet** from the app drawer.
 
 On first launch the app opens straight into wallet onboarding — there is no node-setup wizard, because Android never runs a node.
 

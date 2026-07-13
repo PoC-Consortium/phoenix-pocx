@@ -1,4 +1,4 @@
-# Phoenix PoCX Handbook — build script
+# Phoenix Handbook — build script
 #
 # Combines metadata.yaml + chapters/*.md into handbook.pdf.
 # Reorder, add, or remove chapters by editing the $inputs list below.

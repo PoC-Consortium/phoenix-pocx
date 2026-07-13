@@ -1,4 +1,4 @@
-# Security Model — Phoenix PoCX Wallet
+# Security Model — Phoenix Wallet
 
 This document describes the wallet's threat model and the guarantees it does
 and does not make. It is intended to be factual: read it before trusting the

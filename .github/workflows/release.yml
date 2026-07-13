@@ -19,7 +19,7 @@ jobs:
         run: |
           gh release create ${{ github.ref_name }} \
             --repo ${{ github.repository }} \
-            --title "Phoenix PoCX Wallet ${{ github.ref_name }}" \
+            --title "Phoenix Wallet ${{ github.ref_name }}" \
             --notes "See the assets to download this version and install." \
             --draft
 
@@ -201,7 +201,7 @@ jobs:
           # Rename and upload AppImage
           for f in "$BUNDLE_DIR/appimage/"*.AppImage; do
             if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
+              NEW_NAME="Phoenix-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.AppImage"
               cp "$f" "artifacts/$NEW_NAME"
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi
@@ -210,7 +210,7 @@ jobs:
           # Rename and upload deb
           for f in "$BUNDLE_DIR/deb/"*.deb; do
             if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
+              NEW_NAME="Phoenix-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.deb"
               cp "$f" "artifacts/$NEW_NAME"
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi
@@ -219,7 +219,7 @@ jobs:
           # Rename and upload rpm
           for f in "$BUNDLE_DIR/rpm/"*.rpm; do
             if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
+              NEW_NAME="Phoenix-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.rpm"
               cp "$f" "artifacts/$NEW_NAME"
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi
@@ -259,7 +259,9 @@ jobs:
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
           MAIN_APP=$(find "$BUNDLE_DIR/macos" -name "*.app" -type d | head -1)
           MINER_APP="web-wallet/src-tauri/macos/Phoenix PoCX Miner.app"
-          ICON_SRC="$MAIN_APP/Contents/Resources/Phoenix PoCX Wallet.icns"
+          # Icon is named after productName (e.g. "Phoenix Wallet.icns"); resolve
+          # by glob so a future productName change can't break this step.
+          ICON_SRC=$(find "$MAIN_APP/Contents/Resources" -maxdepth 1 -name "*.icns" | head -1)
           MINER_BIN="web-wallet/src-tauri/target/${{ matrix.target }}/release/phoenix-pocx-miner"
 
           # Verify main app was built
@@ -314,10 +316,10 @@ jobs:
 
           # Remove old DMG and create new one with both apps
           rm -f "$BUNDLE_DIR/dmg/"*.dmg
-          hdiutil create -volname "Phoenix PoCX Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+          hdiutil create -volname "Phoenix Wallet" -srcfolder dmg_contents -ov -format UDZO "$BUNDLE_DIR/dmg/Phoenix-Wallet.dmg"
 
           # Sign the DMG
-          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$BUNDLE_DIR/dmg/Phoenix-Wallet.dmg"
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
@@ -329,7 +331,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           BUNDLE_DIR="web-wallet/src-tauri/target/${{ matrix.target }}/release/bundle"
-          DMG="$BUNDLE_DIR/dmg/Phoenix-PoCX-Wallet.dmg"
+          DMG="$BUNDLE_DIR/dmg/Phoenix-Wallet.dmg"
 
           # Submit for notarization (don't wait — use staple-notarization workflow after)
           xcrun notarytool submit "$DMG" \
@@ -349,7 +351,7 @@ jobs:
           # Rename and upload dmg
           for f in "$BUNDLE_DIR/dmg/"*.dmg; do
             if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
+              NEW_NAME="Phoenix-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.dmg"
               cp "$f" "artifacts/$NEW_NAME"
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi
@@ -358,7 +360,7 @@ jobs:
           # Rename and upload app.tar.gz (for updater)
           for f in "$BUNDLE_DIR/macos/"*.tar.gz; do
             if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
+              NEW_NAME="Phoenix-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.app.tar.gz"
               cp "$f" "artifacts/$NEW_NAME"
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi
@@ -377,7 +379,7 @@ jobs:
           # Rename and upload NSIS installer
           for f in "$BUNDLE_DIR/nsis/"*-setup.exe; do
             if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
+              NEW_NAME="Phoenix-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}-Setup.exe"
               cp "$f" "artifacts/$NEW_NAME"
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi
@@ -386,7 +388,7 @@ jobs:
           # Rename and upload MSI
           for f in "$BUNDLE_DIR/msi/"*.msi; do
             if [ -f "$f" ]; then
-              NEW_NAME="Phoenix-PoCX-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
+              NEW_NAME="Phoenix-Wallet-${VERSION}-${{ matrix.os_name }}-${{ matrix.arch_name }}.msi"
               cp "$f" "artifacts/$NEW_NAME"
               gh release upload ${{ github.ref_name }} "artifacts/$NEW_NAME" --repo ${{ github.repository }} --clobber
             fi

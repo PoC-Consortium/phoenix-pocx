@@ -39,7 +39,7 @@ import { MobileNavComponent } from '../../shared/components/mobile-nav/mobile-na
         <div class="toolbar-content">
           <!-- Left: Logo and App Name -->
           <div class="toolbar-left">
-            <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="logo" />
+            <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix" class="logo" />
             <span class="app-name">Phoenix PoCX Miner</span>
 
             <div class="toolbar-separator"></div>

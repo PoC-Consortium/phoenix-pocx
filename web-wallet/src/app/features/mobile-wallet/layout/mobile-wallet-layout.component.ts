@@ -87,8 +87,8 @@ interface NavGroup {
       <!-- Navigation drawer (the desktop main-layout sidenav, mobile-sized) -->
       <mat-sidenav #drawer mode="over" class="drawer" [fixedInViewport]="false">
         <div class="drawer-header">
-          <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix PoCX" class="drawer-logo" />
-          <span class="drawer-title">Phoenix PoCX</span>
+          <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix" class="drawer-logo" />
+          <span class="drawer-title">Phoenix Wallet</span>
           <button mat-icon-button class="drawer-close" (click)="drawer.close()">
             <mat-icon>close</mat-icon>
           </button>
