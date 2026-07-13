@@ -1,5 +1,6 @@
-import { Component, inject, input, output } from '@angular/core';
+import { Component, ElementRef, inject, input, output, viewChildren } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import type { MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
@@ -56,17 +57,21 @@ export interface MnemonicEntryState {
         <div class="word-input-chip">
           <span class="word-index">{{ i + 1 }}</span>
           <input
+            #wordInput
+            #trigger="matAutocompleteTrigger"
             class="word-input"
             [(ngModel)]="mnemonicWords[i]"
             [disabled]="disabled()"
             [matAutocomplete]="auto"
             (input)="updateSuggestions(i, mnemonicWords[i])"
+            (keydown.enter)="onWordEnter(i, $event, trigger)"
             (blur)="validateWord(i)"
             autocomplete="off"
             spellcheck="false"
           />
           <mat-autocomplete
             #auto="matAutocomplete"
+            [autoActiveFirstOption]="true"
             (optionSelected)="onWordSelected(i, $event.option.value)"
           >
             @for (suggestion of wordSuggestions[i]; track suggestion) {
@@ -209,6 +214,9 @@ export class MnemonicEntryComponent {
   readonly disabled = input(false);
   readonly changed = output<MnemonicEntryState>();
 
+  /** The per-word `<input>` elements, in grid order, for focus advancing. */
+  private readonly wordInputs = viewChildren<ElementRef<HTMLInputElement>>('wordInput');
+
   wordCount: 12 | 24 = 24;
   mnemonicWords: string[] = new Array(24).fill('');
   wordSuggestions: string[][] = new Array(24).fill(null).map(() => []);
@@ -243,6 +251,47 @@ export class MnemonicEntryComponent {
     this.wordSuggestions[index] = [];
     this.wordErrors[index] = false;
     this.emitState();
+    // Satchel-style: committing a word jumps focus to the next field, so
+    // the whole phrase can be entered without reaching for the mouse.
+    this.focusNext(index);
+  }
+
+  /**
+   * Enter-to-accept (Satchel's SeedForm behaviour). With
+   * `autoActiveFirstOption` the first suggestion is always highlighted, so
+   * Angular Material selects it on Enter and fires `optionSelected`
+   * (→ `onWordSelected`, which advances). This raw handler covers the two
+   * cases Material's selection does NOT: when the autocomplete panel is
+   * closed but the typed value is already an exact BIP39 word, commit it and
+   * advance; otherwise keep Enter from submitting an enclosing form or doing
+   * nothing. It never double-advances — if Material already selected the
+   * highlighted option for this keypress (`defaultPrevented`), or the panel
+   * is open with a highlighted option (Material will select it), we bail.
+   */
+  onWordEnter(index: number, event: Event, trigger: MatAutocompleteTrigger): void {
+    if (event.defaultPrevented) return;
+    if (trigger.panelOpen && trigger.activeOption) return;
+    const typed = this.mnemonicWords[index]?.trim().toLowerCase();
+    if (typed && this.descriptorService.getWordlist().includes(typed)) {
+      event.preventDefault();
+      this.mnemonicWords[index] = typed;
+      this.wordSuggestions[index] = [];
+      this.wordErrors[index] = false;
+      this.emitState();
+      this.focusNext(index);
+    }
+  }
+
+  /** Move focus to the next word input; a no-op on the last field. */
+  private focusNext(index: number): void {
+    const next = this.wordInputs()[index + 1];
+    if (!next) return;
+    // Defer past Material's own post-selection focus handling so our move
+    // to the next field wins instead of snapping back to the current one.
+    setTimeout(() => {
+      next.nativeElement.focus();
+      next.nativeElement.select();
+    });
   }
 
   validateWord(index: number): void {
