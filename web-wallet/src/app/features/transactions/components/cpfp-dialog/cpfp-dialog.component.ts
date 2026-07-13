@@ -565,12 +565,18 @@ export class CpfpDialogComponent implements OnInit {
   }
 
   confirm(): void {
-    const rate = this.childRate();
-    if (rate === null) return;
+    // Pass the TARGET PACKAGE rate, not the pre-inflated child rate. Core's
+    // walletcreatefundedpsbt does its own ancestor-aware fee bumping when the
+    // input is an unconfirmed wallet UTXO — it treats fee_rate as the package
+    // target and lifts the child fee to hit it. Passing the inflated childRate
+    // (which already covers the parent's deficit) double-counts and makes the
+    // user overpay ~2x. Verified on regtest: passing R yields a package of R.
+    const R = this.targetPackageRate();
+    if (R === null) return;
     this.dialogRef.close({
       confirmed: true,
       // 0.001 sat/vB resolution, matching the fee surfaces elsewhere.
-      childFeeRate: Math.round(rate * 1000) / 1000,
+      childFeeRate: Math.round(R * 1000) / 1000,
     } as CpfpDialogResult);
   }
 }

@@ -145,6 +145,11 @@ export class CoreWalletBackend implements WalletBackend {
     // lets Core add confirmed top-up coins if the parent output can't cover the
     // fee. subtractFeeFromOutputs pays the fee from the child output so the bump
     // needs no external funding. replaceable keeps the child itself RBF-able.
+    //
+    // NOTE: for an unconfirmed wallet input, Core's walletcreatefundedpsbt does
+    // ancestor-aware bumping — fee_rate is the TARGET PACKAGE rate (it lifts the
+    // child's own fee to bring parent+child to that rate). So childFeeRateSatVb
+    // is the package target, not the child's isolated rate (see cpfp-dialog).
     const funded = await this.walletRpc.walletCreateFundedPsbt(
       walletName,
       [{ txid: parentTxid, vout }],
