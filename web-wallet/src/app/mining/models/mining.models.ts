@@ -807,76 +807,47 @@ export interface CapacityCache {
   count: number; // Number of valid deadlines
   qualitySum: number; // Sum of qualityRaw for all valid deadlines
   effectiveCapacity: number; // Calculated TiB (n * GENESIS_BASE_TARGET / qualitySum)
-  history: CapacityDataPoint[]; // Sparkline chart data
   lastDeadlineTimestamp: number; // For detecting new data
 }
 
 /**
- * Generate effective capacity history for sparkline chart
- *
- * Uses cumulative averaging with a sliding window of the last N deadlines.
- * Each chart point shows effective capacity calculated from all data points
- * up to that moment (capped at maxDataPoints).
- *
- * Optimized with prefix sums for O(n) instead of O(n²) complexity.
- *
- * Note: Backend already guarantees one best deadline per chain+height,
- * so no deduplication needed here.
- *
- * @param deadlines Array of DeadlineEntry
- * @param maxDataPoints Maximum deadlines to include in lookback (default 720)
- * @param maxChartPoints Maximum chart points to return (default 50)
- * @returns Array of CapacityDataPoint for sparkline, oldest to newest
+ * Maximum number of points retained in the effective-capacity time-series
+ * that backs the sparkline (the chart "store"). One point is appended per
+ * settled block, so 720 points ≈ 24h with a single chain (proportionally
+ * less with more chains). In-memory only: the series survives navigation but
+ * resets on app restart.
  */
-export function generateEffectiveCapacityHistory(
-  deadlines: DeadlineEntry[],
-  maxDataPoints: number = MAX_CAPACITY_DATAPOINTS,
-  maxChartPoints: number = 50
+export const MAX_CAPACITY_SERIES_POINTS = 720;
+
+/**
+ * Downsample a capacity time-series to at most `maxPoints` for rendering,
+ * preserving chronological order and always keeping the first and last
+ * points.
+ *
+ * Each stored point is already a full trailing-window average (smooth by
+ * construction — that is what removes the old cumulative-curve volatility),
+ * so uniform striding preserves the line's shape without hiding real
+ * movement; no min/max decimation is needed.
+ *
+ * @param points Series oldest→newest
+ * @param maxPoints Maximum points to return (default 60)
+ * @returns Downsampled series, oldest→newest
+ */
+export function downsampleCapacitySeries(
+  points: CapacityDataPoint[],
+  maxPoints = 60
 ): CapacityDataPoint[] {
-  if (deadlines.length === 0) return [];
+  if (points.length <= maxPoints) return points;
 
-  // Sort by timestamp ascending (oldest first)
-  const sorted = [...deadlines].sort((a, b) => a.timestamp - b.timestamp);
-
-  // Cap at maxDataPoints (take most recent)
-  const capped =
-    sorted.length > maxDataPoints ? sorted.slice(sorted.length - maxDataPoints) : sorted;
-
-  if (capped.length === 0) return [];
-
-  // Build prefix sums in single pass: O(n)
-  const prefixQualitySum = new Array<number>(capped.length);
-  let runningSum = 0;
-  for (let i = 0; i < capped.length; i++) {
-    runningSum += capped[i].qualityRaw;
-    prefixQualitySum[i] = runningSum;
-  }
-
-  // Determine which indices to sample for chart points
-  const step = Math.max(1, Math.floor(capped.length / maxChartPoints));
-  const sampledIndices: number[] = [];
-  for (let i = 0; i < capped.length; i += step) {
-    sampledIndices.push(i);
-  }
-  // Always include the last point
-  if (sampledIndices[sampledIndices.length - 1] !== capped.length - 1) {
-    sampledIndices.push(capped.length - 1);
-  }
-
-  // Calculate cumulative capacity at each sampled point using prefix sums: O(1) per point
+  const step = Math.ceil(points.length / maxPoints);
   const result: CapacityDataPoint[] = [];
-
-  for (const idx of sampledIndices) {
-    const count = idx + 1;
-    const qualitySum = prefixQualitySum[idx];
-    if (qualitySum > 0) {
-      const capacity = (count * GENESIS_BASE_TARGET) / qualitySum;
-      result.push({
-        timestamp: capped[idx].timestamp,
-        capacity,
-      });
-    }
+  for (let i = 0; i < points.length; i += step) {
+    result.push(points[i]);
   }
-
+  // Always land the line on the most recent point ("Now").
+  const last = points[points.length - 1];
+  if (result[result.length - 1] !== last) {
+    result.push(last);
+  }
   return result;
 }

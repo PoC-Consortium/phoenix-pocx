@@ -41,9 +41,11 @@ import {
   MinerRuntimeState,
   // Capacity calculation types
   CapacityCache,
+  CapacityDataPoint,
   GENESIS_BASE_TARGET,
   MAX_CAPACITY_DATAPOINTS,
-  generateEffectiveCapacityHistory,
+  MAX_CAPACITY_SERIES_POINTS,
+  downsampleCapacitySeries,
   formatCapacity,
 } from '../models/mining.models';
 import { PlotPlanService } from './plot-plan.service';
@@ -137,7 +139,6 @@ export class MiningService {
   private _isMinerListening = false;
   private _minerUnlisteners: UnlistenFn[] = [];
   private _minerInitialized = false; // First start flag for miner
-  private readonly _capacityChartVersion = signal(0); // Bumped on scan finish to trigger chart update
   private readonly _capacityDeadlines = signal<DeadlineEntry[]>([]); // Snapshot updated only on scan finish
 
   // Capacity calculation cache (survives navigation, updated incrementally on scan finish)
@@ -145,9 +146,15 @@ export class MiningService {
     count: 0,
     qualitySum: 0,
     effectiveCapacity: 0,
-    history: [],
     lastDeadlineTimestamp: 0,
   });
+
+  // Effective-capacity time-series backing the sparkline (the chart "store").
+  // One point is appended per settled block from the current trailing-window
+  // estimate, so the chart is a real history of the estimate rather than a
+  // per-render cumulative curve — this is what removes the left-edge flicker.
+  // In-memory: survives navigation, resets on app restart.
+  private readonly _capacitySeries = signal<CapacityDataPoint[]>([]);
 
   // Public computed values
   readonly state = this._state.asReadonly();
@@ -178,7 +185,6 @@ export class MiningService {
   readonly minerCurrentBlock = computed(() => this._minerState().currentBlock);
   readonly minerScanProgress = computed(() => this._minerState().scanProgress);
   readonly minerDeadlines = computed(() => this._minerState().recentDeadlines);
-  readonly capacityChartVersion = this._capacityChartVersion.asReadonly();
   readonly capacityDeadlines = this._capacityDeadlines.asReadonly(); // Snapshot for chart (updates on scan finish)
 
   // Cached capacity calculations (survive navigation)
@@ -188,7 +194,7 @@ export class MiningService {
     const tib = this._capacityCache().effectiveCapacity;
     return tib > 0 ? formatCapacity(tib) : '--';
   });
-  readonly capacityHistory = computed(() => this._capacityCache().history);
+  readonly capacityHistory = computed(() => downsampleCapacitySeries(this._capacitySeries()));
 
   // Activity logs (survives navigation, auto-cleanup of entries > 1 day old)
   readonly activityLogs = this._activityLogs.asReadonly();
@@ -1531,32 +1537,37 @@ export class MiningService {
         count: 0,
         qualitySum: 0,
         effectiveCapacity: 0,
-        history: [],
         lastDeadlineTimestamp: latestTimestamp,
       });
       return;
     }
 
-    // Calculate totals (qualityRaw = 0 is valid - instant forge)
+    // Trailing-window estimate over the backend-bounded deadline set
+    // (720/chain). qualityRaw = 0 is valid (instant forge).
     const count = settled.length;
     const qualitySum = settled.reduce((acc, d) => acc + d.qualityRaw, 0);
     const effectiveCapacity = qualitySum > 0 ? (count * GENESIS_BASE_TARGET) / qualitySum : 0;
-
-    // Get enabled chain count for max data points
-    const config = this._state()?.config;
-    const chainCount = Math.max(1, config?.chains.filter(c => c.enabled).length ?? 1);
-    const maxDataPoints = chainCount * MAX_CAPACITY_DATAPOINTS;
-
-    // Generate history (uses optimized prefix sum algorithm)
-    const history = generateEffectiveCapacityHistory(settled, maxDataPoints, 50);
 
     this._capacityCache.set({
       count,
       qualitySum,
       effectiveCapacity,
-      history,
       lastDeadlineTimestamp: latestTimestamp,
     });
+
+    // Append this estimate to the sparkline series. Because the value above is
+    // already a full trailing-window average, every appended point is smooth
+    // from the first — no cumulative-curve volatility. On init this seeds one
+    // point primed from the backend's existing deadlines; live scans grow it.
+    // Bounded in memory at MAX_CAPACITY_SERIES_POINTS.
+    if (effectiveCapacity > 0) {
+      this._capacitySeries.update(series => {
+        const next = [...series, { timestamp: latestTimestamp, capacity: effectiveCapacity }];
+        return next.length > MAX_CAPACITY_SERIES_POINTS
+          ? next.slice(next.length - MAX_CAPACITY_SERIES_POINTS)
+          : next;
+      });
+    }
   }
 
   /**
@@ -2260,9 +2271,8 @@ export class MiningService {
           const deadlines = await this.fetchRecentDeadlines();
           this._minerState.update(s => ({ ...s, recentDeadlines: deadlines }));
           this._capacityDeadlines.set(deadlines);
-          this._capacityChartVersion.update(v => v + 1);
 
-          // Update capacity cache (survives navigation)
+          // Update capacity cache + append a sparkline point (survives navigation)
           this.updateCapacityCache();
 
           // Smart cleanup of activity logs (idle moment after scan)
