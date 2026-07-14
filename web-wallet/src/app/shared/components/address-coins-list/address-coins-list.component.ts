@@ -88,6 +88,34 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
       </div>
     } @else if (rows().length === 0) {
       <app-empty-state icon="account_balance_wallet" [message]="'coins_empty' | i18n" />
+    } @else if (compact()) {
+      <div class="coins-cards">
+        @for (row of pagedRows(); track row.address) {
+          <div class="coin-card">
+            <app-address-display [address]="row.address" [showCopyButton]="true" [inline]="false" />
+            <div class="coin-card-meta">
+              <span class="coin-card-balance">{{ row.balanceBtc | btcx }} BTCX</span>
+              <span class="coin-card-count">{{ row.coinCount }} {{ 'coins_col' | i18n }}</span>
+              @if (row.exposed) {
+                <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
+                  >key</mat-icon
+                >
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (rows().length > pageSizeOptions[0]) {
+        <mat-paginator
+          [length]="rows().length"
+          [pageSize]="pageSize()"
+          [pageIndex]="pageIndex()"
+          [pageSizeOptions]="pageSizeOptions"
+          (page)="onPageChange($event)"
+          [showFirstLastButtons]="true"
+        ></mat-paginator>
+      }
     } @else {
       <div class="coins-scroll">
         <table class="coins-table">
@@ -242,6 +270,41 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         background: transparent;
       }
 
+      /* Compact (mobile) layout: one stacked card per address. */
+      .coins-cards {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .coin-card {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: rgba(0, 0, 0, 0.015);
+      }
+
+      .coin-card-meta {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 8px;
+        font-size: 13px;
+      }
+
+      .coin-card-balance {
+        font-weight: 600;
+        color: #1976d2;
+      }
+
+      .coin-card-count {
+        color: #5a6b7a;
+      }
+
+      .coin-card-meta .flag-icon {
+        margin-left: auto;
+      }
+
       :host-context(.dark-theme) {
         .coins-intro {
           color: #9fb0bf;
@@ -258,6 +321,19 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         .td-balance {
           color: #90caf9;
         }
+
+        .coin-card {
+          border-color: rgba(255, 255, 255, 0.12);
+          background: #333;
+        }
+
+        .coin-card-balance {
+          color: #90caf9;
+        }
+
+        .coin-card-count {
+          color: #9fb0bf;
+        }
       }
     `,
   ],
@@ -267,6 +343,12 @@ export class AddressCoinsListComponent {
   readonly rows = input.required<AddressBalance[]>();
   /** Whether the source query is still loading. */
   readonly loading = input(false);
+  /**
+   * Compact (transposed) layout: each address becomes a stacked card instead
+   * of a wide table row — for narrow / mobile viewports where the 4 columns
+   * don't fit.
+   */
+  readonly compact = input(false);
 
   readonly pageSize = signal(10);
   readonly pageIndex = signal(0);
