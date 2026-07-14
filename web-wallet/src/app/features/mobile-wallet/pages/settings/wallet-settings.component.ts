@@ -202,6 +202,12 @@ const DRAG_SLOP_PX = 8;
                   <mat-icon>more_horiz</mat-icon>
                 </button>
                 <mat-menu #rowMenu="matMenu">
+                  @if (w.policy.coinType === 0 && !w.v30Migrated && w.source === 'seed') {
+                    <button mat-menu-item (click)="upgradeToV31(w)">
+                      <mat-icon>upgrade</mat-icon>
+                      <span>{{ 'mwallet_upgrade_v31' | i18n }}</span>
+                    </button>
+                  }
                   @if (!w.isActive) {
                     <button mat-menu-item (click)="switchTo(w)">
                       <mat-icon>swap_horiz</mat-icon>
@@ -725,6 +731,27 @@ export class WalletSettingsComponent implements OnInit {
       await this.wallet.select(w.name);
     } catch (err) {
       console.error('Failed to switch wallet:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.switching.set(null);
+    }
+  }
+
+  /**
+   * Upgrade a v30 (coin-0') wallet to v31: creates its `<name>-v31` sibling
+   * over the same seed and switches to it (the old wallet is left untouched).
+   * A passphrase-locked seed defers — the user must unlock it first.
+   */
+  async upgradeToV31(w: BtcxWalletSummary): Promise<void> {
+    if (this.switching() !== null) return;
+    this.switching.set(w.name);
+    try {
+      const result = await this.wallet.upgradeV30(w.name);
+      if (result.outcome === 'deferred') {
+        this.notification.info(this.i18n.get('mwallet_upgrade_v31_deferred'));
+      }
+    } catch (err) {
+      console.error('Failed to upgrade wallet:', err);
       this.notification.error(`${err}`);
     } finally {
       this.switching.set(null);

@@ -222,6 +222,12 @@ export interface BtcxWalletSummary {
   source: BtcxWalletSource;
   /** Single-address wpkh(WIF) wallet — the switcher/settings badge. */
   singleAddress: boolean;
+  /**
+   * Whether this wallet has cleared the v30→v31 upgrade check. A v30 (coin
+   * type 0') seed wallet with this false is the only one that shows the
+   * "upgrade to v31" action.
+   */
+  v30Migrated: boolean;
   /** The selected wallet of the network. */
   isActive: boolean;
   /** Runtime open (only ever true for the active wallet). */
@@ -542,8 +548,6 @@ export class BtcxWalletService {
       await Promise.all([this.refreshStatus(), this.refreshConfig()]);
       if (this.walletActive()) {
         await Promise.all([this.refreshBalance(), this.refreshTransactions(RECENT_TX_LIMIT)]);
-        // An already-open wallet on launch may still be a pre-v31 seed.
-        void this.autoMigrateV30();
       }
       this._initialized.set(true);
     } catch (err) {
@@ -713,9 +717,6 @@ export class BtcxWalletService {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_unlock', { passphrase });
     this._status.set(status);
     await this.refreshAll();
-    // Unlocking is the deferred-migration retry: a seed that could not be
-    // migrated while locked can be now that it is open.
-    void this.autoMigrateV30();
     return status;
   }
 
@@ -773,9 +774,6 @@ export class BtcxWalletService {
     this._lastSync.set(null);
     await this.refreshConfig();
     await this.refreshAll();
-    // A newly-opened wallet may still be a pre-v31 (coin-0') seed — migrate
-    // it (and surface the one-time notice) once it is open.
-    void this.autoMigrateV30();
     return status;
   }
 
@@ -784,12 +782,12 @@ export class BtcxWalletService {
   // ============================================================================
 
   /**
-   * Silently upgrade a pre-v31 (legacy coin-0') seed to the new BTCX coin
-   * type: when the open wallet's seed has an unregistered counterpart, the
-   * backend creates it (`created-v31` for the v31 branch, `created-v30` for a
-   * legacy branch with history) and records the pass; a locked/encrypted seed
-   * `deferred`s so a later open retries. Refreshes config/status on success.
-   * Throws on failure — callers decide whether to surface it.
+   * Low-level v30→v31 upgrade of the ACTIVE wallet: if it is a v30 (coin-0')
+   * seed wallet, the backend creates its v31 sibling (`created-v31`) and
+   * switches to it; a v31/testnet/descriptor wallet is `noop`/`already`, and a
+   * passphrase-locked seed `deferred`s. No rename, no chain probe. Refreshes
+   * config/status. Throws on failure. Most callers want `upgradeV30`, which
+   * selects the target and surfaces the notice.
    */
   async migrateV30(): Promise<BtcxV30MigrationResult> {
     const result = await invoke<BtcxV30MigrationResult>('btcx_wallet_migrate_v30');
@@ -812,22 +810,23 @@ export class BtcxWalletService {
   }
 
   /**
-   * Fire-and-forget v30 migration run for the open wallet, showing the calm
-   * one-time notice only when a counterpart was actually created. Naturally
-   * idempotent: once migrated the backend returns `already`/`noop`, and a
-   * locked seed `deferred`s silently — so this is safe to call on every open.
+   * Upgrade a v30 (legacy coin-0') wallet to v31 — the explicit "Upgrade"
+   * action. Selects the target wallet first (the backend upgrades the active
+   * one), creates its `<name>-v31` sibling over the same seed and switches to
+   * it, shows the one-time notice on success, and refreshes the wallet list.
+   * Throws on failure (e.g. a passphrase-locked seed defers) so the caller can
+   * surface it.
    */
-  private async autoMigrateV30(): Promise<void> {
-    if (!this.walletActive()) return;
-    try {
-      const result = await this.migrateV30();
-      if (result.outcome === 'created-v31' || result.outcome === 'created-v30') {
-        this.notification.info(this.i18n.get('wallet_v30_migrated_notice'), undefined, 8000);
-      }
-    } catch (err) {
-      // A migration hiccup must never block using the wallet — log and move on.
-      console.warn('v30 auto-migration failed:', err);
+  async upgradeV30(walletName: string): Promise<BtcxV30MigrationResult> {
+    if (this.walletName() !== walletName) {
+      await this.select(walletName);
     }
+    const result = await this.migrateV30();
+    if (result.outcome === 'created-v31') {
+      this.notification.info(this.i18n.get('wallet_v30_migrated_notice'), undefined, 6000);
+    }
+    await this.refreshWallets();
+    return result;
   }
 
   /**

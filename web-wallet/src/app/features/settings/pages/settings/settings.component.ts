@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, effect, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -30,7 +30,10 @@ import {
   selectNodeConfig,
   selectNotifications,
 } from '../../../../store/settings/settings.selectors';
-import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import {
+  BtcxWalletService,
+  BtcxWalletSummary,
+} from '../../../../core/services/btcx-wallet.service';
 import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 import {
   NodeConfig,
@@ -696,6 +699,21 @@ function withListenPort(listenAddress: string, port: number): string {
                               <span class="remote-wallet-badge legacy">{{
                                 'wallet_legacy_badge' | i18n
                               }}</span>
+                            }
+                            @if (w.policy.coinType === 0 && !w.v30Migrated && w.source === 'seed') {
+                              <button
+                                mat-stroked-button
+                                class="remote-wallet-upgrade"
+                                [disabled]="upgradingV31() !== null"
+                                (click)="upgradeToV31(w)"
+                              >
+                                @if (upgradingV31() === w.name) {
+                                  <mat-spinner diameter="16"></mat-spinner>
+                                } @else {
+                                  <mat-icon>upgrade</mat-icon>
+                                }
+                                {{ 'mwallet_upgrade_v31' | i18n }}
+                              </button>
                             }
                             @if (w.isActive) {
                               <mat-icon class="remote-wallet-check">check</mat-icon>
@@ -2003,6 +2021,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /** True while a remote-mode legacy (v30) re-probe is in flight. */
   readonly rescanningLegacy = signal(false);
+  /** Name of the wallet whose v30→v31 upgrade is in flight, or null. */
+  readonly upgradingV31 = signal<string | null>(null);
 
   // Managed node state
   nodeMode = signal<NodeMode>('managed');
@@ -2115,6 +2135,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
   isTesting = signal(false);
   isSaving = signal(false);
   testResult = signal<ConnectionTestResult | null>(null);
+
+  constructor() {
+    // Keep the remote wallet list fresh whenever remote mode is active. The
+    // page can switch INTO remote mode after ngOnInit's one-shot refresh (or
+    // load while still in managed mode, where the list comes back empty), so
+    // ride the nodeMode signal to re-list once remote is showing.
+    effect(() => {
+      if (this.nodeMode() === 'remote') {
+        void this.btcxWallet.refreshWallets();
+      }
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     // Initialize managed node service
@@ -2628,6 +2660,27 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.notification.error(`${err}`);
     } finally {
       this.rescanningLegacy.set(false);
+    }
+  }
+
+  /**
+   * Upgrade a v30 (coin-0') wallet to v31: creates its `<name>-v31` sibling
+   * over the same seed and switches to it. The old wallet is left untouched;
+   * a passphrase-locked seed defers (unlock first).
+   */
+  async upgradeToV31(w: BtcxWalletSummary): Promise<void> {
+    if (this.upgradingV31() !== null) return;
+    this.upgradingV31.set(w.name);
+    try {
+      const result = await this.btcxWallet.upgradeV30(w.name);
+      if (result.outcome === 'deferred') {
+        this.notification.info(this.i18n.get('mwallet_upgrade_v31_deferred'));
+      }
+    } catch (err) {
+      console.error('Failed to upgrade wallet:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.upgradingV31.set(null);
     }
   }
 

@@ -19,7 +19,6 @@ use super::config::{
 use super::descriptors::{self, ImportValidation};
 use super::descstore::{self, DescStore, DescriptorPayload};
 use super::manager::{self, BranchHit};
-use super::migrate::{self, V30MigrationPlan};
 use super::state::{BtcxWalletStatus, SharedBtcxWalletState};
 
 /// Run a blocking wallet operation off the async runtime.
@@ -552,10 +551,13 @@ fn create_v30_counterpart(
     Ok(legacy_name)
 }
 
-/// The one-time v30→v31 migration for the OPEN wallet's seed. Idempotent via
-/// the `v30Migrated` flag; a locked/encrypted seed defers WITHOUT setting it.
-/// Requires a verified Electrum server (same guard as restore) so a
-/// missing/pruned server is a hard error, never a silent "migrated".
+/// Upgrade the OPEN v30 wallet to v31 by creating its v31 SIBLING (`<base>-v31`,
+/// same address type, BTCX coin type) over the same seed and switching to it.
+/// The v30 wallet is left untouched — no rename, no chain probe — so it is safe
+/// on Windows (no file-lock) and on a flaky Electrum (no server needed).
+/// Idempotent via the `v30Migrated` flag; a locked/encrypted seed defers
+/// WITHOUT setting it. Triggered explicitly (the wallet's "upgrade" action),
+/// never automatically on open.
 pub fn migrate_v30_impl(
     state: &SharedBtcxWalletState,
     app: Option<AppHandle>,
@@ -564,87 +566,49 @@ pub fn migrate_v30_impl(
     let network = config.network;
     let active_name = config.active_wallet_name();
 
-    // Already migrated — nothing to do (leave the open runtime untouched).
+    let active_policy = config.policy();
+
+    // Already upgraded — nothing to do (leave the open runtime untouched).
     if config.v30_migrated(network, &active_name) {
         return migration_result(state, V30MigrationOutcome::Already, None, None);
     }
-    // Descriptor-imported wallets have no seed branches to migrate: record
-    // them done so the pass never re-checks.
-    if state.active_source(&config) == WalletSourceCfg::Descriptor {
+
+    // Only a v30 wallet — BIP-32 coin type 0' (mainnet legacy) — can be
+    // upgraded. v31 wallets (BTCX coin type) and testnet/regtest wallets
+    // (coin type 1') are already on the standard branch, and descriptor-
+    // imported wallets have no seed to derive one. Record them done so the
+    // check never re-fires.
+    if active_policy.coin_type != 0 || state.active_source(&config) == WalletSourceCfg::Descriptor {
         state.update_config(|c| c.set_v30_migrated(network, &active_name, true))?;
         return migration_result(state, V30MigrationOutcome::Noop, None, None);
     }
 
-    // The v30→v31 split only exists on mainnet (coin 0' → BTCX coin type).
-    // Testnet/regtest use coin type 1' for both new and legacy wallets, so
-    // there is nothing to migrate — record it done (skipping the Electrum
-    // probe) and leave the runtime be.
-    if network != WalletNetwork::Mainnet {
-        state.update_config(|c| c.set_v30_migrated(network, &active_name, true))?;
-        return migration_result(state, V30MigrationOutcome::Noop, None, None);
-    }
-
+    // Read the seed (defer if it is passphrase-locked — the v31 wallet can't
+    // inherit that lock, so we must not silently weaken it).
     let (mnemonic, detail) = read_migratable_mnemonic(state, &config);
     let Some(mnemonic) = mnemonic else {
         return migration_result(state, V30MigrationOutcome::Deferred, None, detail);
     };
 
-    // Probe the seed's branches against a verified server (hard error if none).
-    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
-    let chain = state.verified_probe_chain()?;
-    let hits = manager::probe_all_branches(&seed, &chain, network)
-        .map_err(|e| format!("Migration probing failed: {e:#}"))?;
-
+    // Create the v31 wallet as a SIBLING of the v30 one: same address type
+    // (kind), BTCX coin type, "<base>-v31" name. The v30 wallet is left
+    // completely untouched — no rename (so no Windows "rename a directory with
+    // an open SQLite handle" file-lock) and no chain probe (so a flaky Electrum
+    // never blocks it). import_into_named_wallet closes the v30 runtime and
+    // makes the new v31 wallet active; we then open its runtime.
     let base = base_name(&active_name);
-    let names = counterpart_names(&base);
-    let existing: Vec<DescriptorPolicy> = names
-        .iter()
-        .filter_map(|n| config.wallet_meta(network, n).map(|m| m.policy))
-        .collect();
-    let active_policy = config.policy();
-
-    match migrate::plan_v30_migration(active_policy, &hits, &existing) {
-        V30MigrationPlan::Noop => {
-            state.update_config(|c| {
-                c.set_v30_migrated(network, &active_name, true);
-                for n in &names {
-                    c.set_v30_migrated(network, n, true);
-                }
-            })?;
-            migration_result(state, V30MigrationOutcome::Noop, None, None)
-        }
-        V30MigrationPlan::CreateV31 { policy } => {
-            // Close the open runtime so the legacy wallet can be renamed off
-            // the clean base name, then hand that name to the new v31 wallet.
-            state.close_runtime();
-            let legacy_name = resolve_counterpart_name(state, network, &base, "-v30")?;
-            rename_wallet_impl(state, &active_name, &legacy_name)?;
-            let v31_name =
-                resolve_new_wallet_name(&state.get_config(), network, Some(base.clone()))?;
-            import_into_named_wallet(state, network, &v31_name, &mnemonic, None, policy)?;
-            state.update_config(|c| {
-                c.set_v30_migrated(network, &v31_name, true);
-                c.set_v30_migrated(network, &legacy_name, true);
-            })?;
-            // import_into_named_wallet already made the v31 wallet active;
-            // open its runtime.
-            state.open_runtime(app)?;
-            migration_result(state, V30MigrationOutcome::CreatedV31, Some(v31_name), None)
-        }
-        V30MigrationPlan::CreateV30Legacy { policy } => {
-            let created = create_v30_counterpart(
-                state,
-                app,
-                network,
-                &active_name,
-                &base,
-                &mnemonic,
-                policy,
-                true,
-            )?;
-            migration_result(state, V30MigrationOutcome::CreatedV30, Some(created), None)
-        }
-    }
+    let v31_name = resolve_counterpart_name(state, network, &base, "-v31")?;
+    let policy = DescriptorPolicy {
+        kind: active_policy.kind,
+        coin_type: keys_btcx::COIN_BTCX,
+    };
+    import_into_named_wallet(state, network, &v31_name, &mnemonic, None, policy)?;
+    state.update_config(|c| {
+        c.set_v30_migrated(network, &active_name, true);
+        c.set_v30_migrated(network, &v31_name, true);
+    })?;
+    state.open_runtime(app)?;
+    migration_result(state, V30MigrationOutcome::CreatedV31, Some(v31_name), None)
 }
 
 /// The danger-zone "check for older (v30) funds" pass: re-probe the open
@@ -936,6 +900,10 @@ pub struct BtcxWalletSummary {
     pub source: WalletSourceCfg,
     /// Single-address (`wpkh(WIF)`) wallet — the switcher/settings badge.
     pub single_address: bool,
+    /// Whether this wallet has been through the v30→v31 upgrade check (or
+    /// doesn't need it). A v30 (coin type 0') seed wallet with this false is
+    /// the only thing that shows the "upgrade to v31" action.
+    pub v30_migrated: bool,
     /// The selected wallet of the network.
     pub is_active: bool,
     /// Runtime open (only ever true for the active wallet).
@@ -1000,6 +968,7 @@ pub fn btcx_wallet_list(
             policy: meta.policy,
             source: meta.source,
             single_address: meta.single_address,
+            v30_migrated: meta.v30_migrated,
             is_active,
             is_open,
             seed_encrypted: needs_passphrase,
@@ -2378,9 +2347,11 @@ mod tests {
         // no-op before the seed is ever read).
         let state = offline_state(WalletNetwork::Mainnet);
 
-        // (1) A passphrase-encrypted (but unlocked) seed wallet DEFERS —
-        // the counterpart can't inherit the passphrase, so the pass must not
-        // silently weaken it, and must NOT set the flag.
+        // (1) A passphrase-encrypted (but unlocked) v30 wallet DEFERS — the
+        // v31 sibling can't inherit the passphrase, so the upgrade must not
+        // silently weaken it, and must NOT set the flag. New wallets derive at
+        // the BTCX coin type, so force the policy to coin type 0' to make it a
+        // v30 wallet the upgrade path actually reaches.
         create_wallet_impl(
             &state,
             None,
@@ -2390,6 +2361,17 @@ mod tests {
             None,
         )
         .unwrap();
+        state
+            .update_config(|c| {
+                c.set_policy(
+                    WalletNetwork::Mainnet,
+                    DescriptorPolicy {
+                        kind: DescriptorKindCfg::Bip84,
+                        coin_type: 0,
+                    },
+                )
+            })
+            .unwrap();
         let result = migrate_v30_impl(&state, None).unwrap();
         assert_eq!(result.outcome, V30MigrationOutcome::Deferred);
         assert!(result.detail.is_some());
