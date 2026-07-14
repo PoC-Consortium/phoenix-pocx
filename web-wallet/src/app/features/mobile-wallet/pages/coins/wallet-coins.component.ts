@@ -44,6 +44,18 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
       <div class="card">
         <app-address-coins-list [rows]="rows()" [loading]="loading()" />
       </div>
+
+      <!-- TEMP on-screen diagnostic (Android has no devtools) -->
+      <div class="coins-debug">
+        <div>wallet: {{ wallet.walletName() }}</div>
+        <div>
+          runtime active: {{ wallet.status()?.walletActive }} · height:
+          {{ wallet.status()?.syncedHeight ?? '—' }}
+        </div>
+        <div>balanceSat: {{ wallet.balance()?.totalSat ?? '—' }}</div>
+        <div>rows: {{ rows().length }} · loading: {{ loading() }}</div>
+        <div>err: {{ loadError() ?? '—' }}</div>
+      </div>
     </div>
   `,
   styles: [
@@ -82,15 +94,30 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
       :host-context(.dark-theme) .card {
         background: #424242;
       }
+
+      /* TEMP diagnostic panel */
+      .coins-debug {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: rgba(255, 152, 0, 0.12);
+        color: #b26a00;
+        font-family: monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        word-break: break-all;
+      }
     `,
   ],
 })
 export class WalletCoinsComponent {
   private readonly backend = inject(BackendRouterService);
-  private readonly wallet = inject(BtcxWalletService);
+  protected readonly wallet = inject(BtcxWalletService);
 
   readonly rows = signal<AddressBalance[]>([]);
   readonly loading = signal(false);
+  /** TEMP diagnostic — last listCoins error, surfaced on-screen. */
+  readonly loadError = signal<string | null>(null);
 
   constructor() {
     // The coins/UTXO set is populated by the background sync, so a one-shot
@@ -117,8 +144,10 @@ export class WalletCoinsComponent {
     try {
       const coins = await this.backend.wallet().listCoins(this.wallet.walletName());
       this.rows.set(aggregateCoins(coins));
+      this.loadError.set(null);
     } catch (error) {
       console.error('Failed to load coins:', error);
+      this.loadError.set(`${error}`);
     } finally {
       this.loading.set(false);
     }
