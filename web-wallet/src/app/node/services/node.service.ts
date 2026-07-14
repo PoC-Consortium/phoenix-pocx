@@ -3,6 +3,7 @@ import { Subject } from 'rxjs';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { BtcxWalletService } from '../../core/services/btcx-wallet.service';
+import { AppModeService } from '../../core/services/app-mode.service';
 import {
   NodeConfig,
   NodeStatus,
@@ -32,6 +33,7 @@ import {
 })
 export class NodeService {
   private readonly btcxWallet = inject(BtcxWalletService);
+  private readonly appMode = inject(AppModeService);
 
   // Event emitted before node starts — services subscribe to reset network-specific state
   private readonly _nodeStarting = new Subject<void>();
@@ -67,20 +69,31 @@ export class NodeService {
   readonly initialized = this._initialized.asReadonly();
 
   // Computed values (mode values are lowercase to match Rust serde serialization)
-  readonly isManaged = computed(() => this._config().mode === 'managed');
-  readonly isExternal = computed(() => this._config().mode === 'external');
+  // Android has no local bitcoind, so it is ALWAYS remote regardless of the
+  // persisted node mode — otherwise the backend seam would route wallet ops to
+  // the (nonexistent) Core RPC. isMobile() is a reactive signal, so these stay
+  // correct even if it resolves after the config loads.
+  readonly isManaged = computed(
+    () => !this.appMode.isMobile() && this._config().mode === 'managed'
+  );
+  readonly isExternal = computed(
+    () => !this.appMode.isMobile() && this._config().mode === 'external'
+  );
   /**
    * Remote mode: no local bitcoind at all — the wallet runs over Electrum
    * (the nodeless btcx stack). THE signal every remote-mode branch keys on.
+   * Always true on Android (which cannot run a node).
    */
-  readonly isRemote = computed(() => this._config().mode === 'remote');
+  readonly isRemote = computed(() => this.appMode.isMobile() || this._config().mode === 'remote');
   readonly isRunning = computed(() => this._status().running);
   readonly isInstalled = computed(() => this._status().installed);
   readonly isSynced = computed(() => this._status().synced);
   readonly hasUpdate = computed(() => this._updateInfo()?.available ?? false);
   readonly currentVersion = computed(() => this._config().installedVersion);
   readonly network = computed(() => this._config().network);
-  readonly mode = computed(() => this._config().mode);
+  readonly mode = computed<NodeMode>(() =>
+    this.appMode.isMobile() ? 'remote' : this._config().mode
+  );
 
   // Download progress computed values
   readonly isDownloading = computed(() => {
