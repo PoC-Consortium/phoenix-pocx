@@ -154,6 +154,9 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                   </th>
                   <td mat-cell *matCellDef="let wallet" [class.unloaded]="!wallet.isLoaded">
                     {{ wallet.name || '(default)' }}
+                    @if (isV30(wallet.name)) {
+                      <span class="v30-badge">{{ 'wallet_legacy_badge' | i18n }}</span>
+                    }
                     @if (wallet.multisig) {
                       <mat-icon
                         class="multisig-icon"
@@ -596,6 +599,19 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         }
 
         /* v30→v31 upgrade affordance: amber, compact, inline after the name. */
+        .v30-badge {
+          display: inline-block;
+          margin-left: 6px;
+          padding: 1px 6px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          line-height: 1.4;
+          vertical-align: middle;
+          color: #b26a00;
+          background: rgba(255, 152, 0, 0.14);
+        }
+
         .upgrade-badge {
           width: 28px;
           height: 28px;
@@ -851,6 +867,12 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
       const summaries = await this.walletManager.getWalletSummaries();
       this.wallets.set(summaries);
 
+      // Remote mode: the upgrade badge reads the BDK registry (coin type +
+      // migrate flag) via needsUpgrade(), so keep that list fresh.
+      if (this.isRemote()) {
+        await this.btcxWallet.refreshWallets();
+      }
+
       // Auto-select first loaded wallet
       if (!this.selectedWallet() && summaries.length > 0) {
         const firstLoaded = summaries.find(w => w.isLoaded);
@@ -883,8 +905,25 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
     this.upgradeNeeded.set(Object.fromEntries(entries));
   }
 
+  /**
+   * Whether the named wallet is a legacy v30 (coin-0') wallet — a persistent
+   * label that stays after the upgrade (unlike the upgrade badge, which clears
+   * once the v31 sibling exists). Remote (BDK) mode only.
+   */
+  isV30(walletName: string): boolean {
+    if (!this.isRemote()) return false;
+    const w = this.btcxWallet.wallets().find(x => x.name === walletName);
+    return !!w && w.policy.coinType === 0;
+  }
+
   /** Whether the named wallet needs a v31 upgrade (cached; template-safe). */
   needsUpgrade(walletName: string): boolean {
+    // Remote (BDK) mode: read the coin type straight off the local registry —
+    // a v30 (coin-0') seed wallet without the migrate flag can upgrade.
+    if (this.isRemote()) {
+      const w = this.btcxWallet.wallets().find(x => x.name === walletName);
+      return !!w && w.policy.coinType === 0 && !w.v30Migrated && w.source === 'seed';
+    }
     return this.upgradeNeeded()[walletName] === true;
   }
 
@@ -894,6 +933,12 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
    */
   openUpgradeDialog(wallet: WalletSummary, event: Event): void {
     event.stopPropagation();
+    // Remote (BDK) wallets store the seed, so upgrade in place — no re-enter-
+    // mnemonic dialog: create the v31 sibling and switch to it.
+    if (this.isRemote()) {
+      void this.upgradeRemoteWallet(wallet.name);
+      return;
+    }
     const data: UpgradeWalletDialogData = { walletName: wallet.name };
     this.dialog
       .open(UpgradeWalletDialogComponent, { data, width: '560px', disableClose: true })
@@ -905,6 +950,21 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
         });
         void this.loadWallets();
       });
+  }
+
+  /** Create the v31 sibling for a remote (BDK) v30 wallet and switch to it. */
+  private async upgradeRemoteWallet(name: string): Promise<void> {
+    try {
+      const result = await this.btcxWallet.upgradeV30(name);
+      const msg =
+        result.outcome === 'deferred' ? 'mwallet_upgrade_v31_deferred' : 'wallet_upgrade_success';
+      this.snackBar.open(this.i18n.get(msg), this.i18n.get('dismiss'), { duration: 4000 });
+      await this.btcxWallet.refreshWallets();
+      await this.loadWallets();
+    } catch (err) {
+      console.error('Failed to upgrade remote wallet:', err);
+      this.snackBar.open(`${err}`, this.i18n.get('dismiss'), { duration: 6000 });
+    }
   }
 
   retryConnection(): void {

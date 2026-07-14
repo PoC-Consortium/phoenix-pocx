@@ -1275,5 +1275,7 @@
   "wallet_v30_migrated_notice": "Your wallet was upgraded — older coins are under '…-v30' and move to your main wallet as you spend.",
   "wallet_rescan_legacy": "Check for older (v30) funds",
   "wallet_rescan_found": "Found and restored older funds",
-  "wallet_rescan_none": "No older funds found"
+  "wallet_rescan_none": "No older funds found",
+  "mwallet_upgrade_v31": "Upgrade to v31",
+  "mwallet_upgrade_v31_deferred": "Unlock the wallet first, then upgrade."
 }
