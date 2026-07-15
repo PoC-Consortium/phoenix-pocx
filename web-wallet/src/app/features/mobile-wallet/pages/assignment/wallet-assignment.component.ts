@@ -15,6 +15,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { HashTruncatePipe } from '../../../../shared/pipes';
+import { DecimalInputDirective } from '../../../../shared/directives';
 import { Contact, ContactsStoreService, NotificationService } from '../../../../shared/services';
 import {
   ConfirmDialogComponent,
@@ -82,6 +83,7 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
     DecimalPipe,
     NgTemplateOutlet,
     HashTruncatePipe,
+    DecimalInputDirective,
     I18nPipe,
     PageHeaderComponent,
   ],
@@ -350,7 +352,8 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
               @if (option.label === 'fee_custom') {
                 <mat-icon class="custom-icon">tune</mat-icon>
               } @else if (option.feeRate !== null) {
-                <span class="fee-rate">{{ option.feeRate | number: '1.3-3' }} sat/vB</span>
+                <!-- Break amount / unit — both don't fit the chip width. -->
+                <span class="fee-rate">{{ option.feeRate | number: '1.3-3' }}<br />sat/vB</span>
               } @else {
                 <span class="fee-rate">--</span>
               }
@@ -363,11 +366,10 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
             <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
             <input
               matInput
-              type="number"
+              appDecimal
+              inputmode="decimal"
               [(ngModel)]="customFeeRate"
               (ngModelChange)="onCustomFeeChange()"
-              min="0.1"
-              step="0.001"
               autocomplete="off"
             />
           </mat-form-field>
@@ -638,6 +640,7 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
           .fee-rate {
             display: block;
             white-space: nowrap;
+            text-align: center;
             font-size: 10px;
             color: rgba(0, 0, 0, 0.55);
             font-variant-numeric: tabular-nums;

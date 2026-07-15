@@ -13,6 +13,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { HashTruncatePipe } from '../../../../shared/pipes';
+import { DecimalInputDirective } from '../../../../shared/directives';
 import { ClipboardService, Contact, ContactsStoreService } from '../../../../shared/services';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { parsePaymentUri } from '../../../../bitcoin/utils/payment-uri';
@@ -68,6 +69,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
     MatCheckboxModule,
     DecimalPipe,
     HashTruncatePipe,
+    DecimalInputDirective,
     I18nPipe,
     PageHeaderComponent,
   ],
@@ -216,17 +218,17 @@ const SANE_PRESET_MAX_SAT_VB = 200;
             @if (addressValid()) {
               <mat-icon matSuffix class="suffix-valid">check_circle</mat-icon>
             }
-            @if (contacts().length > 0) {
-              <button
-                mat-icon-button
-                matSuffix
-                type="button"
-                [matMenuTriggerFor]="contactsMenu"
-                [matTooltip]="'select_contact' | i18n"
-              >
-                <mat-icon>contacts</mat-icon>
-              </button>
-            }
+            <!-- Always shown (desktop-parity), disabled when the book is empty. -->
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              [matMenuTriggerFor]="contactsMenu"
+              [disabled]="contacts().length === 0"
+              [matTooltip]="'select_contact' | i18n"
+            >
+              <mat-icon>contacts</mat-icon>
+            </button>
           </mat-form-field>
           <mat-menu #contactsMenu="matMenu">
             @for (contact of contacts(); track contact.id) {
@@ -251,12 +253,11 @@ const SANE_PRESET_MAX_SAT_VB = 200;
               <mat-label>{{ 'amount' | i18n }} (BTCX)</mat-label>
               <input
                 matInput
-                type="number"
+                appDecimal
+                inputmode="decimal"
                 [(ngModel)]="amount"
                 [disabled]="sendAll"
                 placeholder="0.00000000"
-                step="0.00000001"
-                min="0"
                 autocomplete="off"
               />
             </mat-form-field>
@@ -292,7 +293,8 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                 @if (preset.target !== null) {
                   <span class="fee-rate">
                     @if (presetRate(preset) !== null) {
-                      {{ presetRate(preset) | number: '1.3-3' }} sat/vB
+                      <!-- Break amount / unit — both don't fit the button width. -->
+                      {{ presetRate(preset) | number: '1.3-3' }}<br />sat/vB
                     } @else {
                       --
                     }
@@ -307,10 +309,9 @@ const SANE_PRESET_MAX_SAT_VB = 200;
               <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
               <input
                 matInput
-                type="number"
+                appDecimal
+                inputmode="decimal"
                 [(ngModel)]="customFeeRate"
-                min="0.1"
-                step="0.001"
                 autocomplete="off"
               />
             </mat-form-field>
@@ -496,6 +497,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
         .fee-rate {
           display: block;
           white-space: nowrap;
+          text-align: center;
           font-size: 10px;
           color: rgba(0, 0, 0, 0.5);
         }
