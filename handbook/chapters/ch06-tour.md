@@ -118,7 +118,7 @@ A row of small icons that turn solid (active) when something is running. They ap
 
 | Icon              | Symbol      | Means…                                                                                                       |
 |-------------------|-------------|--------------------------------------------------------------------------------------------------------------|
-| **Node**          | `share`     | Bitcoin-PoCX Core is running. Visible only in managed mode (the icon is not shown with an external node). In **remote mode** (Chapter 26) it is replaced by an **Electrum status** indicator showing whether the wallet is synced through its server, running on a failover, or disconnected. |
+| **Node**          | `share`     | A traffic-light for your node's connection, shown in **managed and external** modes. **Green** — the node is connected with peers; its tooltip reads *"Node connected · N peers."* **Amber** — the node is connected but has **0 peers**: *"Node connected · 0 peers — may be isolated on its own fork."* **Red** — *"Node not connected."* In **remote mode** (Chapter 26) this indicator is replaced by an **Electrum status** indicator showing whether the wallet is synced through its server, running on a failover, or disconnected. |
 | **Miner**         | `hardware`  | The miner is running and scanning plots. Visible only after you have configured mining (Chapter 15).         |
 | **Plotter**       | `storage`   | The plotter has work to do. Solid means actively plotting; outlined means a plan exists but is paused.       |
 | **Wallet lock**   | `lock` / `lock_open` | Visible only when at least one encrypted wallet is loaded. The icon shows whether any wallet is currently unlocked for spending. |
@@ -158,6 +158,7 @@ Use this as a cheat sheet while you find your way around:
 | If you want to…                                       | Go to…                                                  |
 |-------------------------------------------------------|---------------------------------------------------------|
 | See your current balance                              | Sidebar (always visible) or Dashboard.                  |
+| See your coins grouped by address (**Balance details**) | Dashboard → the coin-stack icon on the **Total Balance** card (Chapter 9). |
 | Receive BTCX                                          | **Receive** (sidebar → Transactions group).             |
 | Send BTCX                                             | **Send** (sidebar → Transactions group).                |
 | Spend from a multisig or watch-only wallet, or build a PSBT | **Transaction Builder** (sidebar → Transactions group). |
