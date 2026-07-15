@@ -72,11 +72,12 @@ export interface MultisigDescriptors {
 /**
  * Options for descriptor generation.
  *
- * `isTestnet` controls the extended-key serialization (tprv/tpub vs
- * xprv/xpub) only — it no longer selects the BIP32 coin type. New wallets
- * derive at the registered BTCX coin type on every network; restores add
- * the historic coin-0'/1' branches explicitly (see
- * `generateLegacyRestoreDescriptors`).
+ * `isTestnet` drives the extended-key serialization (tprv/tpub vs
+ * xprv/xpub) AND the network's default coin type: new wallets derive at the
+ * registered BTCX coin type (`0x504F4358`) on mainnet and at the shared
+ * SLIP-44 testnet coin type (1') on testnet/regtest — matching the Rust BDK
+ * backend's `WalletNetwork::asset_coin_type`. Restores add the historic
+ * coin-0'/1' branches explicitly (see `generateLegacyRestoreDescriptors`).
  */
 export interface DescriptorOptions {
   passphrase?: string;

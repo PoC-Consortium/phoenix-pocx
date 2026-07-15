@@ -86,15 +86,19 @@ describe('DescriptorService', () => {
     });
   });
 
-  describe('new wallet descriptor set (POCX coin type)', () => {
-    it('generates only 84h and 86h branches, both at the BTCX coin type, on every network', () => {
+  describe('new wallet descriptor set (network coin type)', () => {
+    it('generates only 84h and 86h branches at the network coin type', () => {
+      // Coin type is network-aware (matches the Rust BDK backend's
+      // WalletNetwork::asset_coin_type): the registered BTCX coin type on
+      // mainnet, the shared SLIP-44 testnet coin type 1' on testnet/regtest.
       for (const isTestnet of [false, true]) {
+        const expectedCoin = isTestnet ? 1 : BTCX_COIN_TYPE;
         const { descriptors } = service.generateNewWalletDescriptors(TEST_MNEMONIC, { isTestnet });
         expect(descriptors.length).toBe(4);
         expect(descriptors.map(d => d.type).sort()).toEqual(['tr', 'tr', 'wpkh', 'wpkh']);
         for (const d of descriptors) {
-          expect(d.path).toMatch(new RegExp(`^m/8[46]'/${BTCX_COIN_TYPE}'/0'/[01]/\\*$`));
-          expect(d.descriptor).toContain(`/${BTCX_COIN_TYPE}h/`);
+          expect(d.path).toMatch(new RegExp(`^m/8[46]'/${expectedCoin}'/0'/[01]/\\*$`));
+          expect(d.descriptor).toContain(`/${expectedCoin}h/`);
         }
         // Exactly one receive + one change per purpose.
         expect(descriptors.filter(d => d.internal).length).toBe(2);
@@ -134,10 +138,15 @@ describe('DescriptorService', () => {
       }
     });
 
-    it('legacy + BTCX sets together are unique and checksum-valid', () => {
+    it('mainnet legacy + BTCX sets together are unique and checksum-valid', () => {
+      // On mainnet the legacy branches (coin 0') and the new-wallet branches
+      // (BTCX coin type) are disjoint, so the combined set is fully unique.
+      // (On testnet both sit at coin 1', so the new set is intentionally a
+      // subset of the legacy set — see the network-coin-type test above.)
       const descriptors = [
-        ...service.generateLegacyRestoreDescriptors(TEST_MNEMONIC, { isTestnet: true }).descriptors,
-        ...service.generateNewWalletDescriptors(TEST_MNEMONIC, { isTestnet: true }).descriptors,
+        ...service.generateLegacyRestoreDescriptors(TEST_MNEMONIC, { isTestnet: false })
+          .descriptors,
+        ...service.generateNewWalletDescriptors(TEST_MNEMONIC, { isTestnet: false }).descriptors,
       ];
       const descs = descriptors.map(d => d.descriptor);
       expect(new Set(descs).size).toBe(descs.length);
