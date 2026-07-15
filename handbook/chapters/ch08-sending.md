@@ -27,6 +27,8 @@ Type or paste the recipient's bech32 Bitcoin-PoCX address. Phoenix validates the
 - **Green check** — the address is valid and matches the network you are on (`pocx1q…` on mainnet, `tpocx1q…` on testnet).
 - **Red error** — the address fails one of several checks. Hovering over the icon shows the reason: invalid format, wrong network, bad checksum, and so on. A matching error message also appears below the field.
 
+If you paste a **payment URI** rather than a bare address — a `btcx:…` link from a Receive screen (Chapter 7), or a `bitcoin:…` link (the scheme the Bitcoin-PoCX Qt wallet still emits) — Phoenix unpacks it for you: the address is extracted into this field and, if the URI carried an `amount`, the amount field below is filled in automatically. Whatever the scheme, the extracted address is still validated against the network you are on, so a genuine Bitcoin `bc1…` address inside a `bitcoin:` URI is rejected as *wrong network*.
+
 > **Tip** — Verify the address even when it looks correct. The classic attack on cryptocurrency users is *clipboard hijacking*: malware that swaps the address you copied for one belonging to the attacker. Compare at least the first six and last six characters of the address you pasted against what your recipient sent you. If anything is off, do not send.
 
 ### Selecting from contacts
@@ -70,7 +72,9 @@ The **refresh** icon at the right edge of the section re-runs the fee estimator 
 
 ### Custom fees
 
-Selecting **Custom** opens a small input where you type your own rate in `sat/vB`. The estimated fee figure beneath the priority buttons updates immediately. If you type a rate Bitcoin-PoCX Core considers below the network's minimum relay fee, the send will fail at broadcast time.
+Selecting **Custom** opens a small input where you type your own rate in `sat/vB`. The estimated fee figure beneath the priority buttons updates immediately. The field accepts rates as low as **0.1 sat/vB** and steps in increments of **0.001**, so you can dial in a precise low rate on a quiet chain. If you type a rate Bitcoin-PoCX Core considers below the network's minimum relay fee, the send will fail at broadcast time.
+
+> **Note** — Every fee rate in Phoenix — the priority presets here, the Transaction Builder, the fee-bump and CPFP dialogs, and the mobile and assignment screens — is shown to **three decimal places** (for example `1.053 sat/vB`). This matters at Bitcoin-PoCX's very low fee levels: a rate near 1 sat/vB rounded to a whole number could misrepresent what you are actually paying, so the wallet always shows the exact figure.
 
 Phoenix also falls back to **Custom** *automatically* when Bitcoin-PoCX Core cannot produce a fee estimate — for example on a quiet testnet, or shortly after a node first comes online, when there have been too few recent transactions for the estimator to have anything to learn from. When that happens, Phoenix pre-selects **Custom** with a default rate of **1 sat/vB**, which is at or near the typical minimum relay fee. The send will go through, but it may take longer to confirm than usual; raise the rate before clicking **Send** if you want quicker confirmation.
 
@@ -113,6 +117,12 @@ When everything is filled in correctly, click **Send**. A confirmation dialog ap
 ![The send confirmation dialog â€” the last check before broadcasting.](images/processed/ch08-send-confirm.png){width=60%}
 
 This is your last chance to back out. **Read the dialog carefully**, especially the recipient address. If anything looks wrong, click **Cancel** and edit the form. If everything is correct, click **Confirm**.
+
+### The high-fee guard (remote mode)
+
+In **remote (Electrum) mode** (Chapter 26), the confirmation dialog adds one more safeguard. Because a remote wallet takes its preset fee estimates from an Electrum server rather than from your own node, a faulty or hostile server could hand back an absurdly high rate — and quietly overcharge you. To prevent that, if a **preset** fee rate resolves to an unusually high value (above 200 sat/vB), the dialog shows a red warning — *"This fee is unusually high (N sat/vB). A faulty or hostile server can inflate fees."* — with a checkbox you must tick, *"I understand — send with this high fee,"* before **Confirm** unlocks.
+
+The guard applies only to *preset* rates in remote mode; a rate you typed yourself under **Custom** is taken at face value, and Core-backed wallets (managed or external) trust their own node's estimates and never show it. If you see this warning unexpectedly, suspect your Electrum server before you send — switch to another server (Chapter 26) and re-check the rate.
 
 ### If the wallet is encrypted
 

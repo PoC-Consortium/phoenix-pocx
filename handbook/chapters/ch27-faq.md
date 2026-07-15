@@ -43,19 +43,25 @@ Incoming funds are spendable only after they reach the confirmation threshold (c
 No. Confirmed Bitcoin-PoCX transactions are irreversible. Always verify the recipient address and amount before confirming. See Chapter 8.
 
 **My transaction is stuck. What can I do?**
-If you sent it with Replace-By-Fee enabled, bump its fee (Chapter 9). If not, you generally wait for it to clear or be evicted from mempools. See Chapters 8 and 9.
+If *you* sent it with Replace-By-Fee enabled, bump its fee (Chapter 9). If someone sent a payment *to you* that is stuck unconfirmed, use **Speed up (CPFP)** on that incoming row to pull it into a block with a high-fee child transaction (Chapter 9; local-node wallets only). Otherwise, you generally wait for it to clear or be evicted from mempools. See Chapters 8 and 9.
 
 **Can I have more than one wallet?**
 Yes. Phoenix supports multiple wallets; switch between them from the toolbar (desktop) or the header switcher (Android). You can name, rename, and delete them; deletion is safe — the files move to a trash folder and the recovery phrase always restores the funds. See Chapters 5 and 23.
 
 **A block explorer shows a different balance (or an address I don't recognise). Why?**
-Almost always *change addresses*. When you spend, the leftover comes back to a fresh address your wallet owns but you never see — so any single address on an explorer shows only part of the story. Your wallet's total is the sum across all its addresses, which Phoenix tracks for you; trust the wallet's balance, not one address on an explorer. See Chapters 8 and 9.
+Almost always *change addresses*. When you spend, the leftover comes back to a fresh address your wallet owns but you never see — so any single address on an explorer shows only part of the story. Your wallet's total is the sum across all its addresses, which Phoenix tracks for you; trust the wallet's balance, not one address on an explorer. To see the full picture yourself, open **Balance details** from the coin-stack icon on the dashboard's Total Balance card — it lists every address holding coins and shows that your balance is simply their sum. See Chapters 8 and 9.
+
+**Can I export my transaction history?**
+Yes. The **Export CSV** button on the Transactions screen saves the currently filtered history to a spreadsheet-friendly file, with full-precision amounts and UTC timestamps. See Chapter 9.
 
 **Why does restore find addresses I didn't expect?**
 A recovery phrase can hold funds on several *derivation branches* — different address types and coin types. Phoenix restore scans them all and imports every branch that holds coins, then shows a short branch report of what it found, so nothing stays hidden. You do not choose or configure anything. See Chapter 5.
 
 **What is the BTCX coin type, and do I need to do anything about it?**
-Bitcoin-PoCX has its own registered coin type (SLIP-44 `1347371864`); new wallets use it automatically, and restore still finds funds derived under the older Bitcoin coin type. It is invisible in normal use — there is nothing for you to set. See Chapter 5.
+Bitcoin-PoCX has its own registered coin type (SLIP-44 `1347371864`); new mainnet wallets use it automatically (testnet/regtest use the standard test coin type `1'`), and restore still finds funds derived under the older Bitcoin coin type. It is invisible in normal use — there is nothing to set. The one thing you *might* see: a mainnet wallet made before this change shows a **v30** badge and can be upgraded to **v31** (next question). See Chapter 5.
+
+**My wallet shows a "v30" badge — what does that mean, and should I upgrade?**
+It means the wallet still derives its addresses at the old Bitcoin coin type rather than the registered BTCX one. It works fine as-is, so there is no rush, but upgrading to **v31** puts it on the standard path so it lines up with other tools. Click the upgrade button next to the wallet: Core-backed wallets ask you to re-enter the recovery phrase and then rescan; nodeless and Android wallets upgrade in place. No coins move, and your original wallet is kept. See Chapter 5.
 
 **Can I import a wallet from a descriptor or a single private key?**
 In the nodeless (remote) wallet and on Android, yes — paste one or two output *descriptors*, or wrap a single WIF key as `wpkh(WIF)` to import it as a one-address wallet (handy for a vanity or plotting address). See Chapters 23 and 26.

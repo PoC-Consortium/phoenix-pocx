@@ -122,7 +122,7 @@ Pick the right length first. A toggle at the top switches between **12 words** a
 
 Type each word in its corresponding numbered slot. As you type:
 
-- An **autocomplete dropdown** suggests matching BIP39 words. You can click a suggestion to fill the field.
+- An **autocomplete dropdown** suggests matching BIP39 words. You can click a suggestion to fill the field, or press **Enter** to accept the highlighted suggestion and jump straight to the next word — so a whole phrase can be entered from the keyboard alone, without reaching for the mouse.
 - After you leave a field, Phoenix marks it with a small red **error icon** if the word you entered is not a valid BIP39 word — usually a typo.
 - Once every slot is filled, Phoenix runs a **checksum check**: the last word of a BIP39 phrase encodes a fingerprint of the others. A *checksum invalid* warning means at least one word is wrong somewhere in the phrase, even if every individual word is in the dictionary. Re-check carefully against your written copy.
 
@@ -142,7 +142,7 @@ Click **Import wallet**. Phoenix imports the keys and starts the rescan. The das
 
 You do not have to know how your phrase was originally set up. A recovery phrase can hold funds on several *derivation branches* — different address types (SegWit, taproot, legacy) and different *coin types* (see below) — and Phoenix restore imports **all** of them, so no funds stay hidden on a branch you did not know about. When the import finishes, Phoenix shows a short **branch report** — *"Funds found on: …"* — naming which branches held coins (for example *legacy desktop* and *mobile*). You do not need to choose or configure anything; the scan is automatic.
 
-> **Note — the BTCX coin type.** Bitcoin-PoCX has its own registered *coin type* (SLIP-44 `1347371864`), and **new** wallets use it automatically. Older wallets — and wallets from some other tools — were derived under Bitcoin's original coin type `0'`. This is invisible in day-to-day use: you never enter or see a coin type, new wallets simply use the BTCX one, and **restore finds funds under either**. There is nothing for you to do; the distinction is noted only so the *legacy desktop* / *mobile* labels in the branch report make sense.
+> **Note — the BTCX coin type.** Bitcoin-PoCX has its own registered *coin type* (SLIP-44 `1347371864`), and **new mainnet** wallets use it automatically — a wallet on this coin type is a **"v31" wallet**. (On **testnet** and **regtest**, wallets use the standard test coin type `1'` instead, matching Bitcoin Core; the whole v30/v31 story below is a mainnet-only concern.) Older wallets — created before this change, or made by some other tools — were derived under Bitcoin's original coin type `0'`; those are **"v30" wallets**. This is invisible in day-to-day use: you never enter or see a coin type, and **restore finds funds under either**. For most people there is nothing to do. The one exception: a mainnet wallet still on the old coin type shows a small **v30** badge on the Wallets screen and can be brought onto the new standard — see *Upgrading an older (v30) wallet* below.
 
 ## Setting up a watch-only wallet
 
@@ -281,6 +281,21 @@ The **Load** / **Unload** button on each row toggles whether Bitcoin-PoCX Core i
 Click any row to select it, then click **Open Wallet** at the bottom-right to set it as the active wallet for the rest of Phoenix. If you click an unloaded row first, opening it will load it automatically.
 
 > **Tip** — Encrypted wallets stay locked until you explicitly unlock them for the session (click the lock icon in the row, type the password). Unlocking lets you sign transactions for the duration of the session without re-entering the password each time. The session can be ended manually by clicking the open-lock icon to lock again.
+
+## Upgrading an older (v30) wallet to v31
+
+If one of your **mainnet** wallets was created before Phoenix adopted the registered BTCX coin type, it is a **v30** wallet (see *the BTCX coin type* note earlier in this chapter). It works perfectly well as it is — this is not urgent — but upgrading it to **v31** brings its addresses onto the standard BTCX derivation path, so they line up with other v31 tools and future installs. No coins move on-chain; it is purely a change of which addresses your wallet derives.
+
+You will know a wallet is a v30 wallet because the Wallets screen (and the toolbar wallet selector) show a small amber **v30** badge after its name, alongside an **upgrade** button whose tooltip reads *"To stay compatible with v31 wallets, this wallet needs to upgrade."* The upgrade is always something *you* start — Phoenix never runs it automatically.
+
+> **Note** — The badge appears only for ordinary single-seed mainnet wallets. Multisig, watch-only, and single-key (WIF/descriptor) imports are left alone, and nothing is flagged on testnet or regtest.
+
+How the upgrade runs depends on the kind of wallet:
+
+- **Core-backed wallets (managed / external node)** open an **Upgrade this wallet** dialog. It asks you to *re-enter this wallet's recovery phrase* to confirm the wallet is yours — *"your coins stay exactly where they are, and nothing is sent anywhere."* An amber note warns that the upgrade re-imports the wallet and runs a **blockchain rescan** that can take several minutes. Type the phrase (and your BIP39 passphrase, if the wallet has one); the **Upgrade** button enables once the phrase is valid. A phrase that does not match the wallet is rejected inline — *"That recovery phrase doesn't match this wallet."* On success Phoenix re-imports the v31 branches, rescans from the wallet's creation date, and shows *"Wallet upgraded."*
+- **Nodeless (remote / Electrum) and Android wallets** already hold the seed locally, so there is nothing to re-type: choosing **Upgrade to v31** (a wallet-row menu item on mobile) performs the change in place. Phoenix creates a new **v31** wallet from the same seed and switches you to it; a one-time notice explains that your older coins remain in the original wallet (still marked **v30**) and that the new wallet is now the active one. If the wallet's seed is protected by a BIP39 passphrase, Phoenix asks you to **unlock the wallet first, then upgrade**.
+
+After upgrading, the original v30 wallet is **not deleted** — it keeps its name and its v30 badge, so any funds it received in the past stay visible and spendable. If you ever suspect a v31 wallet is missing older funds, the **Check for older (v30) funds** action in Settings (Chapter 12) re-scans the legacy branch and restores anything it finds.
 
 ## What's next
 

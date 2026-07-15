@@ -71,6 +71,8 @@ The lower section is the plotter's Start/Stop control and progress display — t
 - With **only one data point**, it shows the single value and a *"collecting data"* note.
 - With **no deadline data yet**, it shows *"no deadline data."*
 
+The line is a **live trailing-window** average: each new block your miner scans appends a point, and the estimate is taken over a rolling window of your recent deadlines (roughly the last day's worth on a single chain). That keeps the curve smooth and current rather than jumping on every render. The history is kept in memory for the session, so it **starts fresh after you restart Phoenix** — expect the sparkline to rebuild over the following blocks.
+
 Effective capacity will not exactly equal your physical plot size — it is a statistical estimate that converges over time. Watching it is the best way to confirm your *whole* farm is participating: if effective capacity sits well below your physical capacity over a long period, something is keeping part of your plots out of the game (an I/O bottleneck, a scaling-level mismatch halving older plots, or drives that are not being read in time — see *Reading whether it is working*).
 
 > **Note** — Recall the cross-generation compatibility cost from Chapter 15: plots one PoW scaling level behind the network contribute at *half* their size, two levels behind at a quarter, and so on. A persistent gap between physical and effective capacity, right after a network scaling step, often means your plots need upgrading (re-plotting at the new level).

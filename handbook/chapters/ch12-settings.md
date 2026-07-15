@@ -115,6 +115,8 @@ In remote mode there is no node to configure — instead this panel manages the 
 
 For mainnet a default Bitcoin-PoCX server is present out of the box; testnet and regtest start empty. Put a server you run first if you have one, and keep a public server below it as a failover.
 
+**Wallets.** Below the server list, remote mode shows the local wallets it holds. Alongside the usual switch/rename/delete controls, a wallet still on the legacy coin type carries the **v30** badge and its **Upgrade to v31** action (Chapter 5). A **Check for older (v30) funds** button re-scans the active wallet's legacy (v30) derivation branch and restores any funds it finds there — reporting either *"Found and restored older funds"* or *"No older funds found."* Use it if a freshly upgraded wallet looks like it is missing history that used to be there.
+
 ## Tab 2 — Notifications
 
 Phoenix can deliver native operating-system notifications for events of interest. This tab toggles which ones.

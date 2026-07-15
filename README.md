@@ -7,15 +7,19 @@ A modern Bitcoin-PoCX desktop wallet built with Angular 21 and Tauri.
 ## Features
 
 - Create and import HD wallets (BIP39/BIP84)
-- Send and receive Bitcoin-PoCX
-- Transaction history with confirmations
+- Registered BTCX coin type (network-aware) with in-app v30→v31 wallet upgrade
+- Send and receive Bitcoin-PoCX, with BIP21-style payment URIs and QR codes
+- Transaction history with confirmations and CSV export
+- **Balance details**: per-address coin (UTXO) breakdown
+- Fee tools: RBF fee bumping and CPFP "speed up" for stuck incoming payments
 - Forging assignment management (PoCX-specific)
 - **Managed Node**: Automatic download, install, and lifecycle management of Bitcoin-PoCX Core
+- **Remote (Electrum) Mode**: Nodeless local wallet synced over Electrum servers — no blockchain download
 - **Integrated Mining**: Multi-chain PoCX mining with real-time dashboard
 - **Plot File Generation**: CPU and GPU (OpenCL) plotting support
-- Multi-language support (24 languages)
+- Multi-language support (26 languages)
 - Lightweight app for Windows, macOS, Linux, and Android
-- **Android Support**: Background mining with foreground service and wake lock
+- **Android Support**: Full wallet plus background mining with foreground service and wake lock
 
 ## Requirements
 
@@ -112,6 +116,10 @@ rpcpassword=your_password
 ```
 
 Cookie-based authentication is recommended and automatically detected.
+
+### Remote Mode (Nodeless)
+
+Run without any local Bitcoin-PoCX Core. Phoenix keeps a local BDK wallet on your machine and syncs over user-configured Electrum servers (primary plus failovers) — no blockchain to download. Solo mining, the block explorer, and the peers page are unavailable in this mode; pool mining and forging assignments work. This is the mode the Android build uses.
 
 ## Development
 

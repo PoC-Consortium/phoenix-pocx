@@ -22,7 +22,7 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **CMR (Conventional Magnetic Recording).** Hard-drive recording technology with non-overlapping tracks and consistent write performance. The recommended technology for plot storage. *(Chapter 14)*
 
-**Coin type.** A number in the derivation path that separates one chain's addresses from another's. Bitcoin-PoCX has its own registered value (SLIP-44 `1347371864`); new wallets use it, while restore still finds funds under the older Bitcoin coin type `0'`. Invisible in normal use. *(Chapter 5)*
+**Coin type.** A number in the derivation path that separates one chain's addresses from another's. On mainnet, Bitcoin-PoCX uses its own registered value (SLIP-44 `1347371864`) — a **v31** wallet; testnet and regtest use the standard test coin type `1'`. New mainnet wallets use the BTCX value, while restore still finds funds under the older Bitcoin coin type `0'` (a **v30** wallet). Invisible in normal use. *(Chapter 5)*
 
 **Coinbase.** The special transaction in each block that pays the block reward. Coinbase rewards must mature before they can be spent. *(Chapters 9, 13)*
 
@@ -31,6 +31,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 **Co-signer.** A participant in a multisig wallet who holds one of its keys. Spending requires signatures from a threshold of co-signers. *(Chapters 5, 8)*
 
 **Cookie authentication.** An RPC authentication method where Bitcoin-PoCX Core writes a rotating `.cookie` file that clients read. Preferred for local or trusted nodes. *(Chapters 12, 25)*
+
+**CPFP (Child-Pays-For-Parent).** A way to speed up a *stuck incoming* transaction by spending it in a new high-fee child transaction, so miners must confirm the parent to collect the child's fee. Phoenix exposes it as **Speed up (CPFP)** on unconfirmed receive transactions (local-node wallets only). The receive-side counterpart to RBF. *(Chapter 9)*
 
 **Deadline.** The number of seconds a plot would have to wait before being eligible to forge a given block. The smallest deadline on the network wins. Smaller is better. *(Chapter 13)*
 
@@ -88,6 +90,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Orphan (file).** A partially written plot (`.tmp`) that cannot be resumed under the current configuration — because the plotting address or scaling level has changed since it was started. Must be resolved before plotting can continue. *(Chapter 18)*
 
+**Payment URI.** A single clickable link that packages a receive address together with an optional amount and label, so a sender's wallet can fill in the payment in one step. Bitcoin-PoCX uses the `btcx:` scheme; the Send screen also reads the `bitcoin:` links the Core Qt wallet emits. *(Chapters 7, 8)*
+
 **Plot / plotting.** A plot is a large file of precomputed data (`.pocx`) used for mining; plotting is the one-time process of generating it. *(Chapters 13, 16)*
 
 **Plot address / plotting address.** The address embedded in a plot file when it is generated, identifying who owns the plot and (by default) who receives its rewards. *(Chapters 7, 15)*
@@ -137,6 +141,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 **Time Bending.** A protocol transformation that reshapes the distribution of deadlines to make block intervals more regular without changing the average. *(Chapter 13)*
 
 **UTXO (Unspent Transaction Output).** A discrete piece of received, not-yet-spent BTCX. Wallets spend UTXOs and create new ones, including change back to themselves. *(Chapters 8, 9)*
+
+**v30 / v31 wallet.** An informal label for which *coin type* a mainnet wallet derives at. A **v30** wallet uses Bitcoin's original coin type `0'` (older wallets); a **v31** wallet uses the registered BTCX coin type. Phoenix flags a v30 wallet with a badge and offers a one-time upgrade to v31. Applies to mainnet only. *(Chapter 5)*
 
 **vByte (virtual byte).** The unit transaction fees are quoted in (`sat/vB`), accounting for the discount given to signature data. *(Chapter 8)*
 

@@ -10,10 +10,11 @@ From the sidebar, click **Transactions** under the *Transactions* group. The pag
 
 ### Header
 
-The header carries three controls:
+The header carries four controls:
 
 - A **back arrow** that returns to the previous screen.
 - A **Load limit** drop-down that controls how many recent transactions Phoenix asks Bitcoin-PoCX Core to return. A higher limit means a longer wait at first but a more complete history; a lower limit is fast but may not reach back to older payments. Switch this if you need to look further back than the default window.
+- An **Export CSV** button (download icon) that saves your history to a spreadsheet-friendly file. See *Exporting your history to CSV* below.
 - A **Refresh** button (circular arrow) that re-fetches transactions immediately. Phoenix also refreshes automatically when balances change.
 
 ## Filtering the list
@@ -87,6 +88,7 @@ Clicking the three-dot menu on any row opens a contextual list of things you can
 - **Send to address** — pre-fills the Send screen with this address as the recipient.
 - **Add to contacts** — saves the address to your contacts (Chapter 10), prompting for a name.
 - **Bump fee** — appears only when the transaction is unconfirmed, marked replaceable (RBF), and is a *send*. Opens the bump-fee dialog described later in this chapter.
+- **Speed up (CPFP)** — appears only when the transaction is an unconfirmed *receive* (an incoming payment still in the mempool), on a wallet backed by a local node. Opens the CPFP dialog described later in this chapter. It is the receive-side counterpart to *Bump fee*, and is not offered in remote (Electrum) mode.
 
 > **Tip** — *Send to address* is the fastest path to "send to the same person again" — it skips the address re-entry and clipboard-hijacking risk entirely.
 
@@ -170,6 +172,41 @@ When you click **Confirm**, Phoenix calls Bitcoin-PoCX Core's `bumpfee` RPC. Cor
 
 If even the bumped transaction will not confirm — fees may have spiked further while you were watching — you can bump again with a higher rate, or wait for mempool conditions to settle. Chapter 27 covers the deeper troubleshooting cases.
 
+## Speeding up an incoming transaction (CPFP)
+
+**Bump fee** rescues a transaction *you* sent. But what about a payment sent *to you* that is stuck unconfirmed because the sender attached too low a fee? You cannot replace their transaction — only they can. What you *can* do is **spend the incoming payment with a high-fee child transaction**, which forces miners to confirm the parent in order to collect the child's fee. This technique is called **Child-Pays-For-Parent (CPFP)**, and Phoenix exposes it as **Speed up (CPFP)**.
+
+### When the action is available
+
+Phoenix shows **Speed up (CPFP)** only when *all* of these are true:
+
+- The transaction is a **receive** (an incoming payment), not a send.
+- It has **zero confirmations** (it is still in the mempool).
+- The wallet is backed by a **local node** (managed or external). CPFP is not available in remote/Electrum mode.
+
+For a send you want to accelerate, use **Bump fee** (above) instead.
+
+### Inside the dialog
+
+Choosing **Speed up (CPFP)** from the row menu opens the **Speed up incoming transaction** dialog: *"Spend this unconfirmed incoming payment with a high-fee child transaction to pull it into a block faster."* It shows the parent transaction's ID and amount, then a **Target package fee rate** selector — the same **Slow / Normal / Fast / Custom** priority grid you know from the Send screen, each with its `sat/vB` rate and a rough time estimate (*Normal* is selected by default).
+
+![The Speed up (CPFP) dialog: a package fee-rate selector and a summary showing how the child's fee lifts the whole package to your chosen rate.](images/processed/ch09-cpfp.png){width=60%}
+
+The key idea is that you are choosing an **effective rate for the whole package** (parent + child together), not just for the child. A summary block spells this out:
+
+| Figure                     | What it is                                                                   |
+|----------------------------|------------------------------------------------------------------------------|
+| **Parent fee**             | The fee the incoming transaction already carries (too low, hence the stall). |
+| **Child fee**              | The extra fee your new child transaction will pay.                           |
+| **Effective package rate** | Parent + child fees divided by their combined size — what miners actually see. |
+| **Total**                  | The BTCX your child transaction spends in fees.                              |
+
+Phoenix sizes the child's fee so the *combined* package reaches your chosen target rate — deliberately avoiding the roughly-double overpay that a naïve "just set a high child fee" would cause.
+
+If the incoming output is too small to cover the child fee the selected rate requires, the dialog shows *"This output is too small to speed up at the selected rate."* and disables confirmation — pick a lower rate or wait for the parent to confirm on its own.
+
+When you click **Speed up (CPFP)**, Phoenix builds, signs, and broadcasts the child transaction and shows a success message with its txid. From here both the parent and the child are in the mempool as a package; once mined, your incoming payment confirms along with the child.
+
 ## Abandoning a stuck transaction
 
 Sometimes a transaction is stuck in a way that **Bump fee** cannot rescue. The classic case: you sent without RBF enabled, the fee was too low, and the transaction was eventually dropped from every node's mempool. The transaction never confirmed — but Bitcoin-PoCX Core still considers its inputs *spent*, so the funds appear locked to a transaction that will never complete.
@@ -185,6 +222,39 @@ To abandon a transaction:
 > **Warning** — Only abandon a transaction you are confident will never confirm. If you abandon a transaction and then it does eventually confirm (because some node still had it in its mempool), and you have already re-spent the inputs, the network will reject one of the two — but until then your wallet's accounting may be temporarily inconsistent. As a rule, only abandon transactions that have been stuck for at least 24–48 hours and are not visible on a block explorer.
 
 > **Note** — *Abandon* is only available for transactions whose inputs are not already conflicted with a confirmed transaction. Bitcoin-PoCX Core enforces this at the RPC layer; Phoenix surfaces the action only when Core says it is safe.
+
+## Exporting your history to CSV
+
+The **Export CSV** button in the header saves your transaction history to a comma-separated file you can open in any spreadsheet — for accounting, tax records, or your own analysis.
+
+The export respects the **filters currently in effect**: whatever the type filter, search box, and date range have narrowed the list to is exactly what lands in the file (not just the page you can see). Set the filters first, then export, to get precisely the slice you want.
+
+Each row carries eight columns: **Date** (an ISO-8601 UTC timestamp), **Type**, **Amount**, **Fee**, **Confirmations**, **Transaction ID**, **Address**, and **Label**. Amounts and fees are written with full eight-decimal precision and a plain dot decimal separator, so they parse identically regardless of your system's locale.
+
+On the desktop app, Phoenix opens a native **Save** dialog (the file is named `transactions.csv` by default) so you can choose where it goes; in a plain browser it downloads straight to your downloads folder.
+
+## Balance details: your coins by address
+
+Your balance is not stored in one place. A Bitcoin-PoCX wallet spreads its funds across many addresses — a fresh one for most received payments, and *change* addresses your wallet creates whenever you spend (Chapter 8). This is normal and good for privacy, but it can be surprising the first time you notice it on a block explorer. The **Balance details** screen is where Phoenix lays it all out.
+
+Open it from the **Dashboard**: the **Total Balance** card carries a small **coin-stack icon** (tooltip *"Balance details"*) that takes you to the `/coins` screen. It opens with a reassuring line — *"Your wallet spreads funds across many addresses for privacy — this is normal. Nothing is lost; your balance is simply the sum of the coins below."*
+
+![Balance details lists each address with its coin count and balance; the amber key icon marks an address whose public key is already on-chain.](images/processed/ch09-balance-details.png){width=85%}
+
+The table lists every address that holds coins, showing:
+
+| Column           | What you see                                                                          |
+|------------------|---------------------------------------------------------------------------------------|
+| **Address**      | The address, with a copy button. Receiving addresses are listed first, then change.    |
+| *(flag)*         | A small amber **key icon** on any address whose public key is already exposed on-chain (see below). Most addresses show nothing here. |
+| **Coins**        | How many separate coins (UTXOs) that address holds.                                    |
+| **Balance (BTCX)** | The total held at that address, highest first.                                        |
+
+The **key icon** appears on an address you have **spent from before** — the act of spending publishes that address's public key on the chain. Its tooltip explains there is nothing to worry about: *"You have spent from this address before, so its public key is now visible on-chain. This is normal and your coins are safe — using a fresh address each time just keeps the strongest privacy and protection."* It is a gentle nudge toward the one-address-per-payment habit (Chapter 7), not a warning that anything is wrong.
+
+If the wallet has never received anything, the screen shows an empty state: *"No coins yet. Received funds will appear here, grouped by address."*
+
+> **Note** — Balance details is a read-only view for understanding *where* your funds sit. To choose specific coins when spending, use the **Transaction Builder**'s manual coin control (Chapter 8).
 
 ## What's next
 
