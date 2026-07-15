@@ -218,17 +218,17 @@ const SANE_PRESET_MAX_SAT_VB = 200;
             @if (addressValid()) {
               <mat-icon matSuffix class="suffix-valid">check_circle</mat-icon>
             }
-            <!-- Always shown (desktop-parity), disabled when the book is empty. -->
-            <button
-              mat-icon-button
-              matSuffix
-              type="button"
-              [matMenuTriggerFor]="contactsMenu"
-              [disabled]="contacts().length === 0"
-              [matTooltip]="'select_contact' | i18n"
-            >
-              <mat-icon>contacts</mat-icon>
-            </button>
+            @if (contacts().length > 0) {
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                [matMenuTriggerFor]="contactsMenu"
+                [matTooltip]="'select_contact' | i18n"
+              >
+                <mat-icon>contacts</mat-icon>
+              </button>
+            }
           </mat-form-field>
           <mat-menu #contactsMenu="matMenu">
             @for (contact of contacts(); track contact.id) {
