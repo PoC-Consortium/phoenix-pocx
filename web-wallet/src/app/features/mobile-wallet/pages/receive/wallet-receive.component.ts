@@ -6,6 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { QRCodeComponent } from 'angularx-qrcode';
 import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService } from '../../../../shared/services';
+import { buildPaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
@@ -32,7 +33,7 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         @if (address()) {
           <div class="qr-container">
             <qrcode
-              [qrdata]="address()"
+              [qrdata]="paymentUri()"
               [width]="200"
               [errorCorrectionLevel]="'M'"
               [margin]="1"
@@ -45,6 +46,15 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
             <span class="info-label">{{ 'address' | i18n }}</span>
             <div class="info-value-row" (click)="copyAddress()" [matTooltip]="'copy' | i18n">
               <span class="address-value">{{ address() }}</span>
+              <mat-icon class="copy-icon">content_copy</mat-icon>
+            </div>
+          </div>
+
+          <!-- BIP21 payment URI (desktop-parity) — what the QR encodes. -->
+          <div class="info-row">
+            <span class="info-label">{{ 'payment_uri' | i18n }}</span>
+            <div class="info-value-row" (click)="copyPaymentUri()" [matTooltip]="'copy' | i18n">
+              <span class="uri-value">{{ paymentUri() }}</span>
               <mat-icon class="copy-icon">content_copy</mat-icon>
             </div>
           </div>
@@ -151,6 +161,15 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         flex: 1;
       }
 
+      .uri-value {
+        font-family: monospace;
+        font-size: 12px;
+        color: #1976d2;
+        word-break: break-all;
+        text-align: left;
+        flex: 1;
+      }
+
       .loading-inline {
         display: flex;
         justify-content: center;
@@ -186,6 +205,10 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
           color: #90caf9;
         }
 
+        .uri-value {
+          color: #90caf9;
+        }
+
         .single-hint {
           color: rgba(255, 255, 255, 0.6);
         }
@@ -199,6 +222,11 @@ export class WalletReceiveComponent implements OnInit {
 
   readonly address = signal('');
   readonly loading = signal(false);
+
+  /** Canonical BIP21 URI for the shown address (what the QR encodes). */
+  paymentUri(): string {
+    return buildPaymentUri({ address: this.address() });
+  }
 
   ngOnInit(): void {
     void this.load();
@@ -238,5 +266,10 @@ export class WalletReceiveComponent implements OnInit {
   async copyAddress(): Promise<void> {
     const address = this.address();
     if (address) await this.clipboard.copyAddress(address);
+  }
+
+  async copyPaymentUri(): Promise<void> {
+    const uri = this.paymentUri();
+    if (uri) await this.clipboard.copy(uri, 'payment_uri_copied');
   }
 }
