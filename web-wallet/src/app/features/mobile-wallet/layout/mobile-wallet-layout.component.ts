@@ -1,12 +1,13 @@
-import { Component, computed, inject, signal, OnInit } from '@angular/core';
+import { Component, computed, inject, signal, viewChild, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatListModule } from '@angular/material/list';
-import { MatMenuModule } from '@angular/material/menu';
+import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -21,8 +22,24 @@ import {
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
 import { BtcxPipe, TimeAgoPipe } from '../../../shared/pipes';
 import { NotificationService } from '../../../shared/services';
+import {
+  NameDialogComponent,
+  NameDialogData,
+  TypedConfirmDialogComponent,
+  TypedConfirmDialogData,
+} from '../../../shared/components';
+import { isInvalidWalletName, isWalletNameTaken } from '../wallet-name';
 import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile-nav.component';
 import { ElectrumServerListComponent } from '../../../shared/components/electrum-server-list/electrum-server-list.component';
+
+/** Width of ONE swipe-revealed action button in the wallet menu, px. */
+const ACTION_PX = 56;
+/** Width of the full reveal (pencil + trash), px. */
+const REVEAL_PX = 2 * ACTION_PX;
+/** Horizontal drag beyond this arms the reveal on release, px. */
+const REVEAL_THRESHOLD_PX = 48;
+/** Movement below this stays a tap (no drag, no click suppression), px. */
+const DRAG_SLOP_PX = 8;
 
 /** One drawer navigation entry (the desktop main-layout's NavItem, slim). */
 interface NavItem {
@@ -70,6 +87,7 @@ interface NavGroup {
     RouterModule,
     MatToolbarModule,
     MatButtonModule,
+    MatDialogModule,
     MatIconModule,
     MatDividerModule,
     MatListModule,
@@ -249,53 +267,97 @@ interface NavGroup {
             <div class="toolbar-right">
               @if (wallet.hasSeed()) {
                 <!-- Wallet switcher chip (desktop toolbar's wallet selector) -->
+                <!-- Icon-only chip: the toolbar is too narrow for names —
+                     the drawer header carries the full wallet · pocket
+                     label. -->
                 <button
                   mat-button
-                  class="action-button wallet-chip"
+                  class="action-button wallet-chip icon-chip"
+                  #walletMenuTrigger="matMenuTrigger"
                   [matMenuTriggerFor]="walletMenu"
+                  [matTooltip]="activeGroupName()"
                   (menuOpened)="onWalletMenuOpened()"
                 >
                   <div class="wallet-chip-content">
                     <mat-icon class="wallet-icon">account_balance_wallet</mat-icon>
-                    <span class="wallet-chip-name">{{ activeGroupName() }}</span>
-                    <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
                   </div>
                 </button>
 
                 <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
-                  <!-- GROUP rows only — pockets live in the pocket chip. -->
+                  <!-- GROUP rows only — pockets live in the pocket chip.
+                       Rows are swipe-able (right-swipe reveals rename +
+                       delete, the settings card's old gesture), so they
+                       are custom rows, not mat-menu-items: tapping one
+                       switches and closes the menu programmatically. -->
                   @for (g of wallet.groups(); track g.group) {
-                    <button
-                      mat-menu-item
-                      class="wallet-row"
-                      [disabled]="switching() !== null"
-                      (click)="switchToGroup(g)"
-                    >
-                      <div class="wallet-row-content">
-                        <mat-icon class="wallet-row-icon" [class.active]="g.isActive"
-                          >account_balance_wallet</mat-icon
-                        >
-                        <span class="wallet-row-name">{{ g.group }}</span>
-                        @if (singletonOf(g)?.policy?.kind === 'legacy') {
-                          <span class="wallet-row-badge legacy">{{
-                            'mwallet_legacy_badge' | i18n
-                          }}</span>
+                    <div class="wallet-row-wrap">
+                      <button
+                        type="button"
+                        class="row-action row-rename"
+                        [class.visible]="revealed() === g.group"
+                        [tabindex]="revealed() === g.group ? 0 : -1"
+                        [attr.aria-hidden]="revealed() !== g.group"
+                        [attr.aria-label]="'mwallet_rename_wallet' | i18n"
+                        [disabled]="switching() !== null || deleting() !== null"
+                        (click)="confirmRenameGroup(g)"
+                      >
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="row-action row-delete"
+                        [class.visible]="revealed() === g.group"
+                        [tabindex]="revealed() === g.group ? 0 : -1"
+                        [attr.aria-hidden]="revealed() !== g.group"
+                        [attr.aria-label]="'mwallet_delete_wallet' | i18n"
+                        [disabled]="switching() !== null || deleting() !== null"
+                        (click)="confirmDeleteGroup(g)"
+                      >
+                        @if (deleting() === g.group) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        } @else {
+                          <mat-icon>delete</mat-icon>
                         }
-                        @if (singletonOf(g)?.singleAddress) {
-                          <span class="wallet-row-badge single">{{
-                            'mwallet_single_badge' | i18n
-                          }}</span>
-                        }
-                        @if (groupLocked(g)) {
-                          <mat-icon class="wallet-row-lock">lock</mat-icon>
-                        }
-                        @if (switchingGroup() === g.group) {
-                          <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
-                        } @else if (g.isActive) {
-                          <mat-icon class="wallet-row-check">check</mat-icon>
-                        }
+                      </button>
+
+                      <div
+                        class="wallet-row swipe-row"
+                        [class.active]="g.isActive"
+                        [class.disabled]="switching() !== null || deleting() !== null"
+                        [class.dragging]="isDragging(g.group)"
+                        [style.transform]="rowTransform(g.group)"
+                        (pointerdown)="onRowPointerDown($event, g.group)"
+                        (pointermove)="onRowPointerMove($event)"
+                        (pointerup)="onRowPointerUp($event)"
+                        (pointercancel)="onRowPointerCancel($event)"
+                        (click)="onGroupRowClick(g)"
+                      >
+                        <div class="wallet-row-content">
+                          <mat-icon class="wallet-row-icon" [class.active]="g.isActive"
+                            >account_balance_wallet</mat-icon
+                          >
+                          <span class="wallet-row-name">{{ g.group }}</span>
+                          @if (singletonOf(g)?.policy?.kind === 'legacy') {
+                            <span class="wallet-row-badge legacy">{{
+                              'mwallet_legacy_badge' | i18n
+                            }}</span>
+                          }
+                          @if (singletonOf(g)?.singleAddress) {
+                            <span class="wallet-row-badge single">{{
+                              'mwallet_single_badge' | i18n
+                            }}</span>
+                          }
+                          @if (groupLocked(g)) {
+                            <mat-icon class="wallet-row-lock">lock</mat-icon>
+                          }
+                          @if (switchingGroup() === g.group) {
+                            <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
+                          } @else if (g.isActive) {
+                            <mat-icon class="wallet-row-check">check</mat-icon>
+                          }
+                        </div>
                       </div>
-                    </button>
+                    </div>
                   }
                   <mat-divider></mat-divider>
                   <button mat-menu-item routerLink="/wallet/create">
@@ -312,13 +374,15 @@ interface NavGroup {
                   </button>
                 </mat-menu>
 
-                <!-- Pocket chip: the active wallet's compartments, greyed
-                     out while nothing is open or there is only one. -->
+                <!-- Pocket chip (icon-only): the active wallet's
+                     compartments, greyed out while nothing is open or
+                     there is only one. -->
                 <button
                   mat-button
-                  class="action-button wallet-chip pocket-chip"
+                  class="action-button wallet-chip pocket-chip icon-chip"
                   [matMenuTriggerFor]="pocketMenu"
                   [disabled]="activePockets().length < 2 || switching() !== null"
+                  [matTooltip]="activePocketShort() || ('wallet_pocket' | i18n)"
                   (menuOpened)="onPocketMenuOpened()"
                 >
                   <div class="wallet-chip-content">
@@ -327,10 +391,6 @@ interface NavGroup {
                     } @else {
                       <mat-icon class="wallet-icon">layers</mat-icon>
                     }
-                    <span class="wallet-chip-name">{{
-                      activePocketShort() || ('wallet_pocket' | i18n)
-                    }}</span>
-                    <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
                   </div>
                 </button>
 
@@ -756,16 +816,94 @@ interface NavGroup {
         }
       }
 
-      /* Pocket chip: quieter sibling of the wallet chip. */
-      .pocket-chip {
-        .wallet-chip-name {
-          font-size: 13px;
-          font-weight: 400;
-          max-width: 84px;
-        }
+      /* Icon-only chips: the toolbar is too narrow for names — tooltips
+         and the drawer header carry the labels. */
+      .icon-chip {
+        min-width: 40px;
+        padding: 0 4px;
 
         &:disabled .wallet-chip-content {
           opacity: 0.45;
+        }
+      }
+
+      /* Swipe rows inside the wallet menu: each group row slides over the
+         pencil (tandem rename) + trash (tandem delete) actions — the old
+         settings card's gesture. */
+      .wallet-row-wrap {
+        position: relative;
+        overflow: hidden;
+        min-width: 220px;
+      }
+
+      .row-action {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 56px; /* ACTION_PX */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        color: white;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+
+        &.visible {
+          opacity: 1;
+        }
+
+        mat-icon {
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+        }
+
+        mat-spinner {
+          --mdc-circular-progress-active-indicator-color: white;
+        }
+      }
+
+      .row-rename {
+        left: 0;
+        background: #1976d2;
+      }
+
+      .row-delete {
+        left: 56px; /* ACTION_PX */
+        background: #c62828;
+      }
+
+      .swipe-row {
+        position: relative;
+        padding: 10px 16px;
+        background: white;
+        cursor: pointer;
+        touch-action: pan-y;
+        user-select: none;
+        -webkit-user-select: none;
+        transition: transform 0.15s ease;
+
+        &.dragging {
+          transition: none;
+        }
+
+        &.active {
+          background: #ecf4fb;
+        }
+
+        &.disabled {
+          pointer-events: none;
+          opacity: 0.6;
+        }
+      }
+
+      :host-context(.dark-theme) .swipe-row {
+        background: #424242;
+
+        &.active {
+          background: #465058;
         }
       }
 
@@ -1043,6 +1181,7 @@ export class MobileWalletLayoutComponent implements OnInit {
   readonly electrumStatus = inject(ElectrumStatusService);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
 
   languages: Language[] = LANGUAGES;
 
@@ -1187,6 +1326,204 @@ export class MobileWalletLayoutComponent implements OnInit {
     if (g.isActive) return;
     const pocket = g.compartments.find(c => c.isActive) ?? g.compartments[0];
     await this.switchTo(pocket);
+  }
+
+  // ==========================================================================
+  // Wallet-menu row swipe (right-swipe reveals rename + delete — the old
+  // settings card's gesture, now living in the selector) + the tandem
+  // group rename/delete dialogs.
+  // ==========================================================================
+
+  private readonly walletMenuTrigger = viewChild<MatMenuTrigger>('walletMenuTrigger');
+
+  /** Name of the group a delete is in flight for, or null. */
+  readonly deleting = signal<string | null>(null);
+
+  /** Name of the row whose actions are revealed, or null. */
+  readonly revealed = signal<string | null>(null);
+
+  private dragName: string | null = null;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private dragActive = false;
+  private readonly dragX = signal(0);
+  private suppressClick = false;
+
+  isDragging(name: string): boolean {
+    return this.dragActive && this.dragName === name;
+  }
+
+  /** translateX of a row: live drag position, the parked reveal, or none. */
+  rowTransform(name: string): string | null {
+    if (this.isDragging(name)) return `translateX(${this.dragX()}px)`;
+    if (this.revealed() === name) return `translateX(${REVEAL_PX}px)`;
+    return null;
+  }
+
+  onRowPointerDown(event: PointerEvent, name: string): void {
+    if (this.switching() !== null || this.deleting() !== null) return;
+    this.dragName = name;
+    this.dragStartX = event.clientX;
+    this.dragStartY = event.clientY;
+    this.dragActive = false;
+    try {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    } catch {
+      // A pointer gone by capture time is fine — the gesture proceeds
+      // uncaptured.
+    }
+  }
+
+  onRowPointerMove(event: PointerEvent): void {
+    if (this.dragName === null) return;
+    const dx = event.clientX - this.dragStartX;
+    const dy = event.clientY - this.dragStartY;
+    if (!this.dragActive) {
+      if (Math.abs(dx) < DRAG_SLOP_PX) return;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        this.dragName = null;
+        return;
+      }
+      this.dragActive = true;
+    }
+    const base = this.revealed() === this.dragName ? REVEAL_PX : 0;
+    this.dragX.set(Math.min(Math.max(base + dx, 0), REVEAL_PX));
+  }
+
+  onRowPointerUp(event: PointerEvent): void {
+    if (this.dragName === null) return;
+    if (this.dragActive) {
+      this.revealed.set(this.dragX() > REVEAL_THRESHOLD_PX ? this.dragName : null);
+      this.suppressClick = true;
+    }
+    this.endDrag(event);
+  }
+
+  onRowPointerCancel(event: PointerEvent): void {
+    if (this.dragName === null) return;
+    this.endDrag(event);
+  }
+
+  private endDrag(event: PointerEvent): void {
+    try {
+      (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+    } catch {
+      // Already released (or never captured).
+    }
+    this.dragName = null;
+    this.dragActive = false;
+  }
+
+  /** Row tap: close an open reveal first, otherwise switch + close menu. */
+  onGroupRowClick(g: BtcxWalletGroup): void {
+    if (this.suppressClick) {
+      this.suppressClick = false;
+      return;
+    }
+    if (this.revealed() !== null) {
+      this.revealed.set(null);
+      return;
+    }
+    this.walletMenuTrigger()?.closeMenu();
+    void this.switchToGroup(g);
+  }
+
+  /**
+   * Pencil tap: the ACTIVE group is blocked with a switch-first hint (the
+   * backend refuses while a member is open); any other group gets a
+   * name-input dialog. Tandem: the group id and every member's name move
+   * together.
+   */
+  confirmRenameGroup(g: BtcxWalletGroup): void {
+    if (this.deleting() !== null || this.switching() !== null) return;
+    this.walletMenuTrigger()?.closeMenu();
+    if (g.isActive) {
+      this.notification.info(this.i18n.get('mwallet_rename_active_hint'));
+      return;
+    }
+    const members = new Set(g.compartments.map(c => c.name));
+    const others = this.wallet
+      .wallets()
+      .map(x => x.name)
+      .filter(n => !members.has(n));
+    const data: NameDialogData = {
+      title: this.i18n.get('mwallet_rename_wallet'),
+      inputLabel: this.i18n.get('wallet_name'),
+      initialValue: g.group,
+      hint: this.i18n.get('wallet_name_hint_local'),
+      confirmText: this.i18n.get('mwallet_rename_wallet'),
+      cancelText: this.i18n.get('cancel'),
+      validate: (value: string) => {
+        if (isInvalidWalletName(value)) return this.i18n.get('wallet_name_invalid_local');
+        if (isWalletNameTaken(value, others)) return this.i18n.get('wallet_name_conflict');
+        return null;
+      },
+    };
+    this.dialog
+      .open(NameDialogComponent, { data, width: '360px' })
+      .afterClosed()
+      .subscribe((newName: string | undefined) => {
+        if (newName === undefined || newName === g.group) return;
+        void this.doRenameGroup(g.group, newName);
+      });
+  }
+
+  private async doRenameGroup(group: string, newGroup: string): Promise<void> {
+    try {
+      await this.wallet.renameGroup(group, newGroup);
+      this.notification.success(this.i18n.get('mwallet_renamed', { name: newGroup }));
+    } catch (err) {
+      console.error('Failed to rename wallet group:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.revealed.set(null);
+    }
+  }
+
+  /**
+   * Trash tap: the ACTIVE group is blocked with a switch-first hint; any
+   * other group gets the type-the-name-back confirmation. Tandem +
+   * trash-based: every member moves to the network's trash directory.
+   */
+  confirmDeleteGroup(g: BtcxWalletGroup): void {
+    if (this.deleting() !== null) return;
+    this.walletMenuTrigger()?.closeMenu();
+    if (g.isActive) {
+      this.notification.info(this.i18n.get('mwallet_delete_active_hint'));
+      return;
+    }
+    const data: TypedConfirmDialogData = {
+      title: this.i18n.get('mwallet_delete_wallet'),
+      message: this.i18n.get(
+        g.compartments.length > 1 ? 'mwallet_delete_group_message' : 'mwallet_delete_message',
+        { name: g.group }
+      ),
+      requiredText: g.group,
+      inputLabel: this.i18n.get('mwallet_delete_type_name'),
+      confirmText: this.i18n.get('delete'),
+      cancelText: this.i18n.get('cancel'),
+    };
+    this.dialog
+      .open(TypedConfirmDialogComponent, { data, width: '360px' })
+      .afterClosed()
+      .subscribe((typed: string | undefined) => {
+        if (typed === undefined) return;
+        void this.doDeleteGroup(g.group, typed);
+      });
+  }
+
+  private async doDeleteGroup(group: string, confirmName: string): Promise<void> {
+    this.deleting.set(group);
+    try {
+      await this.wallet.deleteGroup(group, confirmName);
+      this.notification.success(this.i18n.get('mwallet_deleted', { name: group }));
+    } catch (err) {
+      console.error('Failed to delete wallet group:', err);
+      this.notification.error(`${err}`);
+    } finally {
+      this.revealed.set(null);
+      this.deleting.set(null);
+    }
   }
 
   /**
