@@ -911,7 +911,7 @@ fn spawn_sync_emitter(
     let result = std::thread::Builder::new()
         .name("btcx-wallet-sync-emitter".to_string())
         .spawn(move || {
-            let mut last: Option<(u32, &'static str)> = None;
+            let mut last: Option<(u32, u64, &'static str)> = None;
             let mut last_snapshot: Option<(u64, u32)> = None;
             loop {
                 // ~3s cadence, checking the stop flag every 500ms so a
@@ -936,8 +936,13 @@ fn spawn_sync_emitter(
                     });
                 }
                 let overall = overall_health(&home_url, &view_urls);
-                if last != Some((height, overall)) {
-                    last = Some((height, overall));
+                // BALANCE is part of the change detection: an incoming
+                // mempool tx moves the balance WITHOUT a height change,
+                // and the remote UIs refresh exclusively on this event —
+                // without it, an unconfirmed receive stays invisible
+                // until the next block.
+                if last != Some((height, balance_sat, overall)) {
+                    last = Some((height, balance_sat, overall));
                     let _ = app.emit(
                         "btcx-wallet:sync",
                         SyncEvent {
