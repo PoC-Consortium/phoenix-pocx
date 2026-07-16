@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, computed, inject, signal, OnInit } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -14,6 +14,8 @@ import { I18nPipe, I18nService, LANGUAGES, Language } from '../../../core/i18n';
 import {
   BtcxWalletService,
   BtcxWalletSummary,
+  BtcxCompartment,
+  BtcxWalletGroup,
   BtcxChainInfo,
 } from '../../../core/services/btcx-wallet.service';
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
@@ -96,7 +98,7 @@ interface NavGroup {
 
         @if (wallet.hasSeed()) {
           <div class="drawer-wallet-info">
-            <div class="drawer-wallet-name">{{ wallet.walletName() }}</div>
+            <div class="drawer-wallet-name">{{ activeLabel() }}</div>
             <div class="drawer-wallet-balance">
               {{ (wallet.balance()?.totalSat ?? 0) / 100000000 | btcx }} BTCX
             </div>
@@ -255,51 +257,41 @@ interface NavGroup {
                 >
                   <div class="wallet-chip-content">
                     <mat-icon class="wallet-icon">account_balance_wallet</mat-icon>
-                    <span class="wallet-chip-name">{{ wallet.walletName() }}</span>
+                    <span class="wallet-chip-name">{{ activeGroupName() }}</span>
                     <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
                   </div>
                 </button>
 
                 <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
-                  @for (w of wallet.wallets(); track w.name) {
+                  <!-- GROUP rows only — pockets live in the pocket chip. -->
+                  @for (g of wallet.groups(); track g.group) {
                     <button
                       mat-menu-item
                       class="wallet-row"
                       [disabled]="switching() !== null"
-                      (click)="switchTo(w)"
+                      (click)="switchToGroup(g)"
                     >
                       <div class="wallet-row-content">
-                        <mat-icon class="wallet-row-icon" [class.active]="w.isActive"
+                        <mat-icon class="wallet-row-icon" [class.active]="g.isActive"
                           >account_balance_wallet</mat-icon
                         >
-                        <span class="wallet-row-name">{{ w.name }}</span>
-                        @if (w.policy.kind === 'bip86') {
-                          <span class="wallet-row-badge">{{ 'mwallet_taproot_badge' | i18n }}</span>
-                        } @else if (w.policy.kind === 'legacy') {
+                        <span class="wallet-row-name">{{ g.group }}</span>
+                        @if (singletonOf(g)?.policy?.kind === 'legacy') {
                           <span class="wallet-row-badge legacy">{{
                             'mwallet_legacy_badge' | i18n
                           }}</span>
-                        } @else {
-                          <span class="wallet-row-badge segwit">{{
-                            'mwallet_segwit_badge' | i18n
-                          }}</span>
                         }
-                        @if (w.policy.coinType === 0) {
-                          <span class="wallet-row-badge legacy">{{
-                            'wallet_legacy_badge' | i18n
-                          }}</span>
-                        }
-                        @if (w.singleAddress) {
+                        @if (singletonOf(g)?.singleAddress) {
                           <span class="wallet-row-badge single">{{
                             'mwallet_single_badge' | i18n
                           }}</span>
                         }
-                        @if (w.seedEncrypted && w.seedLocked) {
+                        @if (groupLocked(g)) {
                           <mat-icon class="wallet-row-lock">lock</mat-icon>
                         }
-                        @if (switching() === w.name) {
+                        @if (switchingGroup() === g.group) {
                           <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
-                        } @else if (w.isActive) {
+                        } @else if (g.isActive) {
                           <mat-icon class="wallet-row-check">check</mat-icon>
                         }
                       </div>
@@ -318,6 +310,57 @@ interface NavGroup {
                     <mat-icon>input</mat-icon>
                     <span>{{ 'mwallet_import_wallet' | i18n }}</span>
                   </button>
+                </mat-menu>
+
+                <!-- Pocket chip: the active wallet's compartments, greyed
+                     out while nothing is open or there is only one. -->
+                <button
+                  mat-button
+                  class="action-button wallet-chip pocket-chip"
+                  [matMenuTriggerFor]="pocketMenu"
+                  [disabled]="activePockets().length < 2 || switching() !== null"
+                  (menuOpened)="onPocketMenuOpened()"
+                >
+                  <div class="wallet-chip-content">
+                    @if (switching() !== null) {
+                      <mat-spinner diameter="14"></mat-spinner>
+                    } @else {
+                      <mat-icon class="wallet-icon">layers</mat-icon>
+                    }
+                    <span class="wallet-chip-name">{{
+                      activePocketShort() || ('wallet_pocket' | i18n)
+                    }}</span>
+                    <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
+                  </div>
+                </button>
+
+                <mat-menu #pocketMenu="matMenu" class="wallet-dropdown-menu">
+                  @for (c of activePockets(); track c.name) {
+                    <button
+                      mat-menu-item
+                      class="wallet-row"
+                      [disabled]="switching() !== null"
+                      (click)="switchTo(c)"
+                    >
+                      <div class="wallet-row-content">
+                        <mat-icon class="wallet-row-icon pocket-icon" [class.active]="c.isActive">{{
+                          c.isActive ? 'radio_button_checked' : 'radio_button_unchecked'
+                        }}</mat-icon>
+                        <span class="wallet-row-name">{{ roleLabel(c) | i18n }}</span>
+                        @if (c.policy.coinType === 0) {
+                          <span class="wallet-row-badge legacy">{{
+                            'wallet_legacy_badge' | i18n
+                          }}</span>
+                        }
+                        @if (c.balanceSat !== undefined) {
+                          <span class="wallet-row-balance">{{ c.balanceSat / 100000000 | btcx }}</span>
+                        }
+                        @if (switching() === c.name) {
+                          <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
+                        }
+                      </div>
+                    </button>
+                  }
                 </mat-menu>
 
                 <div class="toolbar-separator"></div>
@@ -698,6 +741,32 @@ interface NavGroup {
         .wallet-row-spinner {
           flex-shrink: 0;
         }
+
+        .wallet-row-balance {
+          font-size: 12px;
+          font-variant-numeric: tabular-nums;
+          color: rgba(0, 0, 0, 0.5);
+          flex-shrink: 0;
+        }
+
+        .pocket-icon {
+          font-size: 16px;
+          width: 16px;
+          height: 16px;
+        }
+      }
+
+      /* Pocket chip: quieter sibling of the wallet chip. */
+      .pocket-chip {
+        .wallet-chip-name {
+          font-size: 13px;
+          font-weight: 400;
+          max-width: 84px;
+        }
+
+        &:disabled .wallet-chip-content {
+          opacity: 0.45;
+        }
       }
 
       .network-badge {
@@ -1027,9 +1096,97 @@ export class MobileWalletLayoutComponent implements OnInit {
     }
   }
 
-  /** Refresh the registry snapshot whenever the switcher opens. */
+  /** Refresh the registry snapshots whenever the switcher opens. */
   onWalletMenuOpened(): void {
     void this.wallet.refreshWallets();
+    void this.wallet.refreshGroups();
+  }
+
+  /**
+   * Refresh the ACTIVE group's balance snapshots (sequential one-shot
+   * sync) whenever the pocket chip opens — balances land as they sync.
+   */
+  onPocketMenuOpened(): void {
+    const group = this.activeGroup();
+    if (group) {
+      void this.wallet.groupSync(group.group);
+    }
+  }
+
+  /** The group holding the active wallet, if any. */
+  readonly activeGroup = computed<BtcxWalletGroup | null>(() => {
+    const name = this.wallet.walletName();
+    return this.wallet.groups().find(g => g.compartments.some(c => c.name === name)) ?? null;
+  });
+
+  /** Wallet chip label: the GROUP name only (the pocket chip has the rest). */
+  readonly activeGroupName = computed(
+    () => this.activeGroup()?.group ?? this.wallet.walletName()
+  );
+
+  /** The active group's pockets ([] while nothing matches). */
+  readonly activePockets = computed<BtcxCompartment[]>(
+    () => this.activeGroup()?.compartments ?? []
+  );
+
+  /** Pocket chip label: short role of the ACTIVE pocket ("SegWit·v30"). */
+  readonly activePocketShort = computed<string | null>(() => {
+    const name = this.wallet.walletName();
+    const pocket = this.activePockets().find(c => c.name === name);
+    if (!pocket) return null;
+    const role = this.i18n.get(this.roleLabel(pocket));
+    return pocket.policy.coinType === 0
+      ? `${role}·${this.i18n.get('wallet_legacy_badge')}`
+      : role;
+  });
+
+  /** Drawer label of the active wallet: "group · Role". */
+  readonly activeLabel = computed(() => {
+    const short = this.activePocketShort();
+    const group = this.activeGroupName();
+    if (!short || this.activePockets().length < 2) return group;
+    return `${group} · ${short}`;
+  });
+
+  /** i18n key of a pocket's role label. */
+  roleLabel(c: BtcxCompartment): string {
+    switch (c.policy.kind) {
+      case 'bip86':
+        return 'mwallet_kind_taproot';
+      case 'legacy':
+        return 'mwallet_kind_legacy';
+      default:
+        return 'mwallet_kind_segwit';
+    }
+  }
+
+  /** Any member still passphrase-locked shows the group padlock. */
+  groupLocked(g: BtcxWalletGroup): boolean {
+    return g.compartments.some(c => c.seedEncrypted && c.seedLocked);
+  }
+
+  /** The lone compartment of a singleton group, else null. */
+  singletonOf(g: BtcxWalletGroup): BtcxCompartment | null {
+    return g.compartments.length === 1 ? g.compartments[0] : null;
+  }
+
+  /** Name of the group a switch is running for (chip spinner), or null. */
+  readonly switchingGroup = computed<string | null>(() => {
+    const name = this.switching();
+    if (name === null) return null;
+    return (
+      this.wallet.groups().find(g => g.compartments.some(c => c.name === name))?.group ?? name
+    );
+  });
+
+  /**
+   * Switch to a GROUP: opens its last-selected pocket (the registry's
+   * active member), falling back to the primary (current SegWit).
+   */
+  async switchToGroup(g: BtcxWalletGroup): Promise<void> {
+    if (g.isActive) return;
+    const pocket = g.compartments.find(c => c.isActive) ?? g.compartments[0];
+    await this.switchTo(pocket);
   }
 
   /**

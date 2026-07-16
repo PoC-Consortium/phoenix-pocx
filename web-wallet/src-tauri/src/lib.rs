@@ -694,6 +694,13 @@ pub fn run() {
                         if let Err(e) = state.open_runtime(Some(handle)) {
                             log::warn!("btcx wallet: resume failed: {}", e);
                         }
+                        // Fill in compartments a pre-redesign group is
+                        // still missing (silent for locked seeds).
+                        if let Err(e) =
+                            btcx_wallet::commands::materialize_group_compartments(&state, &[])
+                        {
+                            log::warn!("btcx wallet: compartment materialization failed: {e}");
+                        }
                     }
                 });
             }
@@ -946,7 +953,6 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_create,
             btcx_wallet::commands::btcx_wallet_restore,
             btcx_wallet::commands::btcx_wallet_reprobe,
-            btcx_wallet::commands::btcx_wallet_migrate_v30,
             btcx_wallet::commands::btcx_wallet_rescan_legacy,
             btcx_wallet::commands::btcx_wallet_import_descriptor,
             btcx_wallet::commands::btcx_wallet_validate_import,
@@ -954,10 +960,14 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_lock,
             // Nodeless BTCX wallet commands - Named-wallet registry
             btcx_wallet::commands::btcx_wallet_list,
+            btcx_wallet::commands::btcx_wallet_list_grouped,
+            btcx_wallet::commands::btcx_wallet_group_sync,
             btcx_wallet::commands::btcx_wallet_select,
             btcx_wallet::commands::btcx_wallet_close,
             btcx_wallet::commands::btcx_wallet_delete,
+            btcx_wallet::commands::btcx_wallet_delete_group,
             btcx_wallet::commands::btcx_wallet_rename,
+            btcx_wallet::commands::btcx_wallet_rename_group,
             // Nodeless BTCX wallet commands - Operations
             btcx_wallet::commands::btcx_wallet_new_address,
             btcx_wallet::commands::btcx_wallet_current_address,

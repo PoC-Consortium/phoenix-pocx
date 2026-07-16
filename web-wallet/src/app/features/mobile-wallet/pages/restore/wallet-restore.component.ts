@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,7 +18,6 @@ import { sanitizeReturnTo } from '../../return-to';
 import {
   isInvalidWalletName,
   isWalletNameTaken,
-  suggestSiblingWalletName,
   suggestWalletName,
 } from '../../wallet-name';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
@@ -103,38 +102,10 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
                 {{ 'mwallet_restore_branch' | i18n: { branch: branchLabel() } }}
               </p>
             }
-            @if (secondCreated(); as second) {
-              <!-- Both wallets exist — say so and point at the switcher -->
-              <p class="hint-text both-done">
-                {{ 'mwallet_restore_both_done' | i18n: { first: restoredName(), second: second } }}
-              </p>
-            } @else if (otherKind()) {
-              <!-- History on BOTH address families: offer the second wallet -->
-              <div class="dual-offer">
-                <h4>{{ 'mwallet_restore_both_title' | i18n }}</h4>
-                <p class="hint-text small">
-                  {{ 'mwallet_restore_both_text' | i18n: { name: secondName() } }}
-                </p>
-                @if (secondError()) {
-                  <p class="error-text">
-                    {{ 'mwallet_restore_both_failed' | i18n }}: {{ secondError() }}
-                  </p>
-                }
-                <button
-                  mat-stroked-button
-                  class="full-width"
-                  [disabled]="creatingSecond()"
-                  (click)="createSecondWallet()"
-                >
-                  @if (creatingSecond()) {
-                    <mat-spinner diameter="18"></mat-spinner>
-                  } @else {
-                    <mat-icon>library_add</mat-icon>
-                  }
-                  {{ 'mwallet_restore_create_both' | i18n }}
-                </button>
-              </div>
-            }
+            <!-- No create-both offer: the restore materialized every
+                 compartment of the seed (SegWit + Taproot, plus any v30
+                 pocket with history) as one group — the selector shows
+                 them all. -->
             @if (legacyBranches()) {
               <p class="hint-text small">{{ 'mwallet_restore_other_branches' | i18n }}</p>
             }
@@ -286,29 +257,6 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
         .scan-again {
           margin-bottom: 12px;
         }
-
-        .both-done {
-          color: #2e7d32;
-        }
-      }
-
-      .dual-offer {
-        text-align: left;
-        background: rgba(25, 118, 210, 0.06);
-        border: 1px solid rgba(25, 118, 210, 0.25);
-        border-radius: 6px;
-        padding: 12px;
-        margin: 0 0 16px;
-
-        h4 {
-          margin: 0 0 6px;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        button {
-          margin-top: 4px;
-        }
       }
 
       :host-context(.dark-theme) {
@@ -323,20 +271,11 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
         .notice-box {
           background: rgba(255, 183, 77, 0.12);
         }
-
-        .success-card .both-done {
-          color: #81c784;
-        }
-
-        .dual-offer {
-          background: rgba(100, 181, 246, 0.08);
-          border-color: rgba(100, 181, 246, 0.3);
-        }
       }
     `,
   ],
 })
-export class WalletRestoreComponent implements OnInit, OnDestroy {
+export class WalletRestoreComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
@@ -362,19 +301,6 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
   readonly result = signal<BtcxRestoreResult | null>(null);
   readonly reprobing = signal(false);
   readonly reprobeError = signal<string | null>(null);
-
-  /**
-   * The phrase + passphrase, held ONLY while the dual-branch offer is on
-   * screen — the "create both wallets" button restores a second time with
-   * them. Cleared as soon as the offer is resolved or the page is left.
-   */
-  private heldMnemonic = '';
-  private heldPassphrase = '';
-
-  readonly creatingSecond = signal(false);
-  readonly secondError = signal<string | null>(null);
-  /** Name of the successfully created second wallet, or null. */
-  readonly secondCreated = signal<string | null>(null);
 
   /** Sanitized returnTo target (app-internal path), or null. */
   readonly returnTo = computed(() =>
@@ -406,41 +332,14 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
     return `${kind} / ${coin}`;
   });
 
-  /** Name the wallet was restored under (the first wallet of a dual pair). */
-  readonly restoredName = computed(() => this.result()?.status.walletName ?? '');
-
   /**
-   * The OTHER descriptor family with history — set when the probe hit both
-   * BIP-84 and BIP-86 branches, which is what triggers the "create both
-   * wallets" offer (a wallet opens exactly one family).
-   */
-  readonly otherKind = computed<'bip84' | 'bip86' | null>(() => {
-    const result = this.result();
-    if (!result) return null;
-    const other = result.hits.find(h => h.policy.kind !== result.selected.kind);
-    // Seed probes only ever hit BIP-84/86 branches ('legacy' exists only
-    // on descriptor-imported wallets, never in restore hits).
-    const kind = other?.policy.kind;
-    return kind === 'bip84' || kind === 'bip86' ? kind : null;
-  });
-
-  /** Proposed name of the second wallet (first name + family qualifier). */
-  readonly secondName = computed(() => {
-    const kind = this.otherKind();
-    if (!kind) return '';
-    return suggestSiblingWalletName(this.restoredName(), kind, this.existingNames());
-  });
-
-  /**
-   * Extra SAME-family legacy branches (coin type 0') the opened wallets do
-   * not cover — the restore-on-desktop note. The other-family case gets
-   * the dual-wallet offer instead.
+   * Legacy (coin-0') branches with history — restored as spend-only v30
+   * pockets of the same group; the note points the user at the selector.
    */
   readonly legacyBranches = computed(() => {
     const result = this.result();
     if (!result) return false;
-    const kinds = new Set(result.hits.map(h => h.policy.kind));
-    return result.hits.length > kinds.size;
+    return result.hits.some(h => h.policy.coinType === 0);
   });
 
   ngOnInit(): void {
@@ -450,15 +349,6 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
         this.walletName = suggestWalletName(this.existingNames());
       }
     });
-  }
-
-  ngOnDestroy(): void {
-    this.clearHeldSecrets();
-  }
-
-  private clearHeldSecrets(): void {
-    this.heldMnemonic = '';
-    this.heldPassphrase = '';
   }
 
   onMnemonicChanged(state: MnemonicEntryState): void {
@@ -484,11 +374,6 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
       this.result.set(result);
       this.restored.set(true);
       this.existingNames.set((await this.wallet.refreshWallets()).map(w => w.name));
-      // Hold the secrets ONLY while the dual-branch offer needs them.
-      if (this.otherKind()) {
-        this.heldMnemonic = this.mnemonic;
-        this.heldPassphrase = this.passphrase;
-      }
       this.mnemonic = '';
       this.mnemonicValid.set(false);
       this.mnemonicEntry?.reset();
@@ -498,32 +383,6 @@ export class WalletRestoreComponent implements OnInit, OnDestroy {
       this.restoreError.set(`${err}`);
     } finally {
       this.restoring.set(false);
-    }
-  }
-
-  /**
-   * The dual-branch payoff: restore the SAME mnemonic a second time as a
-   * new named wallet FORCED onto the other descriptor family, then switch
-   * back to the first wallet (the probe's priority branch stays active).
-   */
-  async createSecondWallet(): Promise<void> {
-    const kind = this.otherKind();
-    if (!kind || this.creatingSecond() || !this.heldMnemonic) return;
-    this.creatingSecond.set(true);
-    this.secondError.set(null);
-    try {
-      const name = this.secondName();
-      const firstName = this.restoredName();
-      await this.wallet.restore(this.heldMnemonic, this.heldPassphrase || undefined, name, kind);
-      // Re-activate the first wallet — it opened the higher-priority branch.
-      await this.wallet.select(firstName);
-      this.secondCreated.set(name);
-      this.clearHeldSecrets();
-    } catch (err) {
-      console.error('Failed to create the second (other-family) wallet:', err);
-      this.secondError.set(`${err}`);
-    } finally {
-      this.creatingSecond.set(false);
     }
   }
 

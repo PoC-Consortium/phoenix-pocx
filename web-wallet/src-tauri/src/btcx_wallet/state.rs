@@ -112,6 +112,17 @@ pub struct BtcxWalletState {
     pool: ElectrumPool,
     /// The open wallet runtime, if any.
     runtime: Mutex<Option<WalletRuntime>>,
+    /// Serializes store-opening operations: the runtime open and the
+    /// group-sync one-shots (`one_shot_compartment_sync`). Two writers on
+    /// one compartment's sqlite would trade "database is locked" errors —
+    /// the same failure class as the Windows file-lock bug behind PR #156.
+    sync_gate: Mutex<()>,
+    /// Weak handles of recently CLOSED wallets, keyed `<network>/<name>`.
+    /// A worker/emitter thread can outlive its close while blocked in a
+    /// connect attempt, still holding the sqlite open — on Windows that
+    /// fails any directory move. Rename/delete wait on these via
+    /// [`Self::wait_wallet_released`] instead of blind retries.
+    closing: Mutex<Vec<(String, std::sync::Weak<Mutex<WalletEntry>>)>>,
 }
 
 /// Type alias for shared BTCX wallet state.
@@ -132,12 +143,22 @@ pub fn create_btcx_wallet_state() -> SharedBtcxWalletState {
         // Non-fatal: the marker (root seed) stays, the next launch retries.
         Err(e) => log::error!("btcx wallet: legacy layout migration failed: {e}"),
     }
+    // Assign wallet-selector groups (config rewrite only, wallet dirs
+    // untouched). The pre-migration config is backed up once, first.
+    if config.migrate_groups() {
+        BtcxWalletConfig::backup_config_file("pre-groups");
+        if let Err(e) = config.save() {
+            log::error!("btcx wallet: saving group-migrated config failed: {e}");
+        }
+    }
     Arc::new(BtcxWalletState {
         config: Mutex::new(config),
         seed: Mutex::new(None),
         desc: Mutex::new(None),
         pool: ElectrumPool::new(),
         runtime: Mutex::new(None),
+        sync_gate: Mutex::new(()),
+        closing: Mutex::new(Vec::new()),
     })
 }
 
@@ -237,7 +258,12 @@ impl BtcxWalletState {
     /// emitter) if everything it needs is available. Returns `Ok(false)` —
     /// not an error — when prerequisites are missing: no seed yet, seed
     /// locked, or no Electrum server configured for the active network.
-    pub fn open_runtime(&self, app: Option<tauri::AppHandle>) -> Result<bool, String> {
+    ///
+    /// Takes `&Arc<Self>` so the sync emitter can persist balance
+    /// snapshots; serialized against the group-sync one-shots via
+    /// `sync_gate` so no compartment store ever has two writers.
+    pub fn open_runtime(self: &Arc<Self>, app: Option<tauri::AppHandle>) -> Result<bool, String> {
+        let _gate = self.sync_gate.lock().map_err(|_| "sync gate poisoned")?;
         if self.is_open() {
             return Ok(true);
         }
@@ -304,7 +330,9 @@ impl BtcxWalletState {
         if let Some(app) = app {
             spawn_sync_emitter(
                 app,
+                self.clone(),
                 config.network,
+                config.active_wallet_name(),
                 handle.clone(),
                 worker.clone(),
                 home_url.clone(),
@@ -337,13 +365,178 @@ impl BtcxWalletState {
 
     /// Close the wallet runtime: stop the sync worker and the emitter
     /// thread, drop the wallet handle (and with it the in-memory keys).
+    /// Persists a final balance snapshot first (best-effort) so the wallet
+    /// selector keeps a last-known balance across a switch/close.
     pub fn close_runtime(&self) {
         let runtime = self.runtime.lock().ok().and_then(|mut r| r.take());
         if let Some(runtime) = runtime {
+            if let Ok(entry) = runtime.handle.lock() {
+                let sat = entry.wallet.balance().total().to_sat();
+                let height = entry.wallet.latest_checkpoint().height();
+                drop(entry);
+                let _ = self.update_config(|c| {
+                    c.set_balance_snapshot(runtime.network, &runtime.wallet_name, sat, height);
+                });
+            }
             runtime.emitter_stop.store(true, Ordering::Relaxed);
             runtime.worker.shutdown();
+            // The worker/emitter may outlive this close (a blocking connect
+            // ignores the shutdown flag) — leave a weak marker so
+            // rename/delete can wait for the actual sqlite release.
+            self.track_closing(runtime.network, &runtime.wallet_name, &runtime.handle);
             log::info!("btcx wallet closed");
         }
+    }
+
+    /// Remember a just-closed wallet's handle (weakly) for
+    /// [`Self::wait_wallet_released`]. Dead entries are pruned in passing.
+    fn track_closing(&self, network: WalletNetwork, name: &str, handle: &WalletHandle) {
+        if let Ok(mut closing) = self.closing.lock() {
+            closing.retain(|(_, weak)| weak.strong_count() > 0);
+            closing.push((
+                format!("{}/{name}", network.as_str()),
+                Arc::downgrade(handle),
+            ));
+        }
+    }
+
+    /// Bounded wait until every straggler thread of a CLOSED wallet has
+    /// dropped its handle (= its sqlite is really closed and the wallet
+    /// directory is movable). `true` = released; `false` = still held at
+    /// the deadline (the caller's move will fail honestly).
+    pub fn wait_wallet_released(
+        &self,
+        network: WalletNetwork,
+        name: &str,
+        timeout: std::time::Duration,
+    ) -> bool {
+        let key = format!("{}/{name}", network.as_str());
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            let held = self
+                .closing
+                .lock()
+                .map(|c| c.iter().any(|(k, w)| *k == key && w.strong_count() > 0))
+                .unwrap_or(false);
+            if !held {
+                return true;
+            }
+            if std::time::Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    /// The (network, name) of the wallet the open runtime holds, if any.
+    pub fn open_wallet_name(&self) -> Option<(WalletNetwork, String)> {
+        self.runtime
+            .lock()
+            .ok()?
+            .as_ref()
+            .map(|rt| (rt.network, rt.wallet_name.clone()))
+    }
+
+    /// One-shot sync of one NON-OPEN wallet of the active network — the
+    /// group-sync building block. Opens the wallet's store temporarily,
+    /// runs a bounded first sync on a dedicated worker, persists the
+    /// balance snapshot, and tears everything down again. If the wallet is
+    /// the OPEN one, its live balance is snapshotted instead (no second
+    /// writer on its store). Returns `(total_sat, height)`.
+    ///
+    /// Serialized against `open_runtime` via `sync_gate`, so a wallet
+    /// switch mid-group-sync waits (bounded by the first-sync timeout)
+    /// instead of colliding on the compartment's sqlite.
+    pub fn one_shot_compartment_sync(&self, name: &str) -> Result<(u64, u32), String> {
+        let _gate = self.sync_gate.lock().map_err(|_| "sync gate poisoned")?;
+        let config = self.get_config();
+        let network = config.network;
+
+        // The open wallet is live — snapshot its cache, never its store.
+        if self.open_wallet_name() == Some((network, name.to_string())) {
+            let (sat, height) = self.with_entry(|entry| {
+                Ok((
+                    entry.wallet.balance().total().to_sat(),
+                    entry.wallet.latest_checkpoint().height(),
+                ))
+            })?;
+            self.update_config(|c| c.set_balance_snapshot(network, name, sat, height))?;
+            return Ok((sat, height));
+        }
+
+        let meta = config
+            .wallet_meta(network, name)
+            .ok_or_else(|| format!("No wallet named '{name}' on {}", network.as_str()))?;
+        let servers = config.servers();
+        if servers.is_empty() {
+            return Err(format!(
+                "No Electrum server configured for {}",
+                network.as_str()
+            ));
+        }
+        let params = network.params();
+        // Same chain-verified election as the runtime open: a one-shot that
+        // synced against a wrong-chain server would write garbage into the
+        // compartment's persistent store.
+        let (home_url, _views) = self.elect_verified_home(&servers, params, network.as_str())?;
+
+        let root = BtcxWalletConfig::wallet_root(network, name);
+        let db_path = BtcxWalletConfig::wallet_db_path_for(network, name);
+        let handle = match meta.source {
+            WalletSourceCfg::Seed => {
+                // Standalone store — the state's cached seed store belongs
+                // to the ACTIVE wallet and must not be repointed here.
+                let store = SeedStore::open(&root, None)
+                    .map_err(|e| format!("Failed to open seed store: {e:#}"))?;
+                let mnemonic = store
+                    .mnemonic()
+                    .map_err(|_| format!("The seed of '{name}' is locked"))?;
+                let seed = WalletSeed::from_mnemonic(&mnemonic, "")
+                    .map_err(|e| format!("Failed to derive wallet seed: {e:#}"))?;
+                manager::open_wallet(&db_path, params, &seed, meta.policy)
+                    .map_err(|e| format!("Failed to open wallet: {e:#}"))?
+            }
+            WalletSourceCfg::Descriptor => {
+                let store = DescStore::open(&root)?;
+                let payload = store
+                    .payload()
+                    .map_err(|_| format!("The descriptor store of '{name}' is locked"))?;
+                manager::open_wallet_from_descriptors(
+                    &db_path,
+                    params,
+                    &payload.external,
+                    payload.internal.as_deref(),
+                    descriptors::bdk_network(network),
+                )
+                .map_err(|e| format!("Failed to open wallet: {e:#}"))?
+            }
+        };
+
+        let worker_chain = Arc::new(
+            ElectrumBackend::new(params, &home_url)
+                .map_err(|e| format!("Failed to set up Electrum connection: {e:#}"))?,
+        );
+        let worker = SyncWorker::spawn(COIN_ID, worker_chain, &handle);
+        worker.poke();
+        let synced = worker.wait_first_sync(electrum_btcx::FIRST_SYNC_WAIT);
+        worker.shutdown();
+        // Same straggler hazard as close_runtime: the one-shot worker may
+        // outlive this call while blocked in a connect.
+        self.track_closing(network, name, &handle);
+        if !synced {
+            return Err(format!(
+                "'{name}' has not completed a sync pass — Electrum server unreachable?"
+            ));
+        }
+        let (sat, height) = {
+            let entry = handle.lock().map_err(|_| "wallet entry poisoned")?;
+            (
+                entry.wallet.balance().total().to_sat(),
+                entry.wallet.latest_checkpoint().height(),
+            )
+        };
+        self.update_config(|c| c.set_balance_snapshot(network, name, sat, height))?;
+        Ok((sat, height))
     }
 
     /// Build the per-call wallet backend from the open runtime: pooled home
@@ -700,11 +893,15 @@ pub fn overall_health(home_url: &str, view_urls: &[String]) -> &'static str {
 /// height change, and on every aggregate-health change: a small polling
 /// thread over the worker's freshness latch, the wallet's checkpoint tip
 /// and the passive health cells (the SyncWorker surface has no callback
-/// hook; polling its cheap accessors is the sanctioned pattern). Exits with
-/// the runtime that spawned it.
+/// hook; polling its cheap accessors is the sanctioned pattern). Also
+/// persists the live wallet's balance snapshot (selector display) whenever
+/// balance or height moved. Exits with the runtime that spawned it.
+#[allow(clippy::too_many_arguments)]
 fn spawn_sync_emitter(
     app: tauri::AppHandle,
+    state: SharedBtcxWalletState,
     network: WalletNetwork,
+    wallet_name: String,
     handle: WalletHandle,
     worker: Arc<SyncWorker>,
     home_url: String,
@@ -715,6 +912,7 @@ fn spawn_sync_emitter(
         .name("btcx-wallet-sync-emitter".to_string())
         .spawn(move || {
             let mut last: Option<(u32, &'static str)> = None;
+            let mut last_snapshot: Option<(u64, u32)> = None;
             loop {
                 // ~3s cadence, checking the stop flag every 500ms so a
                 // close/network-switch never waits on a sleeping thread.
@@ -727,7 +925,16 @@ fn spawn_sync_emitter(
                 let age = worker.fresh_age();
                 let Ok(entry) = handle.lock() else { return };
                 let height = entry.wallet.latest_checkpoint().height();
+                let balance_sat = entry.wallet.balance().total().to_sat();
                 drop(entry);
+                // Persist the selector snapshot when it moved (a config
+                // write — rare: block cadence or an actual balance change).
+                if last_snapshot != Some((balance_sat, height)) {
+                    last_snapshot = Some((balance_sat, height));
+                    let _ = state.update_config(|c| {
+                        c.set_balance_snapshot(network, &wallet_name, balance_sat, height);
+                    });
+                }
                 let overall = overall_health(&home_url, &view_urls);
                 if last != Some((height, overall)) {
                     last = Some((height, overall));

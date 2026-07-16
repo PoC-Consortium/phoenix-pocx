@@ -54,18 +54,3 @@ export function dedupeWalletName(base: string, existing: string[]): string {
 export function suggestWalletName(existing: string[]): string {
   return dedupeWalletName('default', existing);
 }
-
-/**
- * Suggested name for the SECOND wallet of the dual-restore flow: the first
- * wallet's name qualified by the other branch's address family (e.g.
- * "Savings" → "Savings-taproot"), deduped against the registry.
- */
-export function suggestSiblingWalletName(
-  base: string,
-  kind: 'bip84' | 'bip86',
-  existing: string[]
-): string {
-  const suffix = kind === 'bip86' ? '-taproot' : '-segwit';
-  const trimmedBase = base.slice(0, MAX_NAME_LENGTH - suffix.length);
-  return dedupeWalletName(`${trimmedBase}${suffix}`, existing);
-}

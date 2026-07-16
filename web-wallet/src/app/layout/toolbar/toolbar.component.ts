@@ -9,6 +9,7 @@ import {
   OnDestroy,
 } from '@angular/core';
 
+import { DecimalPipe } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -34,6 +35,10 @@ import { MiningService } from '../../mining/services';
 import { ClockDriftService } from '../../core/services/clock-drift.service';
 import { ElectrumStatusService } from '../../core/services/electrum-status.service';
 import { BlockchainStateService } from '../../bitcoin/services/blockchain-state.service';
+import {
+  BtcxWalletService,
+  BtcxCompartment,
+} from '../../core/services/btcx-wallet.service';
 import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-dialog/clock-drift-dialog.component';
 import { ElectrumServerListComponent } from '../../shared/components/electrum-server-list/electrum-server-list.component';
 
@@ -45,6 +50,7 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
   selector: 'app-toolbar',
   standalone: true,
   imports: [
+    DecimalPipe,
     RouterModule,
     MatToolbarModule,
     MatButtonModule,
@@ -306,6 +312,46 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
               }
             </mat-menu>
 
+            <!-- Pocket selector (remote mode): the loaded wallet's
+                 compartments — greyed out while nothing is loaded. -->
+            @if (nodeService.isRemote()) {
+              <button
+                mat-button
+                [matMenuTriggerFor]="pocketMenu"
+                class="action-button wallet-button pocket-button"
+                [disabled]="activePockets().length < 2 || switchingPocket()"
+              >
+                <div class="wallet-selector-content">
+                  @if (switchingPocket()) {
+                    <mat-spinner diameter="16"></mat-spinner>
+                  } @else {
+                    <mat-icon class="wallet-icon" [class.has-wallet]="activePocketLabel()"
+                      >layers</mat-icon
+                    >
+                  }
+                  <span class="wallet-name">{{
+                    activePocketLabel() || ('wallet_pocket' | i18n)
+                  }}</span>
+                  <mat-icon class="dropdown-arrow">keyboard_arrow_down</mat-icon>
+                </div>
+              </button>
+              <mat-menu #pocketMenu="matMenu">
+                @for (c of activePockets(); track c.name) {
+                  <button mat-menu-item (click)="selectPocket(c)">
+                    <mat-icon>{{
+                      c.isOpen ? 'radio_button_checked' : 'radio_button_unchecked'
+                    }}</mat-icon>
+                    <span class="pocket-item-role">{{ pocketRoleLabel(c) }}</span>
+                    @if (c.balanceSat !== undefined) {
+                      <span class="pocket-item-balance">
+                        {{ c.balanceSat / 100000000 | number: '1.8-8' }}
+                      </span>
+                    }
+                  </button>
+                }
+              </mat-menu>
+            }
+
             <div class="toolbar-separator"></div>
           }
 
@@ -481,6 +527,22 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
             height: 16px;
           }
         }
+      }
+
+      /* Pocket selector (remote mode), next to the wallet selector. */
+      .pocket-button:disabled .wallet-selector-content {
+        opacity: 0.45;
+      }
+
+      .pocket-item-role {
+        font-weight: 500;
+      }
+
+      .pocket-item-balance {
+        margin-left: 16px;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        color: rgba(0, 0, 0, 0.5);
       }
 
       /* Language button - responsive behavior */
@@ -669,6 +731,52 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   readonly clockDrift = inject(ClockDriftService);
   readonly electrumStatus = inject(ElectrumStatusService);
   readonly blockchainState = inject(BlockchainStateService);
+  private readonly btcxWallet = inject(BtcxWalletService);
+
+  /** True while a pocket switch is in flight (remote mode). */
+  readonly switchingPocket = signal(false);
+
+  /**
+   * The LOADED remote wallet's pockets — empty (selector greyed out) while
+   * nothing is loaded. Singleton wallets also grey out (one pocket is not
+   * a choice).
+   */
+  readonly activePockets = computed<BtcxCompartment[]>(() => {
+    if (!this.nodeService.isRemote()) return [];
+    const group = this.btcxWallet.groups().find(g => g.compartments.some(c => c.isOpen));
+    return group?.compartments ?? [];
+  });
+
+  /** Role label of the OPEN pocket, or null while nothing is loaded. */
+  readonly activePocketLabel = computed<string | null>(() => {
+    const open = this.activePockets().find(c => c.isOpen);
+    return open ? this.pocketRoleLabel(open) : null;
+  });
+
+  /** Display label of one pocket ("SegWit", "Taproot", "SegWit · v30"). */
+  pocketRoleLabel(c: BtcxCompartment): string {
+    const role = this.i18n.get(
+      c.policy.kind === 'bip86'
+        ? 'mwallet_kind_taproot'
+        : c.policy.kind === 'legacy'
+          ? 'mwallet_kind_legacy'
+          : 'mwallet_kind_segwit'
+    );
+    return c.policy.coinType === 0 ? `${role} · ${this.i18n.get('wallet_legacy_badge')}` : role;
+  }
+
+  /** Switch the loaded wallet to another of its pockets. */
+  async selectPocket(pocket: BtcxCompartment): Promise<void> {
+    if (pocket.isOpen || this.switchingPocket()) return;
+    this.switchingPocket.set(true);
+    try {
+      await this.walletManager.loadRemotePocket(pocket.name);
+    } catch (err) {
+      console.error('Failed to switch pocket:', err);
+    } finally {
+      this.switchingPocket.set(false);
+    }
+  }
   private readonly destroy$ = new Subject<void>();
 
   /** Tooltip of the remote-mode Electrum indicator. */

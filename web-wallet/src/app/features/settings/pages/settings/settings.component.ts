@@ -30,10 +30,7 @@ import {
   selectNodeConfig,
   selectNotifications,
 } from '../../../../store/settings/settings.selectors';
-import {
-  BtcxWalletService,
-  BtcxWalletSummary,
-} from '../../../../core/services/btcx-wallet.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 import {
   NodeConfig,
@@ -682,64 +679,6 @@ function withListenPort(listenAddress: string, port: number): string {
                     />
                   </div>
 
-                  <!-- Wallets (the remote-mode switcher's list) — carries the
-                       "Legacy v30" badge on pre-v31 (coin-0') wallets, and the
-                       manual re-probe for older funds on the open wallet. -->
-                  @if (btcxWallet.wallets().length > 0) {
-                    <div class="config-section">
-                      <h3 class="section-title">{{ 'wallets' | i18n }}</h3>
-                      <div class="remote-wallet-list">
-                        @for (w of btcxWallet.wallets(); track w.name) {
-                          <div class="remote-wallet-row" [class.active]="w.isActive">
-                            <mat-icon class="remote-wallet-icon" [class.active]="w.isActive"
-                              >account_balance_wallet</mat-icon
-                            >
-                            <span class="remote-wallet-name">{{ w.name }}</span>
-                            @if (w.policy.coinType === 0) {
-                              <span class="remote-wallet-badge legacy">{{
-                                'wallet_legacy_badge' | i18n
-                              }}</span>
-                            }
-                            @if (w.policy.coinType === 0 && !w.v30Migrated && w.source === 'seed') {
-                              <button
-                                mat-stroked-button
-                                class="remote-wallet-upgrade"
-                                [disabled]="upgradingV31() !== null"
-                                (click)="upgradeToV31(w)"
-                              >
-                                @if (upgradingV31() === w.name) {
-                                  <mat-spinner diameter="16"></mat-spinner>
-                                } @else {
-                                  <mat-icon>upgrade</mat-icon>
-                                }
-                                {{ 'mwallet_upgrade_v31' | i18n }}
-                              </button>
-                            }
-                            @if (w.isActive) {
-                              <mat-icon class="remote-wallet-check">check</mat-icon>
-                            }
-                          </div>
-                        }
-                      </div>
-
-                      @if (btcxWallet.walletActive()) {
-                        <button
-                          mat-stroked-button
-                          class="rescan-legacy-button"
-                          [disabled]="rescanningLegacy()"
-                          (click)="rescanLegacy()"
-                        >
-                          @if (rescanningLegacy()) {
-                            <mat-spinner diameter="18"></mat-spinner>
-                          } @else {
-                            <mat-icon>manage_search</mat-icon>
-                          }
-                          {{ 'wallet_rescan_legacy' | i18n }}
-                        </button>
-                      }
-                    </div>
-                  }
-
                   <!-- Action Buttons -->
                   <div class="action-buttons">
                     <button
@@ -873,6 +812,30 @@ function withListenPort(listenAddress: string, port: number): string {
                 </div>
 
                 <div class="danger-actions">
+                  <!-- Remote (Electrum) mode: re-probe the open wallet's
+                       legacy (v30) branches — materializes a spend-only
+                       pocket when older funds turn up. -->
+                  @if (nodeMode() === 'remote' && btcxWallet.walletActive()) {
+                    <div class="danger-action-item">
+                      <div class="danger-action-info">
+                        <strong>{{ 'wallet_rescan_legacy' | i18n }}</strong>
+                        <p>{{ 'wallet_rescan_legacy_description' | i18n }}</p>
+                      </div>
+                      <button
+                        mat-stroked-button
+                        [disabled]="rescanningLegacy()"
+                        (click)="rescanLegacy()"
+                      >
+                        @if (rescanningLegacy()) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        } @else {
+                          <mat-icon>manage_search</mat-icon>
+                        }
+                        {{ 'scan' | i18n }}
+                      </button>
+                    </div>
+                    <mat-divider></mat-divider>
+                  }
                   <div class="danger-action-item">
                     <div class="danger-action-info">
                       <strong>{{ 'reset_mining_config' | i18n }}</strong>
@@ -1433,68 +1396,6 @@ function withListenPort(listenAddress: string, port: number): string {
         margin-bottom: 12px;
       }
 
-      .remote-wallet-row {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 10px;
-        border-radius: 6px;
-        background: rgba(0, 0, 0, 0.03);
-
-        &.active {
-          background: rgba(25, 118, 210, 0.08);
-        }
-
-        .remote-wallet-icon {
-          font-size: 20px;
-          width: 20px;
-          height: 20px;
-          color: rgba(0, 0, 0, 0.4);
-
-          &.active {
-            color: #1976d2;
-          }
-        }
-
-        .remote-wallet-name {
-          flex: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .remote-wallet-badge {
-          font-size: 10px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.4px;
-          border: 1px solid currentColor;
-          border-radius: 8px;
-          padding: 0 6px;
-          flex-shrink: 0;
-
-          /* v30 legacy wallets: amber hue (the kind-badge legacy family). */
-          &.legacy {
-            color: #b26a00;
-          }
-        }
-
-        .remote-wallet-check {
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
-          color: #1976d2;
-          flex-shrink: 0;
-        }
-      }
-
-      .rescan-legacy-button {
-        mat-spinner {
-          display: inline-block;
-          margin-right: 8px;
-        }
-      }
-
       /* Notifications Styles */
       .notifications-container {
         max-width: 500px;
@@ -2021,8 +1922,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   /** True while a remote-mode legacy (v30) re-probe is in flight. */
   readonly rescanningLegacy = signal(false);
-  /** Name of the wallet whose v30→v31 upgrade is in flight, or null. */
-  readonly upgradingV31 = signal<string | null>(null);
 
   // Managed node state
   nodeMode = signal<NodeMode>('managed');
@@ -2144,6 +2043,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     effect(() => {
       if (this.nodeMode() === 'remote') {
         void this.btcxWallet.refreshWallets();
+        void this.btcxWallet.refreshGroups();
       }
     });
   }
@@ -2663,26 +2563,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Upgrade a v30 (coin-0') wallet to v31: creates its `<name>-v31` sibling
-   * over the same seed and switches to it. The old wallet is left untouched;
-   * a passphrase-locked seed defers (unlock first).
-   */
-  async upgradeToV31(w: BtcxWalletSummary): Promise<void> {
-    if (this.upgradingV31() !== null) return;
-    this.upgradingV31.set(w.name);
-    try {
-      const result = await this.btcxWallet.upgradeV30(w.name);
-      if (result.outcome === 'deferred') {
-        this.notification.info(this.i18n.get('mwallet_upgrade_v31_deferred'));
-      }
-    } catch (err) {
-      console.error('Failed to upgrade wallet:', err);
-      this.notification.error(`${err}`);
-    } finally {
-      this.upgradingV31.set(null);
-    }
-  }
 
   async startManagedNode(): Promise<void> {
     this.isStartingNode.set(true);

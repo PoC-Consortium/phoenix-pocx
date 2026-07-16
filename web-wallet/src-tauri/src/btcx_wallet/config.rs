@@ -146,8 +146,23 @@ impl Default for DescriptorPolicy {
     }
 }
 
-/// Per-wallet metadata in the named-wallet registry.
+/// Point-in-time balance snapshot of one wallet — written by the sync
+/// emitter (live wallet), the runtime close, and `btcx_wallet_group_sync`.
+/// DISPLAY ONLY: it paints the wallet selector's compartment strip; spends
+/// always operate on a live, freshly-synced runtime.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BalanceSnapshot {
+    /// Total balance in sats (bdk `balance().total()`).
+    pub sat: u64,
+    /// Wallet-cache chain height (bdk checkpoint tip) at snapshot time.
+    pub height: u32,
+    /// Unix seconds when the snapshot was taken — the UI's staleness marker.
+    pub at: u64,
+}
+
+/// Per-wallet metadata in the named-wallet registry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct WalletMeta {
     /// The descriptor branch this wallet was created/restored on — reopens
@@ -167,12 +182,22 @@ pub struct WalletMeta {
     /// drives the UI badge and the receive page's hidden "new address".
     #[serde(default)]
     pub single_address: bool,
-    /// Whether the one-time v30→v31 auto-migration has already run for this
-    /// wallet (see `btcx_wallet_migrate_v30`). Gates the migration so it
-    /// executes at most once per wallet; defaults false on pre-existing
-    /// configs so they get their first pass.
+    /// Whether this wallet's group has been through the compartment
+    /// materialization (or never needed it). Kept for config compatibility
+    /// with the retired one-time v30→v31 upgrade pass, whose siblings the
+    /// group migration recognizes; set by `materialize_group_compartments`.
     #[serde(default)]
     pub v30_migrated: bool,
+    /// Wallet-selector group (one group = one seed's compartments). The
+    /// AUTHORITATIVE link between same-seed sibling wallets — never derived
+    /// from names after [`BtcxWalletConfig::migrate_groups`] assigned it.
+    /// Empty = not yet migrated; treated as a singleton (the wallet's own
+    /// name) by [`BtcxWalletConfig::group_of`].
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub group: String,
+    /// Last known balance, selector display only (see [`BalanceSnapshot`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub balance_snapshot: Option<BalanceSnapshot>,
 }
 
 /// The `electrum_servers` map of a FRESH config: mainnet starts with the
@@ -367,7 +392,38 @@ impl BtcxWalletConfig {
         self.wallets
             .get(network.as_str())
             .and_then(|m| m.get(name))
-            .copied()
+            .cloned()
+    }
+
+    /// The wallet-selector group of one wallet: its `group` field, or its
+    /// own name (a singleton) while unassigned/unregistered.
+    pub fn group_of(&self, network: WalletNetwork, name: &str) -> String {
+        self.wallet_meta(network, name)
+            .map(|m| m.group)
+            .filter(|g| !g.is_empty())
+            .unwrap_or_else(|| name.to_string())
+    }
+
+    /// The member wallet names of one group on `network`, registry (name)
+    /// order.
+    pub fn group_members(&self, network: WalletNetwork, group: &str) -> Vec<String> {
+        self.wallet_names(network)
+            .into_iter()
+            .filter(|name| self.group_of(network, name) == group)
+            .collect()
+    }
+
+    /// Record one wallet's balance snapshot (selector display), stamping
+    /// the current time. No-op if the wallet is not registered.
+    pub fn set_balance_snapshot(&mut self, network: WalletNetwork, name: &str, sat: u64, height: u32) {
+        if let Some(mut meta) = self.wallet_meta(network, name) {
+            meta.balance_snapshot = Some(BalanceSnapshot {
+                sat,
+                height,
+                at: now_unix().unwrap_or(0),
+            });
+            self.set_wallet_meta(network, name, meta);
+        }
     }
 
     /// Register (or update) one wallet's metadata.
@@ -409,12 +465,23 @@ impl BtcxWalletConfig {
         let existing = self.wallet_meta(network, &name);
         let meta = WalletMeta {
             policy,
-            created_at: existing.and_then(|m| m.created_at).or_else(now_unix),
-            source: existing.map(|m| m.source).unwrap_or_default(),
-            single_address: existing.map(|m| m.single_address).unwrap_or(false),
+            created_at: existing
+                .as_ref()
+                .and_then(|m| m.created_at)
+                .or_else(now_unix),
+            source: existing.as_ref().map(|m| m.source).unwrap_or_default(),
+            single_address: existing.as_ref().map(|m| m.single_address).unwrap_or(false),
             // The migration flag is orthogonal to the descriptor policy and
             // must survive a policy update (a reprobe/branch switch).
-            v30_migrated: existing.map(|m| m.v30_migrated).unwrap_or(false),
+            v30_migrated: existing.as_ref().map(|m| m.v30_migrated).unwrap_or(false),
+            // Group and snapshot survive too; a fresh registration is a
+            // singleton group under its own name.
+            group: existing
+                .as_ref()
+                .map(|m| m.group.clone())
+                .filter(|g| !g.is_empty())
+                .unwrap_or_else(|| name.clone()),
+            balance_snapshot: existing.as_ref().and_then(|m| m.balance_snapshot),
         };
         self.set_wallet_meta(network, &name, meta);
     }
@@ -435,23 +502,6 @@ impl BtcxWalletConfig {
             meta.v30_migrated = value;
             self.set_wallet_meta(network, name, meta);
         }
-    }
-
-    /// Whether any of the given `names` is a registered wallet on `network`
-    /// whose descriptor policy sits on `coin_type` — the v30 migration uses
-    /// this over the active seed's counterpart-name set to tell whether a
-    /// v31 (`keys_btcx::COIN_BTCX`) or v30 (coin type 0) wallet already
-    /// exists for the seed.
-    pub fn has_wallet_on_coin_type(
-        &self,
-        network: WalletNetwork,
-        names: &[String],
-        coin_type: u32,
-    ) -> bool {
-        names.iter().any(|name| {
-            self.wallet_meta(network, name)
-                .is_some_and(|m| m.policy.coin_type == coin_type)
-        })
     }
 
     /// Root of the wallet stores: `<app data dir>/btcx-wallet`.
@@ -569,6 +619,8 @@ pub fn migrate_legacy_layout_at(
                     source: WalletSourceCfg::Seed,
                     single_address: false,
                     v30_migrated: false,
+                    group: DEFAULT_WALLET.to_string(),
+                    balance_snapshot: None,
                 },
             );
         }
@@ -600,6 +652,134 @@ pub fn migrate_legacy_layout_at(
             .join(", ")
     );
     Ok(true)
+}
+
+/// Parse a MACHINE-GENERATED sibling-wallet name: `<base>-v31` /
+/// `<base>-v30`, optionally with the `-2`..`-99` collision tail
+/// `resolve_counterpart_name` appends (`<base>-v31-2`). Returns the base
+/// and the tag. User-chosen names that merely LOOK like this are filtered
+/// out later by the coin-type conditions in [`BtcxWalletConfig::migrate_groups`].
+pub fn machine_suffix_base(name: &str) -> Option<(&str, &'static str)> {
+    for tag in ["-v31", "-v30"] {
+        if let Some(base) = name.strip_suffix(tag) {
+            if !base.is_empty() {
+                return Some((base, tag));
+            }
+        }
+        if let Some(pos) = name.rfind(tag) {
+            let (base, tail) = (&name[..pos], &name[pos + tag.len()..]);
+            let numeric_tail = tail
+                .strip_prefix('-')
+                .and_then(|d| d.parse::<u32>().ok())
+                .is_some_and(|n| (2..=99).contains(&n));
+            if !base.is_empty() && numeric_tail {
+                return Some((base, tag));
+            }
+        }
+    }
+    None
+}
+
+impl BtcxWalletConfig {
+    /// Assign the wallet-selector `group` of every registered wallet that
+    /// has none yet. In practice almost every wallet is a SINGLETON group
+    /// (its own name) — users hold one wallet per mnemonic. The only
+    /// folding is the machine-generated migrate/rescan suffix pairs, and
+    /// only when the coin types prove the machine origin:
+    ///
+    /// - `<base>-v31` (asset coin type, seed) folds onto `<base>` (legacy
+    ///   coin type, seed) — a `migrate_v30` pair;
+    /// - `<base>-v30` (legacy coin type, seed) folds onto `<base>` (asset
+    ///   coin type, seed) — a `rescan_legacy` pair.
+    ///
+    /// Anything ambiguous stays a singleton — mis-grouping two unrelated
+    /// seeds under one summed balance is the one failure this must never
+    /// produce. Names are processed shortest-first so a folded wallet
+    /// inherits its base's already-assigned group (`x` → `x-v31` →
+    /// `x-v31-v30` chains collapse into one group). Idempotent: wallets
+    /// with a group are never touched. Returns whether anything changed
+    /// (caller backs up + saves).
+    pub fn migrate_groups(&mut self) -> bool {
+        let mut changed = false;
+        for net in [
+            WalletNetwork::Mainnet,
+            WalletNetwork::Testnet,
+            WalletNetwork::Regtest,
+        ] {
+            // Only mainnet has a distinct legacy branch, so only mainnet can
+            // hold machine-generated pairs; elsewhere everything is singleton.
+            let fold_allowed = net.legacy_coin_type() != net.asset_coin_type();
+            let mut names = self.wallet_names(net);
+            names.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+            for name in names {
+                let Some(mut meta) = self.wallet_meta(net, &name) else {
+                    continue;
+                };
+                if !meta.group.is_empty() {
+                    continue;
+                }
+                meta.group = self
+                    .machine_pair_group(net, &name, &meta, fold_allowed)
+                    .unwrap_or_else(|| name.clone());
+                self.set_wallet_meta(net, &name, meta);
+                changed = true;
+            }
+        }
+        changed
+    }
+
+    /// The group a machine-generated sibling folds into, or `None` when the
+    /// name/coin-type evidence doesn't prove machine origin (→ singleton).
+    fn machine_pair_group(
+        &self,
+        network: WalletNetwork,
+        name: &str,
+        meta: &WalletMeta,
+        fold_allowed: bool,
+    ) -> Option<String> {
+        if !fold_allowed || meta.source != WalletSourceCfg::Seed {
+            return None;
+        }
+        let (base, tag) = machine_suffix_base(name)?;
+        let base_meta = self.wallet_meta(network, base)?;
+        if base_meta.source != WalletSourceCfg::Seed {
+            return None;
+        }
+        let asset = network.asset_coin_type();
+        let legacy = network.legacy_coin_type();
+        let coin_types_match = match tag {
+            // migrate_v30: `<base>` is the v30 original, the sibling is v31.
+            "-v31" => meta.policy.coin_type == asset && base_meta.policy.coin_type == legacy,
+            // rescan_legacy: `<base>` is the v31 wallet, the sibling is v30.
+            "-v30" => meta.policy.coin_type == legacy && base_meta.policy.coin_type == asset,
+            _ => false,
+        };
+        if !coin_types_match {
+            return None;
+        }
+        // The base's group was assigned first (shortest-first order); its
+        // own fallback covers a base processed in an older app version.
+        Some(self.group_of(network, base))
+    }
+
+    /// Back up the config file next to itself (one-time, before a
+    /// migration rewrite): `btcx_wallet_config.json.<tag>.bak`. An existing
+    /// backup is never overwritten — the FIRST pre-migration state wins.
+    pub fn backup_config_file(tag: &str) {
+        let path = Self::config_path();
+        if !path.exists() {
+            return;
+        }
+        let backup = path.with_extension(format!("json.{tag}.bak"));
+        if backup.exists() {
+            return;
+        }
+        if let Err(e) = fs::copy(&path, &backup) {
+            log::warn!("btcx wallet: config backup to {} failed: {e}", backup.display());
+        } else {
+            log::info!("btcx wallet: config backed up to {}", backup.display());
+        }
+    }
 }
 
 /// Current unix time in seconds (display metadata, not consensus).
@@ -796,14 +976,16 @@ mod tests {
             source: WalletSourceCfg::Seed,
             single_address: false,
             v30_migrated: false,
+            group: "savings".to_string(),
+            balance_snapshot: None,
         };
-        config.set_wallet_meta(WalletNetwork::Mainnet, "savings", meta);
+        config.set_wallet_meta(WalletNetwork::Mainnet, "savings", meta.clone());
         config.set_active_wallet(WalletNetwork::Mainnet, "savings");
         assert_eq!(config.active_wallet_name(), "savings");
         assert_eq!(config.wallet_names(WalletNetwork::Mainnet), vec!["savings"]);
         assert_eq!(
             config.wallet_meta(WalletNetwork::Mainnet, "savings"),
-            Some(meta)
+            Some(meta.clone())
         );
         assert!(config.wallet_db_path().ends_with(
             PathBuf::from("mainnet")
@@ -845,6 +1027,8 @@ mod tests {
             source: WalletSourceCfg::Descriptor,
             single_address: false,
             v30_migrated: false,
+            group: "imported".to_string(),
+            balance_snapshot: None,
         };
         let json = serde_json::to_string(&meta).unwrap();
         assert!(json.contains(r#""source":"descriptor""#), "{json}");
@@ -863,10 +1047,18 @@ mod tests {
             source: WalletSourceCfg::Descriptor,
             single_address: true,
             v30_migrated: true,
+            group: DEFAULT_WALLET.to_string(),
+            balance_snapshot: Some(BalanceSnapshot {
+                sat: 42,
+                height: 7,
+                at: 1700000000,
+            }),
         };
         let json = serde_json::to_string(&single).unwrap();
         assert!(json.contains(r#""singleAddress":true"#), "{json}");
         assert!(json.contains(r#""v30Migrated":true"#), "{json}");
+        assert!(json.contains(r#""group":"default""#), "{json}");
+        assert!(json.contains(r#""balanceSnapshot":{"sat":42"#), "{json}");
         let parsed: WalletMeta = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, single);
 
@@ -911,10 +1103,12 @@ mod tests {
             source: WalletSourceCfg::Seed,
             single_address: false,
             v30_migrated: false,
+            group: String::new(),
+            balance_snapshot: None,
         };
         let v31 = WalletMeta {
             policy: DescriptorPolicy::default(),
-            ..v30
+            ..v30.clone()
         };
         config.set_wallet_meta(net, "acct-v30", v30);
         config.set_wallet_meta(net, "acct", v31);
@@ -927,15 +1121,6 @@ mod tests {
         // Setting the flag on a missing wallet is a no-op (no phantom entry).
         config.set_v30_migrated(net, "missing", true);
         assert!(config.wallet_meta(net, "missing").is_none());
-
-        // Coin-type probe over the counterpart-name set.
-        let names = vec!["acct".to_string(), "acct-v30".to_string()];
-        assert!(config.has_wallet_on_coin_type(net, &names, keys_btcx::COIN_BTCX));
-        assert!(config.has_wallet_on_coin_type(net, &names, 0));
-        // A name set without a v30 counterpart sees only the v31 branch.
-        let v31_only = vec!["acct".to_string()];
-        assert!(config.has_wallet_on_coin_type(net, &v31_only, keys_btcx::COIN_BTCX));
-        assert!(!config.has_wallet_on_coin_type(net, &v31_only, 0));
     }
 
     /// Some seed-file bytes; the migration never parses them, it only
@@ -1016,6 +1201,156 @@ mod tests {
         assert!(config
             .wallet_meta(WalletNetwork::Testnet, DEFAULT_WALLET)
             .is_some());
+    }
+
+    /// A seed-source WalletMeta at `coin_type`, group unassigned (the
+    /// pre-groups shape the migration sees).
+    fn ungrouped_seed_meta(coin_type: u32) -> WalletMeta {
+        WalletMeta {
+            policy: DescriptorPolicy {
+                kind: DescriptorKindCfg::Bip84,
+                coin_type,
+            },
+            created_at: Some(1),
+            source: WalletSourceCfg::Seed,
+            single_address: false,
+            v30_migrated: false,
+            group: String::new(),
+            balance_snapshot: None,
+        }
+    }
+
+    #[test]
+    fn machine_suffix_parsing() {
+        assert_eq!(machine_suffix_base("acct-v31"), Some(("acct", "-v31")));
+        assert_eq!(machine_suffix_base("acct-v30"), Some(("acct", "-v30")));
+        // resolve_counterpart_name's collision tails.
+        assert_eq!(machine_suffix_base("acct-v31-2"), Some(("acct", "-v31")));
+        assert_eq!(machine_suffix_base("acct-v30-99"), Some(("acct", "-v30")));
+        // Chains strip ONE suffix at a time (x-v31-v30 folds onto x-v31).
+        assert_eq!(machine_suffix_base("a-v31-v30"), Some(("a-v31", "-v30")));
+        // Not machine shapes: plain names, bare tags, out-of-range tails.
+        assert_eq!(machine_suffix_base("plain"), None);
+        assert_eq!(machine_suffix_base("-v30"), None);
+        assert_eq!(machine_suffix_base("acct-v30-1"), None);
+        assert_eq!(machine_suffix_base("acct-v30-100"), None);
+        assert_eq!(machine_suffix_base("acct-v312"), None);
+    }
+
+    #[test]
+    fn group_migration_folds_machine_pairs_and_keeps_singletons() {
+        let mut config = BtcxWalletConfig::default();
+        let net = WalletNetwork::Mainnet;
+        let asset = net.asset_coin_type();
+
+        // A migrate_v30 pair: `acct` (the v30 original) + `acct-v31`.
+        config.set_wallet_meta(net, "acct", ungrouped_seed_meta(0));
+        config.set_wallet_meta(net, "acct-v31", ungrouped_seed_meta(asset));
+        // A rescan_legacy pair: `main` + `main-v30`.
+        config.set_wallet_meta(net, "main", ungrouped_seed_meta(asset));
+        config.set_wallet_meta(net, "main-v30", ungrouped_seed_meta(0));
+        // A plain standalone wallet.
+        config.set_wallet_meta(net, "solo", ungrouped_seed_meta(asset));
+        // DECOY: user-created name that merely looks machine-generated —
+        // both sides on the asset coin type proves it is NOT a migrate
+        // pair, so it must stay a singleton.
+        config.set_wallet_meta(net, "other", ungrouped_seed_meta(asset));
+        config.set_wallet_meta(net, "other-v31", ungrouped_seed_meta(asset));
+        // DECOY: suffix name without any base wallet.
+        config.set_wallet_meta(net, "orphan-v30", ungrouped_seed_meta(0));
+
+        assert!(config.migrate_groups());
+
+        assert_eq!(config.group_of(net, "acct"), "acct");
+        assert_eq!(config.group_of(net, "acct-v31"), "acct");
+        assert_eq!(config.group_of(net, "main"), "main");
+        assert_eq!(config.group_of(net, "main-v30"), "main");
+        assert_eq!(config.group_of(net, "solo"), "solo");
+        assert_eq!(config.group_of(net, "other-v31"), "other-v31");
+        assert_eq!(config.group_of(net, "orphan-v30"), "orphan-v30");
+
+        let mut members = config.group_members(net, "acct");
+        members.sort();
+        assert_eq!(members, vec!["acct".to_string(), "acct-v31".to_string()]);
+
+        // Idempotent: a second pass changes nothing.
+        assert!(!config.migrate_groups());
+    }
+
+    #[test]
+    fn group_migration_collapses_chains_and_skips_non_seed() {
+        let mut config = BtcxWalletConfig::default();
+        let net = WalletNetwork::Mainnet;
+        let asset = net.asset_coin_type();
+
+        // x (v30 original) → x-v31 (migrate) → x-v31-v30 (rescan of x-v31):
+        // all one seed, all one group.
+        config.set_wallet_meta(net, "x", ungrouped_seed_meta(0));
+        config.set_wallet_meta(net, "x-v31", ungrouped_seed_meta(asset));
+        config.set_wallet_meta(net, "x-v31-v30", ungrouped_seed_meta(0));
+        // Descriptor-source wallets never fold, whatever their name.
+        let mut desc = ungrouped_seed_meta(0);
+        desc.source = WalletSourceCfg::Descriptor;
+        config.set_wallet_meta(net, "imp", ungrouped_seed_meta(asset));
+        config.set_wallet_meta(net, "imp-v30", desc);
+
+        assert!(config.migrate_groups());
+        assert_eq!(config.group_of(net, "x"), "x");
+        assert_eq!(config.group_of(net, "x-v31"), "x");
+        assert_eq!(config.group_of(net, "x-v31-v30"), "x");
+        assert_eq!(config.group_members(net, "x").len(), 3);
+        assert_eq!(config.group_of(net, "imp-v30"), "imp-v30");
+    }
+
+    #[test]
+    fn group_migration_never_folds_off_mainnet() {
+        // Testnet/regtest have no distinct legacy branch, so no machine
+        // pairs can exist — pair-looking names stay singletons.
+        let mut config = BtcxWalletConfig::default();
+        let net = WalletNetwork::Testnet;
+        config.set_wallet_meta(net, "acct", ungrouped_seed_meta(1));
+        config.set_wallet_meta(net, "acct-v31", ungrouped_seed_meta(1));
+        assert!(config.migrate_groups());
+        assert_eq!(config.group_of(net, "acct-v31"), "acct-v31");
+    }
+
+    #[test]
+    fn group_and_snapshot_survive_policy_updates_and_round_trip() {
+        let mut config = BtcxWalletConfig::default();
+        let net = WalletNetwork::Mainnet;
+        let mut meta = ungrouped_seed_meta(0);
+        meta.group = "family".to_string();
+        config.set_wallet_meta(net, "acct", meta);
+        config.set_active_wallet(net, "acct");
+        config.set_balance_snapshot(net, "acct", 1234, 42);
+
+        // A policy update (reprobe/branch switch) keeps group + snapshot.
+        config.set_policy(net, DescriptorPolicy::default());
+        let updated = config.wallet_meta(net, "acct").unwrap();
+        assert_eq!(updated.group, "family");
+        assert_eq!(updated.balance_snapshot.unwrap().sat, 1234);
+        assert_eq!(updated.balance_snapshot.unwrap().height, 42);
+        assert!(updated.balance_snapshot.unwrap().at > 0);
+
+        // JSON round trip keeps both; group_of falls back to the own name
+        // for unassigned/unregistered wallets.
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: BtcxWalletConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.group_of(net, "acct"), "family");
+        assert_eq!(parsed.group_of(net, "missing"), "missing");
+        assert_eq!(
+            parsed.wallet_meta(net, "acct").unwrap().balance_snapshot,
+            updated.balance_snapshot
+        );
+
+        // Snapshot writes on unregistered wallets are no-ops.
+        config.set_balance_snapshot(net, "missing", 1, 1);
+        assert!(config.wallet_meta(net, "missing").is_none());
+
+        // A fresh registration via set_policy lands as a singleton group.
+        config.set_active_wallet(net, "fresh");
+        config.set_policy(net, DescriptorPolicy::default());
+        assert_eq!(config.group_of(net, "fresh"), "fresh");
     }
 
     #[test]

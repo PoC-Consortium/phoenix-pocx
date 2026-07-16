@@ -1,5 +1,5 @@
 import { Injectable, inject, signal, OnDestroy, computed, effect, untracked } from '@angular/core';
-import { Subject, interval, takeUntil } from 'rxjs';
+import { Subject, Subscription, interval, takeUntil } from 'rxjs';
 import {
   BlockchainRpcService,
   BlockchainInfo,
@@ -75,6 +75,19 @@ export class BlockchainStateService implements OnDestroy {
         untracked(() => void this.refresh());
       }
     });
+
+    // A LIVE node-mode switch (settings, no app restart) must rewire the
+    // poll timer: remote is event-driven, managed/external needs the 15s
+    // interval back — otherwise the indicator keeps judging the last
+    // remote snapshot (peerCount pinned to 0 → a false "no peers" orange).
+    effect(() => {
+      this.nodeService.isRemote();
+      untracked(() => {
+        if (!this.isPolling) return;
+        this.syncPollTimer();
+        void this.refresh();
+      });
+    });
   }
 
   // Polling configuration
@@ -121,16 +134,28 @@ export class BlockchainStateService implements OnDestroy {
 
     // Initial load
     this.refresh();
+    this.syncPollTimer();
+  }
 
-    // Remote mode is event-driven (constructor effect on btcx sync events)
-    // — no interval. The initial refresh above still primes the state.
-    if (this.nodeService.isRemote()) return;
-
-    // Set up polling interval
-    interval(this.pollInterval)
+  /**
+   * (Re)wire the 15s interval to the CURRENT node mode: remote mode is
+   * event-driven (the constructor's btcx sync effect) and runs no
+   * interval; managed/external modes poll. Called from startPolling and
+   * on every live mode switch.
+   */
+  private syncPollTimer(): void {
+    if (!this.isPolling || this.nodeService.isRemote()) {
+      this.pollSub?.unsubscribe();
+      this.pollSub = null;
+      return;
+    }
+    if (this.pollSub) return;
+    this.pollSub = interval(this.pollInterval)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => this.refresh());
   }
+
+  private pollSub: Subscription | null = null;
 
   /**
    * Stop polling for blockchain updates.
@@ -138,6 +163,7 @@ export class BlockchainStateService implements OnDestroy {
   stopPolling(): void {
     this.isPolling = false;
     this.destroy$.next();
+    this.pollSub = null;
   }
 
   /**

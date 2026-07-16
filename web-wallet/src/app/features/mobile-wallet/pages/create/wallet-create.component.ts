@@ -17,7 +17,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatRadioModule } from '@angular/material/radio';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
@@ -59,7 +58,6 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
     MatInputModule,
     MatAutocompleteModule,
     MatProgressSpinnerModule,
-    MatRadioModule,
     I18nPipe,
     PageHeaderComponent,
     WalletNameSectionComponent,
@@ -200,27 +198,9 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
             }
           }
 
-          <!-- Advanced (collapsed): address type — BIP-84 default, BIP-86 taproot -->
-          <button type="button" class="advanced-toggle" (click)="showAdvanced.set(!showAdvanced())">
-            <mat-icon>{{ showAdvanced() ? 'expand_less' : 'expand_more' }}</mat-icon>
-            {{ 'mwallet_advanced' | i18n }}
-          </button>
-          @if (showAdvanced()) {
-            <div class="advanced-section">
-              <p class="hint-text small">{{ 'mwallet_address_type' | i18n }}</p>
-              <mat-radio-group class="kind-group" [(ngModel)]="kind">
-                <mat-radio-button value="bip84">
-                  <span class="kind-label">{{ 'mwallet_kind_segwit' | i18n }}</span>
-                  <span class="kind-desc">{{ 'mwallet_kind_segwit_desc' | i18n }}</span>
-                </mat-radio-button>
-                <mat-radio-button value="bip86">
-                  <span class="kind-label">{{ 'mwallet_kind_taproot' | i18n }}</span>
-                  <span class="kind-desc">{{ 'mwallet_kind_taproot_desc' | i18n }}</span>
-                </mat-radio-button>
-              </mat-radio-group>
-            </div>
-          }
-
+          <!-- No address-type choice: a new wallet is a GROUP holding both
+               a SegWit and a Taproot compartment (the backend materializes
+               them together); the selector picks the pocket later. -->
           @if (createError()) {
             <p class="error-text">{{ 'mwallet_create_failed' | i18n }}: {{ createError() }}</p>
           }
@@ -279,48 +259,6 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
         &.small {
           font-size: 12px;
           margin: 0 0 8px;
-        }
-      }
-
-      .advanced-toggle {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        background: none;
-        border: none;
-        padding: 4px 0;
-        margin: 4px 0;
-        font-size: 13px;
-        font-weight: 500;
-        color: rgba(0, 0, 0, 0.6);
-        cursor: pointer;
-
-        mat-icon {
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
-        }
-      }
-
-      .advanced-section {
-        margin: 4px 0 12px;
-      }
-
-      .kind-group {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-
-        .kind-label {
-          display: block;
-          font-size: 13px;
-          font-weight: 500;
-        }
-
-        .kind-desc {
-          display: block;
-          font-size: 12px;
-          color: rgba(0, 0, 0, 0.55);
         }
       }
 
@@ -408,14 +346,6 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
           color: rgba(255, 255, 255, 0.6);
         }
 
-        .advanced-toggle {
-          color: rgba(255, 255, 255, 0.6);
-        }
-
-        .kind-group .kind-desc {
-          color: rgba(255, 255, 255, 0.55);
-        }
-
         .warning-text {
           color: rgba(255, 255, 255, 0.8);
           background: rgba(255, 183, 77, 0.12);
@@ -457,10 +387,6 @@ export class WalletCreateComponent implements OnInit {
   walletName = '';
   /** The shared name section (rendered on the 'name' step only). */
   private readonly nameSection = viewChild(WalletNameSectionComponent);
-
-  /** Advanced section (collapsed): descriptor family for the new wallet. */
-  readonly showAdvanced = signal(false);
-  kind: 'bip84' | 'bip86' = 'bip84';
 
   private mnemonic = '';
   /** Registry names for suggestion + case-insensitive conflict checks. */
@@ -587,7 +513,9 @@ export class WalletCreateComponent implements OnInit {
     try {
       // An emptied name field falls back to the suggested default.
       const name = this.walletName.trim() || suggestWalletName(this.existingNames());
-      await this.wallet.create(this.mnemonic, this.passphrase || undefined, name, this.kind);
+      // No kind: the backend materializes the SegWit + Taproot compartments
+      // together as one group.
+      await this.wallet.create(this.mnemonic, this.passphrase || undefined, name);
       this.mnemonic = '';
       this.words.set([]);
       // Chain back into the flow that launched us (e.g. mining setup)

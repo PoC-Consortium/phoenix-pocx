@@ -1,8 +1,6 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { NotificationService } from '../../shared/services/notification.service';
-import { I18nService } from '../i18n';
 
 /**
  * BTCX Wallet Service
@@ -238,30 +236,58 @@ export interface BtcxWalletSummary {
   seedLocked: boolean;
   /** Total balance in sats — only present for the open wallet. */
   balanceSat?: number;
+  /** Wallet-selector group this wallet belongs to (one group = one seed). */
+  group: string;
 }
 
 /**
- * What one v30→v31 migration pass did (`btcx_wallet_migrate_v30` /
- * `btcx_wallet_rescan_legacy`):
- * - `noop` — nothing to create; the seed has no counterpart to build.
- * - `created-v31` — a v31 (BTCX coin type) counterpart was created + activated.
- * - `created-v30` — a legacy v30 (coin type 0') counterpart was restored.
- * - `already` — the migrate flag was already set (migrate pass only).
+ * One compartment of a wallet group (`btcx_wallet_list_grouped`): the flat
+ * summary plus the persisted snapshot's staleness metadata. `balanceSat`
+ * is the live cache read for the OPEN wallet and the persisted snapshot
+ * otherwise — `snapshotAt` tells the UI how stale that is.
+ */
+export interface BtcxCompartment extends BtcxWalletSummary {
+  snapshotHeight?: number;
+  /** Unix seconds when the snapshot was taken. */
+  snapshotAt?: number;
+}
+
+/**
+ * One wallet-selector group row: one seed's compartments in role order
+ * (current SegWit, current Taproot, then the v30 pockets) plus the summed
+ * balance. A singleton group renders like a plain wallet row.
+ */
+export interface BtcxWalletGroup {
+  group: string;
+  compartments: BtcxCompartment[];
+  /** Σ of the KNOWN compartment balances; absent when none is known yet. */
+  totalSat?: number;
+  /** Every compartment contributed to the sum (false = mark Σ pending). */
+  complete: boolean;
+  /** The group contains the network's selected wallet. */
+  isActive: boolean;
+}
+
+/** What `btcx_wallet_group_sync` did: the refreshed group + any failures. */
+export interface BtcxGroupSyncResult extends BtcxWalletGroup {
+  /** Per-compartment sync failures (those keep their stale snapshots). */
+  syncErrors?: string[];
+}
+
+/**
+ * What one legacy-rescan pass did (`btcx_wallet_rescan_legacy`):
+ * - `noop` — no legacy history, or its pocket already exists.
+ * - `created-v30` — a spend-only v30 pocket was materialized in the group.
  * - `deferred` — skipped without weakening the seed at rest (locked/encrypted).
  */
-export type BtcxV30MigrationOutcome =
-  | 'noop'
-  | 'created-v31'
-  | 'created-v30'
-  | 'already'
-  | 'deferred';
+export type BtcxV30MigrationOutcome = 'noop' | 'created-v30' | 'deferred';
 
-/** Result of a v30→v31 migration pass (`btcx_wallet_migrate_v30` / rescan). */
+/** Result of a legacy-rescan pass (`btcx_wallet_rescan_legacy`). */
 export interface BtcxV30MigrationResult {
   outcome: BtcxV30MigrationOutcome;
-  /** The wallet selected after the pass. */
+  /** The wallet selected after the pass (never switched by the rescan). */
   activeWallet: string;
-  /** The counterpart wallet created (v31 or v30), if any. */
+  /** The v30 pocket created, if any. */
   createdWallet?: string;
   /** Human-readable note — e.g. why the pass deferred. */
   detail?: string;
@@ -433,9 +459,6 @@ export function mapWalletTx(dto: BtcxWalletTxDto): BtcxWalletTx {
 
 @Injectable({ providedIn: 'root' })
 export class BtcxWalletService {
-  private readonly notification = inject(NotificationService);
-  private readonly i18n = inject(I18nService);
-
   // Signals for reactive state
   private readonly _status = signal<BtcxWalletStatus | null>(null);
   private readonly _balance = signal<BtcxBalance | null>(null);
@@ -449,6 +472,9 @@ export class BtcxWalletService {
   private _txWindow: { limit?: number; offset?: number } = { limit: RECENT_TX_LIMIT };
   private readonly _config = signal<BtcxWalletConfig | null>(null);
   private readonly _wallets = signal<BtcxWalletSummary[]>([]);
+  private readonly _groups = signal<BtcxWalletGroup[]>([]);
+  /** Name of the group a one-shot sync is currently refreshing, if any. */
+  private readonly _groupSyncing = signal<string | null>(null);
   private readonly _lastSync = signal<BtcxSyncEvent | null>(null);
   private readonly _isLoading = signal(false);
   private readonly _error = signal<string | null>(null);
@@ -471,6 +497,10 @@ export class BtcxWalletService {
   readonly config = this._config.asReadonly();
   /** Registered wallets of the active network (refreshWallets snapshot). */
   readonly wallets = this._wallets.asReadonly();
+  /** Selector groups of the active network (refreshGroups snapshot). */
+  readonly groups = this._groups.asReadonly();
+  /** The group a one-shot balance sync is refreshing right now, if any. */
+  readonly groupSyncing = this._groupSyncing.asReadonly();
   readonly lastSync = this._lastSync.asReadonly();
   readonly isLoading = this._isLoading.asReadonly();
   readonly error = this._error.asReadonly();
@@ -762,6 +792,71 @@ export class BtcxWalletService {
   }
 
   /**
+   * List the selector GROUPS of the active network (one group = one seed's
+   * compartments), balances snapshot-sourced — cheap, no store opens.
+   * Throws on failure.
+   */
+  async listGrouped(): Promise<BtcxWalletGroup[]> {
+    return invoke<BtcxWalletGroup[]>('btcx_wallet_list_grouped');
+  }
+
+  /**
+   * Refresh the `groups` signal from the registry snapshots. Errors resolve
+   * to the previous value (e.g. desktop-managed mode).
+   */
+  async refreshGroups(): Promise<BtcxWalletGroup[]> {
+    try {
+      const groups = await this.listGrouped();
+      this._groups.set(groups);
+      return groups;
+    } catch (err) {
+      console.error('Failed to list btcx wallet groups:', err);
+      return this._groups();
+    }
+  }
+
+  /**
+   * Refresh one group's balance snapshots with a sequential one-shot sync
+   * of its compartments (bounded per compartment; failures keep the stale
+   * snapshot) and update the `groups` signal in place. Resolves to null on
+   * a hard failure — the selector keeps painting the stale snapshots.
+   */
+  async groupSync(group: string): Promise<BtcxGroupSyncResult | null> {
+    this._groupSyncing.set(group);
+    try {
+      const result = await invoke<BtcxGroupSyncResult>('btcx_wallet_group_sync', { group });
+      this._groups.update(groups => groups.map(g => (g.group === group ? result : g)));
+      return result;
+    } catch (err) {
+      console.error(`Failed to sync wallet group '${group}':`, err);
+      return null;
+    } finally {
+      this._groupSyncing.set(null);
+    }
+  }
+
+  /**
+   * Rename a wallet GROUP in tandem: the group id and every member's name
+   * move together. Refuses while a member is open. Throws on failure.
+   */
+  async renameGroup(group: string, newGroup: string): Promise<void> {
+    await invoke('btcx_wallet_rename_group', { group, newGroup });
+    await this.refreshConfig();
+    await this.refreshStatus();
+  }
+
+  /**
+   * Delete a wallet GROUP in tandem — every member moves to the network's
+   * trash directory, never removed from disk. Refuses while a member is
+   * open; `confirmName` must repeat the GROUP name. Throws on failure.
+   */
+  async deleteGroup(group: string, confirmName: string): Promise<void> {
+    await invoke('btcx_wallet_delete_group', { group, confirmName });
+    await this.refreshConfig();
+    await this.refreshStatus();
+  }
+
+  /**
    * Select (and open, when possible) another registered wallet of the
    * active network. Closes the previous wallet's runtime. Throws on failure.
    */
@@ -782,50 +877,15 @@ export class BtcxWalletService {
   // ============================================================================
 
   /**
-   * Low-level v30→v31 upgrade of the ACTIVE wallet: if it is a v30 (coin-0')
-   * seed wallet, the backend creates its v31 sibling (`created-v31`) and
-   * switches to it; a v31/testnet/descriptor wallet is `noop`/`already`, and a
-   * passphrase-locked seed `deferred`s. No rename, no chain probe. Refreshes
-   * config/status. Throws on failure. Most callers want `upgradeV30`, which
-   * selects the target and surfaces the notice.
-   */
-  async migrateV30(): Promise<BtcxV30MigrationResult> {
-    const result = await invoke<BtcxV30MigrationResult>('btcx_wallet_migrate_v30');
-    this._status.set(result.status);
-    await this.refreshConfig();
-    return result;
-  }
-
-  /**
-   * Re-run the legacy (v30) probe for the open wallet, ignoring the migrate
-   * flag — the "check for older funds" affordance. Restores a legacy
-   * counterpart when history turns up (`created-v30`), otherwise `noop`.
-   * Refreshes config/status. Throws on failure.
+   * Re-run the legacy (v30) probe for the open wallet — the "check for
+   * older funds" affordance. Newly-found legacy history materializes as a
+   * spend-only v30 pocket of the wallet's group (`created-v30`), otherwise
+   * `noop`. Refreshes config/status. Throws on failure.
    */
   async rescanLegacy(): Promise<BtcxV30MigrationResult> {
     const result = await invoke<BtcxV30MigrationResult>('btcx_wallet_rescan_legacy');
     this._status.set(result.status);
     await this.refreshConfig();
-    return result;
-  }
-
-  /**
-   * Upgrade a v30 (legacy coin-0') wallet to v31 — the explicit "Upgrade"
-   * action. Selects the target wallet first (the backend upgrades the active
-   * one), creates its `<name>-v31` sibling over the same seed and switches to
-   * it, shows the one-time notice on success, and refreshes the wallet list.
-   * Throws on failure (e.g. a passphrase-locked seed defers) so the caller can
-   * surface it.
-   */
-  async upgradeV30(walletName: string): Promise<BtcxV30MigrationResult> {
-    if (this.walletName() !== walletName) {
-      await this.select(walletName);
-    }
-    const result = await this.migrateV30();
-    if (result.outcome === 'created-v31') {
-      this.notification.info(this.i18n.get('wallet_v30_migrated_notice'), undefined, 6000);
-    }
-    await this.refreshWallets();
     return result;
   }
 
@@ -994,10 +1054,11 @@ export class BtcxWalletService {
     try {
       const config = await invoke<BtcxWalletConfig>('btcx_wallet_get_config');
       this._config.set(config);
-      // The wallets signal is the registry's per-network view — every
-      // path that can change it (create/restore/select/delete/network
-      // switch) already refreshes the config, so ride the same seam.
+      // The wallets/groups signals are the registry's per-network views —
+      // every path that can change them (create/restore/select/delete/
+      // network switch) already refreshes the config, so ride the same seam.
       await this.refreshWallets();
+      await this.refreshGroups();
       return config;
     } catch (err) {
       console.error('Failed to get btcx wallet config:', err);

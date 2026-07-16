@@ -196,12 +196,18 @@ export class WalletManagerService {
 
   /**
    * Refresh the list of loaded wallets — from Bitcoin Core, or (remote
-   * mode) the local store's OPEN wallet (at most one).
+   * mode) the GROUP of the local store's open pocket (at most one; remote
+   * wallet names surfaced by this service are always group ids).
    */
   async refreshLoadedWallets(): Promise<string[]> {
     if (this.nodeService.isRemote()) {
       const status = await this.btcxWallet.refreshStatus();
-      const wallets = status?.walletActive ? [status.walletName] : [];
+      let wallets: string[] = [];
+      if (status?.walletActive) {
+        const groups = await this.btcxWallet.refreshGroups();
+        const group = groups.find(g => g.compartments.some(c => c.name === status.walletName));
+        wallets = [group?.group ?? status.walletName];
+      }
       this.loadedWalletsSubject.next(wallets);
       return wallets;
     }
@@ -230,24 +236,32 @@ export class WalletManagerService {
    */
   async getWalletSummaries(): Promise<WalletSummary[]> {
     if (this.nodeService.isRemote()) {
-      const list = await this.btcxWallet.list();
-      // Keep the loaded-wallets subject in step (at most one open wallet).
-      this.loadedWalletsSubject.next(list.filter(w => w.isOpen).map(w => w.name));
-      return list.map(w => ({
-        name: w.name,
-        isLoaded: w.isOpen,
-        balance: w.balanceSat !== undefined ? w.balanceSat / 100_000_000 : undefined,
-        isDescriptor: true,
-        isWatchOnly: false,
-        isEncrypted: w.seedEncrypted,
-        // Selector semantics: undefined = no unlock needed, 0 = locked,
-        // >0 = unlocked. Keyring-encrypted seeds auto-unlock → undefined.
-        unlockedUntil: w.seedLocked
-          ? 0
-          : w.seedEncrypted && w.isOpen
-            ? SESSION_UNLOCK_SECONDS
-            : undefined,
-      }));
+      // ONE row per GROUP (one seed): summed balance, loaded when any
+      // pocket is open. Loading picks a pocket (see loadWallet /
+      // loadRemotePocket) — fewer rows, one wallet per seed.
+      const groups = await this.btcxWallet.refreshGroups();
+      this.loadedWalletsSubject.next(
+        groups.filter(g => g.compartments.some(c => c.isOpen)).map(g => g.group)
+      );
+      return groups.map(g => {
+        const open = g.compartments.find(c => c.isOpen);
+        const anyEncrypted = g.compartments.some(c => c.seedEncrypted);
+        const anyLocked = g.compartments.some(c => c.seedLocked);
+        return {
+          name: g.group,
+          isLoaded: !!open,
+          // The OPEN pocket's balance — never a sum across pockets. Closed
+          // groups fill the column from the chosen pocket's snapshot
+          // (wallet-select's remoteBalance).
+          balance: open?.balanceSat !== undefined ? open.balanceSat / 100_000_000 : undefined,
+          isDescriptor: true,
+          isWatchOnly: false,
+          isEncrypted: anyEncrypted,
+          // Selector semantics: undefined = no unlock needed, 0 = locked,
+          // >0 = unlocked. Keyring-encrypted seeds auto-unlock → undefined.
+          unlockedUntil: anyLocked ? 0 : anyEncrypted && !!open ? SESSION_UNLOCK_SECONDS : undefined,
+        };
+      });
     }
 
     const allWallets = await this.listAllWallets();
@@ -812,15 +826,53 @@ export class WalletManagerService {
   // ============================================================
 
   /**
+   * The remote pocket a GROUP id resolves to when loaded without an
+   * explicit pocket choice: the registry's last-selected member, else the
+   * primary (current SegWit — the backend's role order). An exact pocket
+   * name that is not a group id passes through unchanged.
+   */
+  private async resolveRemotePocket(name: string): Promise<string> {
+    let groups = this.btcxWallet.groups();
+    if (groups.length === 0) {
+      groups = await this.btcxWallet.refreshGroups();
+    }
+    const group = groups.find(g => g.group === name);
+    if (!group || group.compartments.length === 1) {
+      return name;
+    }
+    return (group.compartments.find(c => c.isActive) ?? group.compartments[0]).name;
+  }
+
+  /**
+   * Load one EXACT remote pocket — the wallet selector's pocket picker
+   * (bypasses the group→pocket resolution, which matters when the group id
+   * doubles as a member's name).
+   */
+  async loadRemotePocket(pocketName: string): Promise<void> {
+    this.isLoadingSubject.next(true);
+    try {
+      await this.btcxWallet.select(pocketName);
+      const loaded = await this.refreshLoadedWallets();
+      if (loaded.length > 0) {
+        this.setActiveWallet(loaded[0]);
+      }
+      this.walletsChangedSubject.next();
+    } finally {
+      this.isLoadingSubject.next(false);
+    }
+  }
+
+  /**
    * Load a wallet. Remote mode selects (and opens) the named local wallet
-   * — the previous one closes, Core-`loadwallet`-style semantics.
+   * — the previous one closes, Core-`loadwallet`-style semantics. A GROUP
+   * id resolves to its last-selected pocket (see resolveRemotePocket).
    */
   async loadWallet(walletName: string, loadOnStartup?: boolean): Promise<void> {
     this.isLoadingSubject.next(true);
 
     try {
       if (this.nodeService.isRemote()) {
-        await this.btcxWallet.select(walletName);
+        await this.btcxWallet.select(await this.resolveRemotePocket(walletName));
       } else {
         await this.walletRpc.loadWallet(walletName, loadOnStartup);
       }

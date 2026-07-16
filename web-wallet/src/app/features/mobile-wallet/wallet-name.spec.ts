@@ -2,7 +2,6 @@ import {
   dedupeWalletName,
   isInvalidWalletName,
   isWalletNameTaken,
-  suggestSiblingWalletName,
   suggestWalletName,
 } from './wallet-name';
 
@@ -53,20 +52,4 @@ describe('wallet-name helpers', () => {
     });
   });
 
-  describe('suggestSiblingWalletName', () => {
-    it('qualifies the base name by the other address family', () => {
-      expect(suggestSiblingWalletName('Savings', 'bip86', ['Savings'])).toBe('Savings-taproot');
-      expect(suggestSiblingWalletName('Savings', 'bip84', ['Savings'])).toBe('Savings-segwit');
-    });
-
-    it('dedupes against the registry and respects the 32-char cap', () => {
-      expect(suggestSiblingWalletName('Savings', 'bip86', ['Savings', 'savings-taproot'])).toBe(
-        'Savings-taproot-2'
-      );
-      const long = 'w'.repeat(32);
-      const sibling = suggestSiblingWalletName(long, 'bip86', [long]);
-      expect(sibling.length).toBeLessThanOrEqual(32);
-      expect(sibling.endsWith('-taproot')).toBeTrue();
-    });
-  });
 });

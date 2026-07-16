@@ -23,7 +23,10 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { AppUpdateService } from '../../../../core/services/app-update.service';
 import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import { NodeService } from '../../../../node/services/node.service';
-import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import {
+  BtcxWalletService,
+  BtcxCompartment,
+} from '../../../../core/services/btcx-wallet.service';
 
 /**
  * WalletSelectComponent displays available wallets and options to create/import.
@@ -184,6 +187,51 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                   </td>
                 </ng-container>
 
+                <!-- Pocket Column (remote mode): the compartment badge with
+                     its radio dropdown. Picking while loaded switches right
+                     away; while unloaded it arms what Load will open. -->
+                <ng-container matColumnDef="pocket">
+                  <th mat-header-cell *matHeaderCellDef class="pocket-header">
+                    {{ 'wallet_pocket' | i18n }}
+                  </th>
+                  <td
+                    mat-cell
+                    *matCellDef="let wallet"
+                    class="pocket-cell"
+                    [class.unloaded]="!wallet.isLoaded"
+                  >
+                    @if (pocketsOf(wallet.name).length > 1) {
+                      <button
+                        type="button"
+                        class="pocket-badge"
+                        [disabled]="isWalletLoading(wallet.name)"
+                        [matMenuTriggerFor]="pocketMenu"
+                        (click)="$event.stopPropagation()"
+                      >
+                        {{ chosenPocketLabel(wallet.name) }}
+                        <mat-icon class="pocket-badge-arrow">arrow_drop_down</mat-icon>
+                      </button>
+                      <mat-menu #pocketMenu="matMenu">
+                        @for (c of pocketsOf(wallet.name); track c.name) {
+                          <button mat-menu-item (click)="choosePocket(wallet, c)">
+                            <mat-icon>{{
+                              chosenPocket(wallet.name) === c.name
+                                ? 'radio_button_checked'
+                                : 'radio_button_unchecked'
+                            }}</mat-icon>
+                            <span class="pocket-item-role">{{ pocketRoleLabel(c) }}</span>
+                            @if (c.balanceSat !== undefined) {
+                              <span class="pocket-item-balance">
+                                {{ c.balanceSat / 100000000 | number: '1.8-8' }}
+                              </span>
+                            }
+                          </button>
+                        }
+                      </mat-menu>
+                    }
+                  </td>
+                </ng-container>
+
                 <!-- Balance Column -->
                 <ng-container matColumnDef="balance">
                   <th mat-header-cell *matHeaderCellDef class="balance-header">
@@ -197,6 +245,11 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                   >
                     @if (wallet.isLoaded && wallet.balance !== undefined) {
                       <span>{{ wallet.balance | number: '1.8-8' }} BTCX</span>
+                    } @else if (remoteBalance(wallet.name) !== null) {
+                      <!-- Remote mode: last known snapshot, selector display. -->
+                      <span class="snapshot-balance">
+                        {{ remoteBalance(wallet.name) | number: '1.8-8' }} BTCX
+                      </span>
                     } @else {
                       <span class="no-balance">--</span>
                     }
@@ -253,10 +306,10 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
                   </td>
                 </ng-container>
 
-                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-header-row *matHeaderRowDef="displayedColumns()"></tr>
                 <tr
                   mat-row
-                  *matRowDef="let wallet; columns: displayedColumns"
+                  *matRowDef="let wallet; columns: displayedColumns()"
                   [class.selected]="selectedWallet() === wallet.name"
                   (click)="selectRow(wallet)"
                 ></tr>
@@ -351,12 +404,12 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         }
       }
 
-      /* Wallet Selector Box - fixed width matching original */
+      /* Wallet Selector Box - fixed width (widened for the pocket column) */
       .wallet-selector-box {
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        width: 670px;
+        width: 760px;
         max-width: 100%;
         overflow: hidden;
       }
@@ -536,6 +589,58 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
         .no-balance {
           color: rgba(0, 0, 0, 0.3);
+        }
+
+        /* Remote mode: last known (snapshot) balance of a closed wallet. */
+        .snapshot-balance {
+          color: rgba(0, 0, 0, 0.45);
+        }
+
+        /* Pocket column: narrow, badge-sized. */
+        .pocket-cell,
+        .pocket-header {
+          white-space: nowrap;
+          padding-right: 8px;
+        }
+
+        /* Pocket badge (remote groups): the compartment the wallet opens
+           as, v30-badge family with a dropdown arrow. */
+        .pocket-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 1px 2px 1px 6px;
+          border: none;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: 600;
+          line-height: 1.4;
+          vertical-align: middle;
+          color: #1565c0;
+          background: rgba(25, 118, 210, 0.1);
+          cursor: pointer;
+
+          &:disabled {
+            opacity: 0.5;
+            cursor: default;
+          }
+
+          .pocket-badge-arrow {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            margin-left: -1px;
+          }
+        }
+
+        .pocket-item-role {
+          font-weight: 500;
+        }
+
+        .pocket-item-balance {
+          margin-left: 16px;
+          font-size: 12px;
+          font-variant-numeric: tabular-nums;
+          color: rgba(0, 0, 0, 0.5);
         }
 
         .name-header {
@@ -796,7 +901,12 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   loadingWallets = new Set<string>();
 
   // Table columns
-  displayedColumns: string[] = ['status', 'name', 'balance', 'encryption', 'action'];
+  /** Table columns — remote mode adds the pocket-badge column. */
+  readonly displayedColumns = computed(() =>
+    this.isRemote()
+      ? ['status', 'name', 'pocket', 'balance', 'encryption', 'action']
+      : ['status', 'name', 'balance', 'encryption', 'action']
+  );
 
   ngOnInit(): void {
     // Subscribe to wallet changes (sync with toolbar)
@@ -867,10 +977,11 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
       const summaries = await this.walletManager.getWalletSummaries();
       this.wallets.set(summaries);
 
-      // Remote mode: the upgrade badge reads the BDK registry (coin type +
-      // migrate flag) via needsUpgrade(), so keep that list fresh.
+      // Remote mode: the v30 badge and the group/role labels read the BDK
+      // registry, so keep both views fresh.
       if (this.isRemote()) {
         await this.btcxWallet.refreshWallets();
+        await this.btcxWallet.refreshGroups();
       }
 
       // Auto-select first loaded wallet
@@ -906,39 +1017,121 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Whether the named wallet is a legacy v30 (coin-0') wallet — a persistent
-   * label that stays after the upgrade (unlike the upgrade badge, which clears
-   * once the v31 sibling exists). Remote (BDK) mode only.
+   * Whether the named row is a legacy v30 (coin-0') SINGLETON wallet —
+   * remote rows are groups, and a real group carries the era on its pocket
+   * labels instead of the row. Remote (BDK) mode only.
    */
   isV30(walletName: string): boolean {
     if (!this.isRemote()) return false;
-    const w = this.btcxWallet.wallets().find(x => x.name === walletName);
-    return !!w && w.policy.coinType === 0;
+    const group = this.btcxWallet.groups().find(g => g.group === walletName);
+    return (
+      !!group && group.compartments.length === 1 && group.compartments[0].policy.coinType === 0
+    );
   }
 
-  /** Whether the named wallet needs a v31 upgrade (cached; template-safe). */
-  needsUpgrade(walletName: string): boolean {
-    // Remote (BDK) mode: read the coin type straight off the local registry —
-    // a v30 (coin-0') seed wallet without the migrate flag can upgrade.
-    if (this.isRemote()) {
-      const w = this.btcxWallet.wallets().find(x => x.name === walletName);
-      return !!w && w.policy.coinType === 0 && !w.v30Migrated && w.source === 'seed';
+  /** The pockets of a remote group row ([] off remote / unknown rows). */
+  pocketsOf(walletName: string): BtcxCompartment[] {
+    if (!this.isRemote()) return [];
+    return this.btcxWallet.groups().find(g => g.group === walletName)?.compartments ?? [];
+  }
+
+  /**
+   * The user's pocket pick per group (the Pocket column). Only a PENDING
+   * choice lives here — while a pocket is open, the registry is the truth.
+   */
+  private readonly pocketChoice = signal<Record<string, string>>({});
+
+  /**
+   * The pocket the group opens as: the OPEN pocket while loaded, else the
+   * user's pending pick, else the registry's last-selected member, else
+   * the primary (current SegWit).
+   */
+  chosenPocket(walletName: string): string {
+    const pockets = this.pocketsOf(walletName);
+    if (pockets.length === 0) return walletName;
+    const open = pockets.find(c => c.isOpen);
+    if (open) return open.name;
+    const picked = this.pocketChoice()[walletName];
+    if (picked && pockets.some(c => c.name === picked)) return picked;
+    return (pockets.find(c => c.isActive) ?? pockets[0]).name;
+  }
+
+  /** Display label of the group's chosen pocket (the dropdown trigger). */
+  chosenPocketLabel(walletName: string): string {
+    const chosen = this.chosenPocket(walletName);
+    const pocket = this.pocketsOf(walletName).find(c => c.name === chosen);
+    return pocket ? this.pocketRoleLabel(pocket) : '';
+  }
+
+  /**
+   * Pick a pocket: while the group is LOADED this switches right away
+   * (close + open, Core-load semantics); while unloaded it only arms what
+   * the Load button will open.
+   */
+  async choosePocket(wallet: WalletSummary, pocket: BtcxCompartment): Promise<void> {
+    this.pocketChoice.update(current => ({ ...current, [wallet.name]: pocket.name }));
+    if (wallet.isLoaded && !pocket.isOpen) {
+      await this.loadPocket(wallet, pocket);
     }
+  }
+
+  /** Display label of one pocket: role, plus the era tag ("SegWit · v30"). */
+  pocketRoleLabel(c: BtcxCompartment): string {
+    const role = this.i18n.get(
+      c.policy.kind === 'bip86'
+        ? 'mwallet_kind_taproot'
+        : c.policy.kind === 'legacy'
+          ? 'mwallet_kind_legacy'
+          : 'mwallet_kind_segwit'
+    );
+    return c.policy.coinType === 0 ? `${role} · ${this.i18n.get('wallet_legacy_badge')}` : role;
+  }
+
+  /** Load one EXACT pocket of a remote group (the Load button's picker). */
+  async loadPocket(wallet: WalletSummary, pocket: BtcxCompartment): Promise<void> {
+    if (this.isWalletLoading(wallet.name)) return;
+    this.loadingWallets.add(wallet.name);
+    try {
+      await this.walletManager.loadRemotePocket(pocket.name);
+      this.selectedWallet.set(wallet.name);
+      await this.loadWallets();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load wallet';
+      this.snackBar.open(message, this.i18n.get('dismiss'), { duration: 5000 });
+    } finally {
+      this.loadingWallets.delete(wallet.name);
+    }
+  }
+
+  /**
+   * Whether the named wallet needs a v31 upgrade (cached; template-safe).
+   * Core-managed mode only — remote (BDK) wallets materialize their
+   * compartments in the background, there is nothing to offer.
+   */
+  needsUpgrade(walletName: string): boolean {
+    if (this.isRemote()) return false;
     return this.upgradeNeeded()[walletName] === true;
   }
 
   /**
-   * Open the guided re-enter upgrade dialog for a wallet. On success the
+   * Last known balance (BTCX) of the group's CHOSEN pocket from its
+   * selector snapshot — fills the balance column for non-open rows (never
+   * a sum). Null when unknown (or off remote mode).
+   */
+  remoteBalance(walletName: string): number | null {
+    if (!this.isRemote()) return null;
+    const chosen = this.chosenPocket(walletName);
+    const pocket = this.pocketsOf(walletName).find(c => c.name === chosen);
+    return pocket?.balanceSat !== undefined ? pocket.balanceSat / 1e8 : null;
+  }
+
+  /**
+   * Open the guided re-enter upgrade dialog for a wallet (Core-managed
+   * mode; `needsUpgrade` never offers it in remote mode). On success the
    * wallet has been upgraded (badge clears) — reload the list.
    */
   openUpgradeDialog(wallet: WalletSummary, event: Event): void {
     event.stopPropagation();
-    // Remote (BDK) wallets store the seed, so upgrade in place — no re-enter-
-    // mnemonic dialog: create the v31 sibling and switch to it.
-    if (this.isRemote()) {
-      void this.upgradeRemoteWallet(wallet.name);
-      return;
-    }
     const data: UpgradeWalletDialogData = { walletName: wallet.name };
     this.dialog
       .open(UpgradeWalletDialogComponent, { data, width: '560px', disableClose: true })
@@ -950,21 +1143,6 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
         });
         void this.loadWallets();
       });
-  }
-
-  /** Create the v31 sibling for a remote (BDK) v30 wallet and switch to it. */
-  private async upgradeRemoteWallet(name: string): Promise<void> {
-    try {
-      const result = await this.btcxWallet.upgradeV30(name);
-      const msg =
-        result.outcome === 'deferred' ? 'mwallet_upgrade_v31_deferred' : 'wallet_upgrade_success';
-      this.snackBar.open(this.i18n.get(msg), this.i18n.get('dismiss'), { duration: 4000 });
-      await this.btcxWallet.refreshWallets();
-      await this.loadWallets();
-    } catch (err) {
-      console.error('Failed to upgrade remote wallet:', err);
-      this.snackBar.open(`${err}`, this.i18n.get('dismiss'), { duration: 6000 });
-    }
   }
 
   retryConnection(): void {
@@ -1010,6 +1188,10 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
         if (this.selectedWallet() === wallet.name) {
           this.selectedWallet.set(null);
         }
+      } else if (this.pocketsOf(wallet.name).length > 1) {
+        // Remote group: load exactly the pocket the Pocket column shows.
+        await this.walletManager.loadRemotePocket(this.chosenPocket(wallet.name));
+        this.selectedWallet.set(wallet.name);
       } else {
         // Load wallet
         await this.walletManager.loadWallet(wallet.name, true);
