@@ -413,7 +413,12 @@ interface NavGroup {
                           }}</span>
                         }
                         @if (c.balanceSat !== undefined) {
-                          <span class="wallet-row-balance">{{ c.balanceSat / 100000000 | btcx }}</span>
+                          <span class="wallet-row-balance">
+                            {{ c.balanceSat / 100000000 | btcx }}
+                            @if (staleness(c); as s) {
+                              <span class="wallet-row-stale">· {{ s }}</span>
+                            }
+                          </span>
                         }
                         @if (switching() === c.name) {
                           <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
@@ -807,6 +812,11 @@ interface NavGroup {
           font-variant-numeric: tabular-nums;
           color: rgba(0, 0, 0, 0.5);
           flex-shrink: 0;
+
+          .wallet-row-stale {
+            font-size: 10px;
+            color: rgba(0, 0, 0, 0.4);
+          }
         }
 
         .pocket-icon {
@@ -1244,12 +1254,31 @@ export class MobileWalletLayoutComponent implements OnInit {
   /**
    * Refresh the ACTIVE group's balance snapshots (sequential one-shot
    * sync) whenever the pocket chip opens — balances land as they sync.
+   * Per-pocket failures keep their stale snapshot; they are SURFACED (a
+   * silently-stale pocket balance reads as "frozen funds").
    */
   onPocketMenuOpened(): void {
     const group = this.activeGroup();
-    if (group) {
-      void this.wallet.groupSync(group.group);
-    }
+    if (!group) return;
+    void this.wallet.groupSync(group.group).then(result => {
+      if (result?.syncErrors?.length) {
+        this.notification.error(result.syncErrors[0]);
+      }
+    });
+  }
+
+  /**
+   * Relative age of a NON-LIVE pocket balance ("12m", "3h", "2d") — the
+   * honesty marker for snapshot-sourced numbers. Empty for the open
+   * pocket and for fresh (< 1 minute) snapshots.
+   */
+  staleness(c: BtcxCompartment): string {
+    if (c.isOpen || !c.snapshotAt) return '';
+    const secs = Math.max(0, Math.floor(Date.now() / 1000) - c.snapshotAt);
+    if (secs < 60) return '';
+    if (secs < 3600) return `${Math.floor(secs / 60)}m`;
+    if (secs < 86400) return `${Math.floor(secs / 3600)}h`;
+    return `${Math.floor(secs / 86400)}d`;
   }
 
   /** The group holding the active wallet, if any. */
