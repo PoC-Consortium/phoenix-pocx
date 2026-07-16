@@ -14,8 +14,9 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use bdk_wallet::KeychainKind;
 use electrum_btcx::{
-    ChainMismatch, ElectrumBackend, ElectrumPool, SyncWorker, WalletEntry, WalletHandle,
+    ChainMismatch, ElectrumBackend, ElectrumPool, SyncWorker, WalletEntry, WalletHandle, STOP_GAP,
 };
 use keys_btcx::WalletSeed;
 use params_btcx::params::ChainParams;
@@ -539,6 +540,77 @@ impl BtcxWalletState {
         Ok((sat, height))
     }
 
+    /// Look-ahead sweep past the revealed address range of an OPEN wallet.
+    ///
+    /// The sync layer's steady-state contract covers REVEALED spks only —
+    /// correct for a single instance (every handout reveals first), but a
+    /// seed may live on several devices: an address handed out by the
+    /// desktop instance is unrevealed here, and funds sent to it stay
+    /// invisible forever (field report: pool payouts to a desktop-issued
+    /// address froze the mobile balance at its restore-time state, while
+    /// the height kept rising). One batched `histories` call over the next
+    /// [`STOP_GAP`] unrevealed spks per keychain (peek — never reveals by
+    /// itself); hits are revealed-through + persisted (the probe-reach
+    /// pattern), so the next worker pass picks their history up on the
+    /// normal revealed path. Only USED addresses get revealed, so the
+    /// wallet's unused-ahead handout cap is never inflated. Returns
+    /// whether anything new was revealed (the caller pokes the worker).
+    pub fn gap_watch(&self, handle: &WalletHandle) -> Result<bool, String> {
+        // Derive the look-ahead windows under a brief lock (pure CPU).
+        let jobs = {
+            let entry = handle.lock().map_err(|_| "wallet entry poisoned")?;
+            // Single-address stores have one non-wildcard keychain — no gap.
+            if entry.wallet.keychains().count() < 2 {
+                return Ok(false);
+            }
+            [KeychainKind::External, KeychainKind::Internal]
+                .into_iter()
+                .map(|keychain| {
+                    let start = entry
+                        .wallet
+                        .derivation_index(keychain)
+                        .map_or(0, |i| i + 1);
+                    let spks: Vec<bitcoin::ScriptBuf> = (start..start + STOP_GAP)
+                        .map(|i| {
+                            entry
+                                .wallet
+                                .peek_address(keychain, i)
+                                .address
+                                .script_pubkey()
+                        })
+                        .collect();
+                    (keychain, start, spks)
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let chain = self.probe_chain()?;
+        let mut revealed_any = false;
+        for (keychain, start, spks) in jobs {
+            let histories = chain
+                .histories(&spks)
+                .map_err(|e| format!("gap watch histories: {e:#}"))?;
+            if let Some(deepest) = histories.iter().rposition(|h| !h.is_empty()) {
+                let mut guard = handle.lock().map_err(|_| "wallet entry poisoned")?;
+                let entry = &mut *guard;
+                let _ = entry
+                    .wallet
+                    .reveal_addresses_to(keychain, start + deepest as u32);
+                entry
+                    .wallet
+                    .persist(&mut entry.conn)
+                    .map_err(|e| format!("persisting gap-watch reveal: {e}"))?;
+                log::info!(
+                    "btcx wallet: gap watch found history beyond the revealed range \
+                     ({keychain:?} index {}) — revealing through it",
+                    start + deepest as u32
+                );
+                revealed_any = true;
+            }
+        }
+        Ok(revealed_any)
+    }
+
     /// Build the per-call wallet backend from the open runtime: pooled home
     /// connection for chain reads, the other configured servers as
     /// broadcast-fallback views, the shared wallet handle + worker for the
@@ -913,6 +985,11 @@ fn spawn_sync_emitter(
         .spawn(move || {
             let mut last: Option<(u32, u64, &'static str)> = None;
             let mut last_snapshot: Option<(u64, u32)> = None;
+            // Gap-watch cadence: first pass right after open (a reopened
+            // store catches out-of-range funds within seconds), then every
+            // ~2 minutes (40 × 3s iterations).
+            const GAP_WATCH_EVERY: u32 = 40;
+            let mut gap_tick: u32 = GAP_WATCH_EVERY - 1;
             loop {
                 // ~3s cadence, checking the stop flag every 500ms so a
                 // close/network-switch never waits on a sleeping thread.
@@ -921,6 +998,17 @@ fn spawn_sync_emitter(
                         return;
                     }
                     std::thread::sleep(std::time::Duration::from_millis(500));
+                }
+                gap_tick += 1;
+                if gap_tick >= GAP_WATCH_EVERY {
+                    gap_tick = 0;
+                    // Multi-instance seeds: sweep past the revealed range
+                    // (see gap_watch) — a hit reveals + re-syncs.
+                    match state.gap_watch(&handle) {
+                        Ok(true) => worker.poke(),
+                        Ok(false) => {}
+                        Err(e) => log::debug!("btcx wallet: gap watch skipped: {e}"),
+                    }
                 }
                 let age = worker.fresh_age();
                 let Ok(entry) = handle.lock() else { return };
