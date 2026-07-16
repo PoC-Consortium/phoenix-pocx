@@ -101,6 +101,21 @@ One **WalletName** = one seed = a **group**, rendered as one collapsible row in 
 - v30 badge: era badge (`wallet_legacy_badge` = "v30", coin type) is distinct from the kind badge (`mwallet_legacy_badge` = "legacy", imported pkh scripts) — both kept.
 - **Live-review revisions (2026-07-16, superseding the Σ decision):** NO summed balance anywhere — a balance always names ONE pocket (the open/selected one live, others by snapshot). Desktop wallet-select: one row per group, stable name, a "Pocket" column with a radio-dropdown (selection while unloaded only arms Load; while loaded it switches immediately), single Load/Unload button. `walletManager` surfaces GROUP ids in remote mode (loaded list, summaries, active wallet); `loadWallet(group)` resolves to the last-selected pocket, `loadRemotePocket(name)` loads an exact one. Mobile group headers show no balance (pocket rows carry them). The grouped DTO's `totalSat`/`complete` remain but are display-unused.
 
+## Multi-instance seeds (field lesson, 2026-07-16)
+
+`electrum-btcx`'s steady-state sync covers **revealed spks only** (the full
+gap scan runs once, on a fresh store) — correct for one instance, broken
+for a seed on several devices: an address handed out by the desktop
+instance is unrevealed on mobile, so funds sent to it stayed invisible
+there forever while the height kept rising ("balance frozen at
+restore-time state"). App-side fix (crates pinned): **gap watch** — the
+open runtime peeks the next STOP_GAP unrevealed spks per keychain (~2 min
+cadence + right after open, one batched `histories` call), reveals through
+any USED index (probe-reach pattern; the handout cap never inflates
+because only used addresses reveal) and pokes the worker. Residual gap:
+non-active pockets' one-shot syncs still cover only their revealed range —
+opening the pocket (making it live) closes that within seconds.
+
 ## Risk notes
 
 - Money-critical (seeds, balances) → Phase 1 ships behind unchanged behavior and is independently testable before any UI moves.
