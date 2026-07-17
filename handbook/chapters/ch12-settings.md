@@ -103,6 +103,8 @@ The external panel collects the connection details Phoenix needs to reach a Bitc
 
 In remote mode there is no node to configure — instead this panel manages the **Electrum servers** the local wallet syncs through. (The full story is Chapter 26; this is the settings reference.)
 
+![The remote (Electrum) node-configuration panel: connection mode, network, and the Electrum server list.](images/processed/ch12-settings-remote.png){width=70%}
+
 **Network selection.** *Mainnet*, *Testnet*, or *Regtest*. Each network keeps its own server list and its own wallet data.
 
 **Electrum servers.** An ordered list of endpoints — *"The first entry is the primary server; the rest are failovers."*
@@ -115,7 +117,7 @@ In remote mode there is no node to configure — instead this panel manages the 
 
 For mainnet a default Bitcoin-PoCX server is present out of the box; testnet and regtest start empty. Put a server you run first if you have one, and keep a public server below it as a failover.
 
-**Wallets.** Below the server list, remote mode shows the local wallets it holds. Alongside the usual switch/rename/delete controls, a wallet still on the legacy coin type carries the **v30** badge and its **Upgrade to v31** action (Chapter 5). A **Check for older (v30) funds** button re-scans the active wallet's legacy (v30) derivation branch and restores any funds it finds there — reporting either *"Found and restored older funds"* or *"No older funds found."* Use it if a freshly upgraded wallet looks like it is missing history that used to be there.
+That is the whole remote panel — **there is no wallet list here.** Creating, switching, renaming, and deleting wallets, and choosing a pocket, all live in the toolbar's **wallet** and **pocket** selectors and, on the desktop, the full-screen **Wallets** page (Chapters 5 and 26). The one remote-wallet maintenance action that lives in Settings — **Check for older (v30) funds** — is on the **Danger Zone** tab (below).
 
 ## Tab 2 — Notifications
 
@@ -159,6 +161,14 @@ Operations that destroy or rewrite configuration. Phoenix groups them on their o
 ![The Danger Zone tab: resets and WIF import.](images/processed/ch12-settings-danger.png){width=98%}
 
 A warning banner at the top of the tab reminds you that the actions below are not reversible.
+
+### Check for older (v30) funds *(remote mode)*
+
+In remote (Electrum) mode, a card here re-probes the open wallet's **legacy (v30) derivation branches** on the Electrum server and, on a hit, materialises a spend-only **v30 pocket** inside the wallet (Chapter 26) — reporting either *"Found and restored older funds"* or *"No older funds found."* It is the manual, by-choice counterpart to the automatic branch scan restore runs: use it if older coins arrive *after* a restore — an address you published long ago, or a pool paying out to a v30 forging address — since legacy branches are never probed in the background.
+
+![The Check for older (v30) funds card re-scans the legacy branch and materialises a v30 pocket on a hit.](images/processed/ch12-check-v30-funds.png){width=75%}
+
+On Android the same control is a **Scan** card on the wallet Settings page rather than in a Danger Zone tab.
 
 ### Reset mining configuration
 

@@ -2,7 +2,7 @@
 
 The first time you start Phoenix, the application opens a short setup wizard rather than the wallet itself. The wizard does one thing: it gets you connected to **Bitcoin-PoCX Core**, the program that holds your wallet and talks to the network on your behalf. This chapter walks you through the wizard end to end.
 
-![The first-launch setup wizard: choosing between a managed and an external node.](images/processed/ch04-wizard-mode.png){width=70%}
+![The first-launch setup wizard: choosing between a managed, external, or remote node.](images/processed/ch04-wizard-mode.png){width=65%}
 
 ## What the wizard is doing
 
@@ -32,7 +32,9 @@ The first screen asks: *"How would you like to connect to the Bitcoin-PoCX netwo
 | **External Node** | You already run Bitcoin-PoCX Core somewhere and want Phoenix to connect to it via RPC. Configuration follows in Chapter 25. |
 | **Remote Node (Electrum)** | You want no local node — a wallet that syncs over Electrum servers and stores its data on this computer. No sync wait; solo mining unavailable. Configuration follows in Chapter 26. |
 
-Click the card you want; the chosen card is highlighted in blue.
+Click the card you want; the chosen card is highlighted in blue. Selecting **Remote Node (Electrum)** additionally reveals an **Electrum servers** editor inline, so you can set the servers the wallet will sync through before continuing (Chapter 26).
+
+![Selecting Remote Node (Electrum) reveals the Electrum-servers editor inline.](images/processed/ch04-wizard-remote.png){width=65%}
 
 ### The testnet toggle
 

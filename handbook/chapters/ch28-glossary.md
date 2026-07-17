@@ -96,6 +96,8 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **Plot address / plotting address.** The address embedded in a plot file when it is generated, identifying who owns the plot and (by default) who receives its rewards. *(Chapters 7, 15)*
 
+**Pocket.** In remote (Electrum) and Android mode, one *derivation branch* of a wallet's recovery phrase — a SegWit or Taproot address type, on the current or the older (v30) coin type. A single wallet gathers all its branches as pockets, each with its own balance and addresses, switched with a **pocket selector** (a dropdown beside the wallet selector). Only a SegWit pocket can mine; v30 pockets are spend-only. *(Chapter 26)*
+
 **PoCX (Proof-of-Capacity, NeXt Generation).** The consensus mechanism of Bitcoin-PoCX: mining power derives from committed disk space rather than computation. *(Chapters 2, 13)*
 
 **Pool.** A service that aggregates many miners' submissions, forges blocks on their behalf, and distributes rewards by contribution. Requires a forging assignment to the pool's address. *(Chapters 13, 19)*
@@ -142,7 +144,7 @@ Definitions of the terms used throughout this handbook. Where a term has a dedic
 
 **UTXO (Unspent Transaction Output).** A discrete piece of received, not-yet-spent BTCX. Wallets spend UTXOs and create new ones, including change back to themselves. *(Chapters 8, 9)*
 
-**v30 / v31 wallet.** An informal label for which *coin type* a mainnet wallet derives at. A **v30** wallet uses Bitcoin's original coin type `0'` (older wallets); a **v31** wallet uses the registered BTCX coin type. Phoenix flags a v30 wallet with a badge and offers a one-time upgrade to v31. Applies to mainnet only. *(Chapter 5)*
+**v30 / v31 wallet.** An informal label for which *coin type* a mainnet wallet derives at. A **v30** wallet uses Bitcoin's original coin type `0'` (older wallets); a **v31** wallet uses the registered BTCX coin type. Phoenix flags v30 coins differently by mode: a Core-backed wallet shows an **upgrade** button that runs a one-time upgrade to v31; a remote / Android wallet has no upgrade step — the v30 coins appear as a spend-only **v30 pocket** instead. Applies to mainnet only. *(Chapters 5, 26)*
 
 **vByte (virtual byte).** The unit transaction fees are quoted in (`sat/vB`), accounting for the discount given to signature data. *(Chapter 8)*
 

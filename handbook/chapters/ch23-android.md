@@ -12,7 +12,7 @@ The phone is now a self-sufficient participant. On its own, with no other machin
 
 | Wallet | Mining |
 |--------|--------|
-| Create, restore, and hold multiple named wallets | Plot free storage (CPU, and OpenCL where supported) |
+| Create, restore, and hold multiple wallets (each with its pockets) | Plot free storage (CPU, and OpenCL where supported) |
 | Receive BTCX (address + QR) | Mine its plots into a **pool** in the background |
 | Send BTCX (with fee presets and review) | Publish the on-chain **forging assignment** a pool needs |
 | Keep transaction history and contacts | Mine straight into a wallet the phone itself holds |
@@ -34,32 +34,35 @@ On first launch the app opens straight into wallet onboarding — there is no no
 
 The first screen is **Set up your wallet** — *"Create a new wallet or restore an existing one from its recovery phrase."* This is the same fork as the desktop Wallets screen (Chapter 5), sized for a phone.
 
+![The Android onboarding screen — create a new wallet or restore one from its recovery phrase.](images/processed/ch23-wallet-setup.png){width=55%}
+
 ### Creating a new wallet
 
-- **Name it.** Give the wallet a recognisable name — it appears in the wallet switcher and list.
+- **Name it.** Give the wallet a recognisable name — it appears in the wallet selector.
 - **Write down the 24 words.** Phoenix generates a fresh 24-word recovery phrase and shows it once, with the blunt warning it deserves: *"These 24 words are the only backup of your wallet. Write them down on paper and keep them offline. Anyone who knows them can spend your funds."* There is no cloud backup and never will be (see *Seed safety on a phone*, below) — paper is the backup.
 - **Confirm the backup.** Phoenix asks you to re-enter a few of the words from your written copy, exactly as the desktop create flow does, to prove you wrote them down.
 - **Set a device passphrase (optional but recommended).** A passphrase encrypts the seed stored on the device. It is *not* part of the recovery phrase — the words alone always restore your funds — but on a phone it is what stands between a thief who picks up your unlocked device and your seed. On Android especially, **set one** (the reasoning is in *Seed safety on a phone*).
 
 ### Restoring an existing wallet
 
-Choose **Restore wallet** and enter your 12- or 24-word phrase. Because the phone has no local blockchain to rescan, Phoenix instead checks the phrase's history against your configured Electrum server to find the right *derivation branch* — *"Restoring checks the phrase's history on the configured Electrum server to find the right derivation branch."* It then opens the wallet on the branch that holds funds.
+Choose **Restore wallet** and enter your 12- or 24-word phrase. Because the phone has no local blockchain to rescan, Phoenix instead checks the phrase's history against your configured Electrum server to find which *derivation branches* hold funds — *"Restoring checks the phrase's history on the configured Electrum server to find the right derivation branch."* It opens the wallet on its **current SegWit** pocket.
 
-If the phrase turns out to have history on **two** address types — the SegWit (BIP-84) branch and the Taproot (BIP-86) branch — Phoenix tells you so and offers to **create the second wallet** over the same phrase, so no funds stay hidden on a branch you did not open. You end up with both wallets, switchable from the header menu.
+If the phrase has history on other branches too — the Taproot (BIP-86) branch, or an older-coin-type branch — Phoenix restores those alongside as extra **pockets** of the same wallet, so no funds stay hidden on a branch you did not open. You switch between the pockets with the pocket selector (see *Getting around*, below); older funds arrive as spend-only **v30** pockets, described under *Pockets* in Chapter 26.
 
 > **Note** — Restoring needs a configured Electrum server to probe against (Chapter 26). If none is set, Phoenix says so and sends you to the wallet settings to add one first. If a scan comes up empty because the server was still catching up, a **Scan again** action retries.
 
-### Address type: why SegWit is the default
+### Pockets: SegWit and Taproot
 
-An **Advanced** choice at creation sets the wallet's **address type**. It matters for mining:
+You no longer pick an address type when you create a wallet. A new wallet comes with two **pockets** — a **SegWit** one and a **Taproot** one — both derived from the same recovery phrase, and you switch between them with the pocket selector (see *Getting around*, below). The full pockets model, including the older-coin-type **v30** pockets, is described in Chapter 26; the one thing that matters here is which pocket can mine:
 
-| Type | Addresses | Can receive mining rewards? |
-|------|-----------|------------------------------|
-| **SegWit (BIP-84)** *(default, recommended)* | `pocx1q…` | **Yes** — plot addresses are SegWit v0. |
-| **Taproot (BIP-86)** | `pocx1p…` | **No** — taproot addresses can never be plot addresses. |
-| **Legacy (pre-SegWit)** | `1…`-style | **No** — can send and receive ordinary coins only. |
+| Pocket | Addresses | Can receive mining rewards? |
+|--------|-----------|------------------------------|
+| **SegWit** | `pocx1q…` | **Yes** — plot addresses are SegWit v0. |
+| **Taproot** | `pocx1p…` | **No** — taproot addresses can never be plot addresses. |
 
-Leave it on **SegWit** unless you have a specific reason not to. Only a SegWit wallet can hold a plot address, so only a SegWit wallet can mine or publish a forging assignment (Chapter 19). If you pick taproot or legacy, the mining screens will tell you to switch to a SegWit wallet before you can plot to your own key.
+Only a SegWit pocket can hold a plot address, so only a SegWit pocket can mine or publish a forging assignment (Chapter 19). If the **Taproot** pocket is the active one, the mining and assignment screens tell you to *switch to the SegWit pocket* before you can plot to your own key. For the common "mine into my own wallet" flow, stay on the SegWit pocket — it is the one a fresh wallet opens on.
+
+> **Note** — True **legacy** (`1…`-style) addresses are not a pocket; they only ever arrive by importing a single key or descriptor (below), which creates a one-pocket wallet of that address alone.
 
 ### Importing a wallet
 
@@ -68,13 +71,38 @@ Two import paths mirror the nodeless imports from Chapter 26:
 - **Import a descriptor** — paste one or two private *output descriptors*. One ranged descriptor (ending `/0/*` or `/1/*`) is enough; Phoenix infers the change branch. Watch-only (xpub) descriptors are not supported yet — the private key material is required.
 - **Import a single key (WIF)** — wrap a private key as `wpkh(YOUR_WIF)` to import it as a one-address SegWit wallet. This is the way to bring a vanity address or a stand-alone plotting key onto the phone; change returns to that same address.
 
-## Getting around: the navigation drawer
+## Getting around: the navigation drawer and the two selectors
 
-Once a wallet is open, a **navigation drawer** (the menu icon at the top-left) reaches every part of the app — wallet home, receive, send, history, contacts, forging assignment, mining, and settings. The wallet's name sits at the top of the header with a **switcher**: tap it to jump between your wallets. Switching closes the open wallet and opens the chosen one — *"the open wallet closes first."*
+Once a wallet is open, a **navigation drawer** (the menu icon at the top-left) reaches every part of the app — wallet home, receive, send, history, contacts, forging assignment, mining, and settings.
 
-From the same wallet menu you can **rename** or **delete** a wallet (both require switching away from it first — the active wallet cannot be renamed or deleted). Deletion is safe: *"Its files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds."* A wallet still on the legacy coin type also shows an **Upgrade to v31** item here (Chapter 5); tapping it upgrades in place. If the wallet's seed is passphrase-locked, Phoenix asks you to *"unlock the wallet first, then upgrade."*
+![The navigation drawer reaches every part of the app.](images/processed/ch23-nav-drawer.png){width=35%}
 
-The everyday wallet screens — **Receive** (address and QR), **Send** (recipient, amount, fee presets or custom, and a review step before broadcast), **Transaction history**, and **Contacts** — work as their desktop counterparts do in Chapters 7–10, laid out for a small screen. Sending signs on the device and broadcasts through your Electrum server. The wallet-home balance card carries the same **Balance details** shortcut (the coin-stack icon) as the desktop, opening the per-address coin breakdown described in Chapter 9 — laid out for the phone as a vertical **stack of cards**, one per funding address, each showing the address with its balance, coin count, and the *public-key-known* flag beneath it, with a refresh button in the header.
+The toolbar carries two **icon chips** on the right — kept icon-only to save room on a phone — and they are two *separate* dropdowns, one for the wallet and one for the pocket:
+
+![The mobile toolbar: the menu button, the Electrum indicator, and the wallet + pocket chips.](images/processed/ch23-toolbar.png){width=90%}
+
+- The **wallet selector** lists your **wallets** — one row per recovery phrase — and, below them, **Create new wallet**, **Restore wallet**, and **Import descriptor**. Tapping a wallet switches to it (closing the open one first). **Rename** and **delete** are reached by **swiping** a wallet's row; they act on the whole wallet — every pocket moves or goes together — and you must switch away from the active wallet before renaming or deleting it. Deletion is safe: *"…and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds."*
+
+![The wallet selector: your wallets, then Create / Restore / Import.](images/processed/ch23-wallet-selector.png){width=55%}
+
+![Swiping a wallet row reveals rename (pencil) and delete (trash).](images/processed/ch23-swipe-actions.png){width=60%}
+
+- The **pocket selector** lists the open wallet's **pockets** — SegWit, Taproot, and any **v30** pocket — each with its own balance and a small "last synced" age. Tapping one opens it. It is greyed out for a single-pocket wallet, where there is nothing to choose. (The full pockets model is in Chapter 26.)
+
+![The pocket selector: SegWit, Taproot, and an older SegWit · v30 pocket, each with its balance.](images/processed/ch23-pocket-selector.png){width=60%}
+
+There is no per-pocket rename or delete, and no "upgrade" step — the current pockets are already on the v31 standard, and older coins live in their own spend-only **v30** pocket. **Receive is blocked inside a v30 pocket**: it is spend-only, so to move old coins you open it and **Send** them to one of your current pockets.
+
+![Receive is blocked inside a v30 pocket — it is spend-only.](images/processed/ch23-v30-receive-blocked.png){width=55%}
+
+The everyday wallet screens — **Receive** (address and QR), **Send** (recipient, amount, fee presets or custom, and a review step before broadcast), **Transaction history**, and **Contacts** — work as their desktop counterparts do in Chapters 7–10, laid out for a small screen. Sending signs on the device and broadcasts through your Electrum server.
+
+![The Receive screen — QR, address, and a `btcx:` payment URI.](images/processed/ch23-mobile-receive.png){width=40%}
+![The Send screen — recipient, amount, and fee presets.](images/processed/ch23-mobile-send.png){width=40%}
+
+The wallet-home balance card carries the same **Balance details** shortcut (the coin-stack icon) as the desktop, opening the per-address coin breakdown described in Chapter 9 — laid out for the phone as a vertical **stack of cards**, one per funding address, each showing the address with its balance, coin count, and the *public-key-known* flag beneath it, with a refresh button in the header.
+
+![Balance details on the phone — a stack of cards, one per funding address.](images/processed/ch23-mobile-coins.png){width=50%}
 
 ## The point of it all: mine to your own wallet
 
@@ -84,7 +112,7 @@ Tapping through takes you into the mining setup (Chapter 15). The difference fro
 
 The flow works in both directions. If you open mining setup first without a wallet yet, Phoenix nudges you to **Create wallet**, then returns you to the wizard with the new wallet's address ready to use. If the wallet is locked, an inline unlock appears. A custom address is still first-class — you can always type an address from elsewhere — but for the common case of "a spare phone earning into my own keys," there is nothing to paste.
 
-> **Note** — Because only a SegWit wallet can own a plot address, the *Use wallet address* option requires the active wallet to be SegWit (see above). With a taproot or legacy wallet active, the wizard tells you to switch to a SegWit wallet or enter an address manually.
+> **Note** — Because only a SegWit pocket can own a plot address, the *Use wallet address* option requires the active pocket to be the **SegWit** one (see above). With the Taproot pocket active, the wizard tells you to switch to the SegWit pocket (in the pocket selector), or to enter an address manually.
 
 ## Seed safety on a phone
 
