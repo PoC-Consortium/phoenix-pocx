@@ -1288,9 +1288,7 @@ export class MobileWalletLayoutComponent implements OnInit {
   });
 
   /** Wallet chip label: the GROUP name only (the pocket chip has the rest). */
-  readonly activeGroupName = computed(
-    () => this.activeGroup()?.group ?? this.wallet.walletName()
-  );
+  readonly activeGroupName = computed(() => this.activeGroup()?.group ?? this.wallet.walletName());
 
   /** The active group's pockets ([] while nothing matches). */
   readonly activePockets = computed<BtcxCompartment[]>(
@@ -1303,9 +1301,7 @@ export class MobileWalletLayoutComponent implements OnInit {
     const pocket = this.activePockets().find(c => c.name === name);
     if (!pocket) return null;
     const role = this.i18n.get(this.roleLabel(pocket));
-    return pocket.policy.coinType === 0
-      ? `${role}·${this.i18n.get('wallet_legacy_badge')}`
-      : role;
+    return pocket.policy.coinType === 0 ? `${role}·${this.i18n.get('wallet_legacy_badge')}` : role;
   });
 
   /** Drawer label of the active wallet: "group · Role". */
@@ -1342,9 +1338,7 @@ export class MobileWalletLayoutComponent implements OnInit {
   readonly switchingGroup = computed<string | null>(() => {
     const name = this.switching();
     if (name === null) return null;
-    return (
-      this.wallet.groups().find(g => g.compartments.some(c => c.name === name))?.group ?? name
-    );
+    return this.wallet.groups().find(g => g.compartments.some(c => c.name === name))?.group ?? name;
   });
 
   /**

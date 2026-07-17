@@ -35,10 +35,7 @@ import { MiningService } from '../../mining/services';
 import { ClockDriftService } from '../../core/services/clock-drift.service';
 import { ElectrumStatusService } from '../../core/services/electrum-status.service';
 import { BlockchainStateService } from '../../bitcoin/services/blockchain-state.service';
-import {
-  BtcxWalletService,
-  BtcxCompartment,
-} from '../../core/services/btcx-wallet.service';
+import { BtcxWalletService, BtcxCompartment } from '../../core/services/btcx-wallet.service';
 import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-dialog/clock-drift-dialog.component';
 import { ElectrumServerListComponent } from '../../shared/components/electrum-server-list/electrum-server-list.component';
 

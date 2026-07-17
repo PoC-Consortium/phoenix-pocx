@@ -2563,7 +2563,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
-
   async startManagedNode(): Promise<void> {
     this.isStartingNode.set(true);
     try {

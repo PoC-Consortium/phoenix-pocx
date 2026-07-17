@@ -23,10 +23,7 @@ import { CookieAuthService } from '../../../../core/auth/cookie-auth.service';
 import { AppUpdateService } from '../../../../core/services/app-update.service';
 import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import { NodeService } from '../../../../node/services/node.service';
-import {
-  BtcxWalletService,
-  BtcxCompartment,
-} from '../../../../core/services/btcx-wallet.service';
+import { BtcxWalletService, BtcxCompartment } from '../../../../core/services/btcx-wallet.service';
 
 /**
  * WalletSelectComponent displays available wallets and options to create/import.

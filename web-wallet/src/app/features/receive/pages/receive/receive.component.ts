@@ -75,134 +75,134 @@ type AddressMode = 'existing' | 'generate';
               <span>{{ 'mwallet_receive_v30_blocked' | i18n }}</span>
             </div>
           } @else {
-          <!-- Address Selection -->
-          <div class="form-section">
-            <div class="address-mode-row">
-              <mat-radio-group [(ngModel)]="addressMode" (change)="onAddressModeChange()">
-                <mat-radio-button value="existing">{{
-                  'use_existing_address' | i18n
-                }}</mat-radio-button>
-                <div class="generate-option">
-                  <mat-radio-button value="generate">{{
-                    'generate_new_address' | i18n
+            <!-- Address Selection -->
+            <div class="form-section">
+              <div class="address-mode-row">
+                <mat-radio-group [(ngModel)]="addressMode" (change)="onAddressModeChange()">
+                  <mat-radio-button value="existing">{{
+                    'use_existing_address' | i18n
                   }}</mat-radio-button>
-                  @if (addressMode === 'generate') {
-                    <button
-                      type="button"
-                      class="regenerate-btn"
-                      (click)="generateNewAddress()"
-                      [disabled]="isGenerating()"
-                      [title]="'generate_new' | i18n"
-                    >
-                      @if (isGenerating()) {
-                        <mat-spinner diameter="18"></mat-spinner>
-                      } @else {
-                        <mat-icon>refresh</mat-icon>
-                      }
-                    </button>
-                  }
-                </div>
-              </mat-radio-group>
-            </div>
-
-            @if (addressMode === 'existing') {
-              @if (!isLoadingAddresses()) {
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>{{ 'select_address' | i18n }}</mat-label>
-                  <mat-select [(ngModel)]="selectedAddress">
-                    @for (addr of existingAddresses(); track addr.address) {
-                      <mat-option [value]="addr.address">
-                        <span class="address-option"
-                          >{{ addr.address }}{{ getAddressDisplayLabel(addr) }}</span
-                        >
-                      </mat-option>
+                  <div class="generate-option">
+                    <mat-radio-button value="generate">{{
+                      'generate_new_address' | i18n
+                    }}</mat-radio-button>
+                    @if (addressMode === 'generate') {
+                      <button
+                        type="button"
+                        class="regenerate-btn"
+                        (click)="generateNewAddress()"
+                        [disabled]="isGenerating()"
+                        [title]="'generate_new' | i18n"
+                      >
+                        @if (isGenerating()) {
+                          <mat-spinner diameter="18"></mat-spinner>
+                        } @else {
+                          <mat-icon>refresh</mat-icon>
+                        }
+                      </button>
                     }
-                  </mat-select>
-                </mat-form-field>
-              } @else {
-                <div class="loading-inline">
-                  <mat-spinner diameter="20"></mat-spinner>
-                  <span>{{ 'loading_addresses' | i18n }}</span>
-                </div>
+                  </div>
+                </mat-radio-group>
+              </div>
+
+              @if (addressMode === 'existing') {
+                @if (!isLoadingAddresses()) {
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ 'select_address' | i18n }}</mat-label>
+                    <mat-select [(ngModel)]="selectedAddress">
+                      @for (addr of existingAddresses(); track addr.address) {
+                        <mat-option [value]="addr.address">
+                          <span class="address-option"
+                            >{{ addr.address }}{{ getAddressDisplayLabel(addr) }}</span
+                          >
+                        </mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                } @else {
+                  <div class="loading-inline">
+                    <mat-spinner diameter="20"></mat-spinner>
+                    <span>{{ 'loading_addresses' | i18n }}</span>
+                  </div>
+                }
               }
+            </div>
+
+            <!-- Amount -->
+            <div class="form-section">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ 'amount_optional' | i18n }}</mat-label>
+                <input
+                  matInput
+                  type="number"
+                  [(ngModel)]="amount"
+                  placeholder="0.00000000"
+                  step="0.00000001"
+                  min="0"
+                  autocomplete="off"
+                />
+                <span matTextSuffix>BTCX</span>
+              </mat-form-field>
+            </div>
+
+            <!-- Label -->
+            <div class="form-section">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ 'label_optional' | i18n }}</mat-label>
+                <input
+                  matInput
+                  [(ngModel)]="label"
+                  [placeholder]="'label_placeholder' | i18n"
+                  maxlength="50"
+                  autocomplete="off"
+                />
+              </mat-form-field>
+            </div>
+
+            <!-- QR Code Section -->
+            @if (currentAddress()) {
+              <div class="qr-section">
+                <div class="qr-code-container">
+                  <qrcode
+                    [qrdata]="paymentUri()"
+                    [width]="200"
+                    [errorCorrectionLevel]="'M'"
+                    [margin]="1"
+                    [colorDark]="'#1E3A5F'"
+                    [colorLight]="'#FFFFFF'"
+                  ></qrcode>
+                </div>
+
+                <div class="info-row">
+                  <span class="info-label">{{ 'address' | i18n }}:</span>
+                  <div
+                    class="info-value-row copyable"
+                    (click)="copyAddress()"
+                    [matTooltip]="'copy' | i18n"
+                  >
+                    <span class="address-value">{{ currentAddress() }}</span>
+                    <mat-icon class="copy-icon">content_copy</mat-icon>
+                  </div>
+                </div>
+
+                <div class="info-row">
+                  <span class="info-label">{{ 'payment_uri' | i18n }}:</span>
+                  <div
+                    class="info-value-row copyable"
+                    (click)="copyPaymentUri()"
+                    [matTooltip]="'copy' | i18n"
+                  >
+                    <span class="uri-value">{{ paymentUri() }}</span>
+                    <mat-icon class="copy-icon">content_copy</mat-icon>
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="no-address">
+                <mat-icon>qr_code</mat-icon>
+                <span>{{ 'select_or_generate_address' | i18n }}</span>
+              </div>
             }
-          </div>
-
-          <!-- Amount -->
-          <div class="form-section">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'amount_optional' | i18n }}</mat-label>
-              <input
-                matInput
-                type="number"
-                [(ngModel)]="amount"
-                placeholder="0.00000000"
-                step="0.00000001"
-                min="0"
-                autocomplete="off"
-              />
-              <span matTextSuffix>BTCX</span>
-            </mat-form-field>
-          </div>
-
-          <!-- Label -->
-          <div class="form-section">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'label_optional' | i18n }}</mat-label>
-              <input
-                matInput
-                [(ngModel)]="label"
-                [placeholder]="'label_placeholder' | i18n"
-                maxlength="50"
-                autocomplete="off"
-              />
-            </mat-form-field>
-          </div>
-
-          <!-- QR Code Section -->
-          @if (currentAddress()) {
-            <div class="qr-section">
-              <div class="qr-code-container">
-                <qrcode
-                  [qrdata]="paymentUri()"
-                  [width]="200"
-                  [errorCorrectionLevel]="'M'"
-                  [margin]="1"
-                  [colorDark]="'#1E3A5F'"
-                  [colorLight]="'#FFFFFF'"
-                ></qrcode>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">{{ 'address' | i18n }}:</span>
-                <div
-                  class="info-value-row copyable"
-                  (click)="copyAddress()"
-                  [matTooltip]="'copy' | i18n"
-                >
-                  <span class="address-value">{{ currentAddress() }}</span>
-                  <mat-icon class="copy-icon">content_copy</mat-icon>
-                </div>
-              </div>
-
-              <div class="info-row">
-                <span class="info-label">{{ 'payment_uri' | i18n }}:</span>
-                <div
-                  class="info-value-row copyable"
-                  (click)="copyPaymentUri()"
-                  [matTooltip]="'copy' | i18n"
-                >
-                  <span class="uri-value">{{ paymentUri() }}</span>
-                  <mat-icon class="copy-icon">content_copy</mat-icon>
-                </div>
-              </div>
-            </div>
-          } @else {
-            <div class="no-address">
-              <mat-icon>qr_code</mat-icon>
-              <span>{{ 'select_or_generate_address' | i18n }}</span>
-            </div>
-          }
           }
         </div>
       </div>

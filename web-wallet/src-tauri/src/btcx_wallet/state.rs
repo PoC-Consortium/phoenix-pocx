@@ -566,10 +566,7 @@ impl BtcxWalletState {
             [KeychainKind::External, KeychainKind::Internal]
                 .into_iter()
                 .map(|keychain| {
-                    let start = entry
-                        .wallet
-                        .derivation_index(keychain)
-                        .map_or(0, |i| i + 1);
+                    let start = entry.wallet.derivation_index(keychain).map_or(0, |i| i + 1);
                     let spks: Vec<bitcoin::ScriptBuf> = (start..start + STOP_GAP)
                         .map(|i| {
                             entry
