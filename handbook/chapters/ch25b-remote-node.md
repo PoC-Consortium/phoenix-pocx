@@ -84,7 +84,7 @@ In short: **the chain is verified, the keys are local, so a server can inconveni
 Nearly all of Phoenix works unchanged. Because the wallet is a first-class local wallet, the pages you use every day behave exactly as the earlier chapters describe:
 
 - **Receive, send, history, and contacts** (Chapters 7–10) all work. Sending builds and signs the transaction locally, then broadcasts it through your Electrum server — no local node required.
-- **Multiple named wallets** — create, restore, rename, and delete wallets, and switch between them, all covered later in this chapter.
+- **Multiple wallets, each with its pockets** — create, restore, rename, and delete wallets, and switch between them and their *pockets*, all covered later in this chapter.
 - **Forging assignments** (Chapter 19) work. Phoenix builds, signs, and broadcasts the assignment transaction itself, using one of your plot address's own coins as proof of ownership, and derives the assignment's status from the address's on-chain history. The same activation and revocation delays apply (about 30 blocks to activate, about 720 to revoke).
 - **The Transaction Builder** (Chapter 8) composes, signs, finalizes, and broadcasts PSBTs. In remote mode the broadcast step targets your Electrum server instead of a local node — *"Broadcast through a remote server — no local node required."*
 - **Pool mining** (Chapters 15, 19) works. The mining setup wizard offers pool and custom chains; combined with a forging assignment, a remote-mode machine can plot and mine into a pool.
@@ -103,6 +103,8 @@ Everything else — the wallet, sending and receiving, history, contacts, pool m
 
 In remote mode the toolbar's node indicator (Chapter 6) is replaced by an **Electrum status** indicator, since there is no local node to report on. Its state tells you at a glance how the wallet's connection to the network is doing:
 
+![The Electrum status indicator, hovered to show the connected server and its latency.](images/processed/ch25b-electrum-status.png){width=40%}
+
 | State | Means… |
 |-------|--------|
 | **Electrum connected** | The wallet is synced through its primary server. |
@@ -117,13 +119,44 @@ Hovering the indicator shows how recently the wallet last synced (for example *"
 Because the wallet lives on your computer rather than inside a node, remote mode has its own set of ways to create and acquire one. All of them are reached from the wallet's onboarding and settings; the choices mirror the desktop wallet flows in Chapter 5 but are handled by the local wallet rather than Core.
 
 - **Create a new wallet.** Phoenix generates a fresh 24-word recovery phrase, has you verify it, and creates the wallet. As always, the 24 words are the only backup — write them down offline (Chapter 11).
-- **Restore from a recovery phrase.** Enter an existing 12- or 24-word phrase. Because there is no local chain to rescan, Phoenix instead *probes* your configured Electrum server to find which derivation branch your phrase's history lives on, and opens the wallet on the branch that holds funds. If history turns up on more than one address type, Phoenix offers to create the second wallet too, so nothing stays hidden. (The derivation-branch story — and why a distinct coin type matters — is covered in Chapter 5 and the glossary.)
+- **Restore from a recovery phrase.** Enter an existing 12- or 24-word phrase. Because there is no local chain to rescan, Phoenix instead *probes* your configured Electrum server to find which derivation branches your phrase's history lives on. It opens the wallet on its **current SegWit** pocket and, if the probe found funds on other branches (taproot, or an older coin type), materialises those as additional **pockets** of the same wallet — nothing stays hidden, and you switch between them with the pocket selector (see *Pockets*, below). (The derivation-branch story — and why a distinct coin type matters — is covered in Chapter 5 and the glossary.)
 - **Import a descriptor.** Paste one or two *output descriptors* (with private key material) to import a wallet described by its descriptors rather than a phrase. One ranged descriptor is enough — Phoenix infers the change branch — or paste the external and internal descriptors together.
 - **Import a single key (WIF).** Wrap a single private key as `wpkh(YOUR_WIF)` to import it as a one-address SegWit wallet — handy for sweeping a vanity address or a stand-alone plotting key. Change returns to the same address.
 
-A **device passphrase** can encrypt the wallet's seed at rest on the machine; on a phone this is strongly recommended (Chapter 23). Named wallets can be switched, renamed, and deleted; deletion is safe — the files move to a trash folder and the recovery phrase always restores the funds. These wallet operations are described in full, with their mobile screens, in Chapter 23; on the desktop they appear in the same wallet menu and Wallets screen as the Core-backed wallets in Chapter 5.
+A **device passphrase** can encrypt the wallet's seed at rest on the machine; on a phone this is strongly recommended (Chapter 23). These wallet operations are described in full, with their mobile screens, in Chapter 23; on the desktop they appear in the same wallet selector and Wallets screen as the Core-backed wallets in Chapter 5.
 
-Because a nodeless wallet holds its seed locally, the **v30 → v31 coin-type upgrade** (Chapter 5) runs *in place* here — no recovery phrase to re-type. A legacy mainnet wallet shows the **v30** badge and an **Upgrade to v31** action that creates the upgraded wallet from the same seed and switches to it, leaving the original in place. The **Check for older (v30) funds** button in the node-configuration panel (Chapter 12) re-scans the legacy branch if an upgraded wallet looks like it is missing older history.
+## Pockets — one recovery phrase, several branches
+
+A single recovery phrase can derive addresses on more than one *branch*: an **address type** (SegWit or Taproot) and — on mainnet — an **era** given by the coin type (the current registered BTCX coin type, versus the older Bitcoin coin type `0'` that pre-v31 wallets used; see the *v30 / v31* note in Chapter 5). Rather than scatter these across separate top-level wallets, remote mode gathers every branch of one phrase under **one wallet** and calls the branches its **pockets**.
+
+- On **mainnet** a wallet can have up to four pockets — **SegWit** and **Taproot** on the current era, plus a **SegWit** and **Taproot** *v30* pocket when older funds exist. Most wallets show just the two current pockets; the v30 pockets appear only once older funds are found (see below).
+- On **testnet** and **regtest** there is no v30/v31 split (both eras share coin type `1'`), so a wallet has at most the two pockets — **SegWit** and **Taproot**.
+
+**Picking a wallet and picking a pocket are two separate steps**, and each is a small dropdown — never a strip of cards or a list of rows. You choose the *wallet* first, then which *pocket* of it is active:
+
+- On the **desktop**, the full-screen **Wallets** page gains a **Pocket** column in remote mode. Each wallet row carries a dropdown badge — for example *"SegWit · v30"* — that selects which pocket the row opens as.
+
+![The desktop Wallets page in remote mode: a **Pocket** column selects which compartment each wallet opens as.](images/processed/ch25b-select-page-pockets.png){width=90%}
+
+- The same pocket dropdown sits in the **toolbar** next to the wallet selector (it is greyed out for a single-pocket wallet, where there is nothing to choose). Each entry shows the pocket's role and its balance.
+
+![The toolbar's pocket selector — SegWit, Taproot, and an older SegWit · v30 pocket, each with its own balance.](images/processed/ch25b-pocket-selector.png){width=55%}
+
+- On **Android** there is no Wallets page; the toolbar carries the same two controls as icon chips — a **wallet selector** and a **pocket selector** — shown with their screens in Chapter 23.
+
+Opening a pocket makes it the active wallet — home, Send, Receive, History, Coins, and Assignments all scope to that one pocket exactly as before. There is no merged balance or combined history; a displayed balance always names a single pocket. Assignments and mining still require a **SegWit** pocket — a Taproot pocket's addresses can never be plot addresses — so with a Taproot pocket active the Assignments screen points you to *switch to the SegWit pocket*.
+
+**Rename and delete act on the whole wallet, not a single pocket** — renaming re-labels the wallet (all its pockets move with it) and deleting removes the wallet and every pocket together. Deletion is safe: the files move to a trash folder and the recovery phrase always restores the funds — *"…and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds."* There is no per-pocket rename or delete. (On Android these are a swipe on the wallet-selector row — Chapter 23.)
+
+### Older (v30) funds are spend-only pockets
+
+A mainnet wallet with funds on the old coin-type branch shows them as **v30** pockets — labelled *"· v30"* in the pocket selector. There is no "upgrade" step: the current SegWit and Taproot pockets are already on the v31 standard, and the v30 pocket sits alongside them holding the older coins. A v30 pocket is **spend-only** — **Receive is blocked** inside it, so no new funds land back on a retired branch:
+
+![Receive is blocked inside a v30 pocket — it is spend-only.](images/processed/ch25b-v30-receive-blocked.png){width=55%}
+
+To move older coins onto the standard path, open the v30 pocket and **Send** them to one of your current pockets' addresses.
+
+v30 pockets are not probed automatically. If older funds arrive after a restore — an address you published long ago, or a pool paying out to an old forging address — run **Check for older (v30) funds** (on the desktop under **Settings → Danger Zone**; on Android a card in Settings — Chapter 12): a hit materialises the v30 pocket inside the wallet, reporting either *"Found and restored older funds"* or *"No older funds found."*
 
 > **Warning — remote-mode wallets are stored on this computer, not in a node.** Wiping Phoenix's data (or a *Reset wallet*, Chapter 12) removes the local wallet. As with any wallet, the recovery phrase is the ultimate backup: without it, a deleted or lost remote wallet cannot be recovered. Back up the 24 words before you fund the wallet.
 
