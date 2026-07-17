@@ -27,9 +27,8 @@ export const nodeSetupGuard: CanActivateFn = async () => {
   const appModeService = inject(AppModeService);
 
   if (
-    appModeService.isMobile() ||
+    appModeService.isNodeless() ||
     appModeService.isMiningOnly() ||
-    appModeService.isWalletOnly() ||
     !electronService.isDesktop
   ) {
     return true;

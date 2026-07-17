@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject, signal, computed } from '@angular/core';
 import { ElectronService } from './electron.service';
 
 /**
@@ -34,6 +34,18 @@ export class AppModeService {
 
   /** Whether running on a mobile platform (Android) - no local node support */
   readonly isMobile = signal(false);
+
+  /**
+   * Whether this run has NO local bitcoind — the Android platform, or a
+   * mobile launch flavor used to dev-test the Android experience on
+   * desktop (`--mobile` / `--wallet-only`). The node-mode gates key on
+   * this so the desktop mobile view behaves like Android (always remote /
+   * Electrum), not by the persisted desktop node mode. On real Android
+   * `isMobile` is already true, so this is a no-op there.
+   */
+  readonly isNodeless = computed(
+    () => this.isMobile() || this.isMobileMode() || this.isWalletOnly()
+  );
 
   /** Whether the mode has been initialized (internal guard) */
   private readonly _isInitialized = signal(false);

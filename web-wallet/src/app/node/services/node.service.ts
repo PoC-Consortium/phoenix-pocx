@@ -69,22 +69,25 @@ export class NodeService {
   readonly initialized = this._initialized.asReadonly();
 
   // Computed values (mode values are lowercase to match Rust serde serialization)
-  // Android has no local bitcoind, so it is ALWAYS remote regardless of the
-  // persisted node mode — otherwise the backend seam would route wallet ops to
-  // the (nonexistent) Core RPC. isMobile() is a reactive signal, so these stay
+  // A nodeless run (Android, or a desktop --mobile/--wallet-only dev launch)
+  // has no local bitcoind, so it is ALWAYS remote regardless of the persisted
+  // node mode — otherwise the backend seam would route wallet ops to the
+  // (nonexistent) Core RPC. isNodeless() is a reactive signal, so these stay
   // correct even if it resolves after the config loads.
   readonly isManaged = computed(
-    () => !this.appMode.isMobile() && this._config().mode === 'managed'
+    () => !this.appMode.isNodeless() && this._config().mode === 'managed'
   );
   readonly isExternal = computed(
-    () => !this.appMode.isMobile() && this._config().mode === 'external'
+    () => !this.appMode.isNodeless() && this._config().mode === 'external'
   );
   /**
    * Remote mode: no local bitcoind at all — the wallet runs over Electrum
    * (the nodeless btcx stack). THE signal every remote-mode branch keys on.
-   * Always true on Android (which cannot run a node).
+   * Always true on Android and in the desktop mobile-view dev launches.
    */
-  readonly isRemote = computed(() => this.appMode.isMobile() || this._config().mode === 'remote');
+  readonly isRemote = computed(
+    () => this.appMode.isNodeless() || this._config().mode === 'remote'
+  );
   readonly isRunning = computed(() => this._status().running);
   readonly isInstalled = computed(() => this._status().installed);
   readonly isSynced = computed(() => this._status().synced);
@@ -92,7 +95,7 @@ export class NodeService {
   readonly currentVersion = computed(() => this._config().installedVersion);
   readonly network = computed(() => this._config().network);
   readonly mode = computed<NodeMode>(() =>
-    this.appMode.isMobile() ? 'remote' : this._config().mode
+    this.appMode.isNodeless() ? 'remote' : this._config().mode
   );
 
   // Download progress computed values
