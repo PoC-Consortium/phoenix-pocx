@@ -275,9 +275,10 @@ fn is_dev() -> bool {
 }
 
 /// Get the launch mode (wallet, mining, mobile, or wallet-mobile)
-/// Desktop: "mining" if --mining-only or -m is passed, "wallet-mobile" if
-/// --wallet-only is passed (dev-testing the wallet-only flavor without a
-/// device), otherwise "wallet"
+/// Desktop: "mining" if --mining-only or -m is passed, "mobile" if
+/// --mobile is passed (dev-testing the FULL Android flavor: mining + the
+/// nodeless wallet), "wallet-mobile" if --wallet-only is passed (the
+/// wallet-only Android flavor), otherwise "wallet"
 /// Android: "mobile" (nodeless BTCX wallet + mining, no local node), or
 /// "wallet-mobile" when built with the `wallet-only` cargo feature (the
 /// wallet-only app flavor: nodeless BTCX wallet only, no mining either)
@@ -297,6 +298,10 @@ fn get_launch_mode() -> String {
     {
         if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
             "mining".to_string()
+        } else if std::env::args().any(|arg| arg == "--mobile") {
+            // Dev-testing the full Android flavor on desktop: mining + the
+            // nodeless BTCX wallet (the mobile layout + /miner routes).
+            "mobile".to_string()
         } else if std::env::args().any(|arg| arg == "--wallet-only") {
             "wallet-mobile".to_string()
         } else {
