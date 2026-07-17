@@ -51,5 +51,4 @@ describe('wallet-name helpers', () => {
       expect(deduped.endsWith('-2')).toBeTrue();
     });
   });
-
 });

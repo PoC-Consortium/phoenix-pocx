@@ -26,11 +26,7 @@ export const nodeSetupGuard: CanActivateFn = async () => {
   const router = inject(Router);
   const appModeService = inject(AppModeService);
 
-  if (
-    appModeService.isNodeless() ||
-    appModeService.isMiningOnly() ||
-    !electronService.isDesktop
-  ) {
+  if (appModeService.isNodeless() || appModeService.isMiningOnly() || !electronService.isDesktop) {
     return true;
   }
 

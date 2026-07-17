@@ -415,7 +415,13 @@ impl BtcxWalletConfig {
 
     /// Record one wallet's balance snapshot (selector display), stamping
     /// the current time. No-op if the wallet is not registered.
-    pub fn set_balance_snapshot(&mut self, network: WalletNetwork, name: &str, sat: u64, height: u32) {
+    pub fn set_balance_snapshot(
+        &mut self,
+        network: WalletNetwork,
+        name: &str,
+        sat: u64,
+        height: u32,
+    ) {
         if let Some(mut meta) = self.wallet_meta(network, name) {
             meta.balance_snapshot = Some(BalanceSnapshot {
                 sat,
@@ -775,7 +781,10 @@ impl BtcxWalletConfig {
             return;
         }
         if let Err(e) = fs::copy(&path, &backup) {
-            log::warn!("btcx wallet: config backup to {} failed: {e}", backup.display());
+            log::warn!(
+                "btcx wallet: config backup to {} failed: {e}",
+                backup.display()
+            );
         } else {
             log::info!("btcx wallet: config backed up to {}", backup.display());
         }

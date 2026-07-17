@@ -85,9 +85,7 @@ export class NodeService {
    * (the nodeless btcx stack). THE signal every remote-mode branch keys on.
    * Always true on Android and in the desktop mobile-view dev launches.
    */
-  readonly isRemote = computed(
-    () => this.appMode.isNodeless() || this._config().mode === 'remote'
-  );
+  readonly isRemote = computed(() => this.appMode.isNodeless() || this._config().mode === 'remote');
   readonly isRunning = computed(() => this._status().running);
   readonly isInstalled = computed(() => this._status().installed);
   readonly isSynced = computed(() => this._status().synced);

@@ -156,7 +156,8 @@ pub fn create_wallet_impl(
         DescriptorKindCfg::Bip86 => DescriptorKindCfg::Bip84,
         _ => DescriptorKindCfg::Bip86,
     };
-    let sibling = resolve_counterpart_name(state, network, &name, compartment_suffix(other_kind, true))?;
+    let sibling =
+        resolve_counterpart_name(state, network, &name, compartment_suffix(other_kind, true))?;
     register_sibling_wallet(
         state,
         network,
@@ -590,8 +591,7 @@ fn register_sibling_wallet(
             },
         );
     })?;
-    let seed =
-        WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
     let handle = manager::open_wallet(
         &BtcxWalletConfig::wallet_db_path_for(network, name),
         network.params(),
@@ -1109,9 +1109,7 @@ fn compartment_rank(policy: DescriptorPolicy, network: WalletNetwork) -> u8 {
 
 /// The grouped wallet list of the active network — group rows + compartments
 /// + Σ, snapshot-sourced (NO store opens). See `btcx_wallet_list_grouped`.
-pub fn list_grouped_impl(
-    state: &SharedBtcxWalletState,
-) -> Result<Vec<BtcxWalletGroup>, String> {
+pub fn list_grouped_impl(state: &SharedBtcxWalletState) -> Result<Vec<BtcxWalletGroup>, String> {
     let config = state.get_config();
     let network = config.network;
     let mut groups: std::collections::BTreeMap<String, Vec<BtcxCompartment>> = Default::default();
@@ -1189,10 +1187,7 @@ pub fn group_sync_impl(
     let network = config.network;
     let members = config.group_members(network, group);
     if members.is_empty() {
-        return Err(format!(
-            "No wallet group '{group}' on {}",
-            network.as_str()
-        ));
+        return Err(format!("No wallet group '{group}' on {}", network.as_str()));
     }
     let mut sync_errors = Vec::new();
     for name in &members {
@@ -1488,10 +1483,7 @@ pub fn rename_group_impl(
     let network = config.network;
     let members = config.group_members(network, group);
     if members.is_empty() {
-        return Err(format!(
-            "No wallet group '{group}' on {}",
-            network.as_str()
-        ));
+        return Err(format!("No wallet group '{group}' on {}", network.as_str()));
     }
     let open_member = state
         .open_wallet_name()
@@ -1501,7 +1493,7 @@ pub fn rename_group_impl(
     }
     // Another group already answering to the new id would merge two seeds'
     // compartments in the selector — refuse.
-    let case_only = group.to_ascii_lowercase() == new_group.to_ascii_lowercase();
+    let case_only = group.eq_ignore_ascii_case(new_group);
     if !case_only
         && config
             .wallet_names(network)
@@ -1531,7 +1523,7 @@ pub fn rename_group_impl(
         let taken_by_non_member = config
             .wallet_names(network)
             .iter()
-            .any(|n| !members.contains(n) && n.to_ascii_lowercase() == new.to_ascii_lowercase());
+            .any(|n| !members.contains(n) && n.eq_ignore_ascii_case(new));
         if taken_by_non_member || (old != new && has_leftover_store(network, new)) {
             return Err(format!(
                 "A wallet named '{new}' already exists on {}",
@@ -1587,10 +1579,7 @@ pub fn delete_group_impl(
     let network = config.network;
     let members = config.group_members(network, group);
     if members.is_empty() {
-        return Err(format!(
-            "No wallet group '{group}' on {}",
-            network.as_str()
-        ));
+        return Err(format!("No wallet group '{group}' on {}", network.as_str()));
     }
     let open_member = state
         .open_wallet_name()

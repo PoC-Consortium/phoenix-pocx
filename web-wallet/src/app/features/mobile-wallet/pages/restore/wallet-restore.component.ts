@@ -15,11 +15,7 @@ import {
   BTCX_COIN_TYPE,
 } from '../../../../core/services/btcx-wallet.service';
 import { sanitizeReturnTo } from '../../return-to';
-import {
-  isInvalidWalletName,
-  isWalletNameTaken,
-  suggestWalletName,
-} from '../../wallet-name';
+import { isInvalidWalletName, isWalletNameTaken, suggestWalletName } from '../../wallet-name';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 import { WalletNameSectionComponent } from '../../components/wallet-name-section/wallet-name-section.component';
 
