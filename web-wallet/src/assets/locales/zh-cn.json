@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "单地址",
   "mwallet_receive_single_hint": "单地址钱包 — 这是它唯一的地址；找零也会返回这里。",
+  "mwallet_receive_v30_blocked": "这是一个较旧的 (v30) 口袋 — 只能发送。要接收，请切换到 SegWit 或 Taproot 口袋。",
   "mwallet_continue_setup": "继续挖矿设置",
   "mwallet_mine_hint_text": "利用空闲磁盘空间绘图，挖矿奖励直接进入此钱包。",
   "mwallet_mine_hint_title": "挖矿到此钱包",

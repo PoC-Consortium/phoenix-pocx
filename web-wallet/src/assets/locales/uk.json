@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "одна адреса",
   "mwallet_receive_single_hint": "Гаманець з однією адресою — це його єдина адреса; решта також повертається сюди.",
+  "mwallet_receive_v30_blocked": "Це старіша (v30) кишеня — вона може лише надсилати. Щоб отримувати, перемкніться на кишеню SegWit або Taproot.",
   "mwallet_continue_setup": "Продовжити налаштування майнінгу",
   "mwallet_mine_hint_text": "Створюйте плоти з вільного місця на диску та отримуйте винагороди за майнінг просто в цей гаманець.",
   "mwallet_mine_hint_title": "Майнити в цей гаманець",

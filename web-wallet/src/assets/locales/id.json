@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "tunggal",
   "mwallet_receive_single_hint": "Dompet satu alamat — inilah satu-satunya alamatnya; kembalian juga kembali ke sini.",
+  "mwallet_receive_v30_blocked": "Ini kantong lama (v30) — hanya bisa mengirim. Beralih ke kantong SegWit atau Taproot untuk menerima.",
   "mwallet_continue_setup": "Lanjutkan pengaturan penambangan",
   "mwallet_mine_hint_text": "Buat plot dari ruang disk kosong dan terima hadiah penambangan langsung ke dompet ini.",
   "mwallet_mine_hint_title": "Menambang ke dompet ini",

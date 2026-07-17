@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "jedna adresa",
   "mwallet_receive_single_hint": "Novčanik s jednom adresom — ovo je njegova jedina adresa; ostatak se također vraća ovamo.",
+  "mwallet_receive_v30_blocked": "Ovo je stariji (v30) džep — može samo slati. Prebacite se na SegWit ili Taproot džep za primanje.",
   "mwallet_continue_setup": "Nastavi postavljanje rudarenja",
   "mwallet_mine_hint_text": "Stvorite plotove od slobodnog prostora na disku i primajte nagrade od rudarenja izravno u ovaj novčanik.",
   "mwallet_mine_hint_title": "Rudari u ovaj novčanik",

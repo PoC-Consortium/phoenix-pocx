@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "única",
   "mwallet_receive_single_hint": "Billetera de dirección única — esta es su única dirección; el cambio también vuelve aquí.",
+  "mwallet_receive_v30_blocked": "Este es un compartimento antiguo (v30): solo puede enviar. Cambia al compartimento SegWit o Taproot para recibir.",
   "mwallet_continue_setup": "Continuar la configuración de minería",
   "mwallet_mine_hint_text": "Cree plots con el espacio libre del disco y reciba las recompensas de minería directamente en esta billetera.",
   "mwallet_mine_hint_title": "Minar hacia esta billetera",

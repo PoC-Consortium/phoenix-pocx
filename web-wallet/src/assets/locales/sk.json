@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "jedna adresa",
   "mwallet_receive_single_hint": "Peňaženka s jednou adresou — toto je jej jediná adresa; výdavok sa sem tiež vracia.",
+  "mwallet_receive_v30_blocked": "Toto je staršia (v30) priehradka — môže iba odosielať. Ak chcete prijímať, prepnite na priehradku SegWit alebo Taproot.",
   "mwallet_continue_setup": "Pokračovať v nastavení ťažby",
   "mwallet_mine_hint_text": "Vytvorte ploty z voľného miesta na disku a získavajte odmeny z ťažby priamo do tejto peňaženky.",
   "mwallet_mine_hint_title": "Ťažiť do tejto peňaženky",

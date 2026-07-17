@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "única",
   "mwallet_receive_single_hint": "Carteira de enderezo único — este é o seu único enderezo; o cambio tamén volve aquí.",
+  "mwallet_receive_v30_blocked": "Este é un peto antigo (v30) — só pode enviar. Cambia ao peto SegWit ou Taproot para recibir.",
   "mwallet_continue_setup": "Continuar coa configuración de minaría",
   "mwallet_mine_hint_text": "Cree plots co espazo libre do disco e reciba as recompensas de minaría directamente nesta carteira.",
   "mwallet_mine_hint_title": "Minar cara a esta carteira",

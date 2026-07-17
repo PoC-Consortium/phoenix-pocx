@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "unique",
   "mwallet_receive_single_hint": "Portefeuille à adresse unique — c'est sa seule adresse ; la monnaie y revient aussi.",
+  "mwallet_receive_v30_blocked": "Il s’agit d’une ancienne poche (v30) — elle ne peut qu’envoyer. Passez à la poche SegWit ou Taproot pour recevoir.",
   "mwallet_continue_setup": "Continuer la configuration du minage",
   "mwallet_mine_hint_text": "Créez des plots avec l'espace disque libre et recevez les récompenses de minage directement dans ce portefeuille.",
   "mwallet_mine_hint_title": "Miner vers ce portefeuille",

@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, computed, inject, signal, OnInit } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -30,7 +30,15 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
 
     <div class="page">
       <div class="card">
-        @if (address()) {
+        @if (spendOnly()) {
+          <!-- Legacy (v30) pockets are SPEND-ONLY: receiving into the
+               retired coin-0' branch is exactly what the compartment
+               redesign exists to stop. No address is even fetched. -->
+          <div class="spend-only">
+            <mat-icon class="spend-only-icon">block</mat-icon>
+            <p>{{ 'mwallet_receive_v30_blocked' | i18n }}</p>
+          </div>
+        } @else if (address()) {
           <div class="qr-container">
             <qrcode
               [qrdata]="paymentUri()"
@@ -188,6 +196,28 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         margin: 0;
       }
 
+      .spend-only {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 8px;
+
+        .spend-only-icon {
+          font-size: 40px;
+          width: 40px;
+          height: 40px;
+          color: #b26a00;
+        }
+
+        p {
+          margin: 0;
+          font-size: 14px;
+          color: rgba(0, 0, 0, 0.7);
+          line-height: 1.5;
+        }
+      }
+
       .full-width {
         width: 100%;
       }
@@ -212,6 +242,10 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         .single-hint {
           color: rgba(255, 255, 255, 0.6);
         }
+
+        .spend-only p {
+          color: rgba(255, 255, 255, 0.7);
+        }
       }
     `,
   ],
@@ -222,6 +256,12 @@ export class WalletReceiveComponent implements OnInit {
 
   readonly address = signal('');
   readonly loading = signal(false);
+
+  /**
+   * The active pocket is a legacy v30 (coin type 0') branch — spend-only.
+   * Receiving is blocked so funds never land back in the retired branch.
+   */
+  readonly spendOnly = computed(() => this.wallet.descriptorPolicy()?.coinType === 0);
 
   /** Canonical BIP21 URI for the shown address (what the QR encodes). */
   paymentUri(): string {
@@ -234,6 +274,8 @@ export class WalletReceiveComponent implements OnInit {
 
   private async load(): Promise<void> {
     await this.wallet.initialize();
+    // Never fetch (and thus reveal) an address for a spend-only pocket.
+    if (this.spendOnly()) return;
     await this.loadCurrentAddress();
   }
 

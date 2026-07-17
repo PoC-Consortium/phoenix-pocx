@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "één adres",
   "mwallet_receive_single_hint": "Portemonnee met één adres — dit is het enige adres; ook wisselgeld keert hierheen terug.",
+  "mwallet_receive_v30_blocked": "Dit is een ouder (v30) vakje — het kan alleen verzenden. Schakel naar het SegWit- of Taproot-vakje om te ontvangen.",
   "mwallet_continue_setup": "Ga verder met mijnbouwinstellingen",
   "mwallet_mine_hint_text": "Plot vrije schijfruimte en ontvang mijnbouwbeloningen rechtstreeks in deze portemonnee.",
   "mwallet_mine_hint_title": "Minen naar deze portemonnee",

@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "jeden adres",
   "mwallet_receive_single_hint": "Portfel z jednym adresem — to jego jedyny adres; reszta również wraca tutaj.",
+  "mwallet_receive_v30_blocked": "To starsza kieszeń (v30) — może tylko wysyłać. Aby otrzymywać, przełącz na kieszeń SegWit lub Taproot.",
   "mwallet_continue_setup": "Kontynuuj konfigurację kopania",
   "mwallet_mine_hint_text": "Twórz ploty z wolnego miejsca na dysku i otrzymuj nagrody z kopania prosto do tego portfela.",
   "mwallet_mine_hint_title": "Kop do tego portfela",

@@ -1164,6 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "einzeln",
   "mwallet_receive_single_hint": "Einzeladressen-Wallet — dies ist seine einzige Adresse; auch Wechselgeld kehrt hierher zurück.",
+  "mwallet_receive_v30_blocked": "Dies ist ein älteres (v30) Fach — es kann nur senden. Wechsle zum SegWit- oder Taproot-Fach, um zu empfangen.",
   "mwallet_continue_setup": "Mining-Einrichtung fortsetzen",
   "mwallet_mine_hint_text": "Plotte freien Speicherplatz und erhalte Mining-Erträge direkt in dieses Wallet.",
   "mwallet_mine_hint_title": "In dieses Wallet minen",
