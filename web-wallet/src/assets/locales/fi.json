@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Palvelinasetukset",
   "mwallet_server_url": "Palvelimen URL",
   "mwallet_settings_title": "Lompakon asetukset",
-  "mwallet_switch_wallet": "Vaihda tähän lompakkoon",
-  "mwallet_wallet_actions": "Lompakon toiminnot",
   "mwallet_spendable": "Käytettävissä",
   "mwallet_title": "Lompakko",
   "mwallet_unlock_failed": "Lukituksen avaus epäonnistui — väärä salasana?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Vain seurantaan tarkoitettuja lompakoita ei vielä tueta — liitä yksityinen deskriptori (jossa on xprv/tprv-avain).",
   "mwallet_import_wif_not_segwit": "Yhden avaimen tuonnissa tuetaan vain muotoa wpkh(WIF) — vain SegWit.",
   "mwallet_import_wrong_network": "Avain ei vastaa aktiivista verkkoa — mainnet käyttää xprv:tä, testnet/regtest käyttävät tprv:tä.",
-  "mwallet_imported_badge": "tuotu",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Legacy-osoitteet — voivat vastaanottaa ja kuluttaa, mutta eivät voi vastaanottaa louhintapalkkioita.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "yksi osoite",
   "mwallet_receive_single_hint": "Yhden osoitteen lompakko — tämä on sen ainoa osoite; myös vaihtoraha palaa tänne.",
-  "mwallet_wallets_hint": "Kaikki nykyisen verkon lompakot. Vaihda napauttamalla — avoin lompakko suljetaan ensin.",
   "mwallet_continue_setup": "Jatka louhinnan asetuksia",
   "mwallet_mine_hint_text": "Luo plotteja vapaasta levytilasta ja saat louhintapalkkiot suoraan tähän lompakkoon.",
   "mwallet_mine_hint_title": "Louhi tähän lompakkoon",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Setări servere",
   "mwallet_server_url": "URL-ul serverului",
   "mwallet_settings_title": "Setările portofelului",
-  "mwallet_switch_wallet": "Comută la acest portofel",
-  "mwallet_wallet_actions": "Acțiuni portofel",
   "mwallet_spendable": "Disponibil",
   "mwallet_title": "Portofel",
   "mwallet_unlock_failed": "Deblocarea a eșuat — parolă greșită?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Portofelele doar de observare nu sunt încă suportate — lipiți descriptorul privat (cu material de cheie xprv/tprv).",
   "mwallet_import_wif_not_segwit": "Pentru importurile cu o singură cheie este suportat doar wpkh(WIF) — doar SegWit.",
   "mwallet_import_wrong_network": "Cheia nu corespunde rețelei active — mainnet folosește xprv, testnet/regtest folosesc tprv.",
-  "mwallet_imported_badge": "importat",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Adrese legacy — pot primi și cheltui, dar nu pot primi recompense de minare.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "unic",
   "mwallet_receive_single_hint": "Portofel cu o singură adresă — aceasta este singura sa adresă; restul revine tot aici.",
-  "mwallet_wallets_hint": "Toate portofelele rețelei curente. Atingeți unul pentru a comuta — portofelul deschis se închide mai întâi.",
   "mwallet_continue_setup": "Continuă configurarea mineritului",
   "mwallet_mine_hint_text": "Creați ploturi din spațiul liber de pe disc și primiți recompensele de minerit direct în acest portofel.",
   "mwallet_mine_hint_title": "Minează către acest portofel",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

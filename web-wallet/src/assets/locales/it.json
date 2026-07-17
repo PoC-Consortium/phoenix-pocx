@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Impostazioni server",
   "mwallet_server_url": "URL del server",
   "mwallet_settings_title": "Impostazioni portafoglio",
-  "mwallet_switch_wallet": "Passa a questo portafoglio",
-  "mwallet_wallet_actions": "Azioni portafoglio",
   "mwallet_spendable": "Disponibile",
   "mwallet_title": "Portafoglio",
   "mwallet_unlock_failed": "Sblocco non riuscito — passphrase errata?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "I portafogli di sola osservazione non sono ancora supportati — incolla il descrittore privato (con chiave xprv/tprv).",
   "mwallet_import_wif_not_segwit": "Per le importazioni a chiave singola è supportato solo wpkh(WIF) — solo SegWit.",
   "mwallet_import_wrong_network": "La chiave non corrisponde alla rete attiva — mainnet usa xprv, testnet/regtest usano tprv.",
-  "mwallet_imported_badge": "importato",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Indirizzi legacy — possono ricevere e spendere, ma non ricevere ricompense di mining.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "singolo",
   "mwallet_receive_single_hint": "Portafoglio a indirizzo singolo — questo è il suo unico indirizzo; anche il resto torna qui.",
-  "mwallet_wallets_hint": "Tutti i portafogli della rete corrente. Tocca un portafoglio per cambiare — quello aperto viene prima chiuso.",
   "mwallet_continue_setup": "Continua la configurazione del mining",
   "mwallet_mine_hint_text": "Crea plot con lo spazio libero su disco e ricevi le ricompense di mining direttamente in questo portafoglio.",
   "mwallet_mine_hint_title": "Mina verso questo portafoglio",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

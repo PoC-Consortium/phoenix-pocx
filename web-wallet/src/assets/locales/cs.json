@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Nastavení serverů",
   "mwallet_server_url": "URL serveru",
   "mwallet_settings_title": "Nastavení peněženky",
-  "mwallet_switch_wallet": "Přepnout na tuto peněženku",
-  "mwallet_wallet_actions": "Akce peněženky",
   "mwallet_spendable": "K dispozici",
   "mwallet_title": "Peněženka",
   "mwallet_unlock_failed": "Odemknutí se nezdařilo — špatné heslo?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Peněženky pouze pro sledování zatím nejsou podporovány — vložte soukromý deskriptor (s klíčem xprv/tprv).",
   "mwallet_import_wif_not_segwit": "Pro import jednoho klíče je podporováno pouze wpkh(WIF) — pouze SegWit.",
   "mwallet_import_wrong_network": "Klíč neodpovídá aktivní síti — mainnet používá xprv, testnet/regtest používají tprv.",
-  "mwallet_imported_badge": "importovaná",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Legacy adresy — mohou přijímat a utrácet, ale nemohou přijímat odměny z těžby.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "jedna adresa",
   "mwallet_receive_single_hint": "Peněženka s jednou adresou — toto je její jediná adresa; drobné se sem vracejí také.",
-  "mwallet_wallets_hint": "Všechny peněženky v aktuální síti. Klepnutím přepnete — otevřená peněženka se nejprve zavře.",
   "mwallet_continue_setup": "Pokračovat v nastavení těžby",
   "mwallet_mine_hint_text": "Vytvořte ploty z volného místa na disku a získávejte odměny z těžby přímo do této peněženky.",
   "mwallet_mine_hint_title": "Těžit do této peněženky",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

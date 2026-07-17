@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Serverių nustatymai",
   "mwallet_server_url": "Serverio URL",
   "mwallet_settings_title": "Piniginės nustatymai",
-  "mwallet_switch_wallet": "Perjungti į šią piniginę",
-  "mwallet_wallet_actions": "Piniginės veiksmai",
   "mwallet_spendable": "Išleidžiama",
   "mwallet_title": "Piniginė",
   "mwallet_unlock_failed": "Nepavyko atrakinti — neteisinga slaptafrazė?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Tik stebėjimo piniginės dar nepalaikomos — įklijuokite privatų deskriptorių (su xprv/tprv raktu).",
   "mwallet_import_wif_not_segwit": "Vieno rakto importui palaikomas tik wpkh(WIF) — tik SegWit.",
   "mwallet_import_wrong_network": "Raktas neatitinka aktyvaus tinklo — mainnet naudoja xprv, testnet/regtest naudoja tprv.",
-  "mwallet_imported_badge": "importuota",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Legacy adresai — gali gauti ir išleisti, bet negali gauti kasybos atlygio.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "vienas adresas",
   "mwallet_receive_single_hint": "Vieno adreso piniginė — tai vienintelis jos adresas; grąža taip pat grįžta čia.",
-  "mwallet_wallets_hint": "Visos dabartinio tinklo piniginės. Bakstelėkite, kad perjungtumėte — atidaryta piniginė pirmiausia uždaroma.",
   "mwallet_continue_setup": "Tęsti kasybos nustatymą",
   "mwallet_mine_hint_text": "Kurkite plotus iš laisvos disko vietos ir gaukite kasybos atlygį tiesiai į šią piniginę.",
   "mwallet_mine_hint_title": "Kasti į šią piniginę",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

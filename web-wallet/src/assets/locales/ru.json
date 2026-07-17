@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Настройки серверов",
   "mwallet_server_url": "URL сервера",
   "mwallet_settings_title": "Настройки кошелька",
-  "mwallet_switch_wallet": "Переключиться на этот кошелек",
-  "mwallet_wallet_actions": "Действия с кошельком",
   "mwallet_spendable": "Доступно",
   "mwallet_title": "Кошелек",
   "mwallet_unlock_failed": "Не удалось разблокировать — неверный пароль?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Кошельки только для наблюдения пока не поддерживаются — вставьте приватный дескриптор (с ключом xprv/tprv).",
   "mwallet_import_wif_not_segwit": "Для импорта одиночного ключа поддерживается только wpkh(WIF) — только SegWit.",
   "mwallet_import_wrong_network": "Ключ не соответствует активной сети — mainnet использует xprv, testnet/regtest используют tprv.",
-  "mwallet_imported_badge": "импортирован",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Legacy-адреса — могут получать и тратить, но не могут получать награды за майнинг.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "один адрес",
   "mwallet_receive_single_hint": "Кошелек с одним адресом — это его единственный адрес; сдача тоже возвращается сюда.",
-  "mwallet_wallets_hint": "Все кошельки текущей сети. Нажмите, чтобы переключиться — открытый кошелек сначала закрывается.",
   "mwallet_continue_setup": "Продолжить настройку майнинга",
   "mwallet_mine_hint_text": "Создавайте плоты из свободного места на диске и получайте награды за майнинг прямо в этот кошелек.",
   "mwallet_mine_hint_title": "Майнить в этот кошелек",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Pengaturan server",
   "mwallet_server_url": "URL server",
   "mwallet_settings_title": "Pengaturan dompet",
-  "mwallet_switch_wallet": "Beralih ke dompet ini",
-  "mwallet_wallet_actions": "Tindakan dompet",
   "mwallet_spendable": "Dapat dibelanjakan",
   "mwallet_title": "Dompet",
   "mwallet_unlock_failed": "Tidak dapat membuka kunci — frasa sandi salah?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Dompet hanya-pantau belum didukung — tempel deskriptor privat (dengan materi kunci xprv/tprv).",
   "mwallet_import_wif_not_segwit": "Untuk impor kunci tunggal hanya wpkh(WIF) yang didukung — hanya SegWit.",
   "mwallet_import_wrong_network": "Kunci tidak cocok dengan jaringan aktif — mainnet menggunakan xprv, testnet/regtest menggunakan tprv.",
-  "mwallet_imported_badge": "diimpor",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Alamat legacy — dapat menerima dan membelanjakan, tetapi tidak dapat menerima imbalan penambangan.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "tunggal",
   "mwallet_receive_single_hint": "Dompet satu alamat — inilah satu-satunya alamatnya; kembalian juga kembali ke sini.",
-  "mwallet_wallets_hint": "Semua dompet di jaringan saat ini. Ketuk salah satu untuk beralih — dompet yang terbuka ditutup lebih dulu.",
   "mwallet_continue_setup": "Lanjutkan pengaturan penambangan",
   "mwallet_mine_hint_text": "Buat plot dari ruang disk kosong dan terima hadiah penambangan langsung ke dompet ini.",
   "mwallet_mine_hint_title": "Menambang ke dompet ini",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

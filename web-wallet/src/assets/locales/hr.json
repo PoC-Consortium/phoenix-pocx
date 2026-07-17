@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Postavke poslužitelja",
   "mwallet_server_url": "URL poslužitelja",
   "mwallet_settings_title": "Postavke novčanika",
-  "mwallet_switch_wallet": "Prijeđi na ovaj novčanik",
-  "mwallet_wallet_actions": "Radnje novčanika",
   "mwallet_spendable": "Raspoloživo",
   "mwallet_title": "Novčanik",
   "mwallet_unlock_failed": "Otključavanje nije uspjelo — pogrešna lozinka?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Novčanici samo za promatranje još nisu podržani — zalijepite privatni deskriptor (s ključem xprv/tprv).",
   "mwallet_import_wif_not_segwit": "Za uvoz jednog ključa podržan je samo wpkh(WIF) — samo SegWit.",
   "mwallet_import_wrong_network": "Ključ ne odgovara aktivnoj mreži — mainnet koristi xprv, testnet/regtest koriste tprv.",
-  "mwallet_imported_badge": "uvezen",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Legacy adrese — mogu primati i trošiti, ali ne mogu primati nagrade za rudarenje.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "jedna adresa",
   "mwallet_receive_single_hint": "Novčanik s jednom adresom — ovo je njegova jedina adresa; ostatak se također vraća ovamo.",
-  "mwallet_wallets_hint": "Svi novčanici trenutne mreže. Dodirnite jedan za prebacivanje — otvoreni novčanik najprije se zatvara.",
   "mwallet_continue_setup": "Nastavi postavljanje rudarenja",
   "mwallet_mine_hint_text": "Stvorite plotove od slobodnog prostora na disku i primajte nagrade od rudarenja izravno u ovaj novčanik.",
   "mwallet_mine_hint_title": "Rudari u ovaj novčanik",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

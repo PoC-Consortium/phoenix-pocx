@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Sunucu ayarları",
   "mwallet_server_url": "Sunucu URL'si",
   "mwallet_settings_title": "Cüzdan ayarları",
-  "mwallet_switch_wallet": "Bu cüzdana geç",
-  "mwallet_wallet_actions": "Cüzdan işlemleri",
   "mwallet_spendable": "Harcanabilir",
   "mwallet_title": "Cüzdan",
   "mwallet_unlock_failed": "Kilit açılamadı — yanlış parola?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Yalnızca izleme cüzdanları henüz desteklenmiyor — özel tanımlayıcıyı yapıştırın (xprv/tprv anahtar malzemesiyle).",
   "mwallet_import_wif_not_segwit": "Tek anahtarlı içe aktarmalarda yalnızca wpkh(WIF) desteklenir — yalnızca SegWit.",
   "mwallet_import_wrong_network": "Anahtar etkin ağa uymuyor — mainnet xprv, testnet/regtest tprv kullanır.",
-  "mwallet_imported_badge": "içe aktarıldı",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Legacy adresleri — alabilir ve harcayabilir, ancak madencilik ödülleri alamaz.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "tek adres",
   "mwallet_receive_single_hint": "Tek adresli cüzdan — bu onun tek adresi; para üstü de buraya döner.",
-  "mwallet_wallets_hint": "Geçerli ağdaki tüm cüzdanlar. Geçiş yapmak için birine dokunun — açık cüzdan önce kapatılır.",
   "mwallet_continue_setup": "Madencilik kurulumuna devam et",
   "mwallet_mine_hint_text": "Boş disk alanını plotlayın ve madencilik ödüllerini doğrudan bu cüzdana alın.",
   "mwallet_mine_hint_title": "Bu cüzdana madencilik yap",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

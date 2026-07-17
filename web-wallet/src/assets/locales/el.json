@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "Ρυθμίσεις διακομιστών",
   "mwallet_server_url": "URL διακομιστή",
   "mwallet_settings_title": "Ρυθμίσεις πορτοφολιού",
-  "mwallet_switch_wallet": "Αλλαγή σε αυτό το πορτοφόλι",
-  "mwallet_wallet_actions": "Ενέργειες πορτοφολιού",
   "mwallet_spendable": "Διαθέσιμο",
   "mwallet_title": "Πορτοφόλι",
   "mwallet_unlock_failed": "Αδυναμία ξεκλειδώματος — λάθος κωδικός;",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "Τα πορτοφόλια μόνο για παρακολούθηση δεν υποστηρίζονται ακόμη — επικολλήστε τον ιδιωτικό περιγραφέα (με κλειδί xprv/tprv).",
   "mwallet_import_wif_not_segwit": "Για εισαγωγές ενός κλειδιού υποστηρίζεται μόνο το wpkh(WIF) — μόνο SegWit.",
   "mwallet_import_wrong_network": "Το κλειδί δεν ταιριάζει με το ενεργό δίκτυο — το mainnet χρησιμοποιεί xprv, τα testnet/regtest χρησιμοποιούν tprv.",
-  "mwallet_imported_badge": "εισηγμένο",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Διευθύνσεις legacy — μπορούν να λαμβάνουν και να ξοδεύουν, αλλά όχι να λαμβάνουν ανταμοιβές εξόρυξης.",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "μονή",
   "mwallet_receive_single_hint": "Πορτοφόλι μίας διεύθυνσης — αυτή είναι η μοναδική του διεύθυνση· τα ρέστα επιστρέφουν επίσης εδώ.",
-  "mwallet_wallets_hint": "Όλα τα πορτοφόλια του τρέχοντος δικτύου. Πατήστε ένα για εναλλαγή — το ανοιχτό πορτοφόλι κλείνει πρώτα.",
   "mwallet_continue_setup": "Συνέχεια ρύθμισης εξόρυξης",
   "mwallet_mine_hint_text": "Δημιουργήστε plots από τον ελεύθερο χώρο του δίσκου και λαμβάνετε τις ανταμοιβές εξόρυξης απευθείας σε αυτό το πορτοφόλι.",
   "mwallet_mine_hint_title": "Εξόρυξη σε αυτό το πορτοφόλι",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

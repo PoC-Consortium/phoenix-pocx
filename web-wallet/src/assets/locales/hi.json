@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "सर्वर सेटिंग्स",
   "mwallet_server_url": "सर्वर URL",
   "mwallet_settings_title": "वॉलेट सेटिंग्स",
-  "mwallet_switch_wallet": "इस वॉलेट पर स्विच करें",
-  "mwallet_wallet_actions": "वॉलेट क्रियाएँ",
   "mwallet_spendable": "खर्च योग्य",
   "mwallet_title": "वॉलेट",
   "mwallet_unlock_failed": "अनलॉक नहीं हो सका — गलत पासफ़्रेज़?",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "केवल-देखने वाले वॉलेट अभी समर्थित नहीं हैं — निजी डिस्क्रिप्टर चिपकाएँ (xprv/tprv कुंजी सामग्री के साथ)।",
   "mwallet_import_wif_not_segwit": "एकल-कुंजी आयात के लिए केवल wpkh(WIF) समर्थित है — केवल SegWit।",
   "mwallet_import_wrong_network": "कुंजी सक्रिय नेटवर्क से मेल नहीं खाती — mainnet xprv उपयोग करता है, testnet/regtest tprv उपयोग करते हैं।",
-  "mwallet_imported_badge": "आयातित",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "Legacy पते — प्राप्त और खर्च कर सकते हैं, लेकिन माइनिंग इनाम प्राप्त नहीं कर सकते।",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "एकल",
   "mwallet_receive_single_hint": "एकल-पता वॉलेट — यही इसका एकमात्र पता है; बाकी राशि भी यहीं लौटती है।",
-  "mwallet_wallets_hint": "वर्तमान नेटवर्क के सभी वॉलेट। बदलने के लिए किसी एक पर टैप करें — खुला वॉलेट पहले बंद होता है।",
   "mwallet_continue_setup": "माइनिंग सेटअप जारी रखें",
   "mwallet_mine_hint_text": "खाली डिस्क स्थान से प्लॉट बनाएं और माइनिंग पुरस्कार सीधे इस वॉलेट में पाएं।",
   "mwallet_mine_hint_title": "इस वॉलेट में माइन करें",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }

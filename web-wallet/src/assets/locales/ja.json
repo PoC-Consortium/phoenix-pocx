@@ -1125,8 +1125,6 @@
   "mwallet_server_settings": "サーバー設定",
   "mwallet_server_url": "サーバーURL",
   "mwallet_settings_title": "ウォレット設定",
-  "mwallet_switch_wallet": "このウォレットに切り替え",
-  "mwallet_wallet_actions": "ウォレット操作",
   "mwallet_spendable": "利用可能",
   "mwallet_title": "ウォレット",
   "mwallet_unlock_failed": "ロック解除できませんでした — パスフレーズが違いますか？",
@@ -1157,7 +1155,6 @@
   "mwallet_import_watch_only": "ウォッチオンリーウォレットはまだサポートされていません — 秘密ディスクリプタ（xprv/tprv 鍵を含む）を貼り付けてください。",
   "mwallet_import_wif_not_segwit": "単一鍵のインポートでは wpkh(WIF) のみサポートされます — SegWit のみです。",
   "mwallet_import_wrong_network": "鍵がアクティブなネットワークと一致しません — mainnet は xprv、testnet/regtest は tprv を使用します。",
-  "mwallet_imported_badge": "インポート済み",
   "mwallet_kind_legacy": "Legacy",
   "mwallet_kind_legacy_desc": "レガシーアドレス — 受取と送金はできますが、マイニング報酬は受け取れません。",
   "mwallet_kind_segwit": "SegWit",
@@ -1167,7 +1164,6 @@
   "mwallet_legacy_badge": "レガシー",
   "mwallet_single_badge": "単一",
   "mwallet_receive_single_hint": "単一アドレスのウォレット — これが唯一のアドレスです。お釣りもここに戻ります。",
-  "mwallet_wallets_hint": "現在のネットワークのすべてのウォレット。タップで切り替え — 開いているウォレットは先に閉じられます。",
   "mwallet_continue_setup": "マイニング設定を続ける",
   "mwallet_mine_hint_text": "空きディスク領域をプロットして、マイニング報酬をこのウォレットで直接受け取れます。",
   "mwallet_mine_hint_title": "このウォレットへマイニング",
@@ -1266,8 +1262,8 @@
   "wallet_rescan_found": "Found and restored older funds",
   "wallet_rescan_none": "No older funds found",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
-  "mwallet_balance_as_of": "Last known balance — refreshed when this pocket syncs.",
   "wallet_pocket": "Pocket",
   "wallet_rescan_legacy_description": "Re-check this wallet's old (v30) derivation branches on the Electrum server. Older funds appear as a spend-only v30 pocket.",
-  "scan": "Scan"
+  "scan": "Scan",
+  "upgrade_seed_mismatch": "This recovery phrase does not match this wallet. Enter the exact seed this wallet was created from."
 }
