@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, computed, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -18,6 +18,8 @@ import { ClipboardService, NotificationService } from '../../../../shared/servic
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { buildPaymentUri } from '../../../../bitcoin/utils/payment-uri';
+import { NodeService } from '../../../../node/services/node.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 
 interface AddressInfo {
   address: string;
@@ -64,6 +66,15 @@ type AddressMode = 'existing' | 'generate';
       <!-- Content -->
       <div class="content">
         <div class="receive-card">
+          @if (spendOnly()) {
+            <!-- Remote mode, legacy (v30) pocket: spend-only. No receive
+                 address is derived — receiving into the retired coin-0'
+                 branch is what the compartment redesign exists to stop. -->
+            <div class="spend-only">
+              <mat-icon class="spend-only-icon">block</mat-icon>
+              <span>{{ 'mwallet_receive_v30_blocked' | i18n }}</span>
+            </div>
+          } @else {
           <!-- Address Selection -->
           <div class="form-section">
             <div class="address-mode-row">
@@ -191,6 +202,7 @@ type AddressMode = 'existing' | 'generate';
               <mat-icon>qr_code</mat-icon>
               <span>{{ 'select_or_generate_address' | i18n }}</span>
             </div>
+          }
           }
         </div>
       </div>
@@ -464,6 +476,30 @@ type AddressMode = 'existing' | 'generate';
         }
       }
 
+      /* Spend-only (v30) block panel */
+      .spend-only {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 12px;
+        padding: 24px 12px;
+
+        .spend-only-icon {
+          font-size: 44px;
+          width: 44px;
+          height: 44px;
+          color: #b26a00;
+        }
+
+        span {
+          font-size: 14px;
+          color: rgba(0, 0, 0, 0.7);
+          line-height: 1.5;
+          max-width: 360px;
+        }
+      }
+
       /* Dark theme */
       :host-context(.dark-theme) {
         .page-layout {
@@ -493,6 +529,10 @@ type AddressMode = 'existing' | 'generate';
         .no-address {
           color: rgba(255, 255, 255, 0.38);
         }
+
+        .spend-only span {
+          color: rgba(255, 255, 255, 0.7);
+        }
       }
 
       /* Responsive */
@@ -511,7 +551,18 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   private readonly clipboard = inject(ClipboardService);
   private readonly notification = inject(NotificationService);
   private readonly location = inject(Location);
+  private readonly nodeService = inject(NodeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly destroy$ = new Subject<void>();
+
+  /**
+   * Remote (Electrum) mode + a legacy v30 (coin-0') pocket = spend-only:
+   * receiving is blocked so funds never land back in the retired branch.
+   * Only ever true in remote mode — managed/Core mode is unaffected.
+   */
+  readonly spendOnly = computed(
+    () => this.nodeService.isRemote() && this.btcxWallet.descriptorPolicy()?.coinType === 0
+  );
 
   addressMode: AddressMode = 'existing';
   existingAddresses = signal<AddressInfo[]>([]);
@@ -535,9 +586,9 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loadExistingAddresses();
-
-    // Subscribe to wallet changes to reload addresses
+    // Subscribe to wallet changes to reload addresses. Switching INTO a
+    // v30 pocket clears the shown address and derives nothing; switching
+    // out reloads normally.
     this.walletManager.activeWallet$
       .pipe(
         skip(1), // Skip initial value since we already loaded
@@ -547,8 +598,27 @@ export class ReceiveComponent implements OnInit, OnDestroy {
         this.selectedAddress = '';
         this.generatedAddress.set('');
         this.addressMode = 'existing';
-        this.loadExistingAddresses();
+        this.existingAddresses.set([]);
+        if (!this.spendOnly()) {
+          this.loadExistingAddresses();
+        }
       });
+
+    void this.init();
+  }
+
+  /**
+   * Ensure the remote wallet config is loaded before deciding spend-only —
+   * otherwise `descriptorPolicy()` is null on first paint and the guard
+   * would fail open. Then derive the initial address (unless spend-only).
+   */
+  private async init(): Promise<void> {
+    if (this.nodeService.isRemote()) {
+      await this.btcxWallet.initialize();
+    }
+    if (!this.spendOnly()) {
+      await this.loadExistingAddresses();
+    }
   }
 
   ngOnDestroy(): void {
@@ -561,6 +631,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   async loadExistingAddresses(): Promise<void> {
+    if (this.spendOnly()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
@@ -604,7 +675,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   async generateNewAddress(): Promise<void> {
-    if (this.isGenerating()) return;
+    if (this.spendOnly() || this.isGenerating()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
