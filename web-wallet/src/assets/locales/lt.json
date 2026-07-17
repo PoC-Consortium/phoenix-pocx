@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "vienas adresas",
   "mwallet_receive_single_hint": "Vieno adreso piniginė — tai vienintelis jos adresas; grąža taip pat grįžta čia.",
-  "mwallet_receive_v30_blocked": "Tai senesnė (v30) kišenė — ji gali tik siųsti. Norėdami gauti, perjunkite į SegWit arba Taproot kišenę.",
+  "mwallet_receive_v30_blocked": "Tai senesnė (v30) kišenė — palikta tik jos lėšoms išleisti. Norėdami gauti, perjunkite į SegWit arba Taproot kišenę.",
   "mwallet_continue_setup": "Tęsti kasybos nustatymą",
   "mwallet_mine_hint_text": "Kurkite plotus iš laisvos disko vietos ir gaukite kasybos atlygį tiesiai į šią piniginę.",
   "mwallet_mine_hint_title": "Kasti į šią piniginę",

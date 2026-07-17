@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "yksi osoite",
   "mwallet_receive_single_hint": "Yhden osoitteen lompakko — tämä on sen ainoa osoite; myös vaihtoraha palaa tänne.",
-  "mwallet_receive_v30_blocked": "Tämä on vanhempi (v30) tasku — se voi vain lähettää. Vaihda SegWit- tai Taproot-taskuun vastaanottaaksesi.",
+  "mwallet_receive_v30_blocked": "Tämä on vanhempi (v30) tasku — säilytetään vain sen varojen käyttämistä varten. Vaihda SegWit- tai Taproot-taskuun vastaanottaaksesi.",
   "mwallet_continue_setup": "Jatka louhinnan asetuksia",
   "mwallet_mine_hint_text": "Luo plotteja vapaasta levytilasta ja saat louhintapalkkiot suoraan tähän lompakkoon.",
   "mwallet_mine_hint_title": "Louhi tähän lompakkoon",

@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "jedna adresa",
   "mwallet_receive_single_hint": "Peněženka s jednou adresou — toto je její jediná adresa; drobné se sem vracejí také.",
-  "mwallet_receive_v30_blocked": "Toto je starší (v30) kapsa — může pouze odesílat. Pro příjem přepněte na kapsu SegWit nebo Taproot.",
+  "mwallet_receive_v30_blocked": "Toto je starší (v30) kapsa — ponechaná jen k utracení jejích prostředků. Pro příjem přepněte na kapsu SegWit nebo Taproot.",
   "mwallet_continue_setup": "Pokračovat v nastavení těžby",
   "mwallet_mine_hint_text": "Vytvořte ploty z volného místa na disku a získávejte odměny z těžby přímo do této peněženky.",
   "mwallet_mine_hint_title": "Těžit do této peněženky",

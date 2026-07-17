@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "レガシー",
   "mwallet_single_badge": "単一",
   "mwallet_receive_single_hint": "単一アドレスのウォレット — これが唯一のアドレスです。お釣りもここに戻ります。",
-  "mwallet_receive_v30_blocked": "これは古い (v30) ポケットです。送信のみ可能です。受け取るには SegWit または Taproot のポケットに切り替えてください。",
+  "mwallet_receive_v30_blocked": "これは古い (v30) ポケットで、残高を使い切るためだけに残されています。受け取るには SegWit または Taproot のポケットに切り替えてください。",
   "mwallet_continue_setup": "マイニング設定を続ける",
   "mwallet_mine_hint_text": "空きディスク領域をプロットして、マイニング報酬をこのウォレットで直接受け取れます。",
   "mwallet_mine_hint_title": "このウォレットへマイニング",

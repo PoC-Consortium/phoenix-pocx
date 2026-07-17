@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "single",
   "mwallet_receive_single_hint": "Single-address wallet — this is its only address; change returns here too.",
-  "mwallet_receive_v30_blocked": "This is an older (v30) pocket — it can only send. Switch to the SegWit or Taproot pocket to receive.",
+  "mwallet_receive_v30_blocked": "This is an older (v30) pocket — kept only to spend out its funds. To receive, switch to the SegWit or Taproot pocket.",
   "mwallet_delete_group_message": "\"{name}\" and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds.",
   "mwallet_continue_setup": "Continue mining setup",
   "mwallet_mine_hint_text": "Plot free storage space and earn mining rewards straight into this wallet.",

@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "singolo",
   "mwallet_receive_single_hint": "Portafoglio a indirizzo singolo — questo è il suo unico indirizzo; anche il resto torna qui.",
-  "mwallet_receive_v30_blocked": "Questa è una tasca meno recente (v30): può solo inviare. Passa alla tasca SegWit o Taproot per ricevere.",
+  "mwallet_receive_v30_blocked": "Questa è una tasca meno recente (v30), mantenuta solo per spenderne i fondi. Per ricevere, passa alla tasca SegWit o Taproot.",
   "mwallet_continue_setup": "Continua la configurazione del mining",
   "mwallet_mine_hint_text": "Crea plot con lo spazio libero su disco e ricevi le ricompense di mining direttamente in questo portafoglio.",
   "mwallet_mine_hint_title": "Mina verso questo portafoglio",

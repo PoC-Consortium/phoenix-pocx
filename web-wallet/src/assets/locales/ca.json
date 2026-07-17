@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "única",
   "mwallet_receive_single_hint": "Cartera d'adreça única — aquesta és la seva única adreça; el canvi també hi torna.",
-  "mwallet_receive_v30_blocked": "Aquesta és una butxaca antiga (v30) — només pot enviar. Canvia a la butxaca SegWit o Taproot per rebre.",
+  "mwallet_receive_v30_blocked": "Aquesta és una butxaca antiga (v30), conservada només per gastar-ne els fons. Per rebre, canvia a la butxaca SegWit o Taproot.",
   "mwallet_continue_setup": "Continuar la configuració de mineria",
   "mwallet_mine_hint_text": "Creeu plots amb l'espai lliure del disc i rebeu les recompenses de mineria directament en aquesta cartera.",
   "mwallet_mine_hint_title": "Minar cap a aquesta cartera",

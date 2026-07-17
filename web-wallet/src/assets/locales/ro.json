@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "vechi",
   "mwallet_single_badge": "unic",
   "mwallet_receive_single_hint": "Portofel cu o singură adresă — aceasta este singura sa adresă; restul revine tot aici.",
-  "mwallet_receive_v30_blocked": "Acesta este un buzunar mai vechi (v30) — poate doar trimite. Comută la buzunarul SegWit sau Taproot pentru a primi.",
+  "mwallet_receive_v30_blocked": "Acesta este un buzunar mai vechi (v30), păstrat doar pentru a-i cheltui fondurile. Pentru a primi, comută la buzunarul SegWit sau Taproot.",
   "mwallet_continue_setup": "Continuă configurarea mineritului",
   "mwallet_mine_hint_text": "Creați ploturi din spațiul liber de pe disc și primiți recompensele de minerit direct în acest portofel.",
   "mwallet_mine_hint_title": "Minează către acest portofel",

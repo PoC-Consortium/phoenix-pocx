@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "único",
   "mwallet_receive_single_hint": "Carteira de endereço único — este é seu único endereço; o troco também volta para cá.",
-  "mwallet_receive_v30_blocked": "Este é um bolso mais antigo (v30) — ele só pode enviar. Mude para o bolso SegWit ou Taproot para receber.",
+  "mwallet_receive_v30_blocked": "Este é um bolso mais antigo (v30), mantido apenas para gastar seus fundos. Para receber, mude para o bolso SegWit ou Taproot.",
   "mwallet_continue_setup": "Continuar a configuração de mineração",
   "mwallet_mine_hint_text": "Crie plots com o espaço livre do disco e receba as recompensas de mineração diretamente nesta carteira.",
   "mwallet_mine_hint_title": "Minerar para esta carteira",

@@ -1164,7 +1164,7 @@
   "mwallet_legacy_badge": "legacy",
   "mwallet_single_badge": "tek adres",
   "mwallet_receive_single_hint": "Tek adresli cüzdan — bu onun tek adresi; para üstü de buraya döner.",
-  "mwallet_receive_v30_blocked": "Bu daha eski bir (v30) cep — yalnızca gönderebilir. Almak için SegWit veya Taproot cebine geçin.",
+  "mwallet_receive_v30_blocked": "Bu daha eski bir (v30) cep — yalnızca içindeki bakiyeyi harcamak için tutuluyor. Almak için SegWit veya Taproot cebine geçin.",
   "mwallet_continue_setup": "Madencilik kurulumuna devam et",
   "mwallet_mine_hint_text": "Boş disk alanını plotlayın ve madencilik ödüllerini doğrudan bu cüzdana alın.",
   "mwallet_mine_hint_title": "Bu cüzdana madencilik yap",
