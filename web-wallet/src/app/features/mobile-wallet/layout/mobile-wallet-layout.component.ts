@@ -1201,8 +1201,10 @@ interface NavGroup {
            screen, rather than a fixed cap that stops mid-screen. Subtract the
            top safe-area inset + toolbar height so the panel still fits in the
            space below the trigger (staying anchored below instead of flipping
-           up under the notch). */
-        max-height: calc(100vh - env(safe-area-inset-top, 0px) - 64px);
+           up under the notch). dvh (not vh) tracks the true visible height on
+           iOS; content is already pushed down by env(safe-area-inset-top)
+           globally (styles.scss), so subtract that inset + the 56px toolbar. */
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 56px);
         overflow-y: auto;
       }
     `,
