@@ -145,15 +145,10 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
               (changed)="onMnemonicChanged($event)"
             ></app-mnemonic-entry>
 
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'mwallet_passphrase_optional' | i18n }}</mat-label>
-              <input matInput type="password" [(ngModel)]="passphrase" autocomplete="off" />
-            </mat-form-field>
-            <p class="hint-text small">{{ 'mwallet_passphrase_hint' | i18n }}</p>
-
-            <!-- BIP39 25th word — SEPARATE from the at-rest passphrase above.
-                 It must match what the seed was created with, or the probe
-                 finds no history. -->
+            <!-- BIP39 25th word — belongs right after the recovery phrase, so
+                 it reads as part of the phrase (matching the create flow).
+                 SEPARATE from the at-rest passphrase below. It must match what
+                 the seed was created with, or the probe finds no history. -->
             <mat-checkbox [(ngModel)]="useBip39" [disabled]="restoring()" class="bip39-toggle">
               {{ 'mwallet_bip39_toggle' | i18n }}
             </mat-checkbox>
@@ -168,6 +163,12 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
                 <input matInput type="password" [(ngModel)]="bip39Passphrase" autocomplete="off" />
               </mat-form-field>
             }
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'mwallet_passphrase_optional' | i18n }}</mat-label>
+              <input matInput type="password" [(ngModel)]="passphrase" autocomplete="off" />
+            </mat-form-field>
+            <p class="hint-text small">{{ 'mwallet_passphrase_hint' | i18n }}</p>
 
             <p class="hint-text small">{{ 'mwallet_restore_probe_note' | i18n }}</p>
 
