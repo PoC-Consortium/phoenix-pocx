@@ -127,9 +127,12 @@ tar = "0.4"
 futures-util = "0.3"
 
 # HTTP client for GitHub API and downloads
-# Use rustls on Android (no OpenSSL cross-compilation needed), native-tls on desktop
-[target.'cfg(not(target_os = "android"))'.dependencies]
+# Use rustls on mobile (no OpenSSL cross-compilation needed), native-tls on desktop
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 reqwest = { version = "0.12", features = ["json", "stream"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 
 # Unix-specific dependencies (Linux + macOS) for filesystem stat fallback
 [target.'cfg(unix)'.dependencies]
@@ -166,6 +169,12 @@ unicode-normalization = "=0.1.25"
 # already ships.
 [patch.crates-io]
 bdk_chain = { path = "vendor/bdk_chain" }
+# pocx_plotfile 1.0.5 gates direct I/O on `target_os = "macos"` vs "other
+# unix" — iOS (also Darwin, has F_NOCACHE, lacks O_DIRECT) falls into the
+# O_DIRECT branch and fails to compile. Vendored copy is byte-identical
+# except those gates read `target_vendor = "apple"`. Drop once the fix is
+# upstreamed to the pocx crates.
+pocx_plotfile = { path = "vendor/pocx_plotfile" }
 
 [profile.release]
 panic = "abort"
