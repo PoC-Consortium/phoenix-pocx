@@ -41,6 +41,11 @@ jobs:
         working-directory: web-wallet
         run: npx tauri ios init
 
+      - name: Set iOS app icon
+        run: |
+          # Copy pre-generated icons into the asset catalog (init writes Tauri defaults)
+          cp web-wallet/src-tauri/ios-icons/*.png web-wallet/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/
+
       - name: Build for iOS Simulator (unsigned)
         working-directory: web-wallet
         # The Tauri CLI must drive the build (it starts a build server the

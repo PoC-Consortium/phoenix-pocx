@@ -26,7 +26,11 @@ Read `docs/MIGRATION-PLAN.md` and `CLAUDE.md` first for architecture.
    `#[cfg(desktop)]` so they don't fire on iOS.
 2. ~~`tauri ios init`~~ — DONE: `gen/apple/phoenix-pocx.xcodeproj`
    generates cleanly (gen/ is gitignored, regenerate-fresh model like
-   Android; real PoCX icons land in `Assets.xcassets` automatically).
+   Android). Init writes the DEFAULT Tauri icons into `Assets.xcassets` —
+   the phoenix icon set is committed in `src-tauri/ios-icons/` (generated
+   via `npx tauri icon` from `icons/icon.png`) and must be copied into
+   `gen/apple/Assets.xcassets/AppIcon.appiconset/` after every init; the
+   CI workflow does this (same pattern as `android-icons/`).
    Note: init works WITHOUT Xcode; only compiling needs it.
 3. ~~iOS `#[cfg]` audit~~ — DONE: Android plugins were already scoped to
    the Android Cargo target block (not deps on iOS); added an iOS target
