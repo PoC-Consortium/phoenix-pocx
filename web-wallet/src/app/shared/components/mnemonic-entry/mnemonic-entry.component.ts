@@ -201,7 +201,10 @@ export interface MnemonicEntryState {
         }
       }
 
-      @media (max-width: 400px) {
+      /* All phones (incl. large iPhones ~430px), not just narrow ones, drop to
+         2 columns — at 16px a 3-per-row word box is too narrow to show a full
+         BIP39 word. 3/4 columns are kept only for tablets/desktop (>480px). */
+      @media (max-width: 480px) {
         .mnemonic-input-grid {
           grid-template-columns: repeat(2, 1fr);
 
