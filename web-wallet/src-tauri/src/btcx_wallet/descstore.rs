@@ -31,8 +31,21 @@ use std::path::{Path, PathBuf};
 /// descriptor-source counterpart of `seedstore::SEED_FILE`.
 pub const DESCRIPTOR_FILE: &str = "descriptor.secret";
 
+/// File name of the OPTIONAL BIP39 passphrase (the "25th word") stored next
+/// to `seed.mnemonic` in a seed wallet's data dir. Absent = empty BIP39
+/// passphrase = the mnemonic alone recovers the funds (the historical
+/// behavior). Present = a non-empty passphrase every derive site of this
+/// seed's group must apply (see [`read_bip39_passphrase`]).
+pub const PASSPHRASE_FILE: &str = "seed.passphrase";
+
 const DESC_MAGIC: &str = "PHXDESCv1";
 const DESC_MAGIC_OBFS: &str = "PHXDESCv1-obfs";
+/// Magic of the obfuscation-wrapped BIP39 passphrase sibling file. The wrap
+/// is obfuscation-only (the same at-rest bar as a no-passphrase seed) so the
+/// passphrase reads back with NO user unlock — every derive site of the seed
+/// must reproduce the exact same keys, including one-shot compartment syncs
+/// that never hold a user passphrase.
+const PASS_MAGIC_OBFS: &str = "PHXPASSv1-obfs";
 /// scrypt cost, identical to seedstore: N=2^15, r=8, p=1 — interactive.
 const SCRYPT_LOG_N: u8 = 15;
 /// The no-passphrase obfuscation key. NOT a secret — it ships in the
@@ -288,6 +301,64 @@ fn write_atomic(path: &Path, contents: &str) -> Result<(), String> {
     std::fs::rename(&tmp, path).map_err(|e| format!("installing {}: {e}", path.display()))
 }
 
+// ============================================================================
+// BIP39 passphrase (the "25th word") sibling store
+// ============================================================================
+
+/// Persist the OPTIONAL BIP39 passphrase (the "25th word") of a seed wallet
+/// into `dir`, obfuscation-wrapped (never plaintext ASCII), in a sibling
+/// file next to `seed.mnemonic`. An EMPTY passphrase removes any existing
+/// file — absent file = empty BIP39 passphrase = the mnemonic alone recovers
+/// the funds (the historical behavior). The obfuscation wrap is deliberate:
+/// it matches the at-rest bar of a no-passphrase seed and lets every derive
+/// site read the passphrase back with no user unlock, so all compartments of
+/// the same seed/group reproduce identical keys. It is written verbatim (no
+/// trimming) — BIP39 passphrases are byte-significant.
+pub fn write_bip39_passphrase(dir: &Path, passphrase: &str) -> Result<(), String> {
+    let path = dir.join(PASSPHRASE_FILE);
+    if passphrase.is_empty() {
+        return match std::fs::remove_file(&path) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(format!("removing {}: {e}", path.display())),
+        };
+    }
+    std::fs::create_dir_all(dir).map_err(|e| format!("creating {}: {e}", dir.display()))?;
+    let nonce = random_bytes::<12>();
+    let cipher = ChaCha20Poly1305::new((&OBFUSCATION_KEY).into());
+    let ct = cipher
+        .encrypt((&nonce).into(), passphrase.as_bytes())
+        .map_err(|_| "passphrase wrap failed".to_string())?;
+    let contents = format!(
+        "{PASS_MAGIC_OBFS}:{}:{}\n",
+        hex::encode(nonce),
+        hex::encode(ct)
+    );
+    write_atomic(&path, &contents)
+}
+
+/// Read + unwrap the BIP39 passphrase persisted in `dir`, or `""` when no
+/// file is present (the common case: no 25th word). No user unlock is
+/// needed — the wrap is obfuscation-only, the same bar as a no-passphrase
+/// seed at rest. The empty string is the neutral value: passing it to
+/// `WalletSeed::from_mnemonic` derives exactly as the pre-25th-word path did.
+pub fn read_bip39_passphrase(dir: &Path) -> Result<String, String> {
+    let path = dir.join(PASSPHRASE_FILE);
+    let contents = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(String::new()),
+        Err(e) => return Err(format!("reading {}: {e}", path.display())),
+    };
+    let line = contents.trim();
+    let rest = line
+        .strip_prefix(&format!("{PASS_MAGIC_OBFS}:"))
+        .ok_or("unknown passphrase store format")?;
+    let mut parts = rest.split(':');
+    let nonce = parts.next().ok_or("malformed passphrase store")?;
+    let ct = parts.next().ok_or("malformed passphrase store")?;
+    decrypt_v1(nonce, ct, &OBFUSCATION_KEY)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -401,5 +472,30 @@ mod tests {
         let on_disk = std::fs::read_to_string(dir.path().join(DESCRIPTOR_FILE)).unwrap();
         assert!(on_disk.starts_with(DESC_MAGIC_OBFS));
         assert!(!store.status().encrypted);
+    }
+
+    #[test]
+    fn bip39_passphrase_roundtrips_and_is_never_plaintext() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Absent file → empty passphrase (the mnemonic-alone recovery model).
+        assert_eq!(read_bip39_passphrase(dir.path()).unwrap(), "");
+
+        // A non-empty passphrase is obfuscation-wrapped, never plaintext, and
+        // reads back verbatim with no unlock.
+        write_bip39_passphrase(dir.path(), "correct horse battery").unwrap();
+        let on_disk = std::fs::read_to_string(dir.path().join(PASSPHRASE_FILE)).unwrap();
+        assert!(on_disk.starts_with(PASS_MAGIC_OBFS), "{on_disk}");
+        assert!(!on_disk.contains("correct horse"), "never plaintext ASCII");
+        assert_eq!(
+            read_bip39_passphrase(dir.path()).unwrap(),
+            "correct horse battery"
+        );
+
+        // Overwriting with an empty passphrase removes the file (back to the
+        // empty-passphrase default).
+        write_bip39_passphrase(dir.path(), "").unwrap();
+        assert!(!dir.path().join(PASSPHRASE_FILE).exists());
+        assert_eq!(read_bip39_passphrase(dir.path()).unwrap(), "");
     }
 }

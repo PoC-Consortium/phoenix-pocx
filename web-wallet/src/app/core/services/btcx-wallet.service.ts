@@ -643,20 +643,28 @@ export class BtcxWalletService {
 
   /**
    * Create the wallet from a (freshly generated, user-confirmed) mnemonic.
-   * The optional passphrase encrypts the seed at rest only — the mnemonic
-   * alone always recovers the funds. `kind` picks the descriptor family
-   * (default BIP-84; 'bip86' = taproot, the create flow's advanced
-   * address-type choice). Throws on failure.
+   * Two independent optional secrets:
+   * - `passphrase` encrypts the seed at rest only (lock/unlock), leaving
+   *   derivation unchanged;
+   * - `bip39Passphrase` is the real BIP39 "25th word" folded into the
+   *   derivation — with it set, the mnemonic ALONE no longer recovers the
+   *   funds (the passphrase is required too). It is persisted next to the
+   *   seed and applied to every compartment of the wallet's group.
+   *
+   * `kind` picks the descriptor family (default BIP-84; 'bip86' = taproot,
+   * the create flow's advanced address-type choice). Throws on failure.
    */
   async create(
     mnemonic: string,
     passphrase?: string,
     name?: string,
-    kind?: BtcxDescriptorPolicy['kind']
+    kind?: BtcxDescriptorPolicy['kind'],
+    bip39Passphrase?: string
   ): Promise<BtcxWalletStatus> {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_create', {
       mnemonic,
       passphrase: passphrase || null,
+      bip39Passphrase: bip39Passphrase || null,
       name: name ?? null,
       kind: kind ?? null,
     });
@@ -673,17 +681,23 @@ export class BtcxWalletService {
    * hit list and an honest fresh verdict. `kind` FORCES the descriptor
    * family instead: the best hit of that family (or its fresh BTCX-coin-
    * type default) — the second call of the "create both wallets" flow.
-   * Throws on failure.
+   *
+   * `passphrase` encrypts the restored seed at rest; `bip39Passphrase` is
+   * the BIP39 "25th word" folded into the derivation BEFORE probing, so a
+   * passphrase-protected seed's history is found on its passphrase branches
+   * (and the mnemonic alone no longer recovers the funds). Throws on failure.
    */
   async restore(
     mnemonic: string,
     passphrase?: string,
     name?: string,
-    kind?: BtcxDescriptorPolicy['kind']
+    kind?: BtcxDescriptorPolicy['kind'],
+    bip39Passphrase?: string
   ): Promise<BtcxRestoreResult> {
     const result = await invoke<BtcxRestoreResult>('btcx_wallet_restore', {
       mnemonic,
       passphrase: passphrase || null,
+      bip39Passphrase: bip39Passphrase || null,
       name: name ?? null,
       kind: kind ?? null,
     });

@@ -106,6 +106,7 @@ fn import_into_named_wallet(
     name: &str,
     mnemonic: &str,
     passphrase: Option<&str>,
+    bip39_passphrase: &str,
     policy: DescriptorPolicy,
 ) -> Result<(), String> {
     let root = BtcxWalletConfig::wallet_root(network, name);
@@ -115,6 +116,12 @@ fn import_into_named_wallet(
         .import_seed(mnemonic, passphrase)
         .map(|_| ())
         .map_err(|e| format!("{e:#}"))?;
+    // Persist the optional BIP39 25th word alongside the seed (obfuscation-
+    // wrapped; empty removes the file) so every later derive of THIS wallet
+    // reproduces the same keys. This is at-rest encryption's counterpart:
+    // the `passphrase` above locks the seed, `bip39_passphrase` changes the
+    // derivation.
+    descstore::write_bip39_passphrase(&root, bip39_passphrase)?;
 
     state.close_runtime();
     state.drop_seed_passphrase();
@@ -137,6 +144,7 @@ pub fn create_wallet_impl(
     app: Option<AppHandle>,
     mnemonic: &str,
     passphrase: Option<&str>,
+    bip39_passphrase: &str,
     name: Option<String>,
     kind: Option<DescriptorKindCfg>,
 ) -> Result<BtcxWalletStatus, String> {
@@ -148,7 +156,15 @@ pub fn create_wallet_impl(
         kind: primary_kind,
         coin_type: network.asset_coin_type(),
     };
-    import_into_named_wallet(state, network, &name, mnemonic, passphrase, policy)?;
+    import_into_named_wallet(
+        state,
+        network,
+        &name,
+        mnemonic,
+        passphrase,
+        bip39_passphrase,
+        policy,
+    )?;
     // Materialize the complementary current-era compartment right away —
     // a group always holds both SegWit and Taproot (offline: seed write +
     // local store creation only). The passphrase wrap is inherited.
@@ -165,6 +181,7 @@ pub fn create_wallet_impl(
         &name,
         mnemonic,
         passphrase,
+        bip39_passphrase,
         DescriptorPolicy {
             kind: other_kind,
             coin_type: network.asset_coin_type(),
@@ -178,18 +195,26 @@ pub fn create_wallet_impl(
 }
 
 /// Create a wallet from a (freshly generated, user-confirmed) mnemonic.
-/// An optional passphrase encrypts the seed at rest (it is NOT a BIP39
-/// word-25 — derivation always uses an empty BIP39 passphrase, so the
-/// mnemonic alone always recovers the funds). New wallets derive at the
-/// BTCX coin type on the `kind` branch — BIP-84 unless the caller
-/// explicitly asks for BIP-86 (the mobile create flow's advanced address-
-/// type choice). Refuses to overwrite an existing seed. `name` picks the
-/// named wallet to create (default: the active wallet — the mobile flow);
-/// the created wallet becomes the active one.
+/// Two independent, optional secrets:
+/// - `passphrase` encrypts the seed AT REST (lock/unlock), leaving
+///   derivation unchanged;
+/// - `bip39_passphrase` is the real BIP39 "25th word" — it is folded into
+///   the seed derivation, so with it set the mnemonic ALONE no longer
+///   recovers the funds (the passphrase is required too). It is persisted
+///   obfuscation-wrapped next to the seed and applied to every compartment
+///   of this wallet's group; empty = the historical mnemonic-only model.
+///
+/// New wallets derive at the BTCX coin type on the `kind` branch — BIP-84
+/// unless the caller explicitly asks for BIP-86 (the mobile create flow's
+/// advanced address-type choice). Refuses to overwrite an existing seed.
+/// `name` picks the named wallet to create (default: the active wallet —
+/// the mobile flow); the created wallet becomes the active one.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn btcx_wallet_create(
     mnemonic: String,
     passphrase: Option<String>,
+    bip39_passphrase: Option<String>,
     name: Option<String>,
     kind: Option<DescriptorKindCfg>,
     app: AppHandle,
@@ -202,6 +227,7 @@ pub async fn btcx_wallet_create(
             Some(app),
             &mnemonic,
             passphrase.as_deref(),
+            bip39_passphrase.as_deref().unwrap_or(""),
             name,
             kind,
         )
@@ -259,15 +285,19 @@ pub fn restore_wallet_impl(
     app: Option<AppHandle>,
     mnemonic: &str,
     passphrase: Option<&str>,
+    bip39_passphrase: &str,
     name: Option<String>,
     kind: Option<DescriptorKindCfg>,
 ) -> Result<BtcxRestoreResult, String> {
     // Validate + derive + resolve the name first: nothing is written if
-    // the phrase is bad, the name is taken, or the probe cannot run.
+    // the phrase is bad, the name is taken, or the probe cannot run. The
+    // BIP39 25th word (if any) is folded into the seed HERE so the probe
+    // scans the passphrase-derived branches, not the bare-mnemonic ones.
     let config = state.get_config();
     let network = config.network;
     let name = resolve_new_wallet_name(&config, network, name)?;
-    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+    let seed =
+        WalletSeed::from_mnemonic(mnemonic.trim(), bip39_passphrase).map_err(|e| format!("{e:#}"))?;
     // F3: verify the server serves the right, UNPRUNED chain before probing.
     // A pruned server hides older history, so a real seed would probe as
     // "fresh" — verified_probe_chain fails hard (or falls over) instead.
@@ -285,7 +315,15 @@ pub fn restore_wallet_impl(
         kind: primary_kind,
         coin_type: asset,
     };
-    import_into_named_wallet(state, network, &name, mnemonic, passphrase, selected)?;
+    import_into_named_wallet(
+        state,
+        network,
+        &name,
+        mnemonic,
+        passphrase,
+        bip39_passphrase,
+        selected,
+    )?;
     open_after_probe(state, app, &hits, selected)?;
 
     // Materialize the rest of the group: the complementary current-era
@@ -313,6 +351,7 @@ pub fn restore_wallet_impl(
             &name,
             mnemonic,
             passphrase,
+            bip39_passphrase,
             policy,
             hits.iter().find(|h| h.policy == policy),
         )?;
@@ -341,10 +380,16 @@ pub fn restore_wallet_impl(
 /// second time with the OTHER family's kind so a seed with history on both
 /// BIP-84 and BIP-86 ends up as two named wallets over the same mnemonic.
 /// Without `kind` the behavior is exactly the pre-existing one.
+///
+/// `passphrase` encrypts the restored seed at rest; `bip39_passphrase` is
+/// the BIP39 "25th word" folded into the derivation before probing (so a
+/// passphrase-protected seed's history is found on its passphrase branches).
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn btcx_wallet_restore(
     mnemonic: String,
     passphrase: Option<String>,
+    bip39_passphrase: Option<String>,
     name: Option<String>,
     kind: Option<DescriptorKindCfg>,
     app: AppHandle,
@@ -357,6 +402,7 @@ pub async fn btcx_wallet_restore(
             Some(app),
             &mnemonic,
             passphrase.as_deref(),
+            bip39_passphrase.as_deref().unwrap_or(""),
             name,
             kind,
         )
@@ -378,13 +424,17 @@ pub async fn btcx_wallet_reprobe(
 ) -> Result<BtcxRestoreResult, String> {
     let state = state.inner().clone();
     blocking(move || {
+        let config = state.get_config();
+        let network = config.network;
         let mnemonic = state.with_seed(|s| s.mnemonic().map_err(|e| format!("{e:#}")))?;
-        let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+        // Reproduce the same keys the wallet opened with, including its BIP39
+        // 25th word (persisted next to the seed; "" when none).
+        let bip39_passphrase = descstore::read_bip39_passphrase(&config.active_wallet_root())?;
+        let seed = WalletSeed::from_mnemonic(mnemonic.trim(), &bip39_passphrase)
+            .map_err(|e| format!("{e:#}"))?;
         // F3: same verified-chain guard as the first restore probe — a pruned
         // or wrong-chain server must not drive a "fresh" verdict.
         let chain = state.verified_probe_chain()?;
-        let config = state.get_config();
-        let network = config.network;
         let hits = manager::probe_all_branches(&seed, &chain, network)
             .map_err(|e| format!("Restore probing failed: {e:#}"))?;
 
@@ -562,6 +612,7 @@ fn register_sibling_wallet(
     group: &str,
     mnemonic: &str,
     passphrase: Option<&str>,
+    bip39_passphrase: &str,
     policy: DescriptorPolicy,
     hit: Option<&BranchHit>,
 ) -> Result<(), String> {
@@ -572,6 +623,9 @@ fn register_sibling_wallet(
         .import_seed(mnemonic, passphrase)
         .map(|_| ())
         .map_err(|e| format!("{e:#}"))?;
+    // A compartment shares the group's seed AND its 25th word — persist the
+    // same passphrase so this sibling derives identically.
+    descstore::write_bip39_passphrase(&root, bip39_passphrase)?;
     state.update_config(|c| {
         c.set_wallet_meta(
             network,
@@ -591,7 +645,8 @@ fn register_sibling_wallet(
             },
         );
     })?;
-    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+    let seed =
+        WalletSeed::from_mnemonic(mnemonic.trim(), bip39_passphrase).map_err(|e| format!("{e:#}"))?;
     let handle = manager::open_wallet(
         &BtcxWalletConfig::wallet_db_path_for(network, name),
         network.params(),
@@ -669,6 +724,10 @@ pub fn materialize_group_compartments(
     let Some(mnemonic) = mnemonic else {
         return Ok(Vec::new());
     };
+    // Compartments of a group share the active wallet's seed AND its BIP39
+    // 25th word — read it once (obfuscation-wrapped next to the seed; "" when
+    // none) and carry it to every sibling so they all derive identically.
+    let bip39_passphrase = descstore::read_bip39_passphrase(&config.active_wallet_root())?;
     let mut created = Vec::new();
     for policy in missing {
         let suffix = compartment_suffix(policy.kind, policy.coin_type == asset);
@@ -680,6 +739,7 @@ pub fn materialize_group_compartments(
             &group,
             &mnemonic,
             None,
+            &bip39_passphrase,
             policy,
             hits.iter().find(|h| h.policy == policy),
         )?;
@@ -728,7 +788,11 @@ pub fn rescan_legacy_impl(
         return migration_result(state, V30MigrationOutcome::Deferred, None, detail);
     };
 
-    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), "").map_err(|e| format!("{e:#}"))?;
+    // Fold in the active wallet's BIP39 25th word so the legacy probe scans
+    // the same passphrase-derived branches the wallet opened with ("" = none).
+    let bip39_passphrase = descstore::read_bip39_passphrase(&config.active_wallet_root())?;
+    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), &bip39_passphrase)
+        .map_err(|e| format!("{e:#}"))?;
     let chain = state.verified_probe_chain()?;
     let hits = manager::probe_all_branches(&seed, &chain, network)
         .map_err(|e| format!("Legacy probing failed: {e:#}"))?;
@@ -2310,6 +2374,7 @@ mod tests {
             &name,
             MNEMONIC_24,
             None,
+            "",
             DescriptorPolicy::default(),
         )
         .unwrap();
@@ -2644,7 +2709,7 @@ mod tests {
 
         // One create = one GROUP: the SegWit primary plus its materialized
         // Taproot sibling (Phase 2), same mnemonic, no runtime churn.
-        create_wallet_impl(&state, None, MNEMONIC_24, None, Some("acct".into()), None).unwrap();
+        create_wallet_impl(&state, None, MNEMONIC_24, None, "", Some("acct".into()), None).unwrap();
 
         let groups = list_grouped_impl(&state).unwrap();
         assert_eq!(groups.len(), 1);
@@ -2735,6 +2800,7 @@ mod tests {
             "oldstyle",
             MNEMONIC_24,
             None,
+            "",
             DescriptorPolicy {
                 kind: DescriptorKindCfg::Bip84,
                 coin_type: 1,
@@ -2853,7 +2919,7 @@ mod tests {
             (WalletNetwork::Regtest, 1u32),
         ] {
             let state = offline_state(network);
-            create_wallet_impl(&state, None, MNEMONIC_24, None, Some("w".into()), None).unwrap();
+            create_wallet_impl(&state, None, MNEMONIC_24, None, "", Some("w".into()), None).unwrap();
             assert_eq!(
                 state.get_config().policy().coin_type,
                 expected,
@@ -2876,7 +2942,7 @@ mod tests {
 
         // (1) Off-mainnet: no legacy branch exists — no-op before anything.
         let state = offline_regtest_state();
-        create_wallet_impl(&state, None, MNEMONIC_24, None, Some("w".into()), None).unwrap();
+        create_wallet_impl(&state, None, MNEMONIC_24, None, "", Some("w".into()), None).unwrap();
         assert_eq!(
             rescan_legacy_impl(&state, None).unwrap().outcome,
             V30MigrationOutcome::Noop
@@ -2893,6 +2959,7 @@ mod tests {
             None,
             MNEMONIC_24,
             Some("hunter2"),
+            "",
             Some("enc".into()),
             None,
         )
