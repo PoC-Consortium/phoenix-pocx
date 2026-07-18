@@ -15,13 +15,13 @@ jobs:
         include:
           - flavor: hybrid
             app_id: org.pocx.phoenix
-            build_args: ""
+            build_args: "-f mining -f wallet"
           - flavor: wallet   # Play Store candidate — NO mining compiled in
             app_id: org.pocx.phoenix.wallet
-            build_args: "-f wallet -- --no-default-features"
+            build_args: "-f wallet"
           - flavor: mining   # sideload pure miner — NO wallet compiled in
             app_id: org.pocx.phoenix.miner
-            build_args: "-f mining -- --no-default-features"
+            build_args: "-f mining"
     steps:
       - uses: actions/checkout@v4
 

@@ -13,13 +13,24 @@ name = "phoenix_pocx_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
-# Two symmetric build-flavor features. Each Android flavor disables one; the
-# desktop binary always builds `default` (both) and picks the runtime layout
-# via CLI flags (`--mining-only` / `--mobile` / `--wallet-only`).
+# Two symmetric build-flavor features. `default` is intentionally EMPTY:
+# every build must name the flavor it wants. This is the robust choice for
+# Android — `tauri android build -f <feature>` is ADDITIVE (it only ever
+# ADDS features, it cannot subtract), and there is no native
+# `--no-default-features` flag on that subcommand; its `-- <args>` reach the
+# Gradle runner, NOT cargo. With an empty default, `-f wallet` yields EXACTLY
+# `[wallet]` under plain cargo semantics — no passthrough needed, no risk of
+# the other flavor silently leaking into the binary.
 #
-#   Hybrid       (default)                        wallet + mining
-#   Wallet-only  --no-default-features -F wallet  wallet, NO mining compiled
-#   Mining-only  --no-default-features -F mining  mining, NO wallet compiled
+#   Hybrid       -f mining -f wallet  (cargo: --features mining,wallet)
+#   Wallet-only  -f wallet            wallet, NO mining compiled
+#   Mining-only  -f mining            mining, NO wallet compiled
+#
+# Because default is empty, every NON-Android build must pass features too:
+# the desktop `tauri:dev`/`tauri:build` scripts and CI use
+# `-f mining -f wallet`, and bare `cargo` invocations use
+# `--features mining,wallet`. rust-analyzer gets the features from
+# `.vscode/settings.json` so gated code isn't greyed out.
 #
 # `mining` gates the pocx mining/plotting/aggregator stack and every
 # mining/aggregator Tauri command. `wallet` gates the nodeless btcx_wallet
@@ -27,7 +38,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # btcx_electrum_* command. `get_launch_mode` derives the Android mode from
 # whichever feature(s) are enabled (both → mobile, wallet → wallet-mobile,
 # mining → mining).
-default = ["mining", "wallet"]
+default = []
 mining = [
     "dep:pocx_miner",
     "dep:pocx_plotter_v2",

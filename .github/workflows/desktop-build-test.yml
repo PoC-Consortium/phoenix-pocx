@@ -75,7 +75,7 @@ jobs:
       - name: Build Tauri app (Windows - NSIS only, skip MSI for pre-release versions)
         if: matrix.os_name == 'Windows'
         working-directory: web-wallet
-        run: npm run tauri build -- --target ${{ matrix.target }} --bundles nsis
+        run: npm run tauri build -- --target ${{ matrix.target }} --bundles nsis -f mining -f wallet
 
       - name: Setup Apple certificate
         if: matrix.os_name == 'macOS'
@@ -112,12 +112,12 @@ jobs:
         working-directory: web-wallet
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        run: npm run tauri build -- --target ${{ matrix.target }}
+        run: npm run tauri build -- --target ${{ matrix.target }} -f mining -f wallet
 
       - name: Build Tauri app (Linux)
         if: matrix.os_name == 'Linux'
         working-directory: web-wallet
-        run: npm run tauri build -- --target ${{ matrix.target }}
+        run: npm run tauri build -- --target ${{ matrix.target }} -f mining -f wallet
 
       - name: Fix AppImage - Remove bundled EGL/Wayland libs
         if: matrix.os_name == 'Linux'
