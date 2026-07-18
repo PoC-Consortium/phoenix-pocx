@@ -1197,7 +1197,12 @@ interface NavGroup {
          and scroll internally, keeping the panel anchored under the button
          rather than pushed up under the Android status bar / notch. */
       ::ng-deep .lang-menu-panel {
-        max-height: 60vh;
+        /* Fill from just below the trigger down to (near) the bottom of the
+           screen, rather than a fixed cap that stops mid-screen. Subtract the
+           top safe-area inset + toolbar height so the panel still fits in the
+           space below the trigger (staying anchored below instead of flipping
+           up under the notch). */
+        max-height: calc(100vh - env(safe-area-inset-top, 0px) - 64px);
         overflow-y: auto;
       }
     `,
