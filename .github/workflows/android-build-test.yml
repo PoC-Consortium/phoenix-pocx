@@ -5,10 +5,38 @@ on:
 
 jobs:
   build-android:
-    name: Build & Sign Android APK
+    name: Build & Sign Android APK (${{ matrix.flavor }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Same 3-flavor matrix as the release workflow (see android-release.yml
+        # for the rationale). This test build produces one artifact per flavor.
+        include:
+          - flavor: hybrid
+            app_id: org.pocx.phoenix
+            build_args: "-f mining -f wallet"
+          - flavor: wallet   # Play Store candidate — NO mining compiled in
+            app_id: org.pocx.phoenix.wallet
+            build_args: "-f wallet"
+          - flavor: mining   # sideload pure miner — NO wallet compiled in
+            app_id: org.pocx.phoenix.miner
+            build_args: "-f mining"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute version identity
+        id: version
+        run: |
+          # No release tag in the test workflow — derive from tauri.conf.json.
+          VERSION=$(node -p "require('./web-wallet/src-tauri/tauri.conf.json').version")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH:-0}
+          CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          if [ "$CODE" -lt 1 ]; then CODE=1; fi
+          echo "name=$VERSION" >> $GITHUB_OUTPUT
+          echo "code=$CODE" >> $GITHUB_OUTPUT
+          echo "versionName=$VERSION versionCode=$CODE"
 
       - name: Free disk space
         run: |
@@ -45,6 +73,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './web-wallet/src-tauri -> target'
+          key: ${{ matrix.flavor }}
 
       - name: Install web-wallet dependencies
         working-directory: web-wallet
@@ -105,7 +134,9 @@ jobs:
           # Decode keystore from secret
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.keystore
 
-          # Replace generated build.gradle.kts with our signing-enabled template
+          # Replace generated build.gradle.kts with our signing-enabled template.
+          # The template reads PHX_APP_ID / PHX_VERSION_NAME / PHX_VERSION_CODE
+          # from the environment (set on the build step) for per-flavor identity.
           cp web-wallet/src-tauri/android-template/build.gradle.kts \
              web-wallet/src-tauri/gen/android/app/build.gradle.kts
 
@@ -117,9 +148,13 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           EOF
 
-      - name: Build Android APK (ARM64 only)
+      - name: Build Android APK (ARM64 only) — ${{ matrix.flavor }}
         working-directory: web-wallet
-        run: npx tauri android build --target aarch64
+        env:
+          PHX_APP_ID: ${{ matrix.app_id }}
+          PHX_VERSION_NAME: ${{ steps.version.outputs.name }}
+          PHX_VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: npx tauri android build --target aarch64 ${{ matrix.build_args }}
 
       - name: Find signed APK
         id: find-apk
@@ -140,6 +175,6 @@ jobs:
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Phoenix-PoCX-Android-ARM64-test
+          name: Phoenix-PoCX-Android-${{ matrix.flavor }}-ARM64-test
           path: ${{ steps.find-apk.outputs.apk_path }}
           retention-days: 14

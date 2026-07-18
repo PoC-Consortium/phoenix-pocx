@@ -125,11 +125,20 @@ jobs:
       - name: Check formatting
         run: cargo fmt --check
 
-      - name: Check Rust code
-        run: cargo check
+      - name: Check Rust code (hybrid — both flavors)
+        run: cargo check --features mining,wallet
+
+      # Keep the feature gating honest: each flavor must compile on its own,
+      # otherwise a stray cross-feature dependency would only surface in the
+      # Android per-flavor builds.
+      - name: Check Rust code (wallet-only flavor)
+        run: cargo check --features wallet
+
+      - name: Check Rust code (mining-only flavor)
+        run: cargo check --features mining
 
       - name: Run Clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --features mining,wallet -- -D warnings
 
   rust-audit:
     name: Rust Audit

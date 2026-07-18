@@ -13,11 +13,51 @@ name = "phoenix_pocx_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
-# Wallet-only launch flavor (the future iOS / wallet-only-Android app):
-# on Android, `get_launch_mode` reports "wallet-mobile" instead of "mobile",
-# so the frontend shows only the nodeless wallet (no mining, no node).
-# Desktop builds keep both modes and pick at runtime via `--wallet-only`.
-wallet-only = []
+# Two symmetric build-flavor features. `default` is intentionally EMPTY:
+# every build must name the flavor it wants. This is the robust choice for
+# Android — `tauri android build -f <feature>` is ADDITIVE (it only ever
+# ADDS features, it cannot subtract), and there is no native
+# `--no-default-features` flag on that subcommand; its `-- <args>` reach the
+# Gradle runner, NOT cargo. With an empty default, `-f wallet` yields EXACTLY
+# `[wallet]` under plain cargo semantics — no passthrough needed, no risk of
+# the other flavor silently leaking into the binary.
+#
+#   Hybrid       -f mining -f wallet  (cargo: --features mining,wallet)
+#   Wallet-only  -f wallet            wallet, NO mining compiled
+#   Mining-only  -f mining            mining, NO wallet compiled
+#
+# Because default is empty, every NON-Android build must pass features too:
+# the desktop `tauri:dev`/`tauri:build` scripts and CI use
+# `-f mining -f wallet`, and bare `cargo` invocations use
+# `--features mining,wallet`. rust-analyzer gets the features from
+# `.vscode/settings.json` so gated code isn't greyed out.
+#
+# `mining` gates the pocx mining/plotting/aggregator stack and every
+# mining/aggregator Tauri command. `wallet` gates the nodeless btcx_wallet
+# backend (btcx crates + bdk) and every btcx_wallet_*/btcx_psbt_*/
+# btcx_electrum_* command. `get_launch_mode` derives the Android mode from
+# whichever feature(s) are enabled (both → mobile, wallet → wallet-mobile,
+# mining → mining).
+default = []
+mining = [
+    "dep:pocx_miner",
+    "dep:pocx_plotter_v2",
+    "dep:pocx_address",
+    "dep:pocx_aggregator",
+]
+wallet = [
+    "dep:params-btcx",
+    "dep:keys-btcx",
+    "dep:seedstore",
+    "dep:electrum-btcx",
+    "dep:wallet-btcx",
+    "dep:bitcoin",
+    "dep:bdk_wallet",
+    "dep:bech32",
+    "dep:scrypt",
+    "dep:chacha20poly1305",
+    "dep:rand",
+]
 
 # macOS miner launcher - native binary to avoid Rosetta prompts
 [[bin]]
@@ -52,28 +92,28 @@ num_cpus = "1.16"
 # Async runtime for mining operations
 tokio = { version = "1", features = ["full"] }
 
-# PoCX mining libraries
-pocx_miner = "1.0.5"
-pocx_plotter_v2 = { version = "1.0.5", features = ["opencl"] }
-pocx_address = "1.0.5"
-pocx_aggregator = "1.0.5"
+# PoCX mining libraries (gated by the `mining` feature)
+pocx_miner = { version = "1.0.5", optional = true }
+pocx_plotter_v2 = { version = "1.0.5", features = ["opencl"], optional = true }
+pocx_address = { version = "1.0.5", optional = true }
+pocx_aggregator = { version = "1.0.5", optional = true }
 
 
-# Nodeless BTCX wallet stack (shared btcx crates)
-params-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9" }
-keys-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9" }
-seedstore = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9" }
-electrum-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9" }
-wallet-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9" }
-bitcoin = { version = "0.32", features = ["serde", "rand-std"] }
-bdk_wallet = { version = "2", features = ["rusqlite"] }
+# Nodeless BTCX wallet stack (shared btcx crates) — gated by the `wallet` feature
+params-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
+keys-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
+seedstore = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
+electrum-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
+wallet-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
+bitcoin = { version = "0.32", features = ["serde", "rand-std"], optional = true }
+bdk_wallet = { version = "2", features = ["rusqlite"], optional = true }
 # bech32 with custom HRPs (pocx/tpocx/rpocx) â€” same version the btcx crates use
-bech32 = "0.11"
+bech32 = { version = "0.11", optional = true }
 # Descriptor-at-rest wraps for imported wallets (btcx_wallet::descstore) â€”
 # the same primitives and parameters seedstore uses for seed.mnemonic.
-scrypt = "0.11"
-chacha20poly1305 = "0.10"
-rand = "0.8"
+scrypt = { version = "0.11", optional = true }
+chacha20poly1305 = { version = "0.10", optional = true }
+rand = { version = "0.8", optional = true }
 
 # SHA256 hashing for node binary verification
 sha2 = "0.10"

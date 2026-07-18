@@ -13,8 +13,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,html,scss}\"",
     "format:fix": "prettier --write \"src/**/*.{ts,html,scss}\"",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:dev": "tauri dev -f mining -f wallet",
+    "tauri:build": "tauri build -f mining -f wallet"
   },
   "private": true,
   "dependencies": {

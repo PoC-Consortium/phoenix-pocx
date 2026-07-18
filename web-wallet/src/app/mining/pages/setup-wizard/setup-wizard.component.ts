@@ -480,6 +480,11 @@ interface ChainModalData {
           </div>
           <div class="section-content">
             <div class="radio-group">
+              <!-- "Use wallet address" is only meaningful when an in-app
+                   wallet exists. The Android mining-only flavor has no wallet
+                   backend, so this option is hidden and the custom (external)
+                   payout address below is the sole choice. -->
+              @if (appMode.hasWalletBackend()) {
               <label class="radio-option" [class.disabled]="useWalletAddressDisabled()">
                 <input
                   type="radio"
@@ -553,6 +558,7 @@ interface ChainModalData {
                   }
                 </div>
               </label>
+              }
               <label class="radio-option">
                 <input
                   type="radio"
@@ -3114,6 +3120,12 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   }
 
   private async loadWalletAddress(): Promise<void> {
+    // Android mining-only flavor: there is NO in-app wallet (the wallet
+    // backend isn't compiled), so never source a wallet address here — the
+    // custom external plotting address is the only option. Guards against
+    // invoking absent btcx_wallet_* commands.
+    if (!this.appMode.hasWalletBackend()) return;
+
     // Mobile mode sources the address from the nodeless BTCX wallet instead
     // (initMobileWalletAddress); the Core-RPC wallet does not exist there.
     if (this.appMode.isMobileMode()) return;
@@ -3872,11 +3884,13 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     };
 
     const walletName = this.walletManager.activeWallet;
-    if (this.nodeService.isRemote()) {
+    if (this.nodeService.isRemote() && this.appMode.hasWalletBackend()) {
       // Remote: "is mine" has no cheap analog (no getaddressinfo) — the
       // assignment state still comes from the client-side Electrum
       // derivation, which is what actually matters for plotting to a
-      // foreign address.
+      // foreign address. (Android mining-only has no wallet backend, so the
+      // assignment lookup is skipped there — the address is still validated
+      // locally above.)
       try {
         const assignmentStatus = (await this.btcxWallet.getAssignment(address)) as {
           has_assignment: boolean;
