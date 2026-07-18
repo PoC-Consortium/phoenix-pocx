@@ -169,12 +169,6 @@ unicode-normalization = "=0.1.25"
 # already ships.
 [patch.crates-io]
 bdk_chain = { path = "vendor/bdk_chain" }
-# pocx_plotfile 1.0.5 gates direct I/O on `target_os = "macos"` vs "other
-# unix" — iOS (also Darwin, has F_NOCACHE, lacks O_DIRECT) falls into the
-# O_DIRECT branch and fails to compile. Vendored copy is byte-identical
-# except those gates read `target_vendor = "apple"`. Drop once the fix is
-# upstreamed to the pocx crates.
-pocx_plotfile = { path = "vendor/pocx_plotfile" }
 
 [profile.release]
 panic = "abort"

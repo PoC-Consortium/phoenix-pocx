@@ -52,9 +52,10 @@ in
 `xcrun simctl install/launch/io`. Do NOT invoke xcodebuild directly — the
 Xcode project's Rust build phase needs the Tauri CLI's build server and
 dies with a missing `*-server-addr` file otherwise.
-`pocx_plotfile` Apple fix upstreamed: PoC-Consortium/pocx#76 — once
-merged+released, drop `vendor/pocx_plotfile` and the `[patch.crates-io]`
-entry.
+The `pocx_plotfile` iOS compile fix (was vendored, upstreamed as
+PoC-Consortium/pocx#76) became moot with the mining/wallet flavor split:
+iOS builds `-f wallet`, so the mining crates are no longer in the iOS
+dependency graph and the vendor copy was dropped.
 
 **Still open:**
 1. Exercise the wallet flows on iOS (create/restore against Electrum,
@@ -90,10 +91,10 @@ entry.
   kill CoreSimulatorService or delete the image (deleting also purges the
   8.5 GB asset and forces a full re-download).
 - `pocx_plotfile 1.0.5` doesn't compile for iOS (`O_DIRECT` gated on
-  "not macOS" instead of "not Apple") — vendored fixed copy at
-  `src-tauri/vendor/pocx_plotfile` via `[patch.crates-io]`; upstream the
-  `target_vendor = "apple"` gates to the pocx crates, then drop the vendor
-  copy.
+  "not macOS" instead of "not Apple"). Irrelevant while iOS builds
+  `-f wallet` (mining crates not compiled) — but if mining crates ever
+  enter an iOS build again, the fix is `target_vendor = "apple"` gates
+  (see closed PoC-Consortium/pocx#76).
 
 ## Mac machine state (as of 2026-07-17)
 

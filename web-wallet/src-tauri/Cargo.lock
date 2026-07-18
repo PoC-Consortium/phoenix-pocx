@@ -4329,6 +4329,8 @@ dependencies = [
 [[package]]
 name = "pocx_plotfile"
 version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fe8cf58a99ff65293078b932a50138b06f2702c9de81602a90b515236af0363"
 dependencies = [
  "cfg-if",
  "filetime",
