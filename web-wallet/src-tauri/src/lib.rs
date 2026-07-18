@@ -415,10 +415,7 @@ fn get_debug_paths() -> DebugPaths {
 
 /// Open a folder in the system file manager
 #[tauri::command]
-#[cfg_attr(
-    any(target_os = "android", target_os = "ios"),
-    allow(unused_variables)
-)]
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(unused_variables))]
 fn open_folder(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
