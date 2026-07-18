@@ -17,6 +17,7 @@ import { WalletService } from '../../bitcoin/services/wallet/wallet.service';
 import { ToolbarComponent } from '../toolbar/toolbar.component';
 import { AggregatorService } from '../../aggregator/services/aggregator.service';
 import { AppUpdateService } from '../../core/services/app-update.service';
+import { AppModeService } from '../../core/services/app-mode.service';
 import { NodeService } from '../../node/services/node.service';
 
 interface NavItem {
@@ -446,6 +447,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly walletService = inject(WalletService);
   private readonly aggregatorService = inject(AggregatorService);
   private readonly appUpdateService = inject(AppUpdateService);
+  private readonly appMode = inject(AppModeService);
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(Store);
   private readonly destroy$ = new Subject<void>();
@@ -475,11 +477,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       miningItems.push({ path: '/aggregator', icon: 'hub', labelKey: 'aggregator' });
     }
 
-    miningItems.push({
-      path: '/forging-assignment',
-      icon: 'swap_horiz',
-      labelKey: 'forging_assignment',
-    });
+    // Wallet-only mode is "transactions only" — no forging assignments.
+    if (!this.appMode.isWalletOnly()) {
+      miningItems.push({
+        path: '/forging-assignment',
+        icon: 'swap_horiz',
+        labelKey: 'forging_assignment',
+      });
+    }
 
     const transactionItems: NavItem[] = [
       { path: '/transactions', icon: 'compare_arrows', labelKey: 'transactions' },

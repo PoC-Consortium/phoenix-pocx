@@ -20,6 +20,7 @@ import {
   BtcxChainInfo,
 } from '../../../core/services/btcx-wallet.service';
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
+import { AppModeService } from '../../../core/services/app-mode.service';
 import { BtcxPipe, TimeAgoPipe } from '../../../shared/pipes';
 import { NotificationService } from '../../../shared/services';
 import {
@@ -138,7 +139,7 @@ interface NavGroup {
             </a>
           </mat-nav-list>
 
-          @for (group of navGroups; track group.id) {
+          @for (group of navGroups(); track group.id) {
             <div class="nav-group">
               <div class="nav-group-title">{{ group.titleKey | i18n }}</div>
               <mat-nav-list class="nav-section">
@@ -1189,6 +1190,7 @@ export class MobileWalletLayoutComponent implements OnInit {
   readonly i18n = inject(I18nService);
   readonly wallet = inject(BtcxWalletService);
   readonly electrumStatus = inject(ElectrumStatusService);
+  private readonly appMode = inject(AppModeService);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
@@ -1201,24 +1203,34 @@ export class MobileWalletLayoutComponent implements OnInit {
    * desktop's transactions group minus the Core-only PSBT builder) and
    * mining (forging assignment only — the Mining section itself lives in
    * the bottom navigation, so the drawer does not repeat it).
+   *
+   * Wallet-only mode is "transactions only": the mining group (forging
+   * assignment) is omitted entirely there.
    */
-  readonly navGroups: NavGroup[] = [
-    {
-      id: 'transactions',
-      titleKey: 'transactions',
-      items: [
-        { path: '/wallet/history', icon: 'compare_arrows', labelKey: 'transactions' },
-        { path: '/wallet/send', icon: 'send', labelKey: 'send', needsWallet: true },
-        { path: '/wallet/receive', icon: 'call_received', labelKey: 'receive', needsWallet: true },
-        { path: '/wallet/contacts', icon: 'contacts', labelKey: 'contacts' },
-      ],
-    },
-    {
-      id: 'mining',
-      titleKey: 'mining',
-      items: [{ path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' }],
-    },
-  ];
+  readonly navGroups = computed<NavGroup[]>(() => {
+    const groups: NavGroup[] = [
+      {
+        id: 'transactions',
+        titleKey: 'transactions',
+        items: [
+          { path: '/wallet/history', icon: 'compare_arrows', labelKey: 'transactions' },
+          { path: '/wallet/send', icon: 'send', labelKey: 'send', needsWallet: true },
+          { path: '/wallet/receive', icon: 'call_received', labelKey: 'receive', needsWallet: true },
+          { path: '/wallet/contacts', icon: 'contacts', labelKey: 'contacts' },
+        ],
+      },
+    ];
+
+    if (!this.appMode.isWalletOnly()) {
+      groups.push({
+        id: 'mining',
+        titleKey: 'mining',
+        items: [{ path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' }],
+      });
+    }
+
+    return groups;
+  });
 
   /** Name of the wallet a switch is in flight for, or null. */
   readonly switching = signal<string | null>(null);
