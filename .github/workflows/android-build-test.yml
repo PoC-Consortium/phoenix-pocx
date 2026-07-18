@@ -12,15 +12,20 @@ jobs:
       matrix:
         # Same 3-flavor matrix as the release workflow (see android-release.yml
         # for the rationale). This test build produces one artifact per flavor.
+        # app_name is the Android launcher label, patched into strings.xml per
+        # flavor (see android-release.yml). Desktop keeps "Phoenix Wallet".
         include:
           - flavor: hybrid
             app_id: org.pocx.phoenix
+            app_name: "Phoenix Suite"
             build_args: "-f mining -f wallet"
           - flavor: wallet   # Play Store candidate — NO mining compiled in
             app_id: org.pocx.phoenix.wallet
+            app_name: "Phoenix Wallet"
             build_args: "-f wallet"
           - flavor: mining   # sideload pure miner — NO wallet compiled in
             app_id: org.pocx.phoenix.miner
+            app_name: "Phoenix Miner"
             build_args: "-f mining"
     steps:
       - uses: actions/checkout@v4
@@ -148,10 +153,30 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           EOF
 
+      - name: Set Android launcher label — ${{ matrix.flavor }}
+        env:
+          PHX_APP_NAME: ${{ matrix.app_name }}
+        run: |
+          # Patch the generated strings.xml so the launcher label (the manifest
+          # uses android:label="@string/app_name") matches the flavor. Runs
+          # after `tauri android init` (which generates strings.xml) and the
+          # build.gradle.kts template copy. Guarded: fail loudly if the file or
+          # the app_name line is missing, so we notice rather than silently
+          # shipping the wrong label.
+          STRINGS="web-wallet/src-tauri/gen/android/app/src/main/res/values/strings.xml"
+          test -f "$STRINGS" || { echo "ERROR: $STRINGS not found (did tauri android init run?)"; exit 1; }
+          grep -q '<string name="app_name">' "$STRINGS" || { echo "ERROR: app_name string not found in $STRINGS"; exit 1; }
+          sed -i "s#<string name=\"app_name\">[^<]*</string>#<string name=\"app_name\">${PHX_APP_NAME}</string>#" "$STRINGS"
+          echo "Set launcher label to: ${PHX_APP_NAME}"
+          grep '<string name="app_name">' "$STRINGS"
+          # Re-assert the new label actually landed.
+          grep -q "<string name=\"app_name\">${PHX_APP_NAME}</string>" "$STRINGS" || { echo "ERROR: app_name patch did not apply"; exit 1; }
+
       - name: Build Android APK (ARM64 only) — ${{ matrix.flavor }}
         working-directory: web-wallet
         env:
           PHX_APP_ID: ${{ matrix.app_id }}
+          PHX_APP_NAME: ${{ matrix.app_name }}
           PHX_VERSION_NAME: ${{ steps.version.outputs.name }}
           PHX_VERSION_CODE: ${{ steps.version.outputs.code }}
         run: npx tauri android build --target aarch64 ${{ matrix.build_args }}

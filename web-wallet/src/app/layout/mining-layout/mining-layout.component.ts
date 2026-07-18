@@ -103,7 +103,16 @@ import { MobileNavComponent } from '../../shared/components/mobile-nav/mobile-na
               <mat-icon class="lang-icon secondary-text">language</mat-icon>
             </button>
 
-            <mat-menu #langMenu="matMenu">
+            <!-- lang-menu-panel caps the panel height so the ~26-locale list
+                 always fits below the trigger and scrolls internally, instead
+                 of the CDK overlay pushing it up to the top of the viewport
+                 (under the status bar / notch) in the mobile mining flavor. -->
+            <mat-menu
+              #langMenu="matMenu"
+              class="lang-menu-panel"
+              yPosition="below"
+              [overlapTrigger]="false"
+            >
               @for (lang of languages; track lang.code) {
                 <button mat-menu-item (click)="setLanguage(lang)">
                   {{ lang.nativeName }}
@@ -325,6 +334,14 @@ import { MobileNavComponent } from '../../shared/components/mobile-nav/mobile-na
         .status-indicators {
           height: 56px;
         }
+      }
+
+      /* Cap the language menu so its ~26 items fit below the toolbar trigger
+         and scroll internally, keeping the panel anchored under the button
+         rather than pushed up under the Android status bar / notch. */
+      ::ng-deep .lang-menu-panel {
+        max-height: 60vh;
+        overflow-y: auto;
       }
     `,
   ],

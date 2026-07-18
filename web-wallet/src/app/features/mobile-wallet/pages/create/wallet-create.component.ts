@@ -109,6 +109,40 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
             </div>
           }
 
+          <!-- BIP39 25th word — belongs right after the recovery phrase.
+               SEPARATE from the at-rest encryption passphrase (asked later on
+               the protect step). Folded into the derivation: with it set, the
+               recovery phrase alone will NOT restore the funds. -->
+          <mat-checkbox [(ngModel)]="useBip39" class="bip39-toggle">
+            {{ 'mwallet_bip39_toggle' | i18n }}
+          </mat-checkbox>
+
+          @if (useBip39) {
+            <p class="warning-text">
+              <mat-icon class="warning-icon">warning</mat-icon>
+              {{ 'mwallet_bip39_warning' | i18n }}
+            </p>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'mwallet_bip39_label' | i18n }}</mat-label>
+              <input matInput type="password" [(ngModel)]="bip39Passphrase" autocomplete="off" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'mwallet_bip39_confirm' | i18n }}</mat-label>
+              <input
+                matInput
+                type="password"
+                [(ngModel)]="bip39PassphraseConfirm"
+                autocomplete="off"
+              />
+            </mat-form-field>
+
+            @if (bip39PassphraseConfirm && bip39Passphrase !== bip39PassphraseConfirm) {
+              <p class="error-text">{{ 'mwallet_passphrase_mismatch' | i18n }}</p>
+            }
+          }
+
           <mat-checkbox [(ngModel)]="acknowledged">
             {{ 'mwallet_backup_ack' | i18n }}
           </mat-checkbox>
@@ -120,7 +154,11 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
             <button
               mat-raised-button
               color="primary"
-              [disabled]="!acknowledged || words().length === 0"
+              [disabled]="
+                !acknowledged ||
+                words().length === 0 ||
+                (useBip39 && bip39Passphrase !== bip39PassphraseConfirm)
+              "
               (click)="startVerify()"
             >
               {{ 'next' | i18n }}
@@ -194,39 +232,6 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
             </mat-form-field>
 
             @if (passphraseConfirm && passphrase !== passphraseConfirm) {
-              <p class="error-text">{{ 'mwallet_passphrase_mismatch' | i18n }}</p>
-            }
-          }
-
-          <!-- BIP39 25th word — SEPARATE from the at-rest passphrase above.
-               Folded into the derivation: with it set, the recovery phrase
-               alone will NOT restore the funds. -->
-          <mat-checkbox [(ngModel)]="useBip39" class="bip39-toggle">
-            {{ 'mwallet_bip39_toggle' | i18n }}
-          </mat-checkbox>
-
-          @if (useBip39) {
-            <p class="warning-text">
-              <mat-icon class="warning-icon">warning</mat-icon>
-              {{ 'mwallet_bip39_warning' | i18n }}
-            </p>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'mwallet_bip39_label' | i18n }}</mat-label>
-              <input matInput type="password" [(ngModel)]="bip39Passphrase" autocomplete="off" />
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'mwallet_bip39_confirm' | i18n }}</mat-label>
-              <input
-                matInput
-                type="password"
-                [(ngModel)]="bip39PassphraseConfirm"
-                autocomplete="off"
-              />
-            </mat-form-field>
-
-            @if (bip39PassphraseConfirm && bip39Passphrase !== bip39PassphraseConfirm) {
               <p class="error-text">{{ 'mwallet_passphrase_mismatch' | i18n }}</p>
             }
           }
