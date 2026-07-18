@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::net::SocketAddr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::net::UdpSocket;
 
@@ -24,13 +25,35 @@ pub struct ClockDriftReport {
 }
 
 async fn query_ntp(server: &'static str) -> Result<NtpSample, String> {
-    let addr = tokio::net::lookup_host(format!("{}:123", server))
+    let addrs: Vec<SocketAddr> = tokio::net::lookup_host(format!("{}:123", server))
         .await
         .map_err(|e| format!("dns: {}", e))?
-        .next()
-        .ok_or_else(|| "no address".to_string())?;
+        .collect();
+    if addrs.is_empty() {
+        return Err("no address".to_string());
+    }
 
-    let socket = UdpSocket::bind("0.0.0.0:0")
+    // Try each resolved address end-to-end (connect + round-trip). On
+    // dual-stack hosts the resolver may return IPv6 first; if that path is
+    // unreachable — a family mismatch on the socket, or a configured-but-
+    // dead IPv6 route that times out — we fall through to the next address
+    // (e.g. IPv4) instead of failing the whole server.
+    let mut last_err = "no address".to_string();
+    for addr in addrs {
+        match query_ntp_addr(server, addr).await {
+            Ok(sample) => return Ok(sample),
+            Err(e) => last_err = e,
+        }
+    }
+    Err(last_err)
+}
+
+/// Query a single resolved NTP endpoint. The socket's address family is
+/// matched to `addr`: an IPv4-bound socket cannot connect to an IPv6
+/// address (WSAEAFNOSUPPORT on Windows) and vice versa.
+async fn query_ntp_addr(server: &'static str, addr: SocketAddr) -> Result<NtpSample, String> {
+    let bind_addr = if addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" };
+    let socket = UdpSocket::bind(bind_addr)
         .await
         .map_err(|e| format!("bind: {}", e))?;
     socket
