@@ -198,6 +198,39 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
             }
           }
 
+          <!-- BIP39 25th word — SEPARATE from the at-rest passphrase above.
+               Folded into the derivation: with it set, the recovery phrase
+               alone will NOT restore the funds. -->
+          <mat-checkbox [(ngModel)]="useBip39" class="bip39-toggle">
+            {{ 'mwallet_bip39_toggle' | i18n }}
+          </mat-checkbox>
+
+          @if (useBip39) {
+            <p class="warning-text">
+              <mat-icon class="warning-icon">warning</mat-icon>
+              {{ 'mwallet_bip39_warning' | i18n }}
+            </p>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'mwallet_bip39_label' | i18n }}</mat-label>
+              <input matInput type="password" [(ngModel)]="bip39Passphrase" autocomplete="off" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'mwallet_bip39_confirm' | i18n }}</mat-label>
+              <input
+                matInput
+                type="password"
+                [(ngModel)]="bip39PassphraseConfirm"
+                autocomplete="off"
+              />
+            </mat-form-field>
+
+            @if (bip39PassphraseConfirm && bip39Passphrase !== bip39PassphraseConfirm) {
+              <p class="error-text">{{ 'mwallet_passphrase_mismatch' | i18n }}</p>
+            }
+          }
+
           <!-- No address-type choice: a new wallet is a GROUP holding both
                a SegWit and a Taproot compartment (the backend materializes
                them together); the selector picks the pocket later. -->
@@ -330,6 +363,11 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
         margin-top: 16px;
       }
 
+      .bip39-toggle {
+        display: block;
+        margin: 4px 0 12px;
+      }
+
       .button-row {
         display: flex;
         justify-content: space-between;
@@ -382,6 +420,15 @@ export class WalletCreateComponent implements OnInit {
   acknowledged = false;
   passphrase = '';
   passphraseConfirm = '';
+
+  /**
+   * Optional BIP39 25th word — SEPARATE from the at-rest `passphrase`. When
+   * set it is folded into the seed derivation, so the recovery phrase alone
+   * will NOT restore the funds (the word is required too).
+   */
+  useBip39 = false;
+  bip39Passphrase = '';
+  bip39PassphraseConfirm = '';
 
   /** Wallet name — pre-filled with the next free default; desktop rules. */
   walletName = '';
@@ -502,8 +549,11 @@ export class WalletCreateComponent implements OnInit {
     ) {
       return false;
     }
-    if (!this.passphrase) return true;
-    return this.passphrase === this.passphraseConfirm;
+    // The at-rest passphrase and the BIP39 25th word each must match their
+    // confirm field when in use.
+    if (this.passphrase && this.passphrase !== this.passphraseConfirm) return false;
+    if (this.useBip39 && this.bip39Passphrase !== this.bip39PassphraseConfirm) return false;
+    return true;
   }
 
   async create(): Promise<void> {
@@ -514,8 +564,16 @@ export class WalletCreateComponent implements OnInit {
       // An emptied name field falls back to the suggested default.
       const name = this.walletName.trim() || suggestWalletName(this.existingNames());
       // No kind: the backend materializes the SegWit + Taproot compartments
-      // together as one group.
-      await this.wallet.create(this.mnemonic, this.passphrase || undefined, name);
+      // together as one group. The BIP39 25th word (when set) is folded into
+      // the derivation — the at-rest passphrase is passed separately.
+      const bip39Passphrase = this.useBip39 ? this.bip39Passphrase || undefined : undefined;
+      await this.wallet.create(
+        this.mnemonic,
+        this.passphrase || undefined,
+        name,
+        undefined,
+        bip39Passphrase
+      );
       this.mnemonic = '';
       this.words.set([]);
       // Chain back into the flow that launched us (e.g. mining setup)

@@ -472,7 +472,7 @@ fn regtest_verify_chain_runs_on_home_and_restore() {
     let seed_dir = tempfile::tempdir().unwrap();
     let mut scratch = seedstore::SeedStore::open(seed_dir.path(), None).unwrap();
     let mnemonic = scratch.create_seed(None, 24).unwrap();
-    let result = restore_wallet_impl(&state, None, &mnemonic, None, Some("verified".into()), None)
+    let result = restore_wallet_impl(&state, None, &mnemonic, None, "", Some("verified".into()), None)
         .expect("restore over a verified server");
     assert!(result.fresh, "a brand-new seed must restore as fresh");
     assert!(
@@ -558,7 +558,7 @@ fn regtest_named_dual_kind_wallets() {
     let mnemonic = scratch.create_seed(None, 24).unwrap();
 
     // 1. Wallet A: named create, default kind → BIP-84, rpocx1q addresses.
-    let status = create_wallet_impl(&state, None, &mnemonic, None, Some("alpha".into()), None)
+    let status = create_wallet_impl(&state, None, &mnemonic, None, "", Some("alpha".into()), None)
         .expect("create alpha");
     assert_eq!(status.wallet_name, "alpha");
     assert!(status.wallet_active);
@@ -576,6 +576,7 @@ fn regtest_named_dual_kind_wallets() {
         None,
         &mnemonic,
         None,
+        "",
         Some("beta".into()),
         Some(DescriptorKindCfg::Bip86),
     )
@@ -606,7 +607,7 @@ fn regtest_named_dual_kind_wallets() {
     // 4. Dual-restore flow, as the mobile UI drives it. First the plain
     //    restore: BOTH funded branches must be reported, the BIP-84 one
     //    opens (priority order), and its balance is alpha's.
-    let result = restore_wallet_impl(&state, None, &mnemonic, None, Some("gamma".into()), None)
+    let result = restore_wallet_impl(&state, None, &mnemonic, None, "", Some("gamma".into()), None)
         .expect("plain restore");
     assert!(!result.fresh);
     assert_eq!(
@@ -633,6 +634,7 @@ fn regtest_named_dual_kind_wallets() {
         None,
         &mnemonic,
         None,
+        "",
         Some("gamma-taproot".into()),
         Some(DescriptorKindCfg::Bip86),
     )
@@ -1208,7 +1210,7 @@ fn regtest_transactions_limit_offset_pagination() {
     let mnemonic = scratch.create_seed(None, 24).unwrap();
 
     // 1. Create + fund "fat" once (entry #1: received).
-    let status = create_wallet_impl(&state, None, &mnemonic, None, Some("fat".into()), None)
+    let status = create_wallet_impl(&state, None, &mnemonic, None, "", Some("fat".into()), None)
         .expect("create fat");
     assert_eq!(status.wallet_name, "fat");
     let addr = state.backend().unwrap().wallet_new_address().unwrap();
@@ -1345,7 +1347,7 @@ fn regtest_rename_wallet_preserves_funds() {
     let mnemonic = scratch.create_seed(None, 24).unwrap();
 
     // 1. Create + fund "payroll" (BIP-84).
-    let status = create_wallet_impl(&state, None, &mnemonic, None, Some("payroll".into()), None)
+    let status = create_wallet_impl(&state, None, &mnemonic, None, "", Some("payroll".into()), None)
         .expect("create payroll");
     assert_eq!(status.wallet_name, "payroll");
     let addr = state.backend().unwrap().wallet_new_address().unwrap();
@@ -1366,6 +1368,7 @@ fn regtest_rename_wallet_preserves_funds() {
         None,
         &mnemonic,
         None,
+        "",
         Some("other".into()),
         Some(DescriptorKindCfg::Bip86),
     )

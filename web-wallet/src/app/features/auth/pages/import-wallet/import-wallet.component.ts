@@ -119,10 +119,11 @@ import {
                 (changed)="onMnemonicChanged($event)"
               ></app-mnemonic-entry>
 
-              <!-- BIP39 Passphrase Option (25th word) — Core wallets only;
-                   the local BDK wallet derives with an empty BIP39
-                   passphrase by design. -->
-              <div class="passphrase-section" [hidden]="isRemote()">
+              <!-- BIP39 Passphrase Option (25th word) — supported on BOTH the
+                   Core and the local BDK (remote/mobile) wallet paths. It is
+                   folded into the derivation and probed for on restore, so a
+                   passphrase-protected seed recovers only WITH this word. -->
+              <div class="passphrase-section">
                 <mat-checkbox [(ngModel)]="useBip39Passphrase" class="passphrase-checkbox">
                   {{ 'use_bip39_passphrase' | i18n }}
                 </mat-checkbox>
@@ -496,14 +497,23 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
       const mnemonic = this.mnemonic;
 
       if (this.isRemote()) {
-        // Remote (Electrum) mode: the backend probes EVERY derivation
-        // branch the seed's history could live on over Electrum before
-        // importing, and opens the best hit. The optional password
-        // encrypts the seed at rest.
+        // Remote (Electrum) mode: the backend probes EVERY derivation branch
+        // the seed's history could live on over Electrum before importing,
+        // and opens the best hit. Two INDEPENDENT optional secrets: the
+        // at-rest encryption password (locks the seed) and the BIP39 25th
+        // word (folded into the derivation, so the probe scans the
+        // passphrase branches and the mnemonic alone will not recover funds).
         const name = this.walletName.trim();
         const passphrase =
           this.useWalletEncryption && this.walletPassword ? this.walletPassword : undefined;
-        const result = await this.btcxWallet.restore(mnemonic, passphrase, name);
+        const bip39Passphrase = this.useBip39Passphrase ? this.passphrase : undefined;
+        const result = await this.btcxWallet.restore(
+          mnemonic,
+          passphrase,
+          name,
+          undefined,
+          bip39Passphrase
+        );
         this.branchReport.set(this.mapBtcxRestore(result));
         const loaded = await this.walletManager.refreshLoadedWallets();
         if (loaded.includes(name)) {

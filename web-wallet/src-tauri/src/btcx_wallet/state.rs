@@ -297,7 +297,11 @@ impl BtcxWalletState {
                 else {
                     return Ok(false);
                 };
-                let seed = WalletSeed::from_mnemonic(&mnemonic, "")
+                // Apply the wallet's persisted BIP39 25th word ("" when none)
+                // so the runtime derives the same keys the funds live on.
+                let bip39_passphrase =
+                    super::descstore::read_bip39_passphrase(&config.active_wallet_root())?;
+                let seed = WalletSeed::from_mnemonic(&mnemonic, &bip39_passphrase)
                     .map_err(|e| format!("Failed to derive wallet seed: {e:#}"))?;
                 manager::open_wallet(&config.wallet_db_path(), params, &seed, policy)
                     .map_err(|e| format!("Failed to open wallet: {e:#}"))?
@@ -492,7 +496,10 @@ impl BtcxWalletState {
                 let mnemonic = store
                     .mnemonic()
                     .map_err(|_| format!("The seed of '{name}' is locked"))?;
-                let seed = WalletSeed::from_mnemonic(&mnemonic, "")
+                // Same 25th-word application as the active runtime, read from
+                // THIS compartment's own data dir ("" when none).
+                let bip39_passphrase = super::descstore::read_bip39_passphrase(&root)?;
+                let seed = WalletSeed::from_mnemonic(&mnemonic, &bip39_passphrase)
                     .map_err(|e| format!("Failed to derive wallet seed: {e:#}"))?;
                 manager::open_wallet(&db_path, params, &seed, meta.policy)
                     .map_err(|e| format!("Failed to open wallet: {e:#}"))?

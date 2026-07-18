@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -56,6 +57,7 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
     RouterModule,
     MatButtonModule,
     MatIconModule,
+    MatCheckboxModule,
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
@@ -149,6 +151,24 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
             </mat-form-field>
             <p class="hint-text small">{{ 'mwallet_passphrase_hint' | i18n }}</p>
 
+            <!-- BIP39 25th word — SEPARATE from the at-rest passphrase above.
+                 It must match what the seed was created with, or the probe
+                 finds no history. -->
+            <mat-checkbox [(ngModel)]="useBip39" [disabled]="restoring()" class="bip39-toggle">
+              {{ 'mwallet_bip39_toggle' | i18n }}
+            </mat-checkbox>
+
+            @if (useBip39) {
+              <p class="warning-text-inline">
+                <mat-icon class="notice-icon">warning</mat-icon>
+                <span>{{ 'mwallet_bip39_restore_warning' | i18n }}</span>
+              </p>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ 'mwallet_bip39_label' | i18n }}</mat-label>
+                <input matInput type="password" [(ngModel)]="bip39Passphrase" autocomplete="off" />
+              </mat-form-field>
+            }
+
             <p class="hint-text small">{{ 'mwallet_restore_probe_note' | i18n }}</p>
 
             @if (restoreError()) {
@@ -240,6 +260,30 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
         width: 100%;
       }
 
+      .bip39-toggle {
+        display: block;
+        margin: 4px 0 8px;
+      }
+
+      .warning-text-inline {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+        background: rgba(230, 81, 0, 0.08);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 12px;
+        margin: 0 0 12px;
+
+        .notice-icon {
+          color: #e65100;
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+        }
+      }
+
       .success-card {
         text-align: center;
 
@@ -278,6 +322,14 @@ export class WalletRestoreComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
 
   passphrase = '';
+
+  /**
+   * Optional BIP39 25th word — SEPARATE from the at-rest `passphrase`. Must
+   * match the word the seed was created with, or the Electrum probe finds no
+   * history (the mnemonic alone derives different keys).
+   */
+  useBip39 = false;
+  bip39Passphrase = '';
 
   /** Wallet name — pre-filled with the next free default; desktop rules. */
   walletName = '';
@@ -366,7 +418,14 @@ export class WalletRestoreComponent implements OnInit {
       // An emptied name field falls back to the suggested default.
       const name = this.walletName.trim() || suggestWalletName(this.existingNames());
       const passphrase = this.passphrase || undefined;
-      const result = await this.wallet.restore(this.mnemonic, passphrase, name);
+      const bip39Passphrase = this.useBip39 ? this.bip39Passphrase || undefined : undefined;
+      const result = await this.wallet.restore(
+        this.mnemonic,
+        passphrase,
+        name,
+        undefined,
+        bip39Passphrase
+      );
       this.result.set(result);
       this.restored.set(true);
       this.existingNames.set((await this.wallet.refreshWallets()).map(w => w.name));
@@ -374,6 +433,8 @@ export class WalletRestoreComponent implements OnInit {
       this.mnemonicValid.set(false);
       this.mnemonicEntry?.reset();
       this.passphrase = '';
+      this.bip39Passphrase = '';
+      this.useBip39 = false;
     } catch (err) {
       console.error('Failed to restore wallet:', err);
       this.restoreError.set(`${err}`);
