@@ -51,8 +51,10 @@ jobs:
         # The Tauri CLI must drive the build (it starts a build server the
         # Xcode "Build Rust Code" phase talks to — invoking xcodebuild
         # directly fails with a missing *-server-addr file). A simulator
-        # target needs no signing.
-        run: npx tauri ios build --debug --target aarch64-sim
+        # target needs no signing. iOS is always the wallet-only flavor
+        # (default features are empty; `-f wallet` compiles the nodeless
+        # wallet and leaves the mining stack out, like the Play wallet app).
+        run: npx tauri ios build --debug --target aarch64-sim -f wallet
 
       - name: Locate simulator .app
         id: find-app

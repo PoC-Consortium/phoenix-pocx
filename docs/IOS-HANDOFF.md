@@ -46,7 +46,8 @@ Read `docs/MIGRATION-PLAN.md` and `CLAUDE.md` first for architecture.
 **2026-07-18: THE SIMULATOR MILESTONE IS DONE.** The wallet boots on the
 iPhone 17 Pro simulator (iOS 26.5) in wallet-mobile mode. The working
 build recipe (also what the CI workflow runs):
-`npx tauri ios build --debug --target aarch64-sim` → .app lands in
+`npx tauri ios build --debug --target aarch64-sim -f wallet` → .app lands
+in
 `src-tauri/gen/apple/build/arm64-sim/`; install/launch/screenshot via
 `xcrun simctl install/launch/io`. Do NOT invoke xcodebuild directly — the
 Xcode project's Rust build phase needs the Tauri CLI's build server and
@@ -72,9 +73,9 @@ entry.
   applied to the generated project (gen/apple project.yml + pbxproj):
   prepend `export PATH="/opt/homebrew/bin:$PATH"; ` to the script. Must
   be re-applied after a fresh `tauri ios init` (gen/ is not committed).
-- Device dev-run recipe: `npx tauri ios dev --open --host <mac-lan-ip>
-  --config '{"build":{"beforeDevCommand":"npm run start -- --host
-  0.0.0.0"}}'` (ng serve binds localhost only by default and tauri waits
+- Device dev-run recipe: `npx tauri ios dev -f wallet --open --host
+  <mac-lan-ip> --config '{"build":{"beforeDevCommand":"npm run start --
+  --host 0.0.0.0"}}'` (ng serve binds localhost only by default and tauri waits
   forever on the LAN URL), then select Personal Team under Signing &
   Capabilities and hit Run.
 
