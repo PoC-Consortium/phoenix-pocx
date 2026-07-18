@@ -156,7 +156,11 @@ export interface MnemonicEntryState {
         background: transparent;
         font-family: 'Roboto Mono', monospace;
         font-weight: 500;
-        font-size: 13px;
+        /* 16px, not smaller: iOS/WKWebView auto-zooms into a focused input
+           whose font-size is < 16px. The grid columns are fixed (repeat(N, 1fr)
+           per breakpoint), so this does NOT change the 2/3-per-row layout — it
+           only prevents the zoom-on-focus. */
+        font-size: 16px;
         min-width: 0;
         width: 0;
       }
