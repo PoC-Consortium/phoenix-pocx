@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { notWalletOnlyGuard } from '../../core/guards';
 
 /**
  * Mobile wallet routes (mobile mode only, guarded by mobileWalletGuard).
@@ -54,8 +55,11 @@ export const MOBILE_WALLET_ROUTES: Routes = [
         loadComponent: () =>
           import('./pages/coins/wallet-coins.component').then(m => m.WalletCoinsComponent),
       },
+      // Wallet-only mode is "transactions only" — forging assignments are
+      // hidden and the route is blocked (deep-link defense in depth).
       {
         path: 'assignment',
+        canActivate: [notWalletOnlyGuard],
         loadComponent: () =>
           import('./pages/assignment/wallet-assignment.component').then(
             m => m.WalletAssignmentComponent

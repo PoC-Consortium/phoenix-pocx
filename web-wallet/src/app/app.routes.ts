@@ -151,8 +151,11 @@ export const routes: Routes = [
         loadChildren: () =>
           import('./features/contacts/contacts.routes').then(m => m.CONTACTS_ROUTES),
       },
+      // Wallet-only mode is "transactions only" — forging assignments are
+      // hidden and the route is blocked (deep-link defense in depth).
       {
         path: 'forging-assignment',
+        canActivate: [notWalletOnlyGuard],
         loadChildren: () =>
           import('./features/forging-assignment/forging-assignment.routes').then(
             m => m.FORGING_ASSIGNMENT_ROUTES
