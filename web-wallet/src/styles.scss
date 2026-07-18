@@ -58,7 +58,8 @@ body {
   }
 }
 
-body.platform-android {
+body.platform-android,
+body.platform-ios {
   --android-safe-top: env(safe-area-inset-top, 24px);
   padding-top: var(--android-safe-top);
   // Keep the inset INSIDE the body's 100% height. Without this the padding
@@ -69,6 +70,12 @@ body.platform-android {
   // No rubber-banding on the document itself; the app's inner containers
   // are the only scrollers.
   overscroll-behavior-y: none;
+}
+
+// iOS additionally needs the bottom inset — the home-indicator bar would
+// otherwise overlap the bottom navigation.
+body.platform-ios {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 // Dark theme body
