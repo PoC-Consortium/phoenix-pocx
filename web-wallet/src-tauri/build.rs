@@ -8,6 +8,10 @@ fn main() {
     // fixes both worlds: tests load (the import resolves lazily and task
     // dialogs are never shown in tests), and the app resolves v6 at call
     // time through its activation context exactly as before.
+    // The Android data dir is baked in from PHX_APP_ID at compile time (see
+    // app_data_dir): rebuild when the flavor's appId changes.
+    println!("cargo:rerun-if-env-changed=PHX_APP_ID");
+
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     let target_env = std::env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
     if target_os == "windows" && target_env == "msvc" {
