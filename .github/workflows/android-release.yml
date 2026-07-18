@@ -8,8 +8,30 @@ permissions:
 
 jobs:
   build-android:
-    name: Build & Sign Android APK
+    name: Build & Sign Android APK (${{ matrix.flavor }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Three Android build flavors from one codebase. Each disables one
+        # cargo feature; the appId differs so all three can coexist / upload
+        # side by side. Only the `wallet` flavor is the Play Store candidate
+        # (no mining code compiled in); `mining` is a sideload pure-miner;
+        # `hybrid` keeps the existing appId so current sideload installs update.
+        #
+        # build_args: passed to `tauri android build`. `-f <feature>` is always
+        # honored by the CLI; `-- --no-default-features` is a runner passthrough
+        # that reaches cargo so the OTHER feature is dropped from the binary.
+        include:
+          - flavor: hybrid
+            app_id: org.pocx.phoenix
+            build_args: ""
+          - flavor: wallet   # Play Store candidate — NO mining compiled in
+            app_id: org.pocx.phoenix.wallet
+            build_args: "-f wallet -- --no-default-features"
+          - flavor: mining   # sideload pure miner — NO wallet compiled in
+            app_id: org.pocx.phoenix.miner
+            build_args: "-f mining -- --no-default-features"
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +47,20 @@ jobs:
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "Found latest release: $TAG"
+
+      - name: Compute version identity
+        id: version
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          VERSION="${TAG#v}"
+          # versionCode scheme: MAJOR*10000 + MINOR*100 + PATCH (e.g. 2.2.0 -> 20200)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          MAJOR=${MAJOR:-0}; MINOR=${MINOR:-0}; PATCH=${PATCH:-0}
+          CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          if [ "$CODE" -lt 1 ]; then CODE=1; fi
+          echo "name=$VERSION" >> $GITHUB_OUTPUT
+          echo "code=$CODE" >> $GITHUB_OUTPUT
+          echo "versionName=$VERSION versionCode=$CODE"
 
       - name: Free disk space
         run: |
@@ -61,6 +97,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './web-wallet/src-tauri -> target'
+          key: ${{ matrix.flavor }}
 
       - name: Install web-wallet dependencies
         working-directory: web-wallet
@@ -121,7 +158,9 @@ jobs:
           # Decode keystore from secret
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $HOME/release.keystore
 
-          # Replace generated build.gradle.kts with our signing-enabled template
+          # Replace generated build.gradle.kts with our signing-enabled template.
+          # The template reads PHX_APP_ID / PHX_VERSION_NAME / PHX_VERSION_CODE
+          # from the environment (set on the build step) for per-flavor identity.
           cp web-wallet/src-tauri/android-template/build.gradle.kts \
              web-wallet/src-tauri/gen/android/app/build.gradle.kts
 
@@ -133,9 +172,13 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           EOF
 
-      - name: Build Android APK (ARM64 only)
+      - name: Build Android APK (ARM64 only) — ${{ matrix.flavor }}
         working-directory: web-wallet
-        run: npx tauri android build --target aarch64
+        env:
+          PHX_APP_ID: ${{ matrix.app_id }}
+          PHX_VERSION_NAME: ${{ steps.version.outputs.name }}
+          PHX_VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: npx tauri android build --target aarch64 ${{ matrix.build_args }}
 
       - name: Verify signed APK exists
         id: verify
@@ -158,13 +201,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.release.outputs.tag }}"
-          VERSION="${TAG#v}"
+          VERSION="${{ steps.version.outputs.name }}"
           APK_FILE="${{ steps.verify.outputs.apk_path }}"
 
-          NEW_NAME="Phoenix-PoCX-${VERSION}-Android-ARM64.apk"
+          # Per-flavor asset name so the three uploads never clobber each other.
+          NEW_NAME="Phoenix-PoCX-${VERSION}-Android-${{ matrix.flavor }}-ARM64.apk"
           cp "$APK_FILE" "$NEW_NAME"
 
           echo "Uploading $NEW_NAME to release $TAG"
           gh release upload "$TAG" "$NEW_NAME" --repo ${{ github.repository }} --clobber
 
-          echo "Successfully uploaded Android APK to $TAG"
+          echo "Successfully uploaded Android APK ($NEW_NAME) to $TAG"

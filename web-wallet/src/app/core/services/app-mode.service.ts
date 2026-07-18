@@ -47,6 +47,28 @@ export class AppModeService {
     () => this.isMobile() || this.isMobileMode() || this.isWalletOnly()
   );
 
+  /**
+   * Whether the nodeless BTCX wallet backend (Rust `wallet` cargo feature) is
+   * compiled into THIS build. False ONLY in the Android mining-only flavor —
+   * `get_launch_mode` returns "mining" on Android, so `isMiningOnly()` is true
+   * AND `isMobile()` is true. There the `btcx_wallet_*` / `btcx_electrum_*` /
+   * `btcx_chain_info` commands are absent and callers MUST NOT invoke them.
+   *
+   * Desktop `--mining-only` keeps the wallet compiled (the desktop binary is
+   * always the hybrid build and picks the layout at runtime), so it stays
+   * true there — no behavior change for desktop mining-only.
+   */
+  readonly hasWalletBackend = computed(() => !(this.isMiningOnly() && this.isMobile()));
+
+  /**
+   * Symmetric counterpart: whether the mining/plotting/aggregator backend
+   * (Rust `mining` cargo feature) is compiled in. False ONLY in the Android
+   * wallet-only flavor (`isWalletOnly()` + `isMobile()`), where every mining/
+   * aggregator command is absent. Desktop `--wallet-only` keeps mining
+   * compiled, so it stays true there.
+   */
+  readonly hasMiningBackend = computed(() => !(this.isWalletOnly() && this.isMobile()));
+
   /** Whether the mode has been initialized (internal guard) */
   private readonly _isInitialized = signal(false);
 

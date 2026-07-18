@@ -10,16 +10,19 @@ use tauri::Manager;
 // Logging module
 mod logging;
 
-// Aggregator module
+// Aggregator module (part of the `mining` build flavor)
+#[cfg(feature = "mining")]
 pub mod aggregator;
 
-// Mining module
+// Mining module (gated by the `mining` build flavor)
+#[cfg(feature = "mining")]
 pub mod mining;
 
 // Node management module
 pub mod node;
 
-// Nodeless BTCX wallet module (btcx crates over Electrum)
+// Nodeless BTCX wallet module (btcx crates over Electrum; `wallet` flavor)
+#[cfg(feature = "wallet")]
 pub mod btcx_wallet;
 
 // Update checking module
@@ -279,19 +282,25 @@ fn is_dev() -> bool {
 /// --mobile is passed (dev-testing the FULL Android flavor: mining + the
 /// nodeless wallet), "wallet-mobile" if --wallet-only is passed (the
 /// wallet-only Android flavor), otherwise "wallet"
-/// Android: "mobile" (nodeless BTCX wallet + mining, no local node), or
-/// "wallet-mobile" when built with the `wallet-only` cargo feature (the
-/// wallet-only app flavor: nodeless BTCX wallet only, no mining either)
+/// Android: derived from the compiled build flavor (cargo features) —
+///   both `mining` + `wallet` → "mobile"   (Hybrid app: mining + nodeless wallet)
+///   only `wallet`           → "wallet-mobile" (Play Store wallet-only app)
+///   only `mining`           → "mining"    (sideload pure-miner app, external payout)
 #[tauri::command]
 fn get_launch_mode() -> String {
-    // Android is always nodeless: the wallet-only flavor is wallet-mobile,
-    // the full flavor is mobile (mining plus the nodeless wallet).
+    // Android is always nodeless. Which surfaces exist is decided at compile
+    // time: the wallet/mining code for the disabled feature isn't in the
+    // binary, so the mode must match what was actually built.
     #[cfg(target_os = "android")]
     {
-        #[cfg(feature = "wallet-only")]
-        return "wallet-mobile".to_string();
-        #[cfg(not(feature = "wallet-only"))]
+        #[cfg(all(feature = "mining", feature = "wallet"))]
         return "mobile".to_string();
+        #[cfg(all(feature = "wallet", not(feature = "mining")))]
+        return "wallet-mobile".to_string();
+        #[cfg(all(feature = "mining", not(feature = "wallet")))]
+        return "mining".to_string();
+        #[cfg(not(any(feature = "mining", feature = "wallet")))]
+        return "wallet".to_string();
     }
 
     #[cfg(not(target_os = "android"))]
@@ -346,12 +355,30 @@ fn get_debug_paths() -> DebugPaths {
         node_config: node::config::NodeConfig::config_path()
             .to_string_lossy()
             .to_string(),
-        mining_config: mining::state::get_config_file_path()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_default(),
-        aggregator_config: aggregator::state::get_config_file_path()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_default(),
+        mining_config: {
+            #[cfg(feature = "mining")]
+            {
+                mining::state::get_config_file_path()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            }
+            #[cfg(not(feature = "mining"))]
+            {
+                String::new()
+            }
+        },
+        aggregator_config: {
+            #[cfg(feature = "mining")]
+            {
+                aggregator::state::get_config_file_path()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            }
+            #[cfg(not(feature = "mining"))]
+            {
+                String::new()
+            }
+        },
         bitcoin_conf: node_config
             .bitcoin_conf_path()
             .to_string_lossy()
@@ -624,20 +651,20 @@ pub fn run() {
         eprintln!("Failed to initialize logger: {}. Log dir: {:?}", e, log_dir);
     }
 
-    // Create shared mining state
+    // Create shared mining + aggregator state (mining build flavor only)
+    #[cfg(feature = "mining")]
     let mining_state = mining::state::create_mining_state();
-
-    // Create shared plotter runtime (for task management)
+    #[cfg(feature = "mining")]
     let plotter_runtime = mining::create_plotter_runtime();
+    #[cfg(feature = "mining")]
+    let aggregator_state = aggregator::state::create_aggregator_state();
 
     // Create shared node state and manager
     let node_state = node::create_node_state();
     let node_manager = node::NodeManager::new();
 
-    // Create shared aggregator state
-    let aggregator_state = aggregator::state::create_aggregator_state();
-
-    // Create shared nodeless BTCX wallet state
+    // Create shared nodeless BTCX wallet state (wallet build flavor only)
+    #[cfg(feature = "wallet")]
     let btcx_wallet_state = btcx_wallet::create_btcx_wallet_state();
 
     let mut builder = tauri::Builder::default()
@@ -661,12 +688,25 @@ pub fn run() {
                 .add_migrations("sqlite:mining.db", include_migrations())
                 .build(),
         )
-        .manage(mining_state)
-        .manage(plotter_runtime)
         .manage(node_state)
-        .manage(node_manager)
-        .manage(aggregator_state)
-        .manage(btcx_wallet_state)
+        .manage(node_manager);
+
+    // Mining + aggregator state (mining build flavor only)
+    #[cfg(feature = "mining")]
+    {
+        builder = builder
+            .manage(mining_state)
+            .manage(plotter_runtime)
+            .manage(aggregator_state);
+    }
+
+    // Nodeless BTCX wallet state (wallet build flavor only)
+    #[cfg(feature = "wallet")]
+    {
+        builder = builder.manage(btcx_wallet_state);
+    }
+
+    builder = builder
         .setup(|app| {
             // Set app handle for TauriEventAppender (log forwarding to frontend)
             logging::set_app_handle(app.handle().clone());
@@ -678,16 +718,31 @@ pub fn run() {
                 app.set_menu(menu)?;
             }
 
-            // Register miner callback for mining events (with state for deadline persistence)
-            let state = app
-                .state::<mining::state::SharedMiningState>()
-                .inner()
-                .clone();
-            mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
+            // Register miner + aggregator callbacks (mining build flavor only)
+            #[cfg(feature = "mining")]
+            {
+                // Register miner callback for mining events (with state for deadline persistence)
+                let state = app
+                    .state::<mining::state::SharedMiningState>()
+                    .inner()
+                    .clone();
+                mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
+
+                // Register aggregator callback (OnceLock - must be done once at startup)
+                let agg_state = app
+                    .state::<aggregator::state::SharedAggregatorState>()
+                    .inner()
+                    .clone();
+                aggregator::callback::TauriAggregatorCallback::register(
+                    app.handle().clone(),
+                    agg_state,
+                );
+            }
 
             // Resume the nodeless BTCX wallet if it was set up (off the main
             // thread — opening dials nothing, but sqlite + seed I/O should
-            // never delay startup; failures only log).
+            // never delay startup; failures only log). Wallet flavor only.
+            #[cfg(feature = "wallet")]
             {
                 let state = app
                     .state::<btcx_wallet::SharedBtcxWalletState>()
@@ -709,16 +764,6 @@ pub fn run() {
                     }
                 });
             }
-
-            // Register aggregator callback (OnceLock - must be done once at startup)
-            let agg_state = app
-                .state::<aggregator::state::SharedAggregatorState>()
-                .inner()
-                .clone();
-            aggregator::callback::TauriAggregatorCallback::register(
-                app.handle().clone(),
-                agg_state,
-            );
 
             // Set window title based on launch mode (desktop only)
             #[cfg(not(target_os = "android"))]
@@ -893,114 +938,208 @@ pub fn run() {
             node::commands::wait_for_node_ready,
             node::commands::is_node_ready,
             node::commands::stop_node_gracefully,
+            // ===== Mining + aggregator commands (mining build flavor only) =====
+            // Each entry is `#[cfg(feature = "mining")]`-gated so the pure
+            // wallet-only flavor does not register (or reference) any mining
+            // command — the mining/aggregator modules aren't compiled there.
             // Mining device commands
+            #[cfg(feature = "mining")]
             mining::commands::detect_mining_devices,
             // Mining drive commands
+            #[cfg(feature = "mining")]
             mining::commands::list_plot_drives,
+            #[cfg(feature = "mining")]
             mining::commands::get_plot_drive_info,
+            #[cfg(feature = "mining")]
             mining::commands::delete_orphan_file,
             // Mining state commands
+            #[cfg(feature = "mining")]
             mining::commands::get_mining_state,
+            #[cfg(feature = "mining")]
             mining::commands::get_mining_config,
+            #[cfg(feature = "mining")]
             mining::commands::save_mining_config,
             // Chain configuration commands
+            #[cfg(feature = "mining")]
             mining::commands::add_chain_config,
+            #[cfg(feature = "mining")]
             mining::commands::update_chain_config,
+            #[cfg(feature = "mining")]
             mining::commands::remove_chain_config,
+            #[cfg(feature = "mining")]
             mining::commands::reorder_chain_priorities,
             // Drive configuration commands
+            #[cfg(feature = "mining")]
             mining::commands::add_drive_config,
+            #[cfg(feature = "mining")]
             mining::commands::update_drive_config,
+            #[cfg(feature = "mining")]
             mining::commands::remove_drive_config,
             // CPU configuration commands
+            #[cfg(feature = "mining")]
             mining::commands::update_cpu_config,
             // Plotter device commands
+            #[cfg(feature = "mining")]
             mining::commands::update_plotter_device,
             // Mining control commands
+            #[cfg(feature = "mining")]
             mining::commands::start_mining,
+            #[cfg(feature = "mining")]
             mining::commands::stop_mining,
             // Benchmark commands
+            #[cfg(feature = "mining")]
             mining::commands::run_device_benchmark,
             // Reset command
+            #[cfg(feature = "mining")]
             mining::commands::reset_mining_config,
             // Deadline commands
+            #[cfg(feature = "mining")]
             mining::commands::get_recent_deadlines,
             // Address validation commands
+            #[cfg(feature = "mining")]
             mining::commands::validate_pocx_address,
+            #[cfg(feature = "mining")]
             mining::commands::get_address_info,
+            #[cfg(feature = "mining")]
             mining::commands::hex_to_bech32,
             // Plotter state commands
+            #[cfg(feature = "mining")]
             mining::commands::get_plotter_state,
+            #[cfg(feature = "mining")]
             mining::commands::is_plotter_running,
+            #[cfg(feature = "mining")]
             mining::commands::get_stop_type,
             // Plot plan commands
+            #[cfg(feature = "mining")]
             mining::commands::get_plot_plan,
+            #[cfg(feature = "mining")]
             mining::commands::set_plot_plan,
+            #[cfg(feature = "mining")]
             mining::commands::clear_plot_plan,
+            #[cfg(feature = "mining")]
             mining::commands::start_plot_plan,
+            #[cfg(feature = "mining")]
             mining::commands::soft_stop_plot_plan,
+            #[cfg(feature = "mining")]
             mining::commands::hard_stop_plot_plan,
+            #[cfg(feature = "mining")]
             mining::commands::advance_plot_plan,
             // Plotter execution commands
+            #[cfg(feature = "mining")]
             mining::commands::execute_plot_item,
+            #[cfg(feature = "mining")]
             mining::commands::execute_plot_batch,
             // Aggregator commands
+            #[cfg(feature = "mining")]
             aggregator::commands::get_aggregator_config,
+            #[cfg(feature = "mining")]
             aggregator::commands::save_aggregator_config,
+            #[cfg(feature = "mining")]
             aggregator::commands::start_aggregator,
+            #[cfg(feature = "mining")]
             aggregator::commands::stop_aggregator,
+            #[cfg(feature = "mining")]
             aggregator::commands::is_aggregator_running,
+            #[cfg(feature = "mining")]
             aggregator::commands::get_aggregator_status,
+            #[cfg(feature = "mining")]
             aggregator::commands::get_aggregator_stats,
-            // Nodeless BTCX wallet commands - Status & Seed
+            // ===== Nodeless BTCX wallet commands (wallet build flavor only) =====
+            // Each entry is `#[cfg(feature = "wallet")]`-gated so the pure
+            // mining-only flavor does not register any wallet command — the
+            // btcx_wallet backend isn't compiled there.
+            // Status & Seed
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_status,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_generate_mnemonic,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_create,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_restore,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_reprobe,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_rescan_legacy,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_import_descriptor,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_validate_import,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_unlock,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_lock,
-            // Nodeless BTCX wallet commands - Named-wallet registry
+            // Named-wallet registry
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_list,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_list_grouped,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_group_sync,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_select,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_close,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_delete,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_delete_group,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_rename,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_rename_group,
-            // Nodeless BTCX wallet commands - Operations
+            // Operations
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_new_address,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_current_address,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_balance,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_transactions,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_send,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_bumpfee,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_fee_estimates,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_broadcast_tx,
-            // Nodeless BTCX wallet commands - Config & Sync
+            // Config & Sync
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_get_config,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_set_config,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_sync_now,
-            // Nodeless BTCX wallet commands - Forging assignments
+            // Forging assignments
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_create_assignment,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_revoke_assignment,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_get_assignment,
-            // Nodeless BTCX wallet commands - PSBT operations
+            // PSBT operations
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_psbt_decode,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_psbt_analyze,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_psbt_wallet_process,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_psbt_finalize,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_psbt_combine,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_create_funded_psbt,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_utxos,
-            // Nodeless BTCX wallet commands - Electrum health & chain info
+            // Electrum health & chain info
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_electrum_health,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_electrum_probe,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_chain_info,
             write_text_file,
             write_binary_file,

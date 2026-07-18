@@ -17,16 +17,26 @@ plugins {
     id("rust")
 }
 
+// Per-flavor build identity is injected by CI via environment variables so a
+// single template produces the three Android flavors (hybrid / wallet / mining)
+// with distinct appIds. Fallbacks keep local `tauri android build` working:
+//   PHX_APP_ID       — applicationId + namespace (default: hybrid appId)
+//   PHX_VERSION_NAME — versionName, the release tag without a leading "v"
+//   PHX_VERSION_CODE — integer versionCode (see CI: MAJOR*10000+MINOR*100+PATCH)
+val phxAppId: String = System.getenv("PHX_APP_ID") ?: "org.pocx.phoenix"
+val phxVersionName: String = System.getenv("PHX_VERSION_NAME") ?: "1.0"
+val phxVersionCode: Int = (System.getenv("PHX_VERSION_CODE") ?: "1").toInt()
+
 android {
     compileSdk = 35
-    namespace = "org.pocx.phoenix"
+    namespace = phxAppId
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        applicationId = "org.pocx.phoenix"
+        applicationId = phxAppId
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = phxVersionCode
+        versionName = phxVersionName
     }
 
     signingConfigs {

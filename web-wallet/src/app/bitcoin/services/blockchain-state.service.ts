@@ -10,6 +10,7 @@ import { CookieAuthService } from '../../core/auth/cookie-auth.service';
 import { PocxNotificationService } from './pocx-notification.service';
 import { NodeService } from '../../node/services/node.service';
 import { BtcxWalletService } from '../../core/services/btcx-wallet.service';
+import { AppModeService } from '../../core/services/app-mode.service';
 import {
   BTCX_BLOCK_TIME_SECONDS,
   formatNetworkCapacityTib,
@@ -61,6 +62,7 @@ export class BlockchainStateService implements OnDestroy {
   private readonly notificationService = inject(PocxNotificationService);
   private readonly nodeService = inject(NodeService);
   private readonly btcxWallet = inject(BtcxWalletService);
+  private readonly appMode = inject(AppModeService);
   private readonly destroy$ = new Subject<void>();
 
   constructor() {
@@ -195,6 +197,13 @@ export class BlockchainStateService implements OnDestroy {
    */
   async refresh(): Promise<void> {
     const remote = this.nodeService.isRemote();
+    // Android mining-only flavor: remote is reported (nodeless), but the
+    // wallet backend that serves the Electrum chain tip isn't compiled in —
+    // there is no chain source here, so skip rather than call btcx_chain_info
+    // (an absent command). Mining gets base_target from the pool/miner backend.
+    if (remote && !this.appMode.hasWalletBackend()) {
+      return;
+    }
     // Core: skip if not authenticated (credentials not loaded yet).
     if (!remote && !this.cookieAuth.isAuthenticated) {
       return;

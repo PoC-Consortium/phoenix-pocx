@@ -239,7 +239,9 @@ export class AppComponent implements OnInit, OnDestroy {
         // Remote (Electrum) mode: no node to start — bring up the local
         // wallet stack instead (sync-event listeners + status/config), so
         // the event-driven chain/wallet state services get their signal.
-        if (this.nodeService.isRemote()) {
+        // Skipped in the Android mining-only flavor: the wallet backend
+        // isn't compiled there, so btcx_wallet_* commands are absent.
+        if (this.nodeService.isRemote() && this.appModeService.hasWalletBackend()) {
           await this.btcxWallet.initialize();
         }
       }
@@ -249,17 +251,22 @@ export class AppComponent implements OnInit, OnDestroy {
       this.isStartingNode.set(false);
     }
 
-    // Auto-start runs on every Tauri launch (desktop wallet, desktop
-    // mining-only, Android mining-only). Each service has its own guards
-    // — missing config, missing chains/drives, node-not-ready — so these
-    // calls no-op safely when preconditions aren't met.
-    this.aggregatorService
-      .autoStart()
-      .catch(err => console.error('Aggregator auto-start failed:', err));
+    // Auto-start runs on every Tauri launch that HAS the mining backend
+    // compiled in (desktop wallet, desktop mining-only, Android hybrid,
+    // Android mining-only). The Android wallet-only flavor has no mining
+    // commands, so these auto-starts are suppressed there — otherwise the
+    // service's first `refreshState()` / `loadConfig()` would invoke absent
+    // commands. Each service still has its own guards (missing config,
+    // no chains/drives, node-not-ready) so the calls no-op safely otherwise.
+    if (this.appModeService.hasMiningBackend()) {
+      this.aggregatorService
+        .autoStart()
+        .catch(err => console.error('Aggregator auto-start failed:', err));
 
-    this.miningService
-      .autoStartMining()
-      .catch(err => console.error('Mining auto-start failed:', err));
+      this.miningService
+        .autoStartMining()
+        .catch(err => console.error('Mining auto-start failed:', err));
+    }
 
     // Start periodic status refresh (every 30 seconds). Remote mode has no
     // local node process to watch — its connectivity rides the
