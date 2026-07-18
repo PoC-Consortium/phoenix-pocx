@@ -131,7 +131,15 @@ pub fn app_data_dir() -> PathBuf {
 
     #[cfg(target_os = "android")]
     {
-        PathBuf::from("/data/data/org.pocx.phoenix/files")
+        // The installed applicationId varies per build flavor (hybrid
+        // org.pocx.phoenix, wallet-only org.pocx.phoenix.wallet, mining-only
+        // org.pocx.phoenix.miner). Android sandboxes each app to
+        // /data/data/<applicationId>/files and blocks cross-app access, so the
+        // data dir MUST track the real appId — a fixed org.pocx.phoenix path
+        // would be unreadable from the .wallet / .miner flavors. CI injects the
+        // appId as PHX_APP_ID (inherited by the cargo build); default = hybrid.
+        let package = option_env!("PHX_APP_ID").unwrap_or("org.pocx.phoenix");
+        PathBuf::from(format!("/data/data/{package}/files"))
     }
 
     #[cfg(not(any(

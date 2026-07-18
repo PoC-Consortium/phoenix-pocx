@@ -20,16 +20,26 @@ plugins {
 // Per-flavor build identity is injected by CI via environment variables so a
 // single template produces the three Android flavors (hybrid / wallet / mining)
 // with distinct appIds. Fallbacks keep local `tauri android build` working:
-//   PHX_APP_ID       — applicationId + namespace (default: hybrid appId)
+//   PHX_APP_ID       — applicationId ONLY (default: hybrid appId)
 //   PHX_VERSION_NAME — versionName, the release tag without a leading "v"
 //   PHX_VERSION_CODE — integer versionCode (see CI: MAJOR*10000+MINOR*100+PATCH)
+//
+// The `namespace` must NOT vary per flavor: Tauri generates its Kotlin glue
+// (Logger.kt, the main activity) into the `org.pocx.phoenix` package (the
+// tauri.conf.json identifier / WRY_ANDROID_PACKAGE) and references BuildConfig
+// unqualified. BuildConfig is emitted into the `namespace` package, so moving
+// the namespace to a flavor appId (e.g. org.pocx.phoenix.wallet) leaves those
+// generated files unable to resolve BuildConfig. Keep namespace fixed and vary
+// only applicationId — the standard Android "same code, distinct appId" pattern.
 val phxAppId: String = System.getenv("PHX_APP_ID") ?: "org.pocx.phoenix"
 val phxVersionName: String = System.getenv("PHX_VERSION_NAME") ?: "1.0"
 val phxVersionCode: Int = (System.getenv("PHX_VERSION_CODE") ?: "1").toInt()
 
 android {
     compileSdk = 35
-    namespace = phxAppId
+    // Fixed — matches the tauri.conf.json identifier where Tauri's generated
+    // Kotlin + BuildConfig live. Per-flavor identity is applicationId only.
+    namespace = "org.pocx.phoenix"
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = phxAppId
