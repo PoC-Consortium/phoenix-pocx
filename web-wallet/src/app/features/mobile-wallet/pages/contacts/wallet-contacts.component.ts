@@ -10,7 +10,6 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { HashTruncatePipe } from '../../../../shared/pipes';
 import { FitRowsDirective } from '../../../../shared/directives';
 import {
   ClipboardService,
@@ -48,7 +47,6 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
     MatMenuModule,
     MatPaginatorModule,
     MatTooltipModule,
-    HashTruncatePipe,
     I18nPipe,
     FitRowsDirective,
     PageHeaderComponent,
@@ -133,10 +131,10 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
           >
             @for (contact of visibleContacts(); track contact.id) {
             <div class="contact-item">
-              <div class="contact-main" (click)="copyAddress(contact)">
+              <div class="contact-main">
                 <span class="contact-name">{{ contact.name }}</span>
                 <span class="contact-address mono">
-                  {{ contact.address | hashTruncate: 14 : 8 }}
+                  {{ contact.address }}
                 </span>
                 @if (contact.notes) {
                   <span class="contact-notes">{{ contact.notes }}</span>
@@ -321,7 +319,6 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         flex-direction: column;
         flex: 1;
         min-width: 0;
-        cursor: pointer;
 
         .contact-name {
           font-size: 14px;
@@ -331,9 +328,7 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         .contact-address {
           font-size: 11px;
           color: rgba(0, 0, 0, 0.6);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          word-break: break-all;
         }
 
         .contact-notes {
