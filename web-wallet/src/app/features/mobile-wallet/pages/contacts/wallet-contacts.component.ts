@@ -7,9 +7,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { HashTruncatePipe } from '../../../../shared/pipes';
+import { FitRowsDirective } from '../../../../shared/directives';
 import {
   ClipboardService,
   Contact,
@@ -44,9 +46,11 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
     MatInputModule,
     MatDialogModule,
     MatMenuModule,
+    MatPaginatorModule,
     MatTooltipModule,
     HashTruncatePipe,
     I18nPipe,
+    FitRowsDirective,
     PageHeaderComponent,
   ],
   template: `
@@ -115,7 +119,19 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
             <span>{{ 'no_contacts' | i18n }}</span>
           </div>
         } @else {
-          @for (contact of contacts(); track contact.id) {
+          <!-- Fit-derived pagination (same idiom as the transactions page):
+               the list flex-fills the card and FitRowsDirective measures how
+               many contact rows fit — that fit IS the page size, so there is
+               no items-per-page selector. -->
+          <div
+            class="contact-list"
+            appFitRows
+            [fitRowSelector]="'.contact-item'"
+            [fitMinRows]="3"
+            [fitFallbackRowPx]="56"
+            (fitRows)="onFitRows($event)"
+          >
+            @for (contact of visibleContacts(); track contact.id) {
             <div class="contact-item">
               <div class="contact-main" (click)="copyAddress(contact)">
                 <span class="contact-name">{{ contact.name }}</span>
@@ -148,6 +164,18 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
                 </button>
               </mat-menu>
             </div>
+            }
+          </div>
+
+          @if (contacts().length > pageSize()) {
+            <mat-paginator
+              [length]="contacts().length"
+              [pageSize]="pageSize()"
+              [pageIndex]="pageIndex()"
+              [hidePageSize]="true"
+              (page)="onPageChange($event)"
+              [showFirstLastButtons]="true"
+            ></mat-paginator>
           }
         }
       </div>
@@ -155,10 +183,22 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
   `,
   styles: [
     `
+      /* Fill the wallet-content column so the list card can flex into the
+         leftover viewport height (same fill idiom as the transactions page),
+         giving the contact list a measurable height for fit-based pagination. */
+      :host {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
       .page {
         padding: 16px;
         display: flex;
         flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
         gap: 16px;
         max-width: 480px;
         width: 100%;
@@ -179,8 +219,50 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         }
       }
 
+      /* Flex-fill: basis 0 so the card's height comes from the leftover
+         viewport space (never from its own rows); the min-height floor keeps
+         ~3 rows readable on tiny viewports (the page then scrolls slightly). */
       .list-card {
-        padding: 4px 0;
+        padding: 4px 0 0;
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 200px;
+        overflow: hidden;
+      }
+
+      /* The measured row viewport: exactly the space between card top and
+         paginator (basis 0: its height never depends on its own rows). */
+      .contact-list {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+      }
+
+      /* Compact paginator (the transactions-page pager, mobile-sized). */
+      mat-paginator {
+        border-radius: 0 0 8px 8px;
+        flex-shrink: 0;
+
+        ::ng-deep .mat-mdc-paginator-container {
+          min-height: 44px;
+          padding: 0 4px;
+          justify-content: center;
+        }
+
+        ::ng-deep .mat-mdc-paginator-range-label {
+          font-size: 11px;
+          margin: 0 6px;
+        }
+
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-first,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-previous,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-next,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-last {
+          width: 36px;
+          height: 36px;
+          padding: 6px;
+        }
       }
 
       .full-width {
@@ -314,6 +396,21 @@ export class WalletContactsComponent implements OnInit {
 
   readonly contacts = computed(() => this.store.forNetwork(this.wallet.network()));
 
+  // Fit-derived pagination (mirrors the transactions page): the page size is
+  // whatever FitRowsDirective measures fits the viewport (initial value only
+  // covers the first paint before the directive's measurement lands).
+  readonly pageSize = signal(8);
+  readonly pageIndex = signal(0);
+
+  /** The current page of contacts, clamped when the list shrinks. */
+  readonly visibleContacts = computed(() => {
+    const all = this.contacts();
+    const size = this.pageSize();
+    const maxPage = Math.max(0, Math.ceil(all.length / size) - 1);
+    const page = Math.min(this.pageIndex(), maxPage);
+    return all.slice(page * size, page * size + size);
+  });
+
   readonly formOpen = signal(false);
   readonly editing = signal<Contact | null>(null);
   readonly addressValid = signal(false);
@@ -442,6 +539,23 @@ export class WalletContactsComponent implements OnInit {
     void this.router.navigate(['/wallet/send'], {
       queryParams: { address: contact.address },
     });
+  }
+
+  /**
+   * New measured fit (rotation, resize, first measurement): adopt it as the
+   * page size and keep the user on the page containing the previously first
+   * visible contact instead of resetting to page 0.
+   */
+  onFitRows(fit: number): void {
+    const oldSize = this.pageSize();
+    if (fit === oldSize) return;
+    const firstVisibleIndex = this.pageIndex() * oldSize;
+    this.pageSize.set(fit);
+    this.pageIndex.set(Math.floor(firstVisibleIndex / fit));
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageIndex.set(event.pageIndex);
   }
 
   async copyAddress(contact: Contact): Promise<void> {
