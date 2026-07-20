@@ -20,8 +20,9 @@ import {
  * and emits it — once on attach and again whenever a ResizeObserver sees
  * the container resize (rotation, window resize, cards above growing).
  *
- * Used by the mobile wallet home (recent-transactions preview length) and
- * the transactions page (fit-derived mat-paginator pageSize).
+ * Used by the mobile wallet home (recent-transactions preview length), the
+ * transactions page and the coins/contacts lists (fit-derived mat-paginator
+ * pageSize).
  */
 @Directive({
   selector: '[appFitRows]',

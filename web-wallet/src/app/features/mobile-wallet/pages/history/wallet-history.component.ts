@@ -8,7 +8,7 @@ import { downloadTextFile } from '../../../../shared/utils/download';
 import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
-import { FitRowsDirective } from '../../fit-rows.directive';
+import { FitRowsDirective } from '../../../../shared/directives';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
 /**

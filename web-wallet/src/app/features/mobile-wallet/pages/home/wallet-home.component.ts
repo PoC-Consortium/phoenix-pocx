@@ -12,7 +12,7 @@ import { I18nPipe } from '../../../../core/i18n';
 import { BtcxPipe } from '../../../../shared/pipes';
 import { ContactsStoreService } from '../../../../shared/services';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
-import { FitRowsDirective } from '../../fit-rows.directive';
+import { FitRowsDirective } from '../../../../shared/directives';
 import {
   BtcxWalletService,
   BtcxChainInfo,
