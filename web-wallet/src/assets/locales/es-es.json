@@ -1231,7 +1231,7 @@
   "export_csv": "Exportar CSV",
   "label": "Etiqueta",
   "coins_title": "Detalles del balance",
-  "coins_intro": "Su billetera distribuye los fondos entre varias direcciones por privacidad — esto es normal. No se pierde nada; su balance es simplemente la suma de las monedas que aparecen abajo.",
+  "coins_intro": "Su billetera HD distribuye los fondos entre varias direcciones por privacidad. Estas direcciones están actualmente en uso y contienen fondos:",
   "coins_empty": "Aún no hay monedas. Los fondos recibidos aparecerán aquí, agrupados por dirección.",
   "coins_view_hint": "Vea sus monedas agrupadas por dirección",
   "coin_count": "{count} monedas",

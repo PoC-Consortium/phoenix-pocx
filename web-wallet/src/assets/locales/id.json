@@ -1231,7 +1231,7 @@
   "export_csv": "Ekspor CSV",
   "label": "Label",
   "coins_title": "Detail saldo",
-  "coins_intro": "Dompet Anda menyebarkan dana ke banyak alamat demi privasi — ini normal. Tidak ada yang hilang; saldo Anda hanyalah jumlah dari koin-koin di bawah ini.",
+  "coins_intro": "Dompet HD Anda menyebarkan dana ke beberapa alamat demi privasi. Alamat-alamat ini sedang digunakan dan menyimpan dana:",
   "coins_empty": "Belum ada koin. Dana yang diterima akan muncul di sini, dikelompokkan berdasarkan alamat.",
   "coins_view_hint": "Lihat koin Anda yang dikelompokkan berdasarkan alamat",
   "coin_count": "{count} koin",

@@ -1231,7 +1231,7 @@
   "export_csv": "Exporta CSV",
   "label": "Etiqueta",
   "coins_title": "Detalls del saldo",
-  "coins_intro": "La vostra cartera reparteix els fons entre moltes adreces per privadesa — això és normal. No es perd res; el vostre saldo és simplement la suma de les monedes de sota.",
+  "coins_intro": "La vostra cartera HD reparteix els fons entre diverses adreces per privadesa. Aquestes adreces estan actualment en ús i contenen fons:",
   "coins_empty": "Encara no hi ha monedes. Els fons rebuts apareixeran aquí, agrupats per adreça.",
   "coins_view_hint": "Visualitza les vostres monedes agrupades per adreça",
   "coin_count": "{count} monedes",

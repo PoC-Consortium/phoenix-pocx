@@ -1231,7 +1231,7 @@
   "export_csv": "Exportovat CSV",
   "label": "Popisek",
   "coins_title": "Podrobnosti zůstatku",
-  "coins_intro": "Vaše peněženka rozděluje prostředky mezi více adres kvůli soukromí — to je normální. Nic se neztrácí; váš zůstatek je jednoduše součet mincí níže.",
+  "coins_intro": "Vaše HD peněženka rozděluje prostředky mezi několik adres kvůli soukromí. Tyto adresy se aktuálně používají a obsahují prostředky:",
   "coins_empty": "Zatím žádné mince. Přijaté prostředky se zde zobrazí seskupené podle adresy.",
   "coins_view_hint": "Zobrazit mince seskupené podle adresy",
   "coin_count": "{count} mincí",

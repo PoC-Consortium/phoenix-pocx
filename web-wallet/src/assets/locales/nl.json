@@ -1231,7 +1231,7 @@
   "export_csv": "CSV Exporteren",
   "label": "Label",
   "coins_title": "Balansdetails",
-  "coins_intro": "Uw portemonnee verspreidt tegoeden over meerdere adressen voor privacy — dit is normaal. Er gaat niets verloren; uw balans is simpelweg de som van de munten hieronder.",
+  "coins_intro": "Uw HD-portemonnee verspreidt tegoeden over meerdere adressen voor privacy. Deze adressen zijn momenteel in gebruik en bevatten tegoeden:",
   "coins_empty": "Nog geen munten. Ontvangen tegoeden verschijnen hier, gegroepeerd per adres.",
   "coins_view_hint": "Bekijk uw munten gegroepeerd per adres",
   "coin_count": "{count} munten",

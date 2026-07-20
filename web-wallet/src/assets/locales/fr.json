@@ -1231,7 +1231,7 @@
   "export_csv": "Exporter CSV",
   "label": "Libellé",
   "coins_title": "Détails du solde",
-  "coins_intro": "Votre portefeuille répartit les fonds sur de nombreuses adresses pour préserver la confidentialité — c'est normal. Rien n'est perdu ; votre solde est simplement la somme des pièces ci-dessous.",
+  "coins_intro": "Votre portefeuille HD répartit les fonds sur plusieurs adresses pour préserver la confidentialité. Ces adresses sont actuellement utilisées et contiennent des fonds :",
   "coins_empty": "Aucune pièce pour l'instant. Les fonds reçus apparaîtront ici, regroupés par adresse.",
   "coins_view_hint": "Affichez vos pièces regroupées par adresse",
   "coin_count": "{count} pièce(s)",

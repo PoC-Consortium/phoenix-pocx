@@ -1231,7 +1231,7 @@
   "export_csv": "CSV exportieren",
   "label": "Bezeichnung",
   "coins_title": "Guthabendetails",
-  "coins_intro": "Dein Wallet verteilt Gelder zum Schutz deiner Privatsphäre auf viele Adressen — das ist normal. Nichts geht verloren; dein Guthaben ist einfach die Summe der Coins unten.",
+  "coins_intro": "Dein HD-Wallet verteilt Gelder zum Schutz deiner Privatsphäre auf mehrere Adressen. Diese Adressen sind derzeit in Verwendung und enthalten Gelder:",
   "coins_empty": "Noch keine Coins. Empfangene Gelder erscheinen hier, gruppiert nach Adresse.",
   "coins_view_hint": "Deine Coins gruppiert nach Adresse anzeigen",
   "coin_count": "{count} Coins",

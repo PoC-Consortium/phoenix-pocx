@@ -1231,7 +1231,7 @@
   "export_csv": "Exportar CSV",
   "label": "Rótulo",
   "coins_title": "Detalhes do saldo",
-  "coins_intro": "Sua carteira distribui os fundos entre vários endereços por privacidade — isso é normal. Nada é perdido; seu saldo é simplesmente a soma das moedas abaixo.",
+  "coins_intro": "Sua carteira HD distribui os fundos entre vários endereços por privacidade. Estes endereços estão em uso no momento e contêm fundos:",
   "coins_empty": "Ainda não há moedas. Os fundos recebidos aparecerão aqui, agrupados por endereço.",
   "coins_view_hint": "Veja suas moedas agrupadas por endereço",
   "coin_count": "{count} moedas",

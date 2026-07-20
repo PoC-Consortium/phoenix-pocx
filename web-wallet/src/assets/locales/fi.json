@@ -1231,7 +1231,7 @@
   "export_csv": "Vie CSV",
   "label": "Nimike",
   "coins_title": "Saldon erittely",
-  "coins_intro": "Lompakkosi jakaa varat useille osoitteille yksityisyyden vuoksi — tämä on normaalia. Mitään ei ole kadonnut; saldosi on yksinkertaisesti alla olevien kolikoiden summa.",
+  "coins_intro": "HD-lompakkosi jakaa varat useille osoitteille yksityisyyden vuoksi. Nämä osoitteet ovat parhaillaan käytössä ja sisältävät varoja:",
   "coins_empty": "Ei vielä kolikoita. Vastaanotetut varat näkyvät täällä osoitteen mukaan ryhmiteltyinä.",
   "coins_view_hint": "Näytä kolikkosi osoitteen mukaan ryhmiteltyinä",
   "coin_count": "{count} kolikkoa",
