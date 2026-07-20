@@ -130,38 +130,38 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
             (fitRows)="onFitRows($event)"
           >
             @for (contact of visibleContacts(); track contact.id) {
-            <div class="contact-item">
-              <div class="contact-main">
-                <span class="contact-name">{{ contact.name }}</span>
-                <span class="contact-address mono">
-                  {{ contact.address }}
-                </span>
-                @if (contact.notes) {
-                  <span class="contact-notes">{{ contact.notes }}</span>
-                }
+              <div class="contact-item">
+                <div class="contact-main">
+                  <span class="contact-name">{{ contact.name }}</span>
+                  <span class="contact-address mono">
+                    {{ contact.address }}
+                  </span>
+                  @if (contact.notes) {
+                    <span class="contact-notes">{{ contact.notes }}</span>
+                  }
+                </div>
+                <button mat-icon-button class="row-menu-button" [matMenuTriggerFor]="contactMenu">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                <mat-menu #contactMenu="matMenu">
+                  <button mat-menu-item (click)="sendTo(contact)">
+                    <mat-icon>send</mat-icon>
+                    <span>{{ 'send_to_contact' | i18n }}</span>
+                  </button>
+                  <button mat-menu-item (click)="copyAddress(contact)">
+                    <mat-icon>content_copy</mat-icon>
+                    <span>{{ 'copy_address' | i18n }}</span>
+                  </button>
+                  <button mat-menu-item (click)="startEdit(contact)">
+                    <mat-icon>edit</mat-icon>
+                    <span>{{ 'edit' | i18n }}</span>
+                  </button>
+                  <button mat-menu-item (click)="deleteContact(contact)">
+                    <mat-icon>delete</mat-icon>
+                    <span>{{ 'delete' | i18n }}</span>
+                  </button>
+                </mat-menu>
               </div>
-              <button mat-icon-button class="row-menu-button" [matMenuTriggerFor]="contactMenu">
-                <mat-icon>more_vert</mat-icon>
-              </button>
-              <mat-menu #contactMenu="matMenu">
-                <button mat-menu-item (click)="sendTo(contact)">
-                  <mat-icon>send</mat-icon>
-                  <span>{{ 'send_to_contact' | i18n }}</span>
-                </button>
-                <button mat-menu-item (click)="copyAddress(contact)">
-                  <mat-icon>content_copy</mat-icon>
-                  <span>{{ 'copy_address' | i18n }}</span>
-                </button>
-                <button mat-menu-item (click)="startEdit(contact)">
-                  <mat-icon>edit</mat-icon>
-                  <span>{{ 'edit' | i18n }}</span>
-                </button>
-                <button mat-menu-item (click)="deleteContact(contact)">
-                  <mat-icon>delete</mat-icon>
-                  <span>{{ 'delete' | i18n }}</span>
-                </button>
-              </mat-menu>
-            </div>
             }
           </div>
 

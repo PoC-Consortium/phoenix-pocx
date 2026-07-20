@@ -714,77 +714,76 @@ pub fn run() {
         builder = builder.manage(btcx_wallet_state);
     }
 
-    builder = builder
-        .setup(|app| {
-            // Set app handle for TauriEventAppender (log forwarding to frontend)
-            logging::set_app_handle(app.handle().clone());
+    builder = builder.setup(|app| {
+        // Set app handle for TauriEventAppender (log forwarding to frontend)
+        logging::set_app_handle(app.handle().clone());
 
-            // Create and set application menu (desktop only - no menu on mobile)
-            #[cfg(not(target_os = "android"))]
-            {
-                let menu = create_menu(app)?;
-                app.set_menu(menu)?;
-            }
+        // Create and set application menu (desktop only - no menu on mobile)
+        #[cfg(not(target_os = "android"))]
+        {
+            let menu = create_menu(app)?;
+            app.set_menu(menu)?;
+        }
 
-            // Register miner + aggregator callbacks (mining build flavor only)
-            #[cfg(feature = "mining")]
-            {
-                // Register miner callback for mining events (with state for deadline persistence)
-                let state = app
-                    .state::<mining::state::SharedMiningState>()
-                    .inner()
-                    .clone();
-                mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
+        // Register miner + aggregator callbacks (mining build flavor only)
+        #[cfg(feature = "mining")]
+        {
+            // Register miner callback for mining events (with state for deadline persistence)
+            let state = app
+                .state::<mining::state::SharedMiningState>()
+                .inner()
+                .clone();
+            mining::callback::TauriMinerCallback::register(app.handle().clone(), state);
 
-                // Register aggregator callback (OnceLock - must be done once at startup)
-                let agg_state = app
-                    .state::<aggregator::state::SharedAggregatorState>()
-                    .inner()
-                    .clone();
-                aggregator::callback::TauriAggregatorCallback::register(
-                    app.handle().clone(),
-                    agg_state,
-                );
-            }
+            // Register aggregator callback (OnceLock - must be done once at startup)
+            let agg_state = app
+                .state::<aggregator::state::SharedAggregatorState>()
+                .inner()
+                .clone();
+            aggregator::callback::TauriAggregatorCallback::register(
+                app.handle().clone(),
+                agg_state,
+            );
+        }
 
-            // Resume the nodeless BTCX wallet if it was set up (off the main
-            // thread — opening dials nothing, but sqlite + seed I/O should
-            // never delay startup; failures only log). Wallet flavor only.
-            #[cfg(feature = "wallet")]
-            {
-                let state = app
-                    .state::<btcx_wallet::SharedBtcxWalletState>()
-                    .inner()
-                    .clone();
-                let handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    if state.get_config().active {
-                        if let Err(e) = state.open_runtime(Some(handle)) {
-                            log::warn!("btcx wallet: resume failed: {}", e);
-                        }
-                        // Fill in compartments a pre-redesign group is
-                        // still missing (silent for locked seeds).
-                        if let Err(e) =
-                            btcx_wallet::commands::materialize_group_compartments(&state, &[])
-                        {
-                            log::warn!("btcx wallet: compartment materialization failed: {e}");
-                        }
+        // Resume the nodeless BTCX wallet if it was set up (off the main
+        // thread — opening dials nothing, but sqlite + seed I/O should
+        // never delay startup; failures only log). Wallet flavor only.
+        #[cfg(feature = "wallet")]
+        {
+            let state = app
+                .state::<btcx_wallet::SharedBtcxWalletState>()
+                .inner()
+                .clone();
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                if state.get_config().active {
+                    if let Err(e) = state.open_runtime(Some(handle)) {
+                        log::warn!("btcx wallet: resume failed: {}", e);
                     }
-                });
-            }
-
-            // Set window title based on launch mode (desktop only)
-            #[cfg(not(target_os = "android"))]
-            {
-                if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.set_title("Phoenix PoCX Miner");
+                    // Fill in compartments a pre-redesign group is
+                    // still missing (silent for locked seeds).
+                    if let Err(e) =
+                        btcx_wallet::commands::materialize_group_compartments(&state, &[])
+                    {
+                        log::warn!("btcx wallet: compartment materialization failed: {e}");
                     }
                 }
-            }
+            });
+        }
 
-            Ok(())
-        });
+        // Set window title based on launch mode (desktop only)
+        #[cfg(not(target_os = "android"))]
+        {
+            if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_title("Phoenix PoCX Miner");
+                }
+            }
+        }
+
+        Ok(())
+    });
 
     // Menu events (desktop only - no menu on mobile)
     #[cfg(not(target_os = "android"))]

@@ -52,7 +52,11 @@ async fn query_ntp(server: &'static str) -> Result<NtpSample, String> {
 /// matched to `addr`: an IPv4-bound socket cannot connect to an IPv6
 /// address (WSAEAFNOSUPPORT on Windows) and vice versa.
 async fn query_ntp_addr(server: &'static str, addr: SocketAddr) -> Result<NtpSample, String> {
-    let bind_addr = if addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" };
+    let bind_addr = if addr.is_ipv6() {
+        "[::]:0"
+    } else {
+        "0.0.0.0:0"
+    };
     let socket = UdpSocket::bind(bind_addr)
         .await
         .map_err(|e| format!("bind: {}", e))?;
