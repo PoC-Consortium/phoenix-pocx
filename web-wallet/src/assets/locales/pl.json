@@ -1231,7 +1231,7 @@
   "export_csv": "Eksportuj CSV",
   "label": "Etykieta",
   "coins_title": "Szczegóły salda",
-  "coins_intro": "Twój portfel rozprasza środki na wiele adresów dla zachowania prywatności — to normalne. Nic nie ginie; Twoje saldo jest po prostu sumą monet widocznych poniżej.",
+  "coins_intro": "Twój portfel HD rozprasza środki na kilka adresów dla zachowania prywatności. Te adresy są obecnie w użyciu i przechowują środki:",
   "coins_empty": "Brak monet. Otrzymane środki pojawią się tutaj, pogrupowane według adresu.",
   "coins_view_hint": "Zobacz swoje monety pogrupowane według adresu",
   "coin_count": "{count} monet",

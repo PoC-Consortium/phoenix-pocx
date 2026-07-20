@@ -12,7 +12,7 @@ import { I18nPipe } from '../../../../core/i18n';
 import { BtcxPipe } from '../../../../shared/pipes';
 import { ContactsStoreService } from '../../../../shared/services';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
-import { FitRowsDirective } from '../../fit-rows.directive';
+import { FitRowsDirective } from '../../../../shared/directives';
 import {
   BtcxWalletService,
   BtcxChainInfo,
@@ -210,7 +210,7 @@ import {
             routerLink="/wallet/send"
             [disabled]="!wallet.walletActive()"
           >
-            <mat-icon>arrow_upward</mat-icon>
+            <mat-icon>send</mat-icon>
             {{ 'send' | i18n }}
           </button>
           <button
@@ -218,7 +218,7 @@ import {
             routerLink="/wallet/receive"
             [disabled]="!wallet.walletActive()"
           >
-            <mat-icon>arrow_downward</mat-icon>
+            <mat-icon>call_received</mat-icon>
             {{ 'receive' | i18n }}
           </button>
         </div>

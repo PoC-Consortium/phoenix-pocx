@@ -48,12 +48,23 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
   `,
   styles: [
     `
+      /* Fill the wallet-content column so the card can flex into the leftover
+         viewport height (same fill idiom as the transactions page), giving the
+         coins list a measurable height for fit-based pagination. */
       :host {
-        display: block;
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
       }
 
       .page {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
         max-width: 480px;
+        width: 100%;
         margin: 0 auto;
         padding: 16px;
         box-sizing: border-box;
@@ -64,6 +75,11 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         border-radius: 12px;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
         padding: 16px;
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
       }
 
       .spinning {

@@ -5,10 +5,10 @@ import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { downloadTextFile } from '../../../../shared/utils/download';
-import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
+import { ContactsStoreService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
 import { TxRowComponent } from '../../components/tx-row/tx-row.component';
-import { FitRowsDirective } from '../../fit-rows.directive';
+import { FitRowsDirective } from '../../../../shared/directives';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 
 /**
@@ -28,10 +28,9 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
  * crosses IPC, the paginator length comes from `transactionsTotal`, and
  * sync ticks re-request the same current page through the service's
  * remembered window. Refresh pokes the background sync worker (sync_now)
- * and re-reads the current page. Tapping an item expands a simple detail:
- * txid with copy, address, fee, vsize (the list scrolls the few
- * overflowing pixels while a detail is open) — all from data already in
- * the row.
+ * and re-reads the current page. Tapping an item just selects it (a
+ * visual highlight, no expand/detail) — copy/send/add-contact live in the
+ * row's own action menu.
  */
 @Component({
   selector: 'app-wallet-history',
@@ -77,50 +76,17 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
           <div
             class="tx-list"
             appFitRows
-            [fitRowSelector]="'.tx-item:not(:has(.tx-detail))'"
+            [fitRowSelector]="'.tx-item'"
             [fitMinRows]="3"
             (fitRows)="onFitRows($event)"
           >
             @for (tx of visibleTransactions(); track tx.txid) {
-              <div class="tx-item" (click)="toggleDetail(tx)">
+              <div
+                class="tx-item"
+                [class.selected]="selectedTxid() === tx.txid"
+                (click)="selectTx(tx)"
+              >
                 <app-mwallet-tx-row [tx]="tx" />
-
-                @if (expandedTxid() === tx.txid) {
-                  <div class="tx-detail">
-                    <div class="detail-line">
-                      <span class="detail-label">{{ 'transaction_id' | i18n }}</span>
-                      <div
-                        class="detail-value copyable"
-                        (click)="copyTxid(tx.txid); $event.stopPropagation()"
-                        [matTooltip]="'copy' | i18n"
-                      >
-                        <span class="mono">{{ tx.txid }}</span>
-                        <mat-icon class="copy-icon">content_copy</mat-icon>
-                      </div>
-                    </div>
-                    @if (tx.address) {
-                      <div class="detail-line">
-                        <span class="detail-label">{{ 'address' | i18n }}</span>
-                        <div
-                          class="detail-value copyable"
-                          (click)="copyAddress(tx.address); $event.stopPropagation()"
-                          [matTooltip]="'copy' | i18n"
-                        >
-                          <span class="mono">{{ tx.address }}</span>
-                          <mat-icon class="copy-icon">content_copy</mat-icon>
-                        </div>
-                      </div>
-                    }
-                    @if (tx.feeSat !== null) {
-                      <div class="detail-line">
-                        <span class="detail-label">{{ 'fee' | i18n }}</span>
-                        <span class="detail-value mono"
-                          >{{ tx.feeSat }} sat ({{ tx.vsize }} vB)</span
-                        >
-                      </div>
-                    }
-                  </div>
-                }
               </div>
             }
           </div>
@@ -198,8 +164,7 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
 
       /* The measured row viewport: exactly the space between card top and
          paginator (basis 0: its height never depends on its own rows).
-         Steady-state the fit-sized page never scrolls; an expanded detail
-         scrolls its extra height here. */
+         The fit-sized page never scrolls. */
       .tx-list {
         flex: 1 1 0;
         min-height: 0;
@@ -230,6 +195,11 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         cursor: pointer;
 
         border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+
+        /* Visual selection only (no expand/detail behind it). */
+        &.selected {
+          background: rgba(30, 58, 95, 0.08);
+        }
       }
 
       /* Compact paginator (the desktop transaction-list pager, mobile-sized). */
@@ -258,50 +228,6 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
         }
       }
 
-      .tx-detail {
-        margin-top: 8px;
-        padding: 8px 8px 4px 32px;
-        border-top: 1px dashed rgba(0, 0, 0, 0.08);
-      }
-
-      .detail-line {
-        margin-bottom: 8px;
-
-        .detail-label {
-          display: block;
-          font-size: 10px;
-          font-weight: 600;
-          color: #888;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 2px;
-        }
-
-        .detail-value {
-          font-size: 12px;
-
-          &.copyable {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-
-            .copy-icon {
-              font-size: 16px;
-              width: 16px;
-              height: 16px;
-              color: #1976d2;
-              flex-shrink: 0;
-            }
-          }
-        }
-
-        .mono {
-          font-family: monospace;
-          word-break: break-all;
-        }
-      }
-
       .mono {
         font-family: monospace;
       }
@@ -317,10 +243,10 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
 
         .tx-item {
           border-bottom-color: rgba(255, 255, 255, 0.08);
-        }
 
-        .tx-detail {
-          border-top-color: rgba(255, 255, 255, 0.12);
+          &.selected {
+            background: rgba(255, 255, 255, 0.06);
+          }
         }
       }
     `,
@@ -328,13 +254,12 @@ import { PageHeaderComponent } from '../../components/page-header/page-header.co
 })
 export class WalletHistoryComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
-  private readonly clipboard = inject(ClipboardService);
   private readonly contactsStore = inject(ContactsStoreService);
   private readonly i18n = inject(I18nService);
 
   readonly refreshing = signal(false);
   readonly exporting = signal(false);
-  readonly expandedTxid = signal<string | null>(null);
+  readonly selectedTxid = signal<string | null>(null);
 
   // Fit-derived pagination: the page size is whatever FitRowsDirective
   // measures (initial value only covers the first paint before AfterViewInit).
@@ -452,18 +377,11 @@ export class WalletHistoryComponent implements OnInit {
 
   onPageChange(event: PageEvent): void {
     void this.loadPage(event.pageIndex);
-    this.expandedTxid.set(null);
+    this.selectedTxid.set(null);
   }
 
-  toggleDetail(tx: BtcxWalletTx): void {
-    this.expandedTxid.set(this.expandedTxid() === tx.txid ? null : tx.txid);
-  }
-
-  async copyTxid(txid: string): Promise<void> {
-    await this.clipboard.copyTxid(txid);
-  }
-
-  async copyAddress(address: string): Promise<void> {
-    await this.clipboard.copyAddress(address);
+  selectTx(tx: BtcxWalletTx): void {
+    // Visual selection only — no expand/detail behind it.
+    this.selectedTxid.set(this.selectedTxid() === tx.txid ? null : tx.txid);
   }
 }

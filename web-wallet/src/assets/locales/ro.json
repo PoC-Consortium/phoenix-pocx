@@ -1231,7 +1231,7 @@
   "export_csv": "Exportă CSV",
   "label": "Etichetă",
   "coins_title": "Detalii sold",
-  "coins_intro": "Portofelul dvs. distribuie fondurile pe mai multe adrese pentru confidențialitate — acest lucru este normal. Nimic nu se pierde; soldul dvs. este pur și simplu suma monedelor de mai jos.",
+  "coins_intro": "Portofelul dvs. HD distribuie fondurile pe mai multe adrese pentru confidențialitate. Aceste adrese sunt utilizate în prezent și conțin fonduri:",
   "coins_empty": "Încă nu există monede. Fondurile primite vor apărea aici, grupate pe adresă.",
   "coins_view_hint": "Vizualizează-ți monedele grupate pe adresă",
   "coin_count": "{count} monede",

@@ -1231,7 +1231,7 @@
   "export_csv": "Izvezi CSV",
   "label": "Oznaka",
   "coins_title": "Detalji stanja",
-  "coins_intro": "Vaš novčanik radi privatnosti raspoređuje sredstva na više adresa — to je normalno. Ništa nije izgubljeno; vaše stanje jednostavno je zbroj kovanica ispod.",
+  "coins_intro": "Vaš HD novčanik radi privatnosti raspoređuje sredstva na nekoliko adresa. Ove se adrese trenutačno koriste i sadrže sredstva:",
   "coins_empty": "Još nema kovanica. Primljena sredstva pojavit će se ovdje, grupirana po adresi.",
   "coins_view_hint": "Pregledaj svoje kovanice grupirane po adresi",
   "coin_count": "{count} kovanica",

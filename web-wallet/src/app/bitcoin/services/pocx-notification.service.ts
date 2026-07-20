@@ -101,28 +101,34 @@ export class PocxNotificationService implements OnDestroy {
   /**
    * Notify about node connection
    */
-  notifyNodeConnected(): void {
+  notifyNodeConnected(remote = false): void {
     const settings = this.notificationSettings();
     if (!this.notificationsEnabled() || !settings?.nodeConnected) {
       return;
     }
+    // Refer to whichever transport is actually in use: Electrum in remote
+    // (nodeless) mode, Bitcoin Core otherwise — never "Core" on a nodeless
+    // wallet. All keys used here are already translated.
     this.showNotification(
-      this.i18n.get('notification_node_connected_title'),
-      this.i18n.get('notification_node_connected')
+      this.i18n.get(remote ? 'connected' : 'notification_node_connected_title'),
+      this.i18n.get(remote ? 'electrum_status_healthy' : 'notification_node_connected')
     );
   }
 
   /**
    * Notify about node disconnection
    */
-  notifyNodeDisconnected(): void {
+  notifyNodeDisconnected(remote = false): void {
     const settings = this.notificationSettings();
     if (!this.notificationsEnabled() || !settings?.nodeDisconnected) {
       return;
     }
+    // Transport-aware wording (see notifyNodeConnected): Electrum in remote
+    // mode, Bitcoin Core otherwise. Fixes the spurious "Lost connection to
+    // Bitcoin Core" on nodeless/mobile wallets, which have no Core node.
     this.showNotification(
-      this.i18n.get('notification_node_disconnected_title'),
-      this.i18n.get('notification_node_disconnected')
+      this.i18n.get(remote ? 'disconnected' : 'notification_node_disconnected_title'),
+      this.i18n.get(remote ? 'electrum_status_down' : 'notification_node_disconnected')
     );
   }
 

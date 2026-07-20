@@ -5,6 +5,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { I18nPipe } from '../../../core/i18n';
 import { BtcxPipe } from '../../pipes';
+import { FitRowsDirective } from '../../directives';
 import { WalletCoin } from '../../../core/backend/wallet-backend.model';
 import { AddressDisplayComponent } from '../address-display/address-display.component';
 import { EmptyStateComponent } from '../empty-state/empty-state.component';
@@ -69,6 +70,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
   selector: 'app-address-coins-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '[class.compact]': 'compact()' },
   imports: [
     MatIconModule,
     MatProgressSpinnerModule,
@@ -76,6 +78,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
     MatPaginatorModule,
     I18nPipe,
     BtcxPipe,
+    FitRowsDirective,
     AddressDisplayComponent,
     EmptyStateComponent,
   ],
@@ -89,7 +92,18 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
     } @else if (rows().length === 0) {
       <app-empty-state icon="account_balance_wallet" [message]="'coins_empty' | i18n" />
     } @else if (compact()) {
-      <div class="coins-cards">
+      <!-- Mobile: fit-derived pagination (same idiom as the transactions
+           page). The cards container flex-fills the card and FitRowsDirective
+           measures how many .coin-card rows fit without scrolling — that fit
+           IS the page size, so there is no items-per-page selector. -->
+      <div
+        class="coins-cards"
+        appFitRows
+        [fitRowSelector]="'.coin-card'"
+        [fitMinRows]="3"
+        [fitFallbackRowPx]="82"
+        (fitRows)="onFitRows($event)"
+      >
         @for (row of pagedRows(); track row.address) {
           <div class="coin-card">
             <app-address-display [address]="row.address" [showCopyButton]="true" [inline]="false" />
@@ -106,12 +120,12 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         }
       </div>
 
-      @if (rows().length > pageSizeOptions[0]) {
+      @if (rows().length > compactPageSize()) {
         <mat-paginator
           [length]="rows().length"
-          [pageSize]="pageSize()"
+          [pageSize]="compactPageSize()"
           [pageIndex]="pageIndex()"
-          [pageSizeOptions]="pageSizeOptions"
+          [hidePageSize]="true"
           (page)="onPageChange($event)"
           [showFirstLastButtons]="true"
         ></mat-paginator>
@@ -168,6 +182,15 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
     `
       :host {
         display: block;
+      }
+
+      /* Compact (mobile) layout flex-fills its bounded parent so the cards
+         viewport height is viewport-derived (see .coins-cards below). */
+      :host.compact {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
       }
 
       .coins-intro {
@@ -277,6 +300,42 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         gap: 8px;
       }
 
+      /* The measured row viewport: basis 0 so its height comes from the
+         leftover space between the intro and the paginator (never from its
+         own cards). Steady-state the fit-sized page never scrolls; the few
+         overflowing pixels (inter-card gaps) scroll here. */
+      :host.compact .coins-cards {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
+      }
+
+      /* Compact paginator (the transactions-page pager, mobile-sized). */
+      :host.compact mat-paginator {
+        margin-top: 0;
+        flex-shrink: 0;
+
+        ::ng-deep .mat-mdc-paginator-container {
+          min-height: 44px;
+          padding: 0 4px;
+          justify-content: center;
+        }
+
+        ::ng-deep .mat-mdc-paginator-range-label {
+          font-size: 11px;
+          margin: 0 6px;
+        }
+
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-first,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-previous,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-next,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-last {
+          width: 36px;
+          height: 36px;
+          padding: 6px;
+        }
+      }
+
       .coin-card {
         border: 1px solid rgba(0, 0, 0, 0.08);
         border-radius: 8px;
@@ -350,21 +409,47 @@ export class AddressCoinsListComponent {
    */
   readonly compact = input(false);
 
+  // Desktop (non-compact) pagination: a user-chosen size from the selector.
   readonly pageSize = signal(10);
   readonly pageIndex = signal(0);
   readonly pageSizeOptions = [10, 25, 50];
 
+  // Compact (mobile) pagination: the page size is whatever FitRowsDirective
+  // measures fits the viewport (initial value only covers the first paint
+  // before the directive's AfterViewInit measurement lands).
+  readonly compactPageSize = signal(6);
+
+  /** The effective page size for the active layout. */
+  private readonly effectivePageSize = computed(() =>
+    this.compact() ? this.compactPageSize() : this.pageSize()
+  );
+
   /** The current page of rows (transactions-style pagination). */
   readonly pagedRows = computed(() => {
     const all = this.rows();
-    const size = this.pageSize();
+    const size = this.effectivePageSize();
     const maxPage = Math.max(0, Math.ceil(all.length / size) - 1);
     const page = Math.min(this.pageIndex(), maxPage);
     return all.slice(page * size, page * size + size);
   });
 
+  /**
+   * New measured fit (rotation, resize, first measurement): adopt it as the
+   * compact page size and keep the user on the page containing the previously
+   * first visible row instead of resetting to page 0.
+   */
+  onFitRows(fit: number): void {
+    const oldSize = this.compactPageSize();
+    if (fit === oldSize) return;
+    const firstVisibleIndex = this.pageIndex() * oldSize;
+    this.compactPageSize.set(fit);
+    this.pageIndex.set(Math.floor(firstVisibleIndex / fit));
+  }
+
   onPageChange(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
+    // Only the desktop selector changes the page size; the compact pager
+    // hides the selector and its size is the measured fit.
+    if (!this.compact()) this.pageSize.set(event.pageSize);
   }
 }

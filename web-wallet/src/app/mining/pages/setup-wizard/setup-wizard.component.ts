@@ -485,79 +485,79 @@ interface ChainModalData {
                    backend, so this option is hidden and the custom (external)
                    payout address below is the sole choice. -->
               @if (appMode.hasWalletBackend()) {
-              <label class="radio-option" [class.disabled]="useWalletAddressDisabled()">
-                <input
-                  type="radio"
-                  name="addressMode"
-                  [checked]="!useCustomAddress()"
-                  (change)="selectWalletAddressMode()"
-                  [disabled]="useWalletAddressDisabled()"
-                />
-                <div class="radio-label">
-                  <div class="radio-label-main">{{ 'setup_use_wallet_address' | i18n }}</div>
-                  @if (!appMode.isMobileMode()) {
-                    <div class="radio-label-sub address-full">
-                      {{ walletAddress() || ('setup_no_wallet_connected' | i18n) }}
-                    </div>
-                  } @else if (btcxWallet.walletActive() && walletNotSegwit()) {
-                    <!-- Mobile: non-segwit wallet - cannot provide a mining address -->
-                    <div class="radio-label-sub">{{ walletGateHintKey() | i18n }}</div>
-                  } @else if (btcxWallet.walletActive()) {
-                    <!-- Mobile: address handed out by the nodeless BTCX wallet -->
-                    <div class="radio-label-sub address-full">
-                      {{
-                        walletAddress() ||
-                          (walletAddressLoading()
-                            ? ('setup_wallet_address_loading' | i18n)
-                            : ('setup_no_wallet_connected' | i18n))
-                      }}
-                    </div>
-                  } @else if (btcxWallet.seedState() === 'locked') {
-                    <!-- Mobile: wallet exists but is locked - inline unlock -->
-                    <div class="radio-label-sub">{{ 'setup_wallet_locked_hint' | i18n }}</div>
-                    <div class="wallet-inline-row">
-                      <input
-                        type="password"
-                        class="input-field unlock-input"
-                        [ngModel]="walletUnlockPassphrase()"
-                        (ngModelChange)="walletUnlockPassphrase.set($event)"
-                        (keyup.enter)="unlockMobileWallet()"
-                        [placeholder]="'mwallet_passphrase_label' | i18n"
-                      />
-                      <button
-                        class="btn btn-secondary btn-sm"
-                        (click)="unlockMobileWallet()"
-                        [disabled]="!walletUnlockPassphrase() || walletUnlocking()"
-                      >
-                        {{ 'unlock' | i18n }}
-                      </button>
-                    </div>
-                    @if (walletUnlockError()) {
-                      <div class="radio-label-sub unlock-error">
-                        {{ 'mwallet_unlock_failed' | i18n }}
+                <label class="radio-option" [class.disabled]="useWalletAddressDisabled()">
+                  <input
+                    type="radio"
+                    name="addressMode"
+                    [checked]="!useCustomAddress()"
+                    (change)="selectWalletAddressMode()"
+                    [disabled]="useWalletAddressDisabled()"
+                  />
+                  <div class="radio-label">
+                    <div class="radio-label-main">{{ 'setup_use_wallet_address' | i18n }}</div>
+                    @if (!appMode.isMobileMode()) {
+                      <div class="radio-label-sub address-full">
+                        {{ walletAddress() || ('setup_no_wallet_connected' | i18n) }}
+                      </div>
+                    } @else if (btcxWallet.walletActive() && walletNotSegwit()) {
+                      <!-- Mobile: non-segwit wallet - cannot provide a mining address -->
+                      <div class="radio-label-sub">{{ walletGateHintKey() | i18n }}</div>
+                    } @else if (btcxWallet.walletActive()) {
+                      <!-- Mobile: address handed out by the nodeless BTCX wallet -->
+                      <div class="radio-label-sub address-full">
+                        {{
+                          walletAddress() ||
+                            (walletAddressLoading()
+                              ? ('setup_wallet_address_loading' | i18n)
+                              : ('setup_no_wallet_connected' | i18n))
+                        }}
+                      </div>
+                    } @else if (btcxWallet.seedState() === 'locked') {
+                      <!-- Mobile: wallet exists but is locked - inline unlock -->
+                      <div class="radio-label-sub">{{ 'setup_wallet_locked_hint' | i18n }}</div>
+                      <div class="wallet-inline-row">
+                        <input
+                          type="password"
+                          class="input-field unlock-input"
+                          [ngModel]="walletUnlockPassphrase()"
+                          (ngModelChange)="walletUnlockPassphrase.set($event)"
+                          (keyup.enter)="unlockMobileWallet()"
+                          [placeholder]="'mwallet_passphrase_label' | i18n"
+                        />
+                        <button
+                          class="btn btn-secondary btn-sm"
+                          (click)="unlockMobileWallet()"
+                          [disabled]="!walletUnlockPassphrase() || walletUnlocking()"
+                        >
+                          {{ 'unlock' | i18n }}
+                        </button>
+                      </div>
+                      @if (walletUnlockError()) {
+                        <div class="radio-label-sub unlock-error">
+                          {{ 'mwallet_unlock_failed' | i18n }}
+                        </div>
+                      }
+                    } @else {
+                      <!-- Mobile: no wallet yet - suggest creating one -->
+                      <div class="radio-label-sub">{{ 'setup_no_mobile_wallet_hint' | i18n }}</div>
+                      @if (isFirstRun()) {
+                        <div class="radio-label-sub wallet-recommended">
+                          {{ 'setup_wallet_recommended' | i18n }}
+                        </div>
+                      }
+                      <div class="wallet-inline-row">
+                        <button
+                          class="btn btn-sm"
+                          [class.btn-primary]="isFirstRun()"
+                          [class.btn-secondary]="!isFirstRun()"
+                          (click)="goToCreateWallet()"
+                        >
+                          {{ 'setup_create_wallet' | i18n }}
+                        </button>
                       </div>
                     }
-                  } @else {
-                    <!-- Mobile: no wallet yet - suggest creating one -->
-                    <div class="radio-label-sub">{{ 'setup_no_mobile_wallet_hint' | i18n }}</div>
-                    @if (isFirstRun()) {
-                      <div class="radio-label-sub wallet-recommended">
-                        {{ 'setup_wallet_recommended' | i18n }}
-                      </div>
-                    }
-                    <div class="wallet-inline-row">
-                      <button
-                        class="btn btn-sm"
-                        [class.btn-primary]="isFirstRun()"
-                        [class.btn-secondary]="!isFirstRun()"
-                        (click)="goToCreateWallet()"
-                      >
-                        {{ 'setup_create_wallet' | i18n }}
-                      </button>
-                    </div>
-                  }
-                </div>
-              </label>
+                  </div>
+                </label>
               }
               <label class="radio-option">
                 <input

@@ -296,8 +296,8 @@ pub fn restore_wallet_impl(
     let config = state.get_config();
     let network = config.network;
     let name = resolve_new_wallet_name(&config, network, name)?;
-    let seed =
-        WalletSeed::from_mnemonic(mnemonic.trim(), bip39_passphrase).map_err(|e| format!("{e:#}"))?;
+    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), bip39_passphrase)
+        .map_err(|e| format!("{e:#}"))?;
     // F3: verify the server serves the right, UNPRUNED chain before probing.
     // A pruned server hides older history, so a real seed would probe as
     // "fresh" — verified_probe_chain fails hard (or falls over) instead.
@@ -645,8 +645,8 @@ fn register_sibling_wallet(
             },
         );
     })?;
-    let seed =
-        WalletSeed::from_mnemonic(mnemonic.trim(), bip39_passphrase).map_err(|e| format!("{e:#}"))?;
+    let seed = WalletSeed::from_mnemonic(mnemonic.trim(), bip39_passphrase)
+        .map_err(|e| format!("{e:#}"))?;
     let handle = manager::open_wallet(
         &BtcxWalletConfig::wallet_db_path_for(network, name),
         network.params(),
@@ -2709,7 +2709,16 @@ mod tests {
 
         // One create = one GROUP: the SegWit primary plus its materialized
         // Taproot sibling (Phase 2), same mnemonic, no runtime churn.
-        create_wallet_impl(&state, None, MNEMONIC_24, None, "", Some("acct".into()), None).unwrap();
+        create_wallet_impl(
+            &state,
+            None,
+            MNEMONIC_24,
+            None,
+            "",
+            Some("acct".into()),
+            None,
+        )
+        .unwrap();
 
         let groups = list_grouped_impl(&state).unwrap();
         assert_eq!(groups.len(), 1);
@@ -2919,7 +2928,8 @@ mod tests {
             (WalletNetwork::Regtest, 1u32),
         ] {
             let state = offline_state(network);
-            create_wallet_impl(&state, None, MNEMONIC_24, None, "", Some("w".into()), None).unwrap();
+            create_wallet_impl(&state, None, MNEMONIC_24, None, "", Some("w".into()), None)
+                .unwrap();
             assert_eq!(
                 state.get_config().policy().coin_type,
                 expected,

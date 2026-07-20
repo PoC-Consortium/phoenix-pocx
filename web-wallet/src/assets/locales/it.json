@@ -1231,7 +1231,7 @@
   "export_csv": "Esporta CSV",
   "label": "Etichetta",
   "coins_title": "Dettagli saldo",
-  "coins_intro": "Il tuo portafoglio distribuisce i fondi su molti indirizzi per la privacy — è normale. Non si perde nulla; il tuo saldo è semplicemente la somma delle monete qui sotto.",
+  "coins_intro": "Il tuo portafoglio HD distribuisce i fondi su più indirizzi per la privacy. Questi indirizzi sono attualmente in uso e contengono fondi:",
   "coins_empty": "Ancora nessuna moneta. I fondi ricevuti appariranno qui, raggruppati per indirizzo.",
   "coins_view_hint": "Visualizza le tue monete raggruppate per indirizzo",
   "coin_count": "{count} monete",

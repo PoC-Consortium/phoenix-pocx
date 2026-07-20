@@ -1231,7 +1231,7 @@
   "export_csv": "Eksportuoti CSV",
   "label": "Etiketė",
   "coins_title": "Balanso informacija",
-  "coins_intro": "Jūsų piniginė dėl privatumo paskirsto lėšas po daugybę adresų — tai normalu. Niekas nedingsta; jūsų balansas tiesiog yra žemiau esančių monetų suma.",
+  "coins_intro": "Jūsų HD piniginė dėl privatumo paskirsto lėšas keliems adresams. Šie adresai šiuo metu naudojami ir juose yra lėšų:",
   "coins_empty": "Kol kas monetų nėra. Gautos lėšos atsiras čia, sugrupuotos pagal adresą.",
   "coins_view_hint": "Peržiūrėkite savo monetas, sugrupuotas pagal adresą",
   "coin_count": "{count} monetų",
