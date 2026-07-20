@@ -251,7 +251,7 @@ export class BlockchainStateService implements OnDestroy {
 
       // Handle connection state change notifications
       if (this.isInitialized && !this.wasConnected) {
-        this.notificationService.notifyNodeConnected();
+        this.notificationService.notifyNodeConnected(remote);
       }
       this.wasConnected = true;
 
@@ -269,7 +269,7 @@ export class BlockchainStateService implements OnDestroy {
 
       // Handle disconnection notification
       if (this.isInitialized && this.wasConnected) {
-        this.notificationService.notifyNodeDisconnected();
+        this.notificationService.notifyNodeDisconnected(remote);
       }
       this.wasConnected = false;
     } finally {
