@@ -66,9 +66,13 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        // Unified responsive contacts page — the same component the desktop
+        // /contacts route uses (features/contacts).
         path: 'contacts',
         loadComponent: () =>
-          import('./pages/contacts/wallet-contacts.component').then(m => m.WalletContactsComponent),
+          import('../../features/contacts/pages/contact-list/contact-list.component').then(
+            m => m.ContactListComponent
+          ),
       },
       {
         path: 'settings',
