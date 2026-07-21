@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Peto",
   "wallet_rescan_legacy_description": "Volve comprobar as ramas de derivación antigas (v30) desta carteira no servidor Electrum. Os fondos máis antigos aparecen como un peto v30 só de gasto.",
   "scan": "Escanear",
-  "upgrade_seed_mismatch": "Esta frase de recuperación non coincide con esta carteira. Introduce a semente exacta a partir da que se creou esta carteira."
+  "upgrade_seed_mismatch": "Esta frase de recuperación non coincide con esta carteira. Introduce a semente exacta a partir da que se creou esta carteira.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Poche",
   "wallet_rescan_legacy_description": "Revérifiez les anciennes branches de dérivation (v30) de ce portefeuille sur le serveur Electrum. Les fonds plus anciens apparaissent comme une poche v30 en dépense uniquement.",
   "scan": "Analyser",
-  "upgrade_seed_mismatch": "Cette phrase de récupération ne correspond pas à ce portefeuille. Saisissez la graine exacte à partir de laquelle ce portefeuille a été créé."
+  "upgrade_seed_mismatch": "Cette phrase de récupération ne correspond pas à ce portefeuille. Saisissez la graine exacte à partir de laquelle ce portefeuille a été créé.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

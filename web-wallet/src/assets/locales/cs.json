@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Kapsa",
   "wallet_rescan_legacy_description": "Znovu zkontrolovat staré (v30) derivační větve této peněženky na serveru Electrum. Starší prostředky se zobrazí jako v30 kapsa určená pouze k utrácení.",
   "scan": "Skenovat",
-  "upgrade_seed_mismatch": "Tato obnovovací fráze neodpovídá této peněžence. Zadejte přesně ten seed, ze kterého byla tato peněženka vytvořena."
+  "upgrade_seed_mismatch": "Tato obnovovací fráze neodpovídá této peněžence. Zadejte přesně ten seed, ze kterého byla tato peněženka vytvořena.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

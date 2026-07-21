@@ -1271,5 +1271,7 @@
   "wallet_pocket": "पॉकेट",
   "wallet_rescan_legacy_description": "Electrum सर्वर पर इस वॉलेट की पुरानी (v30) डेरिवेशन शाखाओं को फिर से जाँचें। पुरानी धनराशि केवल-खर्च वाले v30 पॉकेट के रूप में दिखाई देती है।",
   "scan": "स्कैन करें",
-  "upgrade_seed_mismatch": "यह रिकवरी वाक्यांश इस वॉलेट से मेल नहीं खाता। वही सीड दर्ज करें जिससे यह वॉलेट बनाया गया था।"
+  "upgrade_seed_mismatch": "यह रिकवरी वाक्यांश इस वॉलेट से मेल नहीं खाता। वही सीड दर्ज करें जिससे यह वॉलेट बनाया गया था।",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

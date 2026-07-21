@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Kieszeń",
   "wallet_rescan_legacy_description": "Ponownie sprawdź stare (v30) gałęzie derywacji tego portfela na serwerze Electrum. Starsze środki pojawią się jako kieszeń v30 tylko do wydania.",
   "scan": "Skanuj",
-  "upgrade_seed_mismatch": "Ta fraza odzyskiwania nie pasuje do tego portfela. Wpisz dokładnie ten seed, z którego utworzono ten portfel."
+  "upgrade_seed_mismatch": "Ta fraza odzyskiwania nie pasuje do tego portfela. Wpisz dokładnie ten seed, z którego utworzono ten portfel.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

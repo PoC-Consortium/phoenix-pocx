@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Buzunar",
   "wallet_rescan_legacy_description": "Reverifică ramurile vechi de derivare (v30) ale acestui portofel pe serverul Electrum. Fondurile mai vechi apar ca un buzunar v30 disponibil doar pentru cheltuieli.",
   "scan": "Scanează",
-  "upgrade_seed_mismatch": "Această frază de recuperare nu se potrivește cu acest portofel. Introduceți exact seed-ul din care a fost creat acest portofel."
+  "upgrade_seed_mismatch": "Această frază de recuperare nu se potrivește cu acest portofel. Introduceți exact seed-ul din care a fost creat acest portofel.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

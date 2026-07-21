@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Fach",
   "wallet_rescan_legacy_description": "Prüfe die alten (v30) Ableitungszweige dieses Wallets erneut auf dem Electrum-Server. Ältere Gelder erscheinen als v30-Fach, aus dem nur ausgegeben werden kann.",
   "scan": "Scannen",
-  "upgrade_seed_mismatch": "Diese Wiederherstellungsphrase passt nicht zu diesem Wallet. Gib genau den Seed ein, aus dem dieses Wallet erstellt wurde."
+  "upgrade_seed_mismatch": "Diese Wiederherstellungsphrase passt nicht zu diesem Wallet. Gib genau den Seed ein, aus dem dieses Wallet erstellt wurde.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

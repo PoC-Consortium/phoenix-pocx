@@ -1271,5 +1271,7 @@
   "wallet_pocket": "口袋",
   "wallet_rescan_legacy_description": "在 Electrum 服务器上重新检查此钱包的旧版（v30）派生分支。较早的资金将显示为仅可花费的 v30 口袋。",
   "scan": "扫描",
-  "upgrade_seed_mismatch": "此恢复短语与该钱包不匹配。请输入创建此钱包时所用的确切种子。"
+  "upgrade_seed_mismatch": "此恢复短语与该钱包不匹配。请输入创建此钱包时所用的确切种子。",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

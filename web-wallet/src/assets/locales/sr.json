@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Џеп",
   "wallet_rescan_legacy_description": "Поново провери старе (v30) гране деривације овог новчаника на Electrum серверу. Старија средства се појављују као v30 џеп само за трошење.",
   "scan": "Скенирај",
-  "upgrade_seed_mismatch": "Ова фраза за опоравак не одговара овом новчанику. Унесите тачан seed из ког је овај новчаник креиран."
+  "upgrade_seed_mismatch": "Ова фраза за опоравак не одговара овом новчанику. Унесите тачан seed из ког је овај новчаник креиран.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

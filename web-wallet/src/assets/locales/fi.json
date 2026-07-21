@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Tasku",
   "wallet_rescan_legacy_description": "Tarkista tämän lompakon vanhat (v30) johdannaishaarat uudelleen Electrum-palvelimelta. Vanhemmat varat näkyvät vain kulutukseen tarkoitettuna v30-taskuna.",
   "scan": "Skannaa",
-  "upgrade_seed_mismatch": "Tämä palautuslause ei vastaa tätä lompakkoa. Syötä täsmälleen se palautuslause, josta tämä lompakko luotiin."
+  "upgrade_seed_mismatch": "Tämä palautuslause ei vastaa tätä lompakkoa. Syötä täsmälleen se palautuslause, josta tämä lompakko luotiin.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

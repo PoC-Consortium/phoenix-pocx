@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Compartimento",
   "wallet_rescan_legacy_description": "Vuelve a comprobar las ramas de derivación antiguas (v30) de esta billetera en el servidor Electrum. Los fondos antiguos aparecen como un compartimento v30 de solo gasto.",
   "scan": "Escanear",
-  "upgrade_seed_mismatch": "Esta frase de recuperación no coincide con esta billetera. Introduzca la semilla exacta a partir de la cual se creó esta billetera."
+  "upgrade_seed_mismatch": "Esta frase de recuperación no coincide con esta billetera. Introduzca la semilla exacta a partir de la cual se creó esta billetera.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Butxaca",
   "wallet_rescan_legacy_description": "Torna a comprovar les branques de derivació antigues (v30) d'aquesta cartera al servidor Electrum. Els fons antics apareixen com una butxaca v30 només per gastar.",
   "scan": "Escaneja",
-  "upgrade_seed_mismatch": "Aquesta frase de recuperació no coincideix amb aquesta cartera. Introduïu la llavor exacta amb què es va crear aquesta cartera."
+  "upgrade_seed_mismatch": "Aquesta frase de recuperació no coincideix amb aquesta cartera. Introduïu la llavor exacta amb què es va crear aquesta cartera.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

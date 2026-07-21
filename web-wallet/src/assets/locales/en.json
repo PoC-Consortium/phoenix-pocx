@@ -1271,5 +1271,7 @@
   "scan": "Scan",
   "wallet_rescan_legacy": "Check for older (v30) funds",
   "wallet_rescan_found": "Found and restored older funds",
-  "wallet_rescan_none": "No older funds found"
+  "wallet_rescan_none": "No older funds found",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }
