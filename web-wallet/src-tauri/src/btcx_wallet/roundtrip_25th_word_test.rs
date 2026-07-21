@@ -156,8 +156,14 @@ fn raw_passphrase_p0_p1_match_desktop_but_p2_diverges() {
     eprintln!("MOBILE(raw) P1 -> {p1}   DESKTOP P1 -> {DESKTOP_P1}");
     eprintln!("MOBILE(raw) P2 -> {p2_raw}   DESKTOP P2 -> {DESKTOP_P2}");
 
-    assert_eq!(p0, DESKTOP_P0, "P0 (no 25th word) must already match desktop");
-    assert_eq!(p1, DESKTOP_P1, "P1 (ASCII passphrase) must already match desktop");
+    assert_eq!(
+        p0, DESKTOP_P0,
+        "P0 (no 25th word) must already match desktop"
+    );
+    assert_eq!(
+        p1, DESKTOP_P1,
+        "P1 (ASCII passphrase) must already match desktop"
+    );
     assert_ne!(
         p2_raw, DESKTOP_P2,
         "P2 raw non-ASCII passphrase is EXPECTED to diverge from desktop \
@@ -180,7 +186,10 @@ fn p2_matches_desktop_after_nfkd_normalization() {
     let normalized = nfkd("prüfung");
     // The normalization must actually change the bytes (precomposed → NFKD),
     // otherwise this test would prove nothing.
-    assert_ne!(normalized, "prüfung", "NFKD must decompose the precomposed ü");
+    assert_ne!(
+        normalized, "prüfung",
+        "NFKD must decompose the precomposed ü"
+    );
 
     let via_spks = first_receive_addr_via_candidate_spks(MNEMONIC_24, &normalized);
     let via_peek = first_receive_addr_via_bdk_peek(MNEMONIC_24, &normalized);
