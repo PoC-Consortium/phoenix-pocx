@@ -89,19 +89,17 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
         flex-shrink: 0;
       }
 
-      /* Constrain the header row to the SAME 700px column as the coins card
-         (margin: 0 auto) with the card's horizontal padding, so the back
-         arrow and refresh sit on the card's content edges — not the screen
-         edges — at every width. min-height lives here (not on the band) so
-         the band height = inner 40px + 2× band padding, matching the shared
-         mobile page header. */
+      /* The header row spans the full page width (like the desktop header and
+         the app's other page headers) — NOT constrained to the card column —
+         so the back arrow sits at the page's left edge and refresh at its
+         right. Horizontal padding is the band's edge inset (24px desktop /
+         16px mobile). min-height lives here (not the band) so the band height
+         derives from the inner row + band padding. */
       .header-inner {
         display: flex;
         align-items: center;
         gap: 16px;
-        max-width: 700px;
         width: 100%;
-        margin: 0 auto;
         box-sizing: border-box;
         padding: 0 24px;
         min-height: 40px;
@@ -190,14 +188,19 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
       }
 
       @media (max-width: 600px) {
-        /* Match the shared mobile page-header (app-mwallet-page-header used by
-           Send/Receive): band = inner 40px + 2×8px = 56px, 20px title (weight
-           300 kept). Inner padding tracks the mobile card's 16px. */
+        /* Pin the band to 68px — the mobile drawer's balance section
+           (.drawer-wallet-info in mobile-wallet-layout) rendered height,
+           measured in dev tools — so the coins header lines up with the menu's
+           balance block. Fixed height (not padding + button-driven min-height)
+           keeps it exact regardless of the mat-icon-button size. Title 20px. */
         .header {
-          padding: 8px 0;
+          height: 68px;
+          padding: 0;
         }
 
         .header-inner {
+          height: 100%;
+          min-height: 0;
           padding: 0 16px;
         }
 
