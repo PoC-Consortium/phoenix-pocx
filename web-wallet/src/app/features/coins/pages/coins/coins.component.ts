@@ -135,11 +135,16 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
       }
 
       /* Flex-fills the content column so the embedded list has a bounded
-         height (fit-based pagination). Max-width matches the unified contacts
-         page: a full bech32 address + the key/coins/balance columns. */
+         height (fit-based pagination). The height chain mirrors the unified
+         contacts card exactly (:host → .page-layout → .content → .coins-card
+         → the list's .table-body), so FitRows measures the leftover space and
+         the list never grows a scrollbar of its own: basis 0, min-height 0
+         (never grow to fit content), overflow hidden (the inner .table-body is
+         the only scroll container). Max-width matches contacts: a full bech32
+         address + the key/coins/balance columns. */
       .coins-card {
         flex: 1 1 0;
-        min-height: 200px;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         background: #ffffff;
@@ -149,6 +154,7 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
         width: 100%;
         padding: 20px 24px;
         box-sizing: border-box;
+        overflow: hidden;
       }
 
       :host-context(.dark-theme) {
@@ -162,6 +168,17 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
       }
 
       @media (max-width: 600px) {
+        /* Match the shared mobile page-header (app-mwallet-page-header used by
+           Send/Receive): shorter band, 20px title (weight 300 kept). */
+        .header {
+          padding: 8px 16px;
+          min-height: 40px;
+        }
+
+        .header-left h1 {
+          font-size: 20px;
+        }
+
         .content {
           padding: 16px;
         }

@@ -346,7 +346,13 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
           width: 100%;
         }
 
-        /* The meta wrapper becomes a real one-line flex row inside the card. */
+        /* The meta wrapper becomes a real one-line flex row inside the card.
+           Card meta order matches the OLD mobile coin-card:
+           [balance] [coins] .......... [key flag on the far right]. The three
+           cells are DOM-ordered flag/coins/balance (so display:contents aligns
+           them under the wide header), so re-order them here with the CSS
+           order property — only the narrow card reorders, the wide table
+           stays aligned under its headers. */
         .col-meta {
           display: flex;
           align-items: center;
@@ -355,16 +361,24 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
           font-size: 13px;
         }
 
+        /* Balance first (prominent). */
+        .col-balance {
+          width: auto;
+          order: 1;
+          color: #1976d2;
+        }
+
         .col-coins {
           width: auto;
+          order: 2;
           text-align: left;
         }
 
-        /* Balance pushed to the right edge of the meta line, prominent. */
-        .col-balance {
+        /* Exposed-key flag pushed to the far right edge of the meta line. */
+        .col-flag {
           width: auto;
+          order: 3;
           margin-left: auto;
-          color: #1976d2;
         }
 
         .meta-label,
