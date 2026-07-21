@@ -64,6 +64,7 @@ export interface MnemonicEntryState {
             [disabled]="disabled()"
             [matAutocomplete]="auto"
             (input)="updateSuggestions(i, mnemonicWords[i])"
+            (paste)="onPaste(i, $event)"
             (keydown.enter)="onWordEnter(i, $event, trigger)"
             (blur)="validateWord(i)"
             autocomplete="off"
@@ -287,6 +288,51 @@ export class MnemonicEntryComponent {
       this.wordErrors[index] = false;
       this.emitState();
       this.focusNext(index);
+    }
+  }
+
+  /**
+   * Paste-to-autofill (Satchel SeedForm behaviour): pasting a whole
+   * space/newline-separated phrase into ANY word box spreads it across the
+   * grid instead of dumping it all into one field. A complete 12- or 24-word
+   * phrase also flips the length selector to match and fills from the first
+   * box; a shorter multi-word burst fills forward from the box that received
+   * the paste. A single word pastes normally (no interception).
+   */
+  onPaste(index: number, event: ClipboardEvent): void {
+    const text = event.clipboardData?.getData('text') ?? '';
+    const parts = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (parts.length <= 1) return; // single word → let the browser paste normally
+    event.preventDefault();
+    let start = index;
+    // A full phrase pasted anywhere normalises the grid and fills from the top.
+    if (parts.length === 12 || parts.length === 24) {
+      this.setWordCount(parts.length);
+      start = 0;
+    }
+    this.fillFrom(start, parts);
+  }
+
+  /** Spread `parts` across the word slots starting at `start` (capped to grid). */
+  private fillFrom(start: number, parts: string[]): void {
+    const wordlist = this.descriptorService.getWordlist();
+    let last = start;
+    for (let k = 0; k < parts.length && start + k < this.mnemonicWords.length; k++) {
+      const i = start + k;
+      this.mnemonicWords[i] = parts[k];
+      this.wordSuggestions[i] = [];
+      this.wordErrors[i] = !wordlist.includes(parts[k]);
+      last = i;
+    }
+    this.emitState();
+    // Land the caret on the box after the last one filled so any remaining
+    // words can be typed straight away (Satchel's post-fill focus jump).
+    const next = this.wordInputs()[Math.min(last + 1, this.mnemonicWords.length - 1)];
+    if (next) {
+      setTimeout(() => {
+        next.nativeElement.focus();
+        next.nativeElement.select();
+      });
     }
   }
 
