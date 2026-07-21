@@ -20,6 +20,7 @@ import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.se
 import { buildPaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import { NodeService } from '../../../../node/services/node.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 
 interface AddressInfo {
   address: string;
@@ -105,7 +106,7 @@ type AddressMode = 'existing' | 'generate';
                 </mat-radio-group>
               </div>
 
-              @if (addressMode === 'existing') {
+              @if (addressMode === 'existing' && canEnumerate()) {
                 @if (!isLoadingAddresses()) {
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ 'select_address' | i18n }}</mat-label>
@@ -553,7 +554,16 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   private readonly location = inject(Location);
   private readonly nodeService = inject(NodeService);
   private readonly btcxWallet = inject(BtcxWalletService);
+  private readonly backendRouter = inject(BackendRouterService);
   private readonly destroy$ = new Subject<void>();
+
+  /**
+   * Whether the current backend can enumerate ALL of the wallet's addresses
+   * (the existing-address dropdown). Only Core RPC can; the remote/BDK backend
+   * exposes just the current first-unused, so there the dropdown collapses to
+   * that single value.
+   */
+  readonly canEnumerate = computed(() => !this.backendRouter.isRemote());
 
   /**
    * Remote (Electrum) mode + a legacy v30 (coin-0') pocket = spend-only:
@@ -600,7 +610,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
         this.addressMode = 'existing';
         this.existingAddresses.set([]);
         if (!this.spendOnly()) {
-          this.loadExistingAddresses();
+          this.loadReceiveAddresses();
         }
       });
 
@@ -617,7 +627,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
       await this.btcxWallet.initialize();
     }
     if (!this.spendOnly()) {
-      await this.loadExistingAddresses();
+      await this.loadReceiveAddresses();
     }
   }
 
@@ -630,48 +640,93 @@ export class ReceiveComponent implements OnInit, OnDestroy {
     this.location.back();
   }
 
-  async loadExistingAddresses(): Promise<void> {
+  /**
+   * Set the shown/default address to the first VIRGIN (never-received)
+   * address via the backend seam — identical in Core and remote modes
+   * (`currentReceiveAddress`), matching what mobile does. In Core mode ALSO
+   * build the existing-address dropdown; the remote/BDK backend can't
+   * enumerate every address, so there the single current address is the only
+   * selectable value.
+   */
+  async loadReceiveAddresses(): Promise<void> {
     if (this.spendOnly()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
     this.isLoadingAddresses.set(true);
     try {
-      const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
-      const addresses: AddressInfo[] = [];
+      const backend = this.backendRouter.wallet();
+      const current = await backend.currentReceiveAddress(walletName);
 
-      for (const [address, info] of Object.entries(addressMap)) {
-        if (this.isBech32Address(address)) {
-          try {
-            const addrInfo = await this.walletRpc.getAddressInfo(walletName, address);
-            addresses.push({
-              address,
-              purpose: (info as { purpose?: string }).purpose || 'receive',
-              isUsed: addrInfo.ismine && addrInfo.labels && addrInfo.labels.length > 0,
-              txCount: 0,
-              label: addrInfo.labels?.[0] || '',
-            });
-          } catch {
-            addresses.push({
-              address,
-              purpose: (info as { purpose?: string }).purpose || 'receive',
-              isUsed: false,
-              txCount: 0,
-              label: '',
-            });
-          }
-        }
+      if (this.canEnumerate()) {
+        await this.loadExistingAddressList(walletName, current);
+      } else {
+        // Remote: no address enumeration available — the current first-unused
+        // is the only entry (dropdown is hidden in remote anyway).
+        this.existingAddresses.set(
+          current
+            ? [{ address: current, purpose: 'receive', isUsed: false, txCount: 0, label: '' }]
+            : []
+        );
       }
 
-      this.existingAddresses.set(addresses);
-      if (addresses.length > 0) {
-        this.selectedAddress = addresses[addresses.length - 1].address;
-      }
+      // Default the selection to the first virgin, matching mobile.
+      this.selectedAddress = current;
     } catch (error) {
       console.error('Failed to load addresses:', error);
     } finally {
       this.isLoadingAddresses.set(false);
     }
+  }
+
+  /**
+   * Build the Core existing-address dropdown. `isUsed` reflects REAL on-chain
+   * usage (received sats / txids from `listreceivedbyaddress`), not the old
+   * `labels.length` heuristic. `ensure` guarantees the current first-unused is
+   * present so the selected value always has a matching option.
+   */
+  private async loadExistingAddressList(walletName: string, ensure?: string): Promise<void> {
+    const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
+
+    // Real usage + label per address in a single call (minconf 0 counts
+    // unconfirmed receives; include_empty surfaces revealed-but-unused ones).
+    const usage = new Map<string, { used: boolean; label: string }>();
+    try {
+      const received = await this.walletRpc.listReceivedByAddress(walletName, 0, true);
+      for (const r of received) {
+        usage.set(r.address, {
+          used: Math.round(r.amount * 1e8) > 0 || r.txids.length > 0,
+          label: r.label ?? '',
+        });
+      }
+    } catch {
+      // best-effort — used/label fall back to defaults below.
+    }
+
+    const addresses: AddressInfo[] = [];
+    for (const [address, info] of Object.entries(addressMap)) {
+      if (!this.isBech32Address(address)) continue;
+      const u = usage.get(address);
+      addresses.push({
+        address,
+        purpose: (info as { purpose?: string }).purpose || 'receive',
+        isUsed: u?.used ?? false,
+        txCount: 0,
+        label: u?.label ?? '',
+      });
+    }
+
+    if (ensure && !addresses.some(a => a.address === ensure)) {
+      addresses.unshift({
+        address: ensure,
+        purpose: 'receive',
+        isUsed: false,
+        txCount: 0,
+        label: '',
+      });
+    }
+
+    this.existingAddresses.set(addresses);
   }
 
   async generateNewAddress(): Promise<void> {
@@ -681,9 +736,14 @@ export class ReceiveComponent implements OnInit, OnDestroy {
 
     this.isGenerating.set(true);
     try {
-      const address = await this.walletRpc.getNewAddress(walletName, this.label || '', 'bech32');
+      const address = await this.backendRouter
+        .wallet()
+        .getNewAddress(walletName, this.label || '', 'bech32');
       this.generatedAddress.set(address);
-      await this.loadExistingAddresses();
+      // Core: refresh the dropdown so the freshly revealed address shows.
+      if (this.canEnumerate()) {
+        await this.loadExistingAddressList(walletName, this.selectedAddress);
+      }
     } catch (error) {
       console.error('Failed to generate address:', error);
       this.notification.error('error_generating_address');

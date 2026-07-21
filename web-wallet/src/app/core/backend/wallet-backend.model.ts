@@ -28,6 +28,16 @@ export interface WalletBackend {
   /** Fresh receive address. Label/type are Core-only (capabilities). */
   getNewAddress(walletName: string, label?: string, type?: CoreAddressType): Promise<string>;
 
+  /**
+   * The address to SHOW on the receive page at open: the first VIRGIN
+   * (never-received) receive address — the lowest-derivation-index address
+   * that has never been paid. A fresh one is revealed ONLY when none is
+   * outstanding (no churn on repeated opens). Same contract as BDK
+   * `next_unused_address`; the Core backend reconstructs it from on-chain
+   * receive history.
+   */
+  currentReceiveAddress(walletName: string): Promise<string>;
+
   /** Spendable outputs in the Core `listunspent` shape. */
   listUnspent(walletName: string): Promise<UTXO[]>;
 

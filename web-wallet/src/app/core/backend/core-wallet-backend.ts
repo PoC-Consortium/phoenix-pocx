@@ -59,6 +59,76 @@ export class CoreWalletBackend implements WalletBackend {
     return this.walletRpc.getNewAddress(walletName, label, type);
   }
 
+  /**
+   * First VIRGIN receive address, reconstructed for a Core descriptor wallet
+   * (Core has no native next-unused). Strategy:
+   *
+   * 1. `listreceivedbyaddress 0 true` — one call that returns EVERY revealed
+   *    receive address with its total received (minconf 0 counts unconfirmed)
+   *    and the txids that paid it. Virgin = received 0 sats AND no txids
+   *    (real on-chain usage, not the old `labels.length` heuristic). Change
+   *    addresses never appear here, so only external receive keys are considered.
+   * 2. If NO virgin exists (all revealed addresses used, or a fresh wallet with
+   *    none revealed), reveal a fresh unused one via `getnewaddress` — matching
+   *    BDK's reveal-only-when-none-outstanding contract.
+   * 3. Otherwise order the virgins by derivation index (`getaddressinfo`
+   *    hdkeypath) and return the lowest — the same "first unused" BDK gives.
+   *    `getaddressinfo` is called only on the (usually tiny) virgin subset.
+   *
+   * Any RPC failure falls back to `getnewaddress` so the page still shows a
+   * usable address.
+   */
+  async currentReceiveAddress(walletName: string): Promise<string> {
+    try {
+      const received = await this.walletRpc.listReceivedByAddress(walletName, 0, true);
+      const virgins = received
+        .filter(r => Math.round(r.amount * 1e8) === 0 && r.txids.length === 0)
+        .map(r => r.address)
+        .filter(a => this.isReceiveBech32(a));
+
+      if (virgins.length === 0) {
+        return this.walletRpc.getNewAddress(walletName, '', 'bech32');
+      }
+
+      const withIndex = await Promise.all(
+        virgins.map(async address => ({
+          address,
+          index: await this.receiveIndex(walletName, address),
+        }))
+      );
+      withIndex.sort((a, b) => a.index - b.index);
+      return withIndex[0].address;
+    } catch {
+      return this.walletRpc.getNewAddress(walletName, '', 'bech32');
+    }
+  }
+
+  /** Derivation index of a receive address from its `getaddressinfo` hdkeypath. */
+  private async receiveIndex(walletName: string, address: string): Promise<number> {
+    try {
+      const info = await this.walletRpc.getAddressInfo(walletName, address);
+      const path = info.hdkeypath;
+      if (!path) return Number.MAX_SAFE_INTEGER;
+      const last = path.split('/').pop() ?? '';
+      const idx = Number.parseInt(last.replace(/['h]/g, ''), 10);
+      return Number.isFinite(idx) ? idx : Number.MAX_SAFE_INTEGER;
+    } catch {
+      return Number.MAX_SAFE_INTEGER;
+    }
+  }
+
+  /** A bech32(m) receive address for the wallet's networks (not legacy/script). */
+  private isReceiveBech32(address: string): boolean {
+    const lower = address.toLowerCase();
+    return (
+      lower.startsWith('bc1') ||
+      lower.startsWith('tb1') ||
+      lower.startsWith('bcrt1') ||
+      lower.startsWith('pocx1') ||
+      lower.startsWith('tpocx1')
+    );
+  }
+
   async listUnspent(walletName: string): Promise<UTXO[]> {
     return this.walletRpc.listUnspent(walletName);
   }
