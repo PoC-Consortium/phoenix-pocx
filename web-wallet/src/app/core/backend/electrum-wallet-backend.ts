@@ -108,6 +108,12 @@ export class ElectrumWalletBackend implements WalletBackend {
     return this.btcxWallet.newAddress();
   }
 
+  async currentReceiveAddress(): Promise<string> {
+    // BDK `next_unused_address`: the lowest-index revealed-but-unused external
+    // address, revealing a fresh one only when none is outstanding.
+    return this.btcxWallet.currentAddress();
+  }
+
   async listUnspent(): Promise<UTXO[]> {
     const utxos = await invoke<BtcxUtxoDto[]>('btcx_wallet_utxos');
     return utxos.map(mapBtcxUtxo);
