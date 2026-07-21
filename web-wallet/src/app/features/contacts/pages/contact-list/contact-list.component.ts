@@ -748,6 +748,19 @@ import {
       // Responsive — reflow the table to stacked cards below 600px (tablet
       // portrait, phone). The full address wraps (word-break) at full width.
       @media (max-width: 600px) {
+        /* Pin the band to 68px — the mobile drawer's balance section
+           (.drawer-wallet-info) rendered height — so the contacts header lines
+           up with the menu's balance block, matching the coins page. Edge
+           padding 16px (tracks .content); 20px title. */
+        .header {
+          height: 68px;
+          padding: 0 16px;
+        }
+
+        .header-left h1 {
+          font-size: 20px;
+        }
+
         .content {
           padding: 16px;
         }
