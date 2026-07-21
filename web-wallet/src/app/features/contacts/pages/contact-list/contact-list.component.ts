@@ -11,36 +11,46 @@ import { MatInputModule } from '@angular/material/input';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { ClipboardService, NotificationService } from '../../../../shared/services';
+import {
+  ClipboardService,
+  Contact,
+  ContactsStoreService,
+  NotificationService,
+} from '../../../../shared/services';
+import { FitRowsDirective } from '../../../../shared/directives';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
+import { NodeService } from '../../../../node/services/node.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import {
   ConfirmDialogComponent,
   ConfirmDialogData,
 } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 
-interface Contact {
-  id: string;
-  name: string;
-  address: string;
-  notes?: string;
-  createdAt: number;
-  network: Network;
-}
-
 /**
- * ContactListComponent displays the address book.
+ * ContactListComponent — the ONE responsive address book, serving both the
+ * desktop route (`/contacts`, main-layout) and the mobile-wallet route
+ * (`/wallet/contacts`, mobile-wallet-layout). One template, one set of
+ * styles: a flex "table" at wide widths that reflows to stacked cards below
+ * the 600px breakpoint (like the mining dashboard — pure CSS `@media`, no
+ * BreakpointObserver, no desktop/mobile fork).
  *
  * Features:
- * - Add/edit/delete contacts
- * - Search contacts
- * - Copy address to clipboard
- * - Send to contact (navigate to send page)
- * - Persist to localStorage
+ * - Add / edit / delete contacts (inline expanding form-card)
+ * - Search (name / address / notes)
+ * - Fit-to-viewport pagination at ALL widths (FitRowsDirective measures how
+ *   many rows fit; that fit IS the page size — no items-per-page selector)
+ * - Copy address (inline button + per-row menu), send-to-contact
+ *
+ * Persistence is the shared ContactsStoreService (the `wallet_contacts`
+ * localStorage book both shells read/write), so edits made on one surface
+ * appear on the other after a `load()` on entry.
  */
 @Component({
   selector: 'app-contact-list',
@@ -55,7 +65,9 @@ interface Contact {
     MatDividerModule,
     MatDialogModule,
     MatMenuModule,
+    MatPaginatorModule,
     MatTooltipModule,
+    FitRowsDirective,
     I18nPipe,
   ],
   template: `
@@ -110,6 +122,8 @@ interface Contact {
                 [placeholder]="'address_placeholder' | i18n"
                 (ngModelChange)="validateAddress()"
                 autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
               />
               @if (addressValid()) {
                 <mat-icon
@@ -166,12 +180,12 @@ interface Contact {
             <input
               matInput
               [ngModel]="searchQuery()"
-              (ngModelChange)="searchQuery.set($event)"
+              (ngModelChange)="onSearchChange($event)"
               [placeholder]="'search_contacts' | i18n"
               autocomplete="off"
             />
             @if (searchQuery()) {
-              <button mat-icon-button matSuffix (click)="searchQuery.set('')">
+              <button mat-icon-button matSuffix (click)="onSearchChange('')">
                 <mat-icon>close</mat-icon>
               </button>
             }
@@ -197,16 +211,28 @@ interface Contact {
               }
             </div>
           } @else {
-            <div class="contacts-table">
-              <!-- Table Header -->
-              <div class="table-header">
-                <div class="col-name">{{ 'name' | i18n }}</div>
-                <div class="col-address">{{ 'address' | i18n }}</div>
-                <div class="col-actions"></div>
-              </div>
+            <!-- Table header (hidden below the 600px card breakpoint) -->
+            <div class="table-header">
+              <div class="col-name">{{ 'name' | i18n }}</div>
+              <div class="col-address">{{ 'address' | i18n }}</div>
+              <div class="col-actions"></div>
+            </div>
 
-              <!-- Table Body -->
-              @for (contact of filteredContacts(); track contact.id) {
+            <!-- Fit-derived pagination (same idiom as the transactions page):
+                 the row viewport flex-fills the card and FitRowsDirective
+                 measures how many rows fit the leftover viewport height —
+                 that fit IS the page size, so there is no size selector.
+                 The measured row height adapts as the table reflows to cards
+                 below 600px. -->
+            <div
+              class="table-body"
+              appFitRows
+              [fitRowSelector]="'.table-row'"
+              [fitMinRows]="3"
+              [fitFallbackRowPx]="56"
+              (fitRows)="onFitRows($event)"
+            >
+              @for (contact of visibleContacts(); track contact.id) {
                 <div class="table-row">
                   <div class="col-name">
                     <span class="contact-name">{{ contact.name }}</span>
@@ -252,6 +278,17 @@ interface Contact {
                 </div>
               }
             </div>
+
+            @if (filteredContacts().length > pageSize()) {
+              <mat-paginator
+                [length]="filteredContacts().length"
+                [pageSize]="pageSize()"
+                [pageIndex]="pageIndex()"
+                [hidePageSize]="true"
+                (page)="onPageChange($event)"
+                [showFirstLastButtons]="true"
+              ></mat-paginator>
+            }
           }
         </div>
       </div>
@@ -259,8 +296,23 @@ interface Contact {
   `,
   styles: [
     `
+      /* Fill the routed content column (desktop main-layout .page-wrapper /
+         mobile-wallet-layout .wallet-content are both flex columns with a
+         bounded height) so the list card can flex into the leftover viewport
+         height — giving FitRowsDirective a real height to measure under BOTH
+         shells. */
+      :host {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
       .page-layout {
-        min-height: 100%;
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
       }
 
       // Header
@@ -271,6 +323,7 @@ interface Contact {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-shrink: 0;
       }
 
       .header-left {
@@ -297,13 +350,20 @@ interface Contact {
 
       // Content
       .content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
         padding: 24px;
+        width: 100%;
         max-width: 700px;
-        margin: 0 auto;
+        align-self: center;
+        box-sizing: border-box;
       }
 
       // Form Card
       .form-card {
+        flex-shrink: 0;
         background: #ffffff;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -370,6 +430,7 @@ interface Contact {
 
       // Search Bar
       .search-bar {
+        flex-shrink: 0;
         margin-bottom: 16px;
 
         .search-field {
@@ -404,8 +465,13 @@ interface Contact {
         }
       }
 
-      // Contacts Card
+      // Contacts Card — flex-fills the content column so the row viewport
+      // has a measurable height (fit-based pagination) at all widths.
       .contacts-card {
+        flex: 1 1 0;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
         background: #ffffff;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -414,9 +480,11 @@ interface Contact {
 
       // Empty State
       .empty-state {
+        flex: 1 1 auto;
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         padding: 48px 24px;
         color: rgba(0, 0, 0, 0.38);
 
@@ -433,12 +501,8 @@ interface Contact {
         }
       }
 
-      // Table
-      .contacts-table {
-        width: 100%;
-      }
-
       .table-header {
+        flex-shrink: 0;
         display: flex;
         background: #f5f7fa;
         padding: 10px 16px;
@@ -448,6 +512,15 @@ interface Contact {
         text-transform: uppercase;
         letter-spacing: 0.5px;
         border-bottom: 1px solid #e8e8e8;
+      }
+
+      // The measured row viewport: basis 0 so its height comes from the
+      // leftover card space, never from its own rows. The fit-sized page
+      // never needs to scroll.
+      .table-body {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
       }
 
       .table-row {
@@ -541,12 +614,34 @@ interface Contact {
         color: #f44336;
       }
 
-      // Dark theme
-      :host-context(.dark-theme) {
-        .page-layout {
-          background: #303030;
+      // Compact paginator (the transactions-page pager).
+      mat-paginator {
+        flex-shrink: 0;
+        border-radius: 0 0 8px 8px;
+
+        ::ng-deep .mat-mdc-paginator-container {
+          min-height: 44px;
+          padding: 0 4px;
+          justify-content: center;
         }
 
+        ::ng-deep .mat-mdc-paginator-range-label {
+          font-size: 11px;
+          margin: 0 6px;
+        }
+
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-first,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-previous,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-next,
+        ::ng-deep .mat-mdc-icon-button.mat-mdc-paginator-navigation-last {
+          width: 36px;
+          height: 36px;
+          padding: 6px;
+        }
+      }
+
+      // Dark theme
+      :host-context(.dark-theme) {
         .form-card,
         .contacts-card {
           background: #424242;
@@ -586,8 +681,9 @@ interface Contact {
         }
       }
 
-      // Responsive
-      @media (max-width: 599px) {
+      // Responsive — reflow the table to stacked cards below 600px (tablet
+      // portrait, phone). The full address wraps (word-break) at full width.
+      @media (max-width: 600px) {
         .content {
           padding: 16px;
         }
@@ -611,6 +707,7 @@ interface Contact {
         }
 
         .table-row {
+          position: relative;
           flex-direction: column;
           align-items: flex-start;
           gap: 8px;
@@ -620,10 +717,15 @@ interface Contact {
             width: 100%;
           }
 
+          .col-address .address-text {
+            word-break: break-all;
+          }
+
           .col-actions {
             position: absolute;
             right: 8px;
             top: 8px;
+            width: auto;
           }
         }
       }
@@ -639,24 +741,48 @@ export class ContactListComponent implements OnInit {
   private readonly dialog = inject(MatDialog);
   private readonly i18n = inject(I18nService);
   private readonly store = inject(Store);
-  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
-  private saveQueued = false;
+  private readonly contactsStore = inject(ContactsStoreService);
+  private readonly nodeService = inject(NodeService);
+  private readonly appMode = inject(AppModeService);
+  private readonly btcx = inject(BtcxWalletService);
 
-  contacts = signal<Contact[]>([]);
+  /** Core-mode network (NgRx settings). */
+  private readonly coreNetwork = toSignal(this.store.select(selectNetwork), {
+    initialValue: 'mainnet' as Network,
+  });
+
+  /**
+   * Active network resolved for the current node mode: remote / nodeless
+   * (desktop remote mode AND every mobile/wallet-only launch) reads the
+   * nodeless BTCX wallet's network; Core (managed/external) reads the NgRx
+   * settings network. Both are the identical 'mainnet' | 'testnet' |
+   * 'regtest' string set the stored `Contact.network` and `store.forNetwork`
+   * key on, so the list filters correctly under every mode.
+   */
+  readonly activeNetwork = computed<Network>(() =>
+    this.nodeService.isRemote() ? this.btcx.network() : this.coreNetwork()
+  );
+
   searchQuery = signal('');
   showAddForm = signal(false);
   editingContact = signal<Contact | null>(null);
   addressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
   addressValid = signal(false);
 
+  // Fit-derived pagination: the page size is whatever FitRowsDirective
+  // measures fits the row viewport (initial value only covers the first
+  // paint before the directive's measurement lands).
+  readonly pageSize = signal(8);
+  readonly pageIndex = signal(0);
+
   // Form fields
   formName = '';
   formAddress = '';
   formNotes = '';
 
-  filteredContacts = computed(() => {
-    const net = this.network();
-    const byNet = this.contacts().filter(c => c.network === net);
+  /** Contacts of the active network, filtered by the search query. */
+  readonly filteredContacts = computed(() => {
+    const byNet = this.contactsStore.forNetwork(this.activeNetwork());
     const query = this.searchQuery().toLowerCase().trim();
     if (!query) return byNet;
 
@@ -668,8 +794,24 @@ export class ContactListComponent implements OnInit {
     );
   });
 
+  /** The current page of the filtered list, clamped when the list shrinks. */
+  readonly visibleContacts = computed(() => {
+    const all = this.filteredContacts();
+    const size = this.pageSize();
+    const maxPage = Math.max(0, Math.ceil(all.length / size) - 1);
+    const page = Math.min(this.pageIndex(), maxPage);
+    return all.slice(page * size, page * size + size);
+  });
+
   ngOnInit(): void {
-    this.loadContacts();
+    // The nodeless wallet's network drives the filter in remote/mobile
+    // mode — make sure its status is populated (idempotent, no-op in Core).
+    if (this.nodeService.isRemote()) {
+      void this.btcx.initialize();
+    }
+
+    // Pick up edits made on the other shell (the shared wallet_contacts book).
+    this.contactsStore.load();
 
     // Check for prepopulated address from query param (Add to contacts)
     const addAddress = this.route.snapshot.queryParamMap.get('add');
@@ -677,6 +819,12 @@ export class ContactListComponent implements OnInit {
       this.formAddress = addAddress;
       this.showAddForm.set(true);
       this.validateAddress();
+      // Drop the param so back/refresh does not reopen the form.
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: {},
+        replaceUrl: true,
+      });
     }
   }
 
@@ -684,78 +832,36 @@ export class ContactListComponent implements OnInit {
     this.location.back();
   }
 
-  loadContacts(): void {
-    const stored = localStorage.getItem('wallet_contacts');
-    if (!stored) return;
-    try {
-      const raw = JSON.parse(stored) as (Omit<Contact, 'network'> & { network?: Network })[];
-      let mutated = false;
-      const migrated: Contact[] = raw.map(c => {
-        if (c.network) return c as Contact;
-        // Legacy entry — infer the network from the address itself so mainnet
-        // and testnet contacts survive the split accurately.
-        mutated = true;
-        const result = validatePocxAddress(c.address);
-        const network: Network = result.kind === 'valid' ? result.network : this.network();
-        return { ...c, network };
-      });
-      migrated.sort((a, b) => a.name.localeCompare(b.name));
-      this.contacts.set(migrated);
-      if (mutated) this.saveContacts();
-    } catch {
-      // Invalid data
-    }
-  }
-
-  saveContacts(): void {
-    if (this.saveQueued) return;
-    this.saveQueued = true;
-    queueMicrotask(() => {
-      localStorage.setItem('wallet_contacts', JSON.stringify(this.contacts()));
-      this.saveQueued = false;
-    });
-  }
-
   validateAddress(): boolean {
-    const raw = this.formAddress;
-    if (!raw.trim()) {
-      this.addressError.set(null);
-      this.addressValid.set(false);
-      return false;
+    this.addressValid.set(false);
+    const result = validatePocxAddress(this.formAddress);
+    switch (result.kind) {
+      case 'empty':
+        this.addressError.set(null);
+        return false;
+      case 'invalid_format':
+        this.addressError.set({ key: 'address_invalid_format' });
+        return false;
+      case 'invalid_checksum':
+        this.addressError.set({ key: 'address_invalid_checksum' });
+        return false;
+      case 'valid': {
+        const appNet = this.activeNetwork();
+        if (result.network !== appNet) {
+          this.addressError.set({
+            key: 'address_wrong_network',
+            params: {
+              addressNetwork: this.i18n.get(result.network),
+              appNetwork: this.i18n.get(appNet),
+            },
+          });
+          return false;
+        }
+        this.addressError.set(null);
+        this.addressValid.set(true);
+        return true;
+      }
     }
-
-    const result = validatePocxAddress(raw);
-    if (result.kind === 'empty') {
-      this.addressError.set(null);
-      this.addressValid.set(false);
-      return false;
-    }
-    if (result.kind !== 'valid') {
-      this.addressError.set({ key: 'invalid_address' });
-      this.addressValid.set(false);
-      return false;
-    }
-
-    const appNet = this.network();
-    if (result.network !== appNet) {
-      this.addressError.set({
-        key: 'address_wrong_network',
-        params: {
-          addressNetwork: this.translateNetwork(result.network),
-          appNetwork: this.translateNetwork(appNet),
-        },
-      });
-      this.addressValid.set(false);
-      return false;
-    }
-
-    this.addressError.set(null);
-    this.addressValid.set(true);
-    return true;
-  }
-
-  private translateNetwork(network: Network): string {
-    return this.i18n.get(network);
   }
 
   canSaveContact(): boolean {
@@ -763,49 +869,28 @@ export class ContactListComponent implements OnInit {
   }
 
   saveContact(): void {
-    // Final validation gate — catches the case where the user never blurred the
-    // address field, or pasted + clicked save in the same tick.
+    // Final validation gate — catches the case where the user never blurred
+    // the address field, or pasted + clicked save in the same tick.
     if (!this.validateAddress()) return;
     if (!this.canSaveContact()) return;
 
     const editing = this.editingContact();
-    const address = this.formAddress.trim();
-    const name = this.formName.trim();
-    const notes = this.formNotes.trim() || undefined;
-    // Validation already ensured the address matches the current network.
-    const network = this.network();
+    // Validation already ensured the address matches the active network.
+    const network = this.activeNetwork();
 
-    const addressKey = address.toLowerCase();
-    const conflict = this.contacts().some(
-      c => c.address.toLowerCase() === addressKey && c.id !== editing?.id
-    );
-    if (conflict) {
+    if (this.contactsStore.hasAddress(network, this.formAddress, editing?.id)) {
       this.notification.error(this.i18n.get('contact_address_exists'));
       return;
     }
 
     if (editing) {
-      const updated = this.contacts().map(c =>
-        c.id === editing.id ? { ...c, name, address, notes, network } : c
-      );
-      this.contacts.set(updated);
+      this.contactsStore.update(editing.id, this.formName, this.formAddress, this.formNotes);
       this.notification.success(this.i18n.get('contact_updated'));
     } else {
-      const newContact: Contact = {
-        id: Date.now().toString(),
-        name,
-        address,
-        notes,
-        createdAt: Date.now(),
-        network,
-      };
-      this.contacts.set(
-        [...this.contacts(), newContact].sort((a, b) => a.name.localeCompare(b.name))
-      );
+      this.contactsStore.add(network, this.formName, this.formAddress, this.formNotes);
       this.notification.success(this.i18n.get('contact_added'));
     }
 
-    this.saveContacts();
     this.cancelForm();
   }
 
@@ -815,6 +900,7 @@ export class ContactListComponent implements OnInit {
     this.formAddress = contact.address;
     this.formNotes = contact.notes || '';
     this.showAddForm.set(true);
+    this.validateAddress();
   }
 
   deleteContact(contact: Contact): void {
@@ -830,8 +916,7 @@ export class ContactListComponent implements OnInit {
       .afterClosed()
       .subscribe(confirmed => {
         if (!confirmed) return;
-        this.contacts.set(this.contacts().filter(c => c.id !== contact.id));
-        this.saveContacts();
+        this.contactsStore.remove(contact.id);
         this.notification.success(this.i18n.get('contact_deleted'));
       });
   }
@@ -843,13 +928,40 @@ export class ContactListComponent implements OnInit {
     this.formAddress = '';
     this.formNotes = '';
     this.addressError.set(null);
+    this.addressValid.set(false);
   }
 
   sendToContact(contact: Contact): void {
-    this.router.navigate(['/send'], { queryParams: { address: contact.address } });
+    // The mobile-wallet shell (nodeless) routes under /wallet; the desktop
+    // shell (Core or remote) uses the top-level send route.
+    const sendPath = this.appMode.isNodeless() ? '/wallet/send' : '/send';
+    void this.router.navigate([sendPath], { queryParams: { address: contact.address } });
   }
 
   copyAddress(contact: Contact): void {
-    this.clipboard.copyAddress(contact.address);
+    void this.clipboard.copyAddress(contact.address);
+  }
+
+  /** Search change: filter and reset to the first page. */
+  onSearchChange(value: string): void {
+    this.searchQuery.set(value);
+    this.pageIndex.set(0);
+  }
+
+  /**
+   * New measured fit (reflow, resize, first measurement): adopt it as the
+   * page size and keep the user on the page containing the previously first
+   * visible contact instead of resetting to page 0.
+   */
+  onFitRows(fit: number): void {
+    const oldSize = this.pageSize();
+    if (fit === oldSize) return;
+    const firstVisibleIndex = this.pageIndex() * oldSize;
+    this.pageSize.set(fit);
+    this.pageIndex.set(Math.floor(firstVisibleIndex / fit));
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageIndex.set(event.pageIndex);
   }
 }
