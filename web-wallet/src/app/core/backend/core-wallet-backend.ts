@@ -120,12 +120,15 @@ export class CoreWalletBackend implements WalletBackend {
   /** A bech32(m) receive address for the wallet's networks (not legacy/script). */
   private isReceiveBech32(address: string): boolean {
     const lower = address.toLowerCase();
+    // All PoCX networks incl. regtest (rpocx1) + both witness versions
+    // (…1q SegWit / …1p Taproot). Standard Bitcoin HRPs kept defensively.
     return (
+      lower.startsWith('pocx1') ||
+      lower.startsWith('tpocx1') ||
+      lower.startsWith('rpocx1') ||
       lower.startsWith('bc1') ||
       lower.startsWith('tb1') ||
-      lower.startsWith('bcrt1') ||
-      lower.startsWith('pocx1') ||
-      lower.startsWith('tpocx1')
+      lower.startsWith('bcrt1')
     );
   }
 

@@ -773,11 +773,16 @@ export class ReceiveComponent implements OnInit, OnDestroy {
 
   private isBech32Address(address: string): boolean {
     const lower = address.toLowerCase();
+    // Every PoCX network (pocx/tpocx/rpocx) and BOTH witness versions — the
+    // active wallet may be a SegWit (…1q) OR Taproot (…1p) compartment, and
+    // regtest uses the rpocx HRP. Standard Bitcoin HRPs kept defensively.
     return (
-      lower.startsWith('bc1q') ||
-      lower.startsWith('tb1q') ||
-      lower.startsWith('pocx1q') ||
-      lower.startsWith('tpocx1q')
+      lower.startsWith('pocx1') ||
+      lower.startsWith('tpocx1') ||
+      lower.startsWith('rpocx1') ||
+      lower.startsWith('bc1') ||
+      lower.startsWith('tb1') ||
+      lower.startsWith('bcrt1')
     );
   }
 
