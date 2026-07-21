@@ -4147,6 +4147,7 @@ dependencies = [
  "tauri-plugin-storage-permission",
  "tempfile",
  "tokio",
+ "unicode-normalization",
  "wallet-btcx",
  "windows-sys 0.59.0",
  "zip",

@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Džep",
   "wallet_rescan_legacy_description": "Ponovno provjeri stare (v30) grane derivacije ovog novčanika na Electrum poslužitelju. Starija sredstva pojavljuju se kao v30 džep samo za trošenje.",
   "scan": "Skeniraj",
-  "upgrade_seed_mismatch": "Ova fraza za oporavak ne odgovara ovom novčaniku. Unesite točno onu frazu iz koje je ovaj novčanik stvoren."
+  "upgrade_seed_mismatch": "Ova fraza za oporavak ne odgovara ovom novčaniku. Unesite točno onu frazu iz koje je ovaj novčanik stvoren.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

@@ -17,6 +17,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe } from '../../../../core/i18n';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { DescriptorService } from '../../../../bitcoin/services/wallet/descriptor.service';
@@ -58,6 +59,7 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
     MatInputModule,
     MatAutocompleteModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     I18nPipe,
     PageHeaderComponent,
     WalletNameSectionComponent,
@@ -125,16 +127,39 @@ type CreateStep = 'name' | 'phrase' | 'verify' | 'protect';
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ 'mwallet_bip39_label' | i18n }}</mat-label>
-              <input matInput type="password" [(ngModel)]="bip39Passphrase" autocomplete="off" />
+              <!-- The 25th word is byte-significant: keep Android from
+                   auto-capitalizing/autocorrecting it when revealed. -->
+              <input
+                matInput
+                [type]="bip39Visible() ? 'text' : 'password'"
+                [(ngModel)]="bip39Passphrase"
+                autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+              />
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                (click)="bip39Visible.set(!bip39Visible())"
+                [attr.aria-label]="(bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n"
+                [matTooltip]="(bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n"
+              >
+                <mat-icon>{{ bip39Visible() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>{{ 'mwallet_bip39_confirm' | i18n }}</mat-label>
               <input
                 matInput
-                type="password"
+                [type]="bip39Visible() ? 'text' : 'password'"
                 [(ngModel)]="bip39PassphraseConfirm"
                 autocomplete="off"
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
               />
             </mat-form-field>
 
@@ -434,6 +459,8 @@ export class WalletCreateComponent implements OnInit {
   useBip39 = false;
   bip39Passphrase = '';
   bip39PassphraseConfirm = '';
+  /** Reveal toggle for the BIP39 25th-word inputs (verify what was typed). */
+  readonly bip39Visible = signal(false);
 
   /** Wallet name — pre-filled with the next free default; desktop rules. */
   walletName = '';

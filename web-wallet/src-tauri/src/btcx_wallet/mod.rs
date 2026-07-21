@@ -51,5 +51,8 @@ pub mod manager;
 pub mod psbt;
 pub mod state;
 
+#[cfg(test)]
+mod roundtrip_25th_word_test;
+
 pub use config::BtcxWalletConfig;
 pub use state::{create_btcx_wallet_state, BtcxWalletState, SharedBtcxWalletState};

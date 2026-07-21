@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Tasca",
   "wallet_rescan_legacy_description": "Ricontrolla i vecchi rami di derivazione (v30) di questo portafoglio sul server Electrum. I fondi più vecchi appaiono come una tasca v30 di sola spesa.",
   "scan": "Scansiona",
-  "upgrade_seed_mismatch": "Questa frase di recupero non corrisponde a questo portafoglio. Inserisci il seed esatto da cui è stato creato questo portafoglio."
+  "upgrade_seed_mismatch": "Questa frase di recupero non corrisponde a questo portafoglio. Inserisci il seed esatto da cui è stato creato questo portafoglio.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

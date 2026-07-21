@@ -1271,5 +1271,7 @@
   "wallet_pocket": "ポケット",
   "wallet_rescan_legacy_description": "このウォレットの古い (v30) 導出ブランチを Electrum サーバーで再確認します。古い資金は送金専用の v30 ポケットとして表示されます。",
   "scan": "スキャン",
-  "upgrade_seed_mismatch": "このリカバリーフレーズはこのウォレットと一致しません。このウォレットの作成に使用したシードを正確に入力してください。"
+  "upgrade_seed_mismatch": "このリカバリーフレーズはこのウォレットと一致しません。このウォレットの作成に使用したシードを正確に入力してください。",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Bolso",
   "wallet_rescan_legacy_description": "Verifica novamente os antigos ramos de derivação (v30) desta carteira no servidor Electrum. Os fundos mais antigos aparecem como um bolso v30 apenas para gasto.",
   "scan": "Escanear",
-  "upgrade_seed_mismatch": "Esta frase de recuperação não corresponde a esta carteira. Digite a seed exata a partir da qual esta carteira foi criada."
+  "upgrade_seed_mismatch": "Esta frase de recuperação não corresponde a esta carteira. Digite a seed exata a partir da qual esta carteira foi criada.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

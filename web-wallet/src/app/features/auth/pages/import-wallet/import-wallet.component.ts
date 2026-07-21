@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
@@ -49,6 +50,7 @@ import {
     MatCheckboxModule,
     MatSnackBarModule,
     MatProgressBarModule,
+    MatTooltipModule,
     I18nPipe,
     StepHeaderComponent,
     MnemonicEntryComponent,
@@ -138,21 +140,44 @@ import {
 
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ 'bip39_passphrase' | i18n }}</mat-label>
+                    <!-- The 25th word is byte-significant: keep the browser /
+                         Android from auto-capitalizing/autocorrecting it when
+                         revealed. -->
                     <input
                       matInput
-                      type="password"
+                      [type]="bip39Visible() ? 'text' : 'password'"
                       [(ngModel)]="passphrase"
                       [disabled]="importing()"
+                      autocomplete="off"
+                      autocapitalize="none"
+                      autocorrect="off"
+                      spellcheck="false"
                     />
+                    <button
+                      mat-icon-button
+                      matSuffix
+                      type="button"
+                      (click)="bip39Visible.set(!bip39Visible())"
+                      [attr.aria-label]="
+                        (bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n
+                      "
+                      [matTooltip]="(bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n"
+                    >
+                      <mat-icon>{{ bip39Visible() ? 'visibility_off' : 'visibility' }}</mat-icon>
+                    </button>
                   </mat-form-field>
 
                   <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ 'confirm_bip39_passphrase' | i18n }}</mat-label>
                     <input
                       matInput
-                      type="password"
+                      [type]="bip39Visible() ? 'text' : 'password'"
                       [(ngModel)]="passphraseConfirm"
                       [disabled]="importing()"
+                      autocomplete="off"
+                      autocapitalize="none"
+                      autocorrect="off"
+                      spellcheck="false"
                     />
                     @if (passphrase !== passphraseConfirm && passphraseConfirm) {
                       <mat-error>{{ 'passphrase_mismatch' | i18n }}</mat-error>
@@ -429,6 +454,8 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   useBip39Passphrase = false;
   passphrase = '';
   passphraseConfirm = '';
+  /** Reveal toggle for the BIP39 25th-word inputs (verify what was typed). */
+  readonly bip39Visible = signal(false);
 
   // Bitcoin Core Wallet Encryption
   useWalletEncryption = false;

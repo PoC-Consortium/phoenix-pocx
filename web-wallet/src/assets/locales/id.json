@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Kantong",
   "wallet_rescan_legacy_description": "Periksa ulang cabang derivasi lama (v30) dompet ini di server Electrum. Dana lama muncul sebagai kantong v30 yang hanya bisa dibelanjakan.",
   "scan": "Pindai",
-  "upgrade_seed_mismatch": "Frasa pemulihan ini tidak cocok dengan dompet ini. Masukkan seed persis yang digunakan untuk membuat dompet ini."
+  "upgrade_seed_mismatch": "Frasa pemulihan ini tidak cocok dengan dompet ini. Masukkan seed persis yang digunakan untuk membuat dompet ini.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

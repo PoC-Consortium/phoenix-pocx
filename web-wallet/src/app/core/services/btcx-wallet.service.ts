@@ -664,7 +664,15 @@ export class BtcxWalletService {
     const status = await invoke<BtcxWalletStatus>('btcx_wallet_create', {
       mnemonic,
       passphrase: passphrase || null,
-      bip39Passphrase: bip39Passphrase || null,
+      // BIP39 requires the 25th-word passphrase NFKD-normalized before seed
+      // derivation. keys-btcx's `to_seed_normalized` hashes its input RAW
+      // (it expects an already-normalized passphrase), and desktop-Core
+      // (`@scure/bip39`) normalizes to NFKD itself — so we normalize here to
+      // make the nodeless BDK path (mobile + desktop-remote) derive identical
+      // seeds/addresses to desktop for ALL passphrases (incl. non-ASCII).
+      // Normalize ONLY the 25th-word bip39Passphrase — NOT the at-rest
+      // `passphrase` and NOT the mnemonic.
+      bip39Passphrase: bip39Passphrase ? bip39Passphrase.normalize('NFKD') : null,
       name: name ?? null,
       kind: kind ?? null,
     });
@@ -697,7 +705,15 @@ export class BtcxWalletService {
     const result = await invoke<BtcxRestoreResult>('btcx_wallet_restore', {
       mnemonic,
       passphrase: passphrase || null,
-      bip39Passphrase: bip39Passphrase || null,
+      // BIP39 requires the 25th-word passphrase NFKD-normalized before seed
+      // derivation. keys-btcx's `to_seed_normalized` hashes its input RAW
+      // (it expects an already-normalized passphrase), and desktop-Core
+      // (`@scure/bip39`) normalizes to NFKD itself — so we normalize here to
+      // make the nodeless BDK path (mobile + desktop-remote) derive identical
+      // seeds/addresses to desktop for ALL passphrases (incl. non-ASCII).
+      // Normalize ONLY the 25th-word bip39Passphrase — NOT the at-rest
+      // `passphrase` and NOT the mnemonic.
+      bip39Passphrase: bip39Passphrase ? bip39Passphrase.normalize('NFKD') : null,
       name: name ?? null,
       kind: kind ?? null,
     });

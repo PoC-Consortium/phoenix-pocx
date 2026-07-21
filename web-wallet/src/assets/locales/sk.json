@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Priehradka",
   "wallet_rescan_legacy_description": "Znova skontrolujte staré (v30) derivačné vetvy tejto peňaženky na serveri Electrum. Staršie prostriedky sa zobrazia ako priehradka v30 určená len na míňanie.",
   "scan": "Skenovať",
-  "upgrade_seed_mismatch": "Táto obnovovacia fráza nezodpovedá tejto peňaženke. Zadajte presný seed, z ktorého bola táto peňaženka vytvorená."
+  "upgrade_seed_mismatch": "Táto obnovovacia fráza nezodpovedá tejto peňaženke. Zadajte presný seed, z ktorého bola táto peňaženka vytvorená.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }

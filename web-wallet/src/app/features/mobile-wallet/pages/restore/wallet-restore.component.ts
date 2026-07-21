@@ -7,6 +7,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { MnemonicEntryComponent } from '../../../../shared/components';
 import type { MnemonicEntryState } from '../../../../shared/components';
@@ -61,6 +62,7 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MatTooltipModule,
     MnemonicEntryComponent,
     I18nPipe,
     PageHeaderComponent,
@@ -160,7 +162,29 @@ import { WalletNameSectionComponent } from '../../components/wallet-name-section
               </p>
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>{{ 'mwallet_bip39_label' | i18n }}</mat-label>
-                <input matInput type="password" [(ngModel)]="bip39Passphrase" autocomplete="off" />
+                <!-- The 25th word is byte-significant: keep Android from
+                     auto-capitalizing/autocorrecting it when revealed. -->
+                <input
+                  matInput
+                  [type]="bip39Visible() ? 'text' : 'password'"
+                  [(ngModel)]="bip39Passphrase"
+                  autocomplete="off"
+                  autocapitalize="none"
+                  autocorrect="off"
+                  spellcheck="false"
+                />
+                <button
+                  mat-icon-button
+                  matSuffix
+                  type="button"
+                  (click)="bip39Visible.set(!bip39Visible())"
+                  [attr.aria-label]="
+                    (bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n
+                  "
+                  [matTooltip]="(bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n"
+                >
+                  <mat-icon>{{ bip39Visible() ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
               </mat-form-field>
             }
 
@@ -331,6 +355,8 @@ export class WalletRestoreComponent implements OnInit {
    */
   useBip39 = false;
   bip39Passphrase = '';
+  /** Reveal toggle for the BIP39 25th-word input (verify what was typed). */
+  readonly bip39Visible = signal(false);
 
   /** Wallet name — pre-filled with the next free default; desktop rules. */
   walletName = '';

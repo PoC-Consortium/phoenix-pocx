@@ -1271,5 +1271,7 @@
   "wallet_pocket": "Vakje",
   "wallet_rescan_legacy_description": "Controleer de oude (v30) afleidingstakken van deze portemonnee opnieuw op de Electrum-server. Ouder tegoed verschijnt als een alleen-uitgeven v30-vakje.",
   "scan": "Scannen",
-  "upgrade_seed_mismatch": "Deze herstelzin komt niet overeen met deze portemonnee. Voer exact de seed in waarmee deze portemonnee is aangemaakt."
+  "upgrade_seed_mismatch": "Deze herstelzin komt niet overeen met deze portemonnee. Voer exact de seed in waarmee deze portemonnee is aangemaakt.",
+  "show_passphrase": "Show passphrase",
+  "hide_passphrase": "Hide passphrase"
 }
