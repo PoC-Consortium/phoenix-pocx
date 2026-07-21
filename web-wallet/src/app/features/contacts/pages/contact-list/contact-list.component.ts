@@ -81,15 +81,16 @@ import {
           <h1>{{ 'contacts' | i18n }}</h1>
         </div>
         <div class="header-right">
+          <!-- Compact person_add glyph on desktop AND mobile (the old mobile
+               page-header affordance) -->
           <button
-            mat-raised-button
-            color="primary"
-            class="add-button"
+            mat-icon-button
+            class="add-button--icon"
             (click)="showAddForm.set(true)"
             [disabled]="showAddForm()"
+            [matTooltip]="'add_contact' | i18n"
           >
             <mat-icon>person_add</mat-icon>
-            {{ 'add_contact' | i18n }}
           </button>
         </div>
       </div>
@@ -215,7 +216,6 @@ import {
             <div class="table-header">
               <div class="col-name">{{ 'name' | i18n }}</div>
               <div class="col-address">{{ 'address' | i18n }}</div>
-              <div class="col-actions"></div>
             </div>
 
             <!-- Fit-derived pagination (same idiom as the transactions page):
@@ -237,13 +237,13 @@ import {
                   <div class="col-name">
                     <span class="contact-name">{{ contact.name }}</span>
                     @if (contact.notes) {
-                      <span class="contact-notes">{{ contact.notes }}</span>
+                      <mat-icon class="notes-glyph" [matTooltip]="contact.notes"
+                        >sticky_note_2</mat-icon
+                      >
                     }
                   </div>
                   <div class="col-address">
                     <span class="address-text">{{ contact.address }}</span>
-                  </div>
-                  <div class="col-actions">
                     <button
                       mat-icon-button
                       class="copy-btn"
@@ -252,6 +252,11 @@ import {
                     >
                       <mat-icon>content_copy</mat-icon>
                     </button>
+                  </div>
+                  <div class="col-notes">
+                    <span class="notes-text">{{ contact.notes }}</span>
+                  </div>
+                  <div class="col-actions">
                     <button mat-icon-button [matMenuTriggerFor]="contactMenu">
                       <mat-icon>more_vert</mat-icon>
                     </button>
@@ -346,6 +351,12 @@ import {
         mat-icon {
           margin-right: 4px;
         }
+      }
+
+      // The header add affordance: a compact person_add glyph on both desktop
+      // and mobile (matches the old mobile page-header).
+      .add-button--icon {
+        color: white;
       }
 
       // Content
@@ -506,6 +517,7 @@ import {
         display: flex;
         background: #f5f7fa;
         padding: 10px 16px;
+        padding-right: 48px;
         font-size: 12px;
         font-weight: 600;
         color: rgba(0, 0, 0, 0.6);
@@ -524,8 +536,11 @@ import {
       }
 
       .table-row {
+        position: relative;
         display: flex;
-        padding: 12px 16px;
+        flex-wrap: wrap;
+        padding: 10px 16px;
+        padding-right: 48px;
         align-items: center;
         border-bottom: 1px solid #f0f0f0;
         transition: background 0.15s ease;
@@ -543,16 +558,87 @@ import {
         flex: 2;
         min-width: 0;
         display: flex;
-        flex-direction: column;
-        gap: 2px;
+        align-items: center;
+        gap: 6px;
 
         .contact-name {
+          min-width: 0;
           font-weight: 500;
           color: rgb(0, 35, 65);
           font-size: 14px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
-        .contact-notes {
+        // Desktop: a small note indicator after the name; hover shows the note
+        // (replaces a reserved notes line). Hidden on mobile, which shows the
+        // note inline instead.
+        .notes-glyph {
+          flex-shrink: 0;
+          font-size: 16px;
+          width: 16px;
+          height: 16px;
+          line-height: 16px;
+          color: rgba(0, 0, 0, 0.32);
+          cursor: help;
+        }
+      }
+
+      .col-address {
+        flex: 3;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+        padding-right: 8px;
+
+        .address-text {
+          min-width: 0;
+          font-family: monospace;
+          font-size: 12px;
+          color: #1565c0;
+          word-break: break-all;
+        }
+
+        // Small, subtle copy glyph right after the address.
+        .copy-btn {
+          flex-shrink: 0;
+          width: 22px;
+          height: 22px;
+          padding: 0;
+          opacity: 0.45;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover {
+            opacity: 0.9;
+          }
+
+          mat-icon {
+            font-size: 15px;
+            width: 15px;
+            height: 15px;
+            line-height: 15px;
+          }
+        }
+      }
+
+      // Notes: its own full-width line (order 4 → wraps below name/address on
+      // wide; stacks after the address on narrow). Absent when the contact
+      // has no note.
+      .col-notes {
+        // Desktop shows notes via the name glyph (hover), so the inline notes
+        // line is mobile-only — re-shown in the 600px media query.
+        display: none;
+        order: 4;
+        flex: 1 1 100%;
+        min-width: 0;
+        padding-left: 2px;
+
+        .notes-text {
+          display: block;
           font-size: 12px;
           color: rgba(0, 0, 0, 0.54);
           overflow: hidden;
@@ -561,51 +647,29 @@ import {
         }
       }
 
-      .col-address {
-        flex: 3;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-        padding-right: 8px;
-
-        .address-text {
-          font-family: monospace;
-          font-size: 12px;
-          color: #1565c0;
-          word-break: break-all;
-        }
-      }
-
+      // ⋮ menu: absolute + vertically centered so it spans BOTH the
+      // name/address line and the reserved notes line (desktop and mobile).
       .col-actions {
-        width: 80px;
-        flex-shrink: 0;
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
         display: flex;
-        justify-content: flex-end;
         align-items: center;
-        gap: 4px;
 
         button {
-          width: 32px;
-          height: 32px;
+          width: 36px;
+          height: 36px;
           padding: 0;
           display: inline-flex;
           align-items: center;
           justify-content: center;
 
           mat-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
-            line-height: 18px;
-          }
-        }
-
-        .copy-btn {
-          opacity: 0.5;
-
-          &:hover {
-            opacity: 1;
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
           }
         }
       }
@@ -668,7 +732,7 @@ import {
           color: #90caf9;
         }
 
-        .col-name .contact-notes {
+        .col-notes .notes-text {
           color: rgba(255, 255, 255, 0.54);
         }
 
@@ -688,20 +752,6 @@ import {
           padding: 16px;
         }
 
-        .header {
-          flex-direction: column;
-          gap: 12px;
-          align-items: flex-start;
-
-          .header-right {
-            width: 100%;
-
-            .add-button {
-              width: 100%;
-            }
-          }
-        }
-
         .table-header {
           display: none;
         }
@@ -710,10 +760,13 @@ import {
           position: relative;
           flex-direction: column;
           align-items: flex-start;
-          gap: 8px;
+          gap: 3px;
+          padding: 8px 16px;
+          padding-right: 44px;
 
           .col-name,
-          .col-address {
+          .col-address,
+          .col-notes {
             width: 100%;
           }
 
@@ -721,11 +774,45 @@ import {
             word-break: break-all;
           }
 
+          // Mobile card matches the old dedicated view: no inline copy icon
+          // (copy stays in the ⋮ menu on the right).
+          .col-address .copy-btn {
+            display: none;
+          }
+
+          // Mobile shows the note inline (touch has no hover) and reserves the
+          // line even when empty so every card is the SAME height — uniform
+          // rows keep the fit-pagination exact (no white gap above the nav).
+          .col-notes {
+            display: block;
+            min-height: 16px;
+          }
+
+          // The desktop hover glyph is hidden on mobile.
+          .notes-glyph {
+            display: none;
+          }
+
+          // ⋮ menu vertically centered over the whole card (spans the three
+          // stacked rows), with a larger tap target.
           .col-actions {
             position: absolute;
-            right: 8px;
-            top: 8px;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
             width: auto;
+
+            button {
+              width: 40px;
+              height: 40px;
+
+              mat-icon {
+                font-size: 24px;
+                width: 24px;
+                height: 24px;
+                line-height: 24px;
+              }
+            }
           }
         }
       }
