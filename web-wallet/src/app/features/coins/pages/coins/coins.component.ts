@@ -35,13 +35,12 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
   template: `
     <div class="page-layout">
       <div class="header">
-        <div class="header-left">
+        <div class="header-inner">
           <button mat-icon-button class="back-button" (click)="goBack()">
             <mat-icon>arrow_back</mat-icon>
           </button>
           <h1>{{ 'coins_title' | i18n }}</h1>
-        </div>
-        <div class="header-right">
+          <span class="spacer"></span>
           <button
             mat-icon-button
             class="refresh-button"
@@ -81,34 +80,57 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
         min-height: 0;
       }
 
+      /* Full-width gradient band; the inner row (below) is what carries the
+         column geometry and height, mirroring app-mwallet-page-header. */
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        padding: 16px 0;
         flex-shrink: 0;
       }
 
-      .header-left {
+      /* Constrain the header row to the SAME 700px column as the coins card
+         (margin: 0 auto) with the card's horizontal padding, so the back
+         arrow and refresh sit on the card's content edges — not the screen
+         edges — at every width. min-height lives here (not on the band) so
+         the band height = inner 40px + 2× band padding, matching the shared
+         mobile page header. */
+      .header-inner {
         display: flex;
         align-items: center;
         gap: 16px;
+        max-width: 700px;
+        width: 100%;
+        margin: 0 auto;
+        box-sizing: border-box;
+        padding: 0 24px;
+        min-height: 40px;
 
         h1 {
           margin: 0;
           font-size: 24px;
           font-weight: 300;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       }
 
+      /* -8px counters the icon-button's internal padding so the arrow glyph
+         sits on the card's left content edge (page-header's back-button trick). */
       .back-button {
         color: rgba(255, 255, 255, 0.9);
+        flex-shrink: 0;
+        margin-left: -8px;
+      }
+
+      .spacer {
+        flex: 1;
       }
 
       .refresh-button {
-        color: white;
+        color: rgba(255, 255, 255, 0.9);
+        flex-shrink: 0;
       }
 
       .spinning {
@@ -169,13 +191,17 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
 
       @media (max-width: 600px) {
         /* Match the shared mobile page-header (app-mwallet-page-header used by
-           Send/Receive): shorter band, 20px title (weight 300 kept). */
+           Send/Receive): band = inner 40px + 2×8px = 56px, 20px title (weight
+           300 kept). Inner padding tracks the mobile card's 16px. */
         .header {
-          padding: 8px 16px;
-          min-height: 40px;
+          padding: 8px 0;
         }
 
-        .header-left h1 {
+        .header-inner {
+          padding: 0 16px;
+        }
+
+        .header-inner h1 {
           font-size: 20px;
         }
 
