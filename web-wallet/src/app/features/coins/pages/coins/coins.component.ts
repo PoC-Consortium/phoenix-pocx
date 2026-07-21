@@ -2,6 +2,7 @@ import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { Location } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nPipe } from '../../../../core/i18n';
 import {
   AddressBalance,
@@ -11,17 +12,26 @@ import {
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
 
 /**
- * CoinsComponent — the desktop "Coins & Addresses" view. Shows the wallet's
- * spendable coins grouped by their funding address, reassuring the user that
- * funds spread across derived addresses are normal (not lost). Works in both
- * node modes via the WalletBackend seam.
+ * CoinsComponent — the ONE responsive "Coins & Addresses" (Balance details)
+ * page, serving both the desktop route (`/coins`, main-layout) and the
+ * mobile-wallet route (`/wallet/coins`, mobile-wallet-layout). Shows the
+ * wallet's spendable coins grouped by their funding address, reassuring the
+ * user that funds spread across derived addresses are normal (not lost).
+ *
+ * Shell-agnostic: it works in every node mode through the WalletBackend seam
+ * (`backend.wallet().listCoins()` routes to Core RPC or the local BDK wallet)
+ * and lays out identically under both shells — the shared
+ * AddressCoinsListComponent reflows from a wide table to stacked cards purely
+ * on width. The gradient header (back + title + refresh) and the flex-fill
+ * height chain give the list a bounded height for fit-based pagination.
  */
 @Component({
   selector: 'app-coins',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, I18nPipe, AddressCoinsListComponent],
+  imports: [MatButtonModule, MatIconModule, MatTooltipModule, I18nPipe, AddressCoinsListComponent],
   template: `
     <div class="page-layout">
       <div class="header">
@@ -30,6 +40,17 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
             <mat-icon>arrow_back</mat-icon>
           </button>
           <h1>{{ 'coins_title' | i18n }}</h1>
+        </div>
+        <div class="header-right">
+          <button
+            mat-icon-button
+            class="refresh-button"
+            [disabled]="loading()"
+            (click)="refresh()"
+            [matTooltip]="'refresh' | i18n"
+          >
+            <mat-icon [class.spinning]="loading()">refresh</mat-icon>
+          </button>
         </div>
       </div>
 
@@ -42,15 +63,22 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
   `,
   styles: [
     `
+      /* Fill the routed content column (desktop main-layout / mobile-wallet-
+         layout are both bounded flex columns) so the list card can flex into
+         the leftover viewport height — giving the coins list a measurable
+         height for fit-based pagination under BOTH shells. */
       :host {
-        display: block;
-        width: 100%;
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
       }
 
       .page-layout {
+        flex: 1 1 auto;
         display: flex;
         flex-direction: column;
-        min-height: 100%;
+        min-height: 0;
       }
 
       .header {
@@ -58,7 +86,9 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         color: white;
         padding: 16px 24px;
         display: flex;
+        justify-content: space-between;
         align-items: center;
+        flex-shrink: 0;
       }
 
       .header-left {
@@ -77,18 +107,44 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
         color: rgba(255, 255, 255, 0.9);
       }
 
-      .content {
-        padding: 24px;
-        display: flex;
-        justify-content: center;
+      .refresh-button {
+        color: white;
       }
 
+      .spinning {
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+
+      /* Flex-fills the content column so the embedded list has a bounded
+         height (fit-based pagination). Max-width matches the unified contacts
+         page: a full bech32 address + the key/coins/balance columns. */
       .coins-card {
+        flex: 1 1 0;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
         background: #ffffff;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        /* Near the content width: a full bech32 address + the key/coins/balance
-           columns, with only minimal slack in the (greedy) address column. */
         max-width: 700px;
         width: 100%;
         padding: 20px 24px;
@@ -104,6 +160,16 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
           background: #424242;
         }
       }
+
+      @media (max-width: 600px) {
+        .content {
+          padding: 16px;
+        }
+
+        .coins-card {
+          padding: 16px;
+        }
+      }
     `,
   ],
 })
@@ -111,6 +177,7 @@ export class CoinsComponent {
   private readonly backend = inject(BackendRouterService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly btcxWallet = inject(BtcxWalletService);
+  private readonly appMode = inject(AppModeService);
   private readonly location = inject(Location);
 
   readonly rows = signal<AddressBalance[]>([]);
@@ -118,11 +185,14 @@ export class CoinsComponent {
 
   constructor() {
     // Remote (BDK) mode populates the UTXO set via the background sync, so a
-    // one-shot load can land before the coins arrive. Reload on each sync tick
-    // (lastSync). In Core mode lastSync never fires, so this just does the
-    // initial load. The list tracks by address → no flicker; untracked() keeps
-    // loadCoins' own signal reads out of the effect's dependency set.
+    // one-shot load can land before the coins arrive. Reload on wallet switch
+    // (btcx walletName) and on every sync tick (lastSync). Both are signals:
+    // in nodeless/remote mode they drive the refresh; in Core mode they are
+    // constant (the btcx service is never initialized), so the effect just
+    // does the initial load. The list tracks by address → no flicker;
+    // untracked() keeps loadCoins' own signal reads out of the dependency set.
     effect(() => {
+      this.btcxWallet.walletName();
       this.btcxWallet.lastSync();
       untracked(() => void this.loadCoins());
     });
@@ -132,8 +202,30 @@ export class CoinsComponent {
     this.location.back();
   }
 
+  refresh(): void {
+    void this.loadCoins();
+  }
+
+  /**
+   * The wallet name to query, resolved per shell. The mobile-wallet route
+   * (and every nodeless launch) reads the reactive BTCX status name — always
+   * populated once the wallet is open, and the Electrum backend's listCoins
+   * ignores the argument anyway (it uses the single open BDK wallet). The
+   * desktop shell (Core/managed, or desktop remote mode) reads the wallet
+   * manager's active wallet: BtcxWalletService.walletName() is NOT reliably
+   * populated there — the btcx service is only initialized in nodeless/remote
+   * mode, so in Core mode it would fall back to the literal 'default', which
+   * Core RPC's listCoins would reject. WalletManagerService.activeWallet holds
+   * the real Core wallet name (and the remote group id, which the Electrum
+   * backend ignores).
+   */
+  private resolveWalletName(): string | undefined {
+    if (this.appMode.isNodeless()) return this.btcxWallet.walletName();
+    return this.walletManager.activeWallet ?? undefined;
+  }
+
   private async loadCoins(): Promise<void> {
-    const walletName = this.walletManager.activeWallet;
+    const walletName = this.resolveWalletName();
     if (!walletName) return;
 
     // Spinner only while the list is still empty — background refreshes update

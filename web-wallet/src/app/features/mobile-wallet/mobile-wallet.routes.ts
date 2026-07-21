@@ -51,9 +51,11 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           import('./pages/history/wallet-history.component').then(m => m.WalletHistoryComponent),
       },
       {
+        // Unified responsive coins/balance-details page — the same component
+        // the desktop /coins route uses (features/coins).
         path: 'coins',
         loadComponent: () =>
-          import('./pages/coins/wallet-coins.component').then(m => m.WalletCoinsComponent),
+          import('../../features/coins/pages/coins/coins.component').then(m => m.CoinsComponent),
       },
       // Wallet-only mode is "transactions only" — forging assignments are
       // hidden and the route is blocked (deep-link defense in depth).

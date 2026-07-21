@@ -55,22 +55,29 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
 }
 
 /**
- * AddressCoinsListComponent — presentational "Coins & Addresses" list.
+ * AddressCoinsListComponent — the ONE responsive "Coins & Addresses" list,
+ * serving both the desktop route (`/coins`, main-layout) and the mobile-wallet
+ * route (`/wallet/coins`, mobile-wallet-layout). One template, one set of
+ * styles: a flex "table" at wide widths that reflows to stacked cards below
+ * the 600px breakpoint (like the mining dashboard / the unified contacts list
+ * — pure CSS `@media`, no BreakpointObserver, no desktop/mobile fork).
  *
  * Shows the user their funds are spread across derived addresses (a normal
  * consequence of BIP-84 derivation), defusing "my money is gone" panic. Per
  * address: the address, its balance, a coin count, and a "Key exposed" flag
  * when the address' pubkey is already on-chain (it has been spent from before)
  * — a security signal, not a privacy one. No receive/change labels — that
- * keychain distinction confuses more than it helps (a payment received to a
- * change address reads as "Change", reinforcing the very panic this defuses).
- * Purely informational — no warnings/modals.
+ * keychain distinction confuses more than it helps. Purely informational.
+ *
+ * Fit-to-viewport pagination at ALL widths: FitRowsDirective measures how many
+ * `.table-row` elements fit the leftover viewport height (the fit IS the page
+ * size — no items-per-page selector). The measured row height adapts as the
+ * table reflows to taller cards below 600px.
  */
 @Component({
   selector: 'app-address-coins-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.compact]': 'compact()' },
   imports: [
     MatIconModule,
     MatProgressSpinnerModule,
@@ -91,87 +98,65 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
       </div>
     } @else if (rows().length === 0) {
       <app-empty-state icon="account_balance_wallet" [message]="'coins_empty' | i18n" />
-    } @else if (compact()) {
-      <!-- Mobile: fit-derived pagination (same idiom as the transactions
-           page). The cards container flex-fills the card and FitRowsDirective
-           measures how many .coin-card rows fit without scrolling — that fit
-           IS the page size, so there is no items-per-page selector. -->
+    } @else {
+      <!-- Column header (hidden below the 600px card breakpoint). -->
+      <div class="table-header">
+        <div class="col-address">{{ 'address' | i18n }}</div>
+        <div class="col-flag" aria-hidden="true"></div>
+        <div class="col-coins">{{ 'coins_col' | i18n }}</div>
+        <div class="col-balance">{{ 'balance' | i18n }} (BTCX)</div>
+      </div>
+
+      <!-- Fit-derived pagination (same idiom as the transactions page): the
+           row viewport flex-fills the leftover height and FitRowsDirective
+           measures how many .table-row elements fit — that fit IS the page
+           size, so there is no size selector. The measured row height adapts
+           as the table reflows to cards below 600px. -->
       <div
-        class="coins-cards"
+        class="table-body"
         appFitRows
-        [fitRowSelector]="'.coin-card'"
+        [fitRowSelector]="'.table-row'"
         [fitMinRows]="3"
-        [fitFallbackRowPx]="82"
+        [fitFallbackRowPx]="64"
         (fitRows)="onFitRows($event)"
       >
         @for (row of pagedRows(); track row.address) {
-          <div class="coin-card">
-            <app-address-display [address]="row.address" [showCopyButton]="true" [inline]="false" />
-            <div class="coin-card-meta">
-              <span class="coin-card-balance">{{ row.balanceBtc | btcx }} BTCX</span>
-              <span class="coin-card-count">{{ row.coinCount }} {{ 'coins_col' | i18n }}</span>
-              @if (row.exposed) {
-                <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
-                  >key</mat-icon
-                >
-              }
+          <div class="table-row">
+            <div class="col-address">
+              <app-address-display
+                [address]="row.address"
+                [showCopyButton]="true"
+                [inline]="false"
+              />
+            </div>
+            <!-- The three stat cells: display:contents at wide so they are
+                 flat flex children of the row (aligned under the header),
+                 and collapse to one meta line inside the card at narrow. -->
+            <div class="col-meta">
+              <div class="col-flag">
+                @if (row.exposed) {
+                  <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
+                    >key</mat-icon
+                  >
+                }
+              </div>
+              <div class="col-coins">
+                {{ row.coinCount }} <span class="meta-label">{{ 'coins_col' | i18n }}</span>
+              </div>
+              <div class="col-balance">
+                {{ row.balanceBtc | btcx }} <span class="meta-unit">BTCX</span>
+              </div>
             </div>
           </div>
         }
       </div>
 
-      @if (rows().length > compactPageSize()) {
-        <mat-paginator
-          [length]="rows().length"
-          [pageSize]="compactPageSize()"
-          [pageIndex]="pageIndex()"
-          [hidePageSize]="true"
-          (page)="onPageChange($event)"
-          [showFirstLastButtons]="true"
-        ></mat-paginator>
-      }
-    } @else {
-      <div class="coins-scroll">
-        <table class="coins-table">
-          <thead>
-            <tr>
-              <th class="th-address">{{ 'address' | i18n }}</th>
-              <th class="th-flag" aria-hidden="true"></th>
-              <th class="th-coins">{{ 'coins_col' | i18n }}</th>
-              <th class="th-balance">{{ 'balance' | i18n }} (BTCX)</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of pagedRows(); track row.address) {
-              <tr>
-                <td class="td-address">
-                  <app-address-display
-                    [address]="row.address"
-                    [showCopyButton]="true"
-                    [inline]="false"
-                  />
-                </td>
-                <td class="td-flag">
-                  @if (row.exposed) {
-                    <mat-icon class="flag-icon" [matTooltip]="'address_exposed_hint' | i18n"
-                      >key</mat-icon
-                    >
-                  }
-                </td>
-                <td class="td-coins">{{ row.coinCount }}</td>
-                <td class="td-balance">{{ row.balanceBtc | btcx }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
-      @if (rows().length > pageSizeOptions[0]) {
+      @if (rows().length > pageSize()) {
         <mat-paginator
           [length]="rows().length"
           [pageSize]="pageSize()"
           [pageIndex]="pageIndex()"
-          [pageSizeOptions]="pageSizeOptions"
+          [hidePageSize]="true"
           (page)="onPageChange($event)"
           [showFirstLastButtons]="true"
         ></mat-paginator>
@@ -180,13 +165,10 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
   `,
   styles: [
     `
+      /* Flex-fill the bounded parent (the wrapper's .coins-card) so the row
+         viewport height is viewport-derived — giving FitRowsDirective a real
+         height to measure under BOTH shells. */
       :host {
-        display: block;
-      }
-
-      /* Compact (mobile) layout flex-fills its bounded parent so the cards
-         viewport height is viewport-derived (see .coins-cards below). */
-      :host.compact {
         display: flex;
         flex-direction: column;
         flex: 1 1 0;
@@ -194,6 +176,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
       }
 
       .coins-intro {
+        flex-shrink: 0;
         margin: 0 0 16px;
         font-size: 13px;
         line-height: 1.5;
@@ -206,29 +189,15 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         padding: 32px 0;
       }
 
-      /* Only scrolls if a very long address can't fit the card. */
-      .coins-scroll {
-        overflow-x: auto;
-      }
-
-      /* A real table so the header and every row share column widths (a grid
-         per row can't align across rows). Full width with a greedy address
-         column pushes the number columns to the right edge, so their
-         right-alignment reads cleanly (like the transactions table). */
-      .coins-table {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0 6px;
-      }
-
-      .td-address,
-      .th-address {
-        width: 100%;
-      }
-
-      thead th {
-        padding: 0 16px 4px;
-        text-align: left;
+      /* Column header — a flat flex row matching the wide row's cells (the
+         row's .col-meta is display:contents at wide, so flag/coins/balance
+         are direct flex children aligned under these labels). */
+      .table-header {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px 6px;
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
@@ -237,46 +206,45 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         white-space: nowrap;
       }
 
-      .th-coins {
-        text-align: center;
+      /* The measured row viewport: basis 0 so its height comes from the
+         leftover space between the header and the paginator (never from its
+         own rows). Steady-state the fit-sized page never scrolls. */
+      .table-body {
+        flex: 1 1 0;
+        min-height: 0;
+        overflow-y: auto;
       }
 
-      .th-balance {
-        text-align: right;
-      }
-
-      tbody td {
-        background: #f5f7fa;
+      .table-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
         padding: 8px 16px;
-        vertical-align: middle;
+        margin-bottom: 6px;
+        border-radius: 8px;
+        background: #f5f7fa;
       }
 
-      tbody td:first-child {
-        border-radius: 8px 0 0 8px;
+      .table-row:last-child {
+        margin-bottom: 0;
       }
 
-      tbody td:last-child {
-        border-radius: 0 8px 8px 0;
+      /* Address column — greedy, so the number columns sit at the right edge. */
+      .col-address {
+        flex: 1 1 auto;
+        min-width: 0;
       }
 
-      .td-coins {
+      /* At wide, the meta wrapper is transparent to layout so its three cells
+         participate directly in the row/header flex. */
+      .col-meta {
+        display: contents;
+      }
+
+      .col-flag {
+        flex: 0 0 auto;
+        width: 18px;
         text-align: center;
-        font-variant-numeric: tabular-nums;
-        color: #5a6b7a;
-      }
-
-      .td-balance {
-        text-align: right;
-        font-family: monospace;
-        font-weight: 600;
-        color: #002341;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-      }
-
-      .td-flag {
-        text-align: center;
-        width: 1%;
       }
 
       .flag-icon {
@@ -288,32 +256,37 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         vertical-align: middle;
       }
 
+      .col-coins {
+        flex: 0 0 auto;
+        width: 64px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        color: #5a6b7a;
+        white-space: nowrap;
+      }
+
+      .col-balance {
+        flex: 0 0 auto;
+        width: 120px;
+        text-align: right;
+        font-family: monospace;
+        font-weight: 600;
+        color: #002341;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      /* The inline unit/label ("coins", "BTCX") duplicates the column header,
+         so it is hidden at wide and only shown inside the card at narrow. */
+      .meta-label,
+      .meta-unit {
+        display: none;
+      }
+
       mat-paginator {
-        margin-top: 8px;
-        background: transparent;
-      }
-
-      /* Compact (mobile) layout: one stacked card per address. */
-      .coins-cards {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      /* The measured row viewport: basis 0 so its height comes from the
-         leftover space between the intro and the paginator (never from its
-         own cards). Steady-state the fit-sized page never scrolls; the few
-         overflowing pixels (inter-card gaps) scroll here. */
-      :host.compact .coins-cards {
-        flex: 1 1 0;
-        min-height: 0;
-        overflow-y: auto;
-      }
-
-      /* Compact paginator (the transactions-page pager, mobile-sized). */
-      :host.compact mat-paginator {
-        margin-top: 0;
         flex-shrink: 0;
+        margin-top: 4px;
+        background: transparent;
 
         ::ng-deep .mat-mdc-paginator-container {
           min-height: 44px;
@@ -336,62 +309,71 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
         }
       }
 
-      .coin-card {
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 8px;
-        padding: 10px 12px;
-        background: rgba(0, 0, 0, 0.015);
-      }
-
-      .coin-card-meta {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-top: 8px;
-        font-size: 13px;
-      }
-
-      .coin-card-balance {
-        font-weight: 600;
-        color: #1976d2;
-      }
-
-      .coin-card-count {
-        color: #5a6b7a;
-      }
-
-      .coin-card-meta .flag-icon {
-        margin-left: auto;
-      }
-
       :host-context(.dark-theme) {
         .coins-intro {
           color: #9fb0bf;
         }
 
-        tbody td {
+        .table-row {
           background: #333;
         }
 
-        .td-coins {
+        .col-coins {
           color: #9aa7b3;
         }
 
-        .td-balance {
+        .col-balance {
           color: #90caf9;
         }
+      }
 
-        .coin-card {
-          border-color: rgba(255, 255, 255, 0.12);
-          background: #333;
+      /* Responsive — reflow each table row to a stacked card below 600px
+         (tablet portrait, phone). The address wraps at full width; the three
+         stat cells collapse onto one meta line under it. */
+      @media (max-width: 600px) {
+        .table-header {
+          display: none;
         }
 
-        .coin-card-balance {
+        .table-row {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 8px;
+          padding: 10px 12px;
+        }
+
+        .col-address {
+          width: 100%;
+        }
+
+        /* The meta wrapper becomes a real one-line flex row inside the card. */
+        .col-meta {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          width: 100%;
+          font-size: 13px;
+        }
+
+        .col-coins {
+          width: auto;
+          text-align: left;
+        }
+
+        /* Balance pushed to the right edge of the meta line, prominent. */
+        .col-balance {
+          width: auto;
+          margin-left: auto;
+          color: #1976d2;
+        }
+
+        .meta-label,
+        .meta-unit {
+          display: inline;
+        }
+
+        :host-context(.dark-theme) .col-balance {
           color: #90caf9;
-        }
-
-        .coin-card-count {
-          color: #9fb0bf;
         }
       }
     `,
@@ -402,54 +384,36 @@ export class AddressCoinsListComponent {
   readonly rows = input.required<AddressBalance[]>();
   /** Whether the source query is still loading. */
   readonly loading = input(false);
-  /**
-   * Compact (transposed) layout: each address becomes a stacked card instead
-   * of a wide table row — for narrow / mobile viewports where the 4 columns
-   * don't fit.
-   */
-  readonly compact = input(false);
 
-  // Desktop (non-compact) pagination: a user-chosen size from the selector.
-  readonly pageSize = signal(10);
-  readonly pageIndex = signal(0);
-  readonly pageSizeOptions = [10, 25, 50];
-
-  // Compact (mobile) pagination: the page size is whatever FitRowsDirective
-  // measures fits the viewport (initial value only covers the first paint
+  // Fit-derived pagination: the page size is whatever FitRowsDirective
+  // measures fits the row viewport (initial value only covers the first paint
   // before the directive's AfterViewInit measurement lands).
-  readonly compactPageSize = signal(6);
-
-  /** The effective page size for the active layout. */
-  private readonly effectivePageSize = computed(() =>
-    this.compact() ? this.compactPageSize() : this.pageSize()
-  );
+  readonly pageSize = signal(6);
+  readonly pageIndex = signal(0);
 
   /** The current page of rows (transactions-style pagination). */
   readonly pagedRows = computed(() => {
     const all = this.rows();
-    const size = this.effectivePageSize();
+    const size = this.pageSize();
     const maxPage = Math.max(0, Math.ceil(all.length / size) - 1);
     const page = Math.min(this.pageIndex(), maxPage);
     return all.slice(page * size, page * size + size);
   });
 
   /**
-   * New measured fit (rotation, resize, first measurement): adopt it as the
-   * compact page size and keep the user on the page containing the previously
-   * first visible row instead of resetting to page 0.
+   * New measured fit (reflow, resize, first measurement): adopt it as the
+   * page size and keep the user on the page containing the previously first
+   * visible row instead of resetting to page 0.
    */
   onFitRows(fit: number): void {
-    const oldSize = this.compactPageSize();
+    const oldSize = this.pageSize();
     if (fit === oldSize) return;
     const firstVisibleIndex = this.pageIndex() * oldSize;
-    this.compactPageSize.set(fit);
+    this.pageSize.set(fit);
     this.pageIndex.set(Math.floor(firstVisibleIndex / fit));
   }
 
   onPageChange(event: PageEvent): void {
     this.pageIndex.set(event.pageIndex);
-    // Only the desktop selector changes the page size; the compact pager
-    // hides the selector and its size is the measured fit.
-    if (!this.compact()) this.pageSize.set(event.pageSize);
   }
 }
