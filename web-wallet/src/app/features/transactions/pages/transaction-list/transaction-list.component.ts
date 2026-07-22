@@ -105,7 +105,7 @@ type TransactionFilter =
     I18nPipe,
   ],
   template: `
-    <div class="page-layout">
+    <div class="page-layout" [class.filters-open]="filtersOpen()">
       <!-- Header with gradient background -->
       <div class="header">
         <div class="header-left">
@@ -115,13 +115,24 @@ type TransactionFilter =
           <h1>{{ 'transactions' | i18n }}</h1>
         </div>
         <div class="header-right">
+          <!-- Phone-only: expand/collapse the filter row + load limit -->
+          <button
+            mat-icon-button
+            class="refresh-button filter-toggle"
+            [class.active]="filtersOpen()"
+            (click)="filtersOpen.set(!filtersOpen())"
+            [matTooltip]="'search' | i18n"
+          >
+            <mat-icon>filter_list</mat-icon>
+          </button>
+
           <!-- Export CSV (kept apart from the load-limit + refresh pair) -->
           <button
             mat-icon-button
             [disabled]="loading() || filteredTransactions().length === 0"
             (click)="exportCsv()"
             [matTooltip]="'export_csv' | i18n"
-            class="refresh-button"
+            class="refresh-button export-button"
           >
             <mat-icon>file_download</mat-icon>
           </button>
@@ -961,14 +972,43 @@ type TransactionFilter =
         }
       }
 
+      /* The funnel only exists at phone — desktop shows the filters inline. */
+      .filter-toggle {
+        display: none;
+      }
+
       @include bp.phone {
         .header {
           padding: 0 16px;
         }
 
-        /* The old mobile history had no filters and no load-limit select. */
+        .filter-toggle {
+          display: inline-flex;
+
+          &.active mat-icon {
+            color: #ffd54f;
+          }
+        }
+
+        /* Collapsed by default (the old mobile look); the funnel reveals the
+           filter row (wrapping) and the load-limit select in the header. */
         .filter-row,
         .limit-field {
+          display: none;
+        }
+
+        .filters-open .filter-row {
+          display: flex;
+          flex-wrap: wrap;
+        }
+
+        /* .page-layout carries .filters-open; the header is inside it. */
+        .filters-open .limit-field {
+          display: inline-flex;
+        }
+
+        /* Nobody exports CSV on a phone. */
+        .export-button {
           display: none;
         }
 
@@ -1045,6 +1085,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   transactions = signal<WalletTransaction[]>([]);
   activeFilter = signal<TransactionFilter>('all');
   pageIndex = signal(0);
+  /** Phone: the filter row + load limit are collapsed behind the funnel. */
+  readonly filtersOpen = signal(false);
   /**
    * Fit-derived page size at EVERY width (the app-wide pattern): FitRows
    * measures how many rows fit the table/card viewport — no items-per-page
