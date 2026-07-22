@@ -125,6 +125,17 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        // Setup wizard IN the wallet shell — same treatment as the dashboard
+        // above, so Setup never teleports hybrid users to the bare miner
+        // shell (mining-only keeps /miner/setup).
+        path: 'mining/setup',
+        canActivate: [notWalletOnlyGuard],
+        loadComponent: () =>
+          import('../../mining/pages/setup-wizard/setup-wizard.component').then(
+            m => m.SetupWizardComponent
+          ),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./pages/settings/wallet-settings.component').then(m => m.WalletSettingsComponent),

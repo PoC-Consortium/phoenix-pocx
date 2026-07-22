@@ -726,6 +726,12 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
           .dropdown-arrow {
             display: none;
           }
+
+          /* Icon-only: match the other toolbar icons' grey — the loaded
+             state's near-black emphasis reads wrong without the text. */
+          .wallet-icon.has-wallet {
+            color: rgba(0, 0, 0, 0.54);
+          }
         }
       }
     `,

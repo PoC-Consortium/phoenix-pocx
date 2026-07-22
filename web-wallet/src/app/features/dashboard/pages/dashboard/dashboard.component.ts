@@ -531,7 +531,7 @@ import { MiningService } from '../../../../mining/services';
             <mat-card-content>
               <h3>{{ 'mwallet_mine_hint_title' | i18n }}</h3>
               <p class="hint-text">{{ 'mwallet_mine_hint_text' | i18n }}</p>
-              <button mat-stroked-button routerLink="/miner/setup">
+              <button mat-stroked-button routerLink="/wallet/mining/setup">
                 <mat-icon>hardware</mat-icon>
                 {{ 'mwallet_mine_setup' | i18n }}
               </button>

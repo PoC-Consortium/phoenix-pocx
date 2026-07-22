@@ -1708,7 +1708,11 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
    * navigation was silently cancel-redirected back to the dashboard).
    */
   readonly setupRoute = computed(() =>
-    this.appMode.isMiningOnly() || this.appMode.isMobileMode() ? '/miner/setup' : '/mining/setup'
+    this.appMode.isMiningOnly()
+      ? '/miner/setup'
+      : this.appMode.isMobileMode()
+        ? '/wallet/mining/setup'
+        : '/mining/setup'
   );
 
   // Use service signals directly so component state stays in lock-step with
