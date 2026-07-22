@@ -20,6 +20,7 @@ import {
   BtcxChainInfo,
 } from '../../../core/services/btcx-wallet.service';
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
+import { MiningService } from '../../../mining/services/mining.service';
 import { AppModeService } from '../../../core/services/app-mode.service';
 import { ViewportService } from '../../../core/services/viewport.service';
 import { AppUpdateService } from '../../../core/services/app-update.service';
@@ -287,6 +288,19 @@ interface NavGroup {
                 </div>
               </mat-menu>
             </div>
+
+            <!-- Miner indicator (the desktop toolbar's hardware icon; the
+                 plotter icon is deliberately omitted — no toolbar space) -->
+            @if (miningAvailable() && miningService.isConfigured()) {
+              <div
+                class="status-indicator"
+                [matTooltip]="
+                  miningService.minerRunning() ? ('miner_running' | i18n) : ('miner_stopped' | i18n)
+                "
+              >
+                <mat-icon [class.miner-active]="miningService.minerRunning()">hardware</mat-icon>
+              </div>
+            }
 
             <div class="toolbar-right">
               @if (wallet.hasSeed()) {
@@ -1268,6 +1282,10 @@ interface NavGroup {
           &.electrum-connecting {
             color: rgba(255, 255, 255, 0.45);
           }
+
+          &.miner-active {
+            color: #4caf50;
+          }
         }
       }
 
@@ -1293,7 +1311,10 @@ export class MobileWalletLayoutComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
   readonly electrumStatus = inject(ElectrumStatusService);
   readonly viewport = inject(ViewportService);
+  readonly miningService = inject(MiningService);
   private readonly appMode = inject(AppModeService);
+  /** Mining exists in this shell (hybrid flavors) — wallet-only has none. */
+  readonly miningAvailable = computed(() => this.appMode.miningEnabled());
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);

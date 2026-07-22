@@ -223,6 +223,9 @@ const UTXO_PAGE_SIZE = 10;
               >
                 <mat-icon>contacts</mat-icon>
               </button>
+              <!-- Phone: wrap AFTER the contacts button (address + contacts
+                   on line one, amount + max + remove on line two) -->
+              <div class="row-break"></div>
               <mat-form-field appearance="outline" class="amount-field">
                 <mat-label>{{ 'amount' | i18n }}</mat-label>
                 <input
@@ -830,6 +833,11 @@ const UTXO_PAGE_SIZE = 10;
           min-width: 0;
         }
 
+        /* Forced wrap point (phone only). */
+        .row-break {
+          display: none;
+        }
+
         .amount-field {
           width: 210px;
           flex-shrink: 0;
@@ -1282,9 +1290,10 @@ const UTXO_PAGE_SIZE = 10;
         .output-row {
           flex-wrap: wrap;
 
-          .addr-field {
-            width: 100%;
-            flex: unset;
+          .row-break {
+            display: block;
+            flex-basis: 100%;
+            height: 0;
           }
 
           .amount-field {

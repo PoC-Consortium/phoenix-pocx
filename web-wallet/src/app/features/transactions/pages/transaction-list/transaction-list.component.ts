@@ -137,13 +137,15 @@ type TransactionFilter =
             <mat-icon>file_download</mat-icon>
           </button>
 
-          <!-- Load limit: its own icon + menu (refresh stays one tap). -->
+          <!-- Load limit: its own icon + menu (refresh stays one tap). On
+               phone it lives in the funnel-revealed filter row instead so the
+               header keeps to two icons and never wraps. -->
           <button
             mat-icon-button
             [disabled]="loading()"
             [matMenuTriggerFor]="limitMenu"
             [matTooltip]="'load_limit' | i18n"
-            class="refresh-button"
+            class="refresh-button limit-button"
           >
             <mat-icon>format_list_numbered</mat-icon>
           </button>
@@ -231,6 +233,17 @@ type TransactionFilter =
         <!-- Reset Button -->
         <button mat-stroked-button class="reset-button" (click)="resetFilters()">
           {{ 'reset' | i18n }}
+        </button>
+
+        <!-- Phone-only load-limit trigger (same menu as the header icon) -->
+        <button
+          mat-icon-button
+          [disabled]="loading()"
+          [matMenuTriggerFor]="limitMenu"
+          [matTooltip]="'load_limit' | i18n"
+          class="limit-inline"
+        >
+          <mat-icon>format_list_numbered</mat-icon>
         </button>
       </div>
 
@@ -937,6 +950,12 @@ type TransactionFilter =
         display: none;
       }
 
+      /* The in-row load-limit trigger only exists at phone — desktop keeps
+         it in the header. */
+      .limit-inline {
+        display: none;
+      }
+
       @include bp.phone {
         .header {
           padding: 0 16px;
@@ -946,7 +965,7 @@ type TransactionFilter =
           display: inline-flex;
 
           &.active mat-icon {
-            color: #ffd54f;
+            color: #4caf50;
           }
         }
 
@@ -964,6 +983,20 @@ type TransactionFilter =
         /* Nobody exports CSV on a phone. */
         .export-button {
           display: none;
+        }
+
+        /* Two icons max in the header (funnel + refresh) so it never wraps
+           on narrow phones — the load limit moves into the filter row. */
+        .header-right {
+          gap: 0;
+
+          .limit-button {
+            display: none;
+          }
+        }
+
+        .filters-open .limit-inline {
+          display: inline-flex;
         }
 
         .transactions-card {
