@@ -94,8 +94,9 @@ interface AddressInfo {
               </mat-select>
             </mat-form-field>
 
-            <!-- 2. Amount / 3. Label (feed the URI/QR) -->
-            <mat-form-field appearance="outline" class="full-width">
+            <!-- 2. Amount / 3. Label (feed the URI/QR) — desktop only; the
+                 phone tier hides them to keep the page on one screen. -->
+            <mat-form-field appearance="outline" class="full-width optional-field">
               <mat-label>{{ 'amount_optional' | i18n }}</mat-label>
               <input
                 matInput
@@ -109,7 +110,7 @@ interface AddressInfo {
               <span matTextSuffix>BTCX</span>
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="full-width">
+            <mat-form-field appearance="outline" class="full-width optional-field">
               <mat-label>{{ 'label_optional' | i18n }}</mat-label>
               <input
                 matInput
@@ -510,6 +511,12 @@ interface AddressInfo {
       @include bp.phone {
         .header {
           padding: 0 16px;
+        }
+
+        /* Phone: no amount/label — the page stays on one screen; the URI
+           falls back to the plain address. */
+        .optional-field {
+          display: none;
         }
 
         /* Compact phone rhythm: tighter page/card padding + section spacing. */
