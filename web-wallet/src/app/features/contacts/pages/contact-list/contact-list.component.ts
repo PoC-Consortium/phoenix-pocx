@@ -341,7 +341,7 @@ import {
 
         h1 {
           margin: 0;
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 300;
         }
       }
@@ -756,10 +756,6 @@ import {
            and the coins page. Only edge padding + title change. */
         .header {
           padding: 0 16px;
-        }
-
-        .header-left h1 {
-          font-size: 20px;
         }
 
         .content {
