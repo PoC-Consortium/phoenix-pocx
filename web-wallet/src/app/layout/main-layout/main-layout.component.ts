@@ -168,6 +168,8 @@ interface NavGroup {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .sidenav-container {
         height: 100%;
       }
@@ -309,8 +311,10 @@ interface NavGroup {
         }
       }
 
-      // Version line is desktop chrome — hidden at the mobile breakpoint.
-      @media (max-width: 600px) {
+      /* Version tag follows the menu: visible whenever the sidenav is
+         DOCKED (> tablet tier), hidden in overlay/collapsed mode — the same
+         line ViewportService.menuOverlay switches on. */
+      @include bp.tablet-down {
         .header-version {
           display: none;
         }

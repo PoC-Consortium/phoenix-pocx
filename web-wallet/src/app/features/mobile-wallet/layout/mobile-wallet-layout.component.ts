@@ -22,6 +22,7 @@ import {
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
 import { AppModeService } from '../../../core/services/app-mode.service';
 import { ViewportService } from '../../../core/services/viewport.service';
+import { AppUpdateService } from '../../../core/services/app-update.service';
 import { BtcxPipe, TimeAgoPipe } from '../../../shared/pipes';
 import { NotificationService } from '../../../shared/services';
 import {
@@ -119,7 +120,19 @@ interface NavGroup {
       >
         <div class="drawer-header">
           <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix" class="drawer-logo" />
-          <span class="drawer-title">Phoenix Wallet</span>
+          <div class="drawer-title-block">
+            <span class="drawer-title">Phoenix Wallet</span>
+            @if (appVersion()) {
+              <div class="header-version" (click)="onVersionClick()">
+                <span class="version-text">v{{ appVersion() }}</span>
+                @if (showUpdateBadge()) {
+                  <span class="update-badge" title="{{ 'update_available' | i18n }}">
+                    <mat-icon>arrow_upward</mat-icon>
+                  </span>
+                }
+              </div>
+            }
+          </div>
           <button mat-icon-button class="drawer-close" (click)="drawer.close()">
             <mat-icon>close</mat-icon>
           </button>
@@ -488,6 +501,8 @@ interface NavGroup {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .wallet-layout {
         /* Visible viewport minus the Android status-bar padding on <body>:
            100vh fallback, 100dvh override — plain 100vh overflows on
@@ -538,8 +553,56 @@ interface NavGroup {
         height: 28px;
       }
 
-      .drawer-title {
+      .drawer-title-block {
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      /* The desktop sidenav's version line, following the same rule: visible
+         only while the drawer is DOCKED (> tablet tier). */
+      .header-version {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        cursor: pointer;
+        margin-top: 1px;
+
+        .version-text {
+          font-size: 10px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+
+        .update-badge {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 14px;
+          height: 14px;
+          background: #4caf50;
+          border-radius: 50%;
+
+          .mat-icon {
+            font-size: 10px;
+            width: 10px;
+            height: 10px;
+            color: white;
+          }
+        }
+
+        &:hover .version-text {
+          color: rgba(255, 255, 255, 0.8);
+        }
+      }
+
+      @include bp.tablet-down {
+        .header-version {
+          display: none;
+        }
+      }
+
+      .drawer-title {
         font-size: 15px;
         font-weight: 600;
         min-width: 0;
@@ -1234,6 +1297,30 @@ export class MobileWalletLayoutComponent implements OnInit {
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
+  private readonly appUpdateService = inject(AppUpdateService);
+
+  readonly appVersion = computed(() => this.appUpdateService.currentVersion());
+  readonly showUpdateBadge = computed(() => this.appUpdateService.showUpdateBadge());
+
+  /** The desktop sidenav's version-tap: open the update dialog when one is pending. */
+  async onVersionClick(): Promise<void> {
+    const updateInfo = this.appUpdateService.updateInfo();
+    if (!updateInfo) {
+      return;
+    }
+    const { UpdateDialogComponent } =
+      await import('../../../shared/components/update-dialog/update-dialog.component');
+    const dialogRef = this.dialog.open(UpdateDialogComponent, {
+      data: updateInfo,
+      disableClose: false,
+      autoFocus: false,
+    });
+    dialogRef.afterClosed().subscribe((result: { dismissed?: boolean } | null) => {
+      if (result?.dismissed) {
+        this.appUpdateService.dismissUpdate();
+      }
+    });
+  }
 
   languages: Language[] = LANGUAGES;
 

@@ -249,7 +249,7 @@ type TransactionFilter =
                 [fitRowSelector]="'.tx-item'"
                 [fitMinRows]="3"
                 [fitFallbackRowPx]="96"
-                (fitRows)="onPhoneFit($event)"
+                (fitRows)="onFit($event)"
               >
                 @for (
                   tx of phoneRows();
@@ -261,7 +261,15 @@ type TransactionFilter =
                 }
               </div>
             } @else {
-              <div class="transactions-table-container">
+              <div
+                class="transactions-table-container"
+                appFitRows
+                [fitRowSelector]="'.fit-row'"
+                [fitHeaderSelector]="'thead'"
+                [fitMinRows]="3"
+                [fitFallbackRowPx]="46"
+                (fitRows)="onFit($event)"
+              >
                 <table class="transactions-table">
                   <thead>
                     <tr>
@@ -279,7 +287,7 @@ type TransactionFilter =
                       tx of paginatedTransactions();
                       track tx.txid + '-' + tx.vout + '-' + tx.category
                     ) {
-                      <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
+                      <tr class="tx-row fit-row" [class.unconfirmed]="tx.confirmations === 0">
                         <td class="col-datetime">
                           <div class="datetime-stack">
                             <span class="date">{{ formatTxDate(tx) }}</span>
@@ -396,10 +404,9 @@ type TransactionFilter =
             }
             <mat-paginator
               [length]="filteredTransactions().length"
-              [pageSize]="effectivePageSize()"
+              [pageSize]="fitPageSize()"
               [pageIndex]="pageIndex()"
-              [pageSizeOptions]="pageSizeOptions"
-              [hidePageSize]="viewport.phone()"
+              [hidePageSize]="true"
               (page)="onPageChange($event)"
               [showFirstLastButtons]="true"
             >
@@ -413,10 +420,23 @@ type TransactionFilter =
     `
       @use 'breakpoints' as bp;
 
+      /* Height chain for fit-based paging at EVERY width (coins/contacts
+         pattern): host fills the routed column, the card flex-fills the
+         leftover height, FitRows measures the table/card viewport. */
+      :host {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
       .page-layout {
         display: flex;
         flex-direction: column;
-        height: 100%;
+        flex: 1 1 auto;
+        /* No height: 100% — percentage-of-auto breaks the bounded chain and
+           the fit viewport grows with its rows (circular measurement). */
+        min-height: 0;
         box-sizing: border-box;
         background: #eaf0f6;
       }
@@ -596,9 +616,17 @@ type TransactionFilter =
         background: #ffffff !important;
         border-radius: 8px;
         overflow: hidden;
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
 
         mat-card-content {
           padding: 16px 16px 0 16px !important;
+          flex: 1 1 0;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
         }
 
         mat-paginator {
@@ -715,9 +743,13 @@ type TransactionFilter =
         }
       }
 
+      /* The measured row viewport: height comes from the card (bounded
+         flex chain below), never from the rows — FitRows derives the page
+         size, so the fit-sized page never scrolls. */
       .transactions-table-container {
-        flex: 1;
-        overflow: auto;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: hidden;
         background: #ffffff;
       }
 
@@ -950,34 +982,6 @@ type TransactionFilter =
           }
         }
 
-        /* Height chain for the fit-based card list: bound the card so
-           FitRows can measure the leftover space (coins/contacts pattern). */
-        :host {
-          flex: 1 1 auto;
-          display: flex;
-          flex-direction: column;
-          min-height: 0;
-        }
-
-        .page-layout {
-          flex: 1 1 auto;
-          min-height: 0;
-        }
-
-        .transactions-card {
-          flex: 1 1 0;
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
-
-          mat-card-content {
-            flex: 1 1 0;
-            min-height: 0;
-            display: flex;
-            flex-direction: column;
-          }
-        }
-
         .tx-card-list {
           flex: 1 1 0;
           min-height: 0;
@@ -1041,14 +1045,12 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   transactions = signal<WalletTransaction[]>([]);
   activeFilter = signal<TransactionFilter>('all');
   pageIndex = signal(0);
-  pageSize = signal(10);
-  pageSizeOptions = [10, 25, 50];
-  /** Phone: fit-derived page size (FitRows measures the card list). */
-  readonly phonePageSize = signal(6);
-  /** The page size in effect: fit-derived on phone, the selector elsewhere. */
-  readonly effectivePageSize = computed(() =>
-    this.viewport.phone() ? this.phonePageSize() : this.pageSize()
-  );
+  /**
+   * Fit-derived page size at EVERY width (the app-wide pattern): FitRows
+   * measures how many rows fit the table/card viewport — no items-per-page
+   * selector. Initial value only covers the first paint.
+   */
+  readonly fitPageSize = signal(10);
   searchQuery = '';
   selectedType: TransactionFilter = 'all';
   dateFrom: Date | null = null;
@@ -1124,8 +1126,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   paginatedTransactions = computed(() => {
     const txs = this.filteredTransactions();
-    const start = this.pageIndex() * this.effectivePageSize();
-    return txs.slice(start, start + this.effectivePageSize());
+    const start = this.pageIndex() * this.fitPageSize();
+    return txs.slice(start, start + this.fitPageSize());
   });
 
   oldestTransactionDate = computed(() => {
@@ -1158,11 +1160,11 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   }
 
   /** New measured fit: adopt as page size, keep the first visible row on page. */
-  onPhoneFit(fit: number): void {
-    const oldSize = this.phonePageSize();
+  onFit(fit: number): void {
+    const oldSize = this.fitPageSize();
     if (fit === oldSize) return;
     const firstVisible = this.pageIndex() * oldSize;
-    this.phonePageSize.set(fit);
+    this.fitPageSize.set(fit);
     this.pageIndex.set(Math.floor(firstVisible / fit));
   }
 
@@ -1290,8 +1292,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   }
 
   onPageChange(event: PageEvent): void {
+    // Page size is fit-derived (no selector) — only the index is user-driven.
     this.pageIndex.set(event.pageIndex);
-    this.pageSize.set(event.pageSize);
   }
 
   // Transaction display methods
