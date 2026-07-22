@@ -14,9 +14,17 @@ export const MOBILE_WALLET_ROUTES: Routes = [
       import('./layout/mobile-wallet-layout.component').then(m => m.MobileWalletLayoutComponent),
     children: [
       {
+        // Unified responsive dashboard — the SAME component the desktop
+        // /dashboard route uses. Its data flows through the seam
+        // (WalletService / BlockchainStateService), fed in this shell by the
+        // wallet-manager's nodeless bridge; the nodeless states (onboarding /
+        // unlock / no-server / mining nudge) are folded in mode-gated.
+        // WalletHomeComponent is retired.
         path: '',
         loadComponent: () =>
-          import('./pages/home/wallet-home.component').then(m => m.WalletHomeComponent),
+          import('../../features/dashboard/pages/dashboard/dashboard.component').then(
+            m => m.DashboardComponent
+          ),
       },
       {
         path: 'create',
