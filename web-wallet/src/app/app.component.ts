@@ -252,13 +252,13 @@ export class AppComponent implements OnInit, OnDestroy {
     }
 
     // Auto-start runs on every Tauri launch that HAS the mining backend
-    // compiled in (desktop wallet, desktop mining-only, Android hybrid,
-    // Android mining-only). The Android wallet-only flavor has no mining
-    // commands, so these auto-starts are suppressed there — otherwise the
-    // service's first `refreshState()` / `loadConfig()` would invoke absent
-    // commands. Each service still has its own guards (missing config,
+    // enabled for this mode: hybrid (default desktop), mining-only, and the
+    // full mobile flavor. Wallet-only NEVER mines — on Android the commands
+    // are absent, and on desktop `--wallet-only` they are compiled in but must
+    // stay dormant (no background miner in a wallet-only session). `miningEnabled`
+    // captures both. Each service still has its own guards (missing config,
     // no chains/drives, node-not-ready) so the calls no-op safely otherwise.
-    if (this.appModeService.hasMiningBackend()) {
+    if (this.appModeService.miningEnabled()) {
       this.aggregatorService
         .autoStart()
         .catch(err => console.error('Aggregator auto-start failed:', err));

@@ -65,9 +65,20 @@ export class AppModeService {
    * (Rust `mining` cargo feature) is compiled in. False ONLY in the Android
    * wallet-only flavor (`isWalletOnly()` + `isMobile()`), where every mining/
    * aggregator command is absent. Desktop `--wallet-only` keeps mining
-   * compiled, so it stays true there.
+   * compiled, so it stays true there — use this to guard whether a mining
+   * COMMAND is safe to call, NOT whether mining should run.
    */
   readonly hasMiningBackend = computed(() => !(this.isWalletOnly() && this.isMobile()));
+
+  /**
+   * Whether mining/plotting/aggregator should actually be ENABLED for this
+   * mode — the backend is compiled in AND we are not in wallet-only mode.
+   * Mining belongs to hybrid (default desktop), mining-only, and the full
+   * mobile flavor; wallet-only never mines, on ANY platform. (Desktop
+   * `--wallet-only` compiles mining in but must not auto-start or surface it —
+   * `hasMiningBackend` stays true there for command-safety, this is false.)
+   */
+  readonly miningEnabled = computed(() => this.hasMiningBackend() && !this.isWalletOnly());
 
   /** Whether the mode has been initialized (internal guard) */
   private readonly _isInitialized = signal(false);
