@@ -708,7 +708,8 @@ const UTXO_PAGE_SIZE = 10;
         }
 
         .size-field {
-          width: 170px;
+          /* Slim amount box — the address/txid filter takes the freed width. */
+          width: 110px;
           flex-shrink: 0;
         }
 

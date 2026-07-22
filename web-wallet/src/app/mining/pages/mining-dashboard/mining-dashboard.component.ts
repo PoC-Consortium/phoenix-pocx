@@ -1699,9 +1699,14 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     }
   });
 
-  /** Setup route path - differs between wallet mode and mining-only mode */
+  /**
+   * Setup route path. The /miner tree serves mining-only AND the mobile
+   * (Android hybrid) mode — its guard admits both; the desktop /mining tree
+   * is guard-blocked there, which stranded these buttons on Android (the
+   * navigation was silently cancel-redirected back to the dashboard).
+   */
   readonly setupRoute = computed(() =>
-    this.appMode.isMiningOnly() ? '/miner/setup' : '/mining/setup'
+    this.appMode.isMiningOnly() || this.appMode.isMobileMode() ? '/miner/setup' : '/mining/setup'
   );
 
   // Use service signals directly so component state stays in lock-step with
@@ -2384,11 +2389,15 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
       }
     }
 
-    // Wait for all data to load
-    await Promise.all(loadPromises);
+    // Kick the preloads but NEVER gate navigation on them: a hung or
+    // rejected device probe (OpenCL detection on some boxes / Android)
+    // used to swallow the click entirely — the await sat before the
+    // navigate, so the button silently did nothing. The wizard loads its
+    // own data anyway; the preloads are just a warm-up.
+    void Promise.all(loadPromises).catch(err => console.warn('Setup preload failed:', err));
 
     // Navigate to setup with step parameter
-    this.router.navigate([this.setupRoute()], { queryParams: { step } });
+    await this.router.navigate([this.setupRoute()], { queryParams: { step } });
   }
 
   // Plotter methods

@@ -573,6 +573,24 @@ type AddressMode = 'existing' | 'generate';
           flex-direction: column;
           gap: 8px;
         }
+
+        /* Compact phone rhythm: tighter page/card padding + section spacing. */
+        .content {
+          padding: 12px;
+        }
+
+        .receive-card {
+          padding: 14px 16px;
+        }
+
+        .form-section {
+          margin-bottom: 6px;
+        }
+
+        .qr-section {
+          margin-top: 8px;
+          padding-top: 8px;
+        }
       }
     `,
   ],
