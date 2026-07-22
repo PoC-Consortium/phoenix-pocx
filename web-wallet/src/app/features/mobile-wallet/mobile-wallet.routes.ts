@@ -53,9 +53,12 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        // Unified responsive send page — the same component the desktop
+        // /send route uses (seam send, remote fee/unlock branches).
+        // WalletSendComponent is retired.
         path: 'send',
         loadComponent: () =>
-          import('./pages/send/wallet-send.component').then(m => m.WalletSendComponent),
+          import('../../features/send/pages/send/send.component').then(m => m.SendComponent),
       },
       {
         // Unified responsive transactions page — the same components the
