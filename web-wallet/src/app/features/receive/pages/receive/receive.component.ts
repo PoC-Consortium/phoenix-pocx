@@ -92,14 +92,6 @@ interface AddressInfo {
                   </mat-option>
                 }
               </mat-select>
-              <button
-                mat-icon-button
-                matSuffix
-                (click)="copyAddress(); $event.stopPropagation()"
-                [matTooltip]="'copy' | i18n"
-              >
-                <mat-icon>content_copy</mat-icon>
-              </button>
             </mat-form-field>
 
             <!-- 2. Amount / 3. Label (feed the URI/QR) -->
@@ -139,6 +131,18 @@ interface AddressInfo {
                   [colorDark]="'#1E3A5F'"
                   [colorLight]="'#FFFFFF'"
                 ></qrcode>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">{{ 'address' | i18n }}:</span>
+                <div
+                  class="info-value-row copyable"
+                  (click)="copyAddress()"
+                  [matTooltip]="'copy' | i18n"
+                >
+                  <span class="address-value">{{ selectedAddress() }}</span>
+                  <mat-icon class="copy-icon">content_copy</mat-icon>
+                </div>
               </div>
 
               <!-- 5. Payment URI -->
@@ -269,6 +273,9 @@ interface AddressInfo {
 
       .full-width {
         width: 100%;
+        /* The subscript wrapper is hidden (compact fields) — restore the
+           stack gap explicitly so fields don't glue together. */
+        margin-bottom: 12px;
       }
 
       .loading-inline {
