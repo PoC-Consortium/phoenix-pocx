@@ -164,8 +164,10 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
               </div>
             }
 
-            <!-- Clock-drift Indicator (visible when monitoring is enabled) -->
-            @if (clockDrift.enabled()) {
+            <!-- Clock-drift Indicator (visible when monitoring is enabled).
+                 RPC modes only: drift matters for local-node forging;
+                 remote mode neither forges locally nor serves time. -->
+            @if (clockDrift.enabled() && !nodeService.isRemote()) {
               <div
                 class="status-indicator clock-drift-indicator"
                 [class.clickable]="true"
@@ -712,6 +714,24 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
           font-size: 1rem;
           padding: 0.1rem 0.4rem;
           left: calc(50% - 35px);
+        }
+
+        /* Wallet + pocket selectors collapse to icon-only chips (the wallet
+           shell's icon-chip look) — the dropdown menus carry the names. */
+        .wallet-button {
+          min-width: 48px;
+          padding: 0 4px;
+
+          .wallet-name,
+          .dropdown-arrow {
+            display: none;
+          }
+
+          /* Icon-only: match the other toolbar icons' grey — the loaded
+             state's near-black emphasis reads wrong without the text. */
+          .wallet-icon.has-wallet {
+            color: rgba(0, 0, 0, 0.54);
+          }
         }
       }
     `,

@@ -3277,10 +3277,22 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Where this wizard lives / exits to — the shell the user came from
+   * (mirrors the dashboard's setupRoute so Setup never swaps shells).
+   */
+  private get shellRoutes(): { setup: string; dashboard: string } {
+    if (this.appMode.isMiningOnly())
+      return { setup: '/miner/setup', dashboard: '/miner/dashboard' };
+    if (this.appMode.isMobileMode())
+      return { setup: '/wallet/mining/setup', dashboard: '/wallet/mining' };
+    return { setup: '/mining/setup', dashboard: '/mining' };
+  }
+
   /** Route to wallet onboarding; returnTo brings the user back to this step. */
   goToCreateWallet(): void {
     void this.router.navigate(['/wallet/create'], {
-      queryParams: { returnTo: '/miner/setup?step=1&fromWallet=1' },
+      queryParams: { returnTo: this.shellRoutes.setup + '?step=1&fromWallet=1' },
     });
   }
 
@@ -3413,7 +3425,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
   }
 
   cancel(): void {
-    this.router.navigate(['/mining']);
+    this.router.navigate([this.shellRoutes.dashboard]);
   }
 
   toggleAdvanced(step: string): void {
@@ -4379,7 +4391,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
       // Navigate to dashboard - user can start mining/plotting from there
       // Mining requires plot files to exist first
-      await this.router.navigate(['/mining']);
+      await this.router.navigate([this.shellRoutes.dashboard]);
     } catch (error) {
       console.error('Failed to save configuration:', error);
       this.snackBar.open(
