@@ -54,9 +54,21 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           import('./pages/send/wallet-send.component').then(m => m.WalletSendComponent),
       },
       {
+        // Unified responsive transactions page — the same components the
+        // desktop /transactions route uses (list + per-txid detail). The old
+        // WalletHistoryComponent is retired.
         path: 'history',
         loadComponent: () =>
-          import('./pages/history/wallet-history.component').then(m => m.WalletHistoryComponent),
+          import('../../features/transactions/pages/transaction-list/transaction-list.component').then(
+            m => m.TransactionListComponent
+          ),
+      },
+      {
+        path: 'history/:txid',
+        loadComponent: () =>
+          import('../../features/transactions/pages/transaction-detail/transaction-detail.component').then(
+            m => m.TransactionDetailComponent
+          ),
       },
       {
         // Unified responsive coins/balance-details page — the same component
