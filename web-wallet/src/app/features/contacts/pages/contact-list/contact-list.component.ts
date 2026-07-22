@@ -324,7 +324,8 @@ import {
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 24px;
+        height: var(--menu-balance-h);
+        padding: 0 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -748,12 +749,10 @@ import {
       // Responsive — reflow the table to stacked cards below 600px (tablet
       // portrait, phone). The full address wraps (word-break) at full width.
       @media (max-width: 600px) {
-        /* Pin the band to 68px — the mobile drawer's balance section
-           (.drawer-wallet-info) rendered height — so the contacts header lines
-           up with the menu's balance block, matching the coins page. Edge
-           padding 16px (tracks .content); 20px title. */
+        /* Band height comes from --menu-balance-h (shrinks to the mobile
+           balance-block height here) — in tandem with the menu balance block
+           and the coins page. Only edge padding + title change. */
         .header {
-          height: 68px;
           padding: 0 16px;
         }
 
