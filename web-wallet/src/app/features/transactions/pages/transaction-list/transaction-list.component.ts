@@ -137,26 +137,33 @@ type TransactionFilter =
             <mat-icon>file_download</mat-icon>
           </button>
 
-          <!-- Load Limit -->
-          <mat-form-field appearance="outline" class="limit-field">
-            <mat-label>{{ 'load_limit' | i18n }}</mat-label>
-            <mat-select [(value)]="loadLimit" (selectionChange)="onLoadLimitChange()">
-              @for (option of loadLimitOptions; track option.value) {
-                <mat-option [value]="option.value">{{ option.label }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Refresh Button -->
+          <!-- Refresh + load limit live in ONE menu (mobile-look rule):
+               Refresh on top, then the limit choices — picking a limit
+               reloads with it. -->
           <button
             mat-icon-button
             [disabled]="loading()"
-            (click)="loadTransactions()"
+            [matMenuTriggerFor]="refreshMenu"
             [matTooltip]="'refresh' | i18n"
             class="refresh-button"
           >
             <mat-icon>refresh</mat-icon>
           </button>
+          <mat-menu #refreshMenu="matMenu">
+            <button mat-menu-item (click)="loadTransactions()">
+              <mat-icon>refresh</mat-icon>
+              <span>{{ 'refresh' | i18n }}</span>
+            </button>
+            <mat-divider></mat-divider>
+            @for (option of loadLimitOptions; track option.value) {
+              <button mat-menu-item (click)="setLoadLimit(option.value)">
+                <mat-icon>{{
+                  loadLimit === option.value ? 'radio_button_checked' : 'radio_button_unchecked'
+                }}</mat-icon>
+                <span>{{ 'load_limit' | i18n }}: {{ option.label }}</span>
+              </button>
+            }
+          </mat-menu>
         </div>
       </div>
 
@@ -488,55 +495,6 @@ type TransactionFilter =
         display: flex;
         align-items: center;
         gap: 12px;
-
-        .limit-field {
-          width: 140px;
-
-          ::ng-deep {
-            .mat-mdc-text-field-wrapper {
-              background: rgba(255, 255, 255, 0.1);
-              padding: 0 12px;
-            }
-
-            .mdc-notched-outline__leading,
-            .mdc-notched-outline__notch,
-            .mdc-notched-outline__trailing {
-              border-color: rgba(255, 255, 255, 0.3) !important;
-            }
-
-            .mat-mdc-form-field-flex {
-              height: 40px;
-              align-items: center;
-            }
-
-            .mat-mdc-form-field-infix {
-              padding: 0;
-              min-height: 40px;
-              display: flex;
-              align-items: center;
-            }
-
-            .mat-mdc-select-value,
-            .mat-mdc-select-arrow,
-            .mdc-floating-label {
-              color: white !important;
-            }
-
-            .mdc-floating-label {
-              top: 50% !important;
-              transform: translateY(-50%) !important;
-            }
-
-            .mdc-floating-label--float-above {
-              top: 0 !important;
-              transform: translateY(-50%) scale(0.75) !important;
-            }
-
-            .mat-mdc-form-field-subscript-wrapper {
-              display: none;
-            }
-          }
-        }
 
         .refresh-button {
           color: white;
@@ -990,21 +948,15 @@ type TransactionFilter =
           }
         }
 
-        /* Collapsed by default (the old mobile look); the funnel reveals the
-           filter row (wrapping) and the load-limit select in the header. */
-        .filter-row,
-        .limit-field {
+        /* Collapsed by default (the old mobile look); the funnel reveals
+           the filter row (wrapping). */
+        .filter-row {
           display: none;
         }
 
         .filters-open .filter-row {
           display: flex;
           flex-wrap: wrap;
-        }
-
-        /* .page-layout carries .filters-open; the header is inside it. */
-        .filters-open .limit-field {
-          display: inline-flex;
         }
 
         /* Nobody exports CSV on a phone. */
@@ -1252,6 +1204,12 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Menu pick: adopt the limit and reload with it. */
+  setLoadLimit(value: number): void {
+    this.loadLimit = value;
+    this.onLoadLimitChange();
   }
 
   onLoadLimitChange(): void {
