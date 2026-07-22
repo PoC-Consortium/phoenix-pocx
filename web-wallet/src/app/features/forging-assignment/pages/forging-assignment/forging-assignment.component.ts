@@ -453,12 +453,15 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
         width: 100%;
       }
 
+      /* Desktop rhythm — matches the send page's label/field spacing: the
+         field keeps a little subscript air and sections separate clearly.
+         The phone tier re-compresses below. */
       .slim-field {
-        margin-bottom: -8px;
+        margin-bottom: 0;
       }
 
       .section-divider {
-        margin: 12px 0;
+        margin: 18px 0;
       }
 
       /* Send-page section label (uppercase mini-header above the input
@@ -469,7 +472,7 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
         color: rgb(0, 35, 65);
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin: 0 0 4px;
+        margin: 4px 0 8px;
       }
 
       .hint-text {
@@ -787,6 +790,15 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
 
         .section-label {
           display: none;
+        }
+
+        /* Phone re-compresses to the exact mobile rhythm. */
+        .slim-field {
+          margin-bottom: -8px;
+        }
+
+        .section-divider {
+          margin: 12px 0;
         }
 
         .fee-header .fee-title {

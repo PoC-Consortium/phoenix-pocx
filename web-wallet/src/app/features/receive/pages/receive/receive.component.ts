@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSelectModule } from '@angular/material/select';
 import { QRCodeComponent } from 'angularx-qrcode';
 import { Subject } from 'rxjs';
 import { takeUntil, skip } from 'rxjs/operators';
@@ -18,6 +19,15 @@ import { buildPaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import { NodeService } from '../../../../node/services/node.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
+import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
+
+interface AddressInfo {
+  address: string;
+  purpose: string;
+  isUsed: boolean;
+  txCount: number;
+  label: string;
+}
 
 /**
  * ReceiveComponent - Compact, mobile-style receive page (same design at
@@ -37,6 +47,7 @@ import { BackendRouterService } from '../../../../core/backend/backend-router.se
     MatInputModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatSelectModule,
     QRCodeComponent,
     I18nPipe,
   ],
@@ -63,8 +74,61 @@ import { BackendRouterService } from '../../../../core/backend/backend-router.se
               <mat-icon class="spend-only-icon">block</mat-icon>
               <span>{{ 'mwallet_receive_v30_blocked' | i18n }}</span>
             </div>
-          } @else if (currentAddress()) {
-            <!-- QR + copy rows for the current first-unused address -->
+          } @else if (selectedAddress()) {
+            <!-- 1. Address selector: latest virgin preselected; Core mode
+                 lists the full revealed history, remote lists what the seam
+                 knows (current + freshly generated). Copy via the suffix. -->
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'select_address' | i18n }}</mat-label>
+              <mat-select
+                [ngModel]="selectedAddress()"
+                (ngModelChange)="selectedAddress.set($event)"
+              >
+                @for (addr of existingAddresses(); track addr.address) {
+                  <mat-option [value]="addr.address">
+                    <span class="address-option"
+                      >{{ addr.address }}{{ getAddressDisplayLabel(addr) }}</span
+                    >
+                  </mat-option>
+                }
+              </mat-select>
+              <button
+                mat-icon-button
+                matSuffix
+                (click)="copyAddress(); $event.stopPropagation()"
+                [matTooltip]="'copy' | i18n"
+              >
+                <mat-icon>content_copy</mat-icon>
+              </button>
+            </mat-form-field>
+
+            <!-- 2. Amount / 3. Label (feed the URI/QR) -->
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'amount_optional' | i18n }}</mat-label>
+              <input
+                matInput
+                type="number"
+                [(ngModel)]="amount"
+                placeholder="0.00000000"
+                step="0.00000001"
+                min="0"
+                autocomplete="off"
+              />
+              <span matTextSuffix>BTCX</span>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'label_optional' | i18n }}</mat-label>
+              <input
+                matInput
+                [(ngModel)]="label"
+                [placeholder]="'label_placeholder' | i18n"
+                maxlength="50"
+                autocomplete="off"
+              />
+            </mat-form-field>
+
+            <!-- 4. QR -->
             <div class="qr-section">
               <div class="qr-code-container">
                 <qrcode
@@ -77,18 +141,7 @@ import { BackendRouterService } from '../../../../core/backend/backend-router.se
                 ></qrcode>
               </div>
 
-              <div class="info-row">
-                <span class="info-label">{{ 'address' | i18n }}:</span>
-                <div
-                  class="info-value-row copyable"
-                  (click)="copyAddress()"
-                  [matTooltip]="'copy' | i18n"
-                >
-                  <span class="address-value">{{ currentAddress() }}</span>
-                  <mat-icon class="copy-icon">content_copy</mat-icon>
-                </div>
-              </div>
-
+              <!-- 5. Payment URI -->
               <div class="info-row">
                 <span class="info-label">{{ 'payment_uri' | i18n }}:</span>
                 <div
@@ -102,6 +155,7 @@ import { BackendRouterService } from '../../../../core/backend/backend-router.se
               </div>
             </div>
 
+            <!-- 6. Generate new address -->
             @if (singleAddress()) {
               <!-- Remote single-address (wpkh-WIF) wallet: ONE fixed address,
                    nothing to generate — the button collapses to a hint. -->
@@ -122,38 +176,6 @@ import { BackendRouterService } from '../../../../core/backend/backend-router.se
                 </button>
               </div>
             }
-
-            <!-- Optional amount + label (feed the URI/QR) — visually secondary -->
-            <div class="optional-fields">
-              <div class="form-section">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>{{ 'amount_optional' | i18n }}</mat-label>
-                  <input
-                    matInput
-                    type="number"
-                    [(ngModel)]="amount"
-                    placeholder="0.00000000"
-                    step="0.00000001"
-                    min="0"
-                    autocomplete="off"
-                  />
-                  <span matTextSuffix>BTCX</span>
-                </mat-form-field>
-              </div>
-
-              <div class="form-section">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>{{ 'label_optional' | i18n }}</mat-label>
-                  <input
-                    matInput
-                    [(ngModel)]="label"
-                    [placeholder]="'label_placeholder' | i18n"
-                    maxlength="50"
-                    autocomplete="off"
-                  />
-                </mat-form-field>
-              </div>
-            </div>
           } @else if (loadError()) {
             <!-- The old mobile receive's failed-state with retry. -->
             <div class="no-address">
@@ -287,6 +309,11 @@ import { BackendRouterService } from '../../../../core/backend/backend-router.se
       }
 
       /* QR Section */
+      .address-option {
+        font-family: monospace;
+        font-size: 12px;
+      }
+
       .qr-section {
         text-align: center;
         padding-top: 4px;
@@ -492,6 +519,11 @@ import { BackendRouterService } from '../../../../core/backend/backend-router.se
           margin-bottom: 8px;
         }
 
+        .address-option {
+          font-family: monospace;
+          font-size: 12px;
+        }
+
         .qr-section {
           padding-top: 2px;
         }
@@ -511,7 +543,15 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   private readonly nodeService = inject(NodeService);
   private readonly btcxWallet = inject(BtcxWalletService);
   private readonly backendRouter = inject(BackendRouterService);
+  private readonly walletRpc = inject(WalletRpcService);
   private readonly destroy$ = new Subject<void>();
+
+  /**
+   * Whether the current backend can enumerate the wallet's revealed
+   * addresses (Core RPC). Remote/BDK lists only what the seam hands out
+   * (current first-unused + freshly generated this session).
+   */
+  readonly canEnumerate = computed(() => !this.backendRouter.isRemote());
 
   /**
    * Remote (Electrum) mode + a legacy v30 (coin-0') pocket = spend-only:
@@ -534,15 +574,16 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   /** Address load failed (e.g. wallet runtime briefly closed) — offer retry. */
   readonly loadError = signal(false);
 
-  /** The shown receive address: latest virgin (first-unused) by default. */
-  readonly currentAddress = signal('');
+  /** The SELECTED address (latest virgin preselected; history selectable). */
+  readonly selectedAddress = signal('');
+  readonly existingAddresses = signal<AddressInfo[]>([]);
   readonly isGenerating = signal(false);
   amount: number | null = null;
   label = '';
 
   paymentUri(): string {
     return buildPaymentUri({
-      address: this.currentAddress(),
+      address: this.selectedAddress(),
       amount: this.amount,
       label: this.label,
     });
@@ -558,7 +599,8 @@ export class ReceiveComponent implements OnInit, OnDestroy {
         takeUntil(this.destroy$)
       )
       .subscribe(() => {
-        this.currentAddress.set('');
+        this.selectedAddress.set('');
+        this.existingAddresses.set([]);
         this.loadError.set(false);
         if (!this.spendOnly()) {
           this.loadReceiveAddress();
@@ -592,8 +634,9 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Show the first VIRGIN (never-received) address via the backend seam —
-   * identical in Core and remote modes (`currentReceiveAddress`).
+   * Load the selector: the first VIRGIN (never-received) address is fetched
+   * via the seam and PRESELECTED; Core mode additionally enumerates the
+   * revealed history so older addresses stay reachable.
    */
   async loadReceiveAddress(): Promise<void> {
     if (this.spendOnly()) return;
@@ -603,12 +646,90 @@ export class ReceiveComponent implements OnInit, OnDestroy {
     this.loadError.set(false);
     try {
       const current = await this.backendRouter.wallet().currentReceiveAddress(walletName);
-      this.currentAddress.set(current);
+      if (this.canEnumerate()) {
+        await this.loadExistingAddressList(walletName, current);
+      } else {
+        this.existingAddresses.set(
+          current
+            ? [{ address: current, purpose: 'receive', isUsed: false, txCount: 0, label: '' }]
+            : []
+        );
+      }
+      this.selectedAddress.set(current);
     } catch (error) {
       console.error('Failed to load address:', error);
       // Only surface the retry state when nothing usable is on screen.
-      if (!this.currentAddress()) this.loadError.set(true);
+      if (!this.selectedAddress()) this.loadError.set(true);
     }
+  }
+
+  /**
+   * Build the Core existing-address list. isUsed reflects REAL on-chain
+   * usage (received sats / txids from listreceivedbyaddress); ensure
+   * guarantees the current first-unused is present so the selected value
+   * always has a matching option.
+   */
+  private async loadExistingAddressList(walletName: string, ensure?: string): Promise<void> {
+    const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
+
+    const usage = new Map<string, { used: boolean; label: string }>();
+    try {
+      const received = await this.walletRpc.listReceivedByAddress(walletName, 0, true);
+      for (const r of received) {
+        usage.set(r.address, {
+          used: Math.round(r.amount * 1e8) > 0 || r.txids.length > 0,
+          label: r.label ?? '',
+        });
+      }
+    } catch {
+      // best-effort — used/label fall back to defaults below.
+    }
+
+    const addresses: AddressInfo[] = [];
+    for (const [address, info] of Object.entries(addressMap)) {
+      if (!this.isBech32Address(address)) continue;
+      const u = usage.get(address);
+      addresses.push({
+        address,
+        purpose: (info as { purpose?: string }).purpose || 'receive',
+        isUsed: u?.used ?? false,
+        txCount: 0,
+        label: u?.label ?? '',
+      });
+    }
+
+    if (ensure && !addresses.some(a => a.address === ensure)) {
+      addresses.unshift({
+        address: ensure,
+        purpose: 'receive',
+        isUsed: false,
+        txCount: 0,
+        label: '',
+      });
+    }
+
+    this.existingAddresses.set(addresses);
+  }
+
+  /** A bech32(m) address for the PoCX networks (not legacy/script). */
+  private isBech32Address(address: string): boolean {
+    const lower = address.toLowerCase();
+    return (
+      lower.startsWith('pocx1') ||
+      lower.startsWith('tpocx1') ||
+      lower.startsWith('rpocx1') ||
+      lower.startsWith('bc1') ||
+      lower.startsWith('tb1') ||
+      lower.startsWith('bcrt1')
+    );
+  }
+
+  /** Selector suffix: label + never-used hint, matching the old dropdown. */
+  getAddressDisplayLabel(addr: AddressInfo): string {
+    const parts: string[] = [];
+    if (addr.label) parts.push(addr.label);
+    if (addr.purpose === 'receive' && !addr.isUsed) parts.push('never used');
+    return parts.length > 0 ? ' (' + parts.join(' - ') + ')' : '';
   }
 
   async generateNewAddress(): Promise<void> {
@@ -621,7 +742,16 @@ export class ReceiveComponent implements OnInit, OnDestroy {
       const address = await this.backendRouter
         .wallet()
         .getNewAddress(walletName, this.label || '', 'bech32');
-      this.currentAddress.set(address);
+      if (this.canEnumerate()) {
+        // Core: refresh the list so the freshly revealed address shows.
+        await this.loadExistingAddressList(walletName, address);
+      } else {
+        this.existingAddresses.update(list => [
+          { address, purpose: 'receive', isUsed: false, txCount: 0, label: '' },
+          ...list,
+        ]);
+      }
+      this.selectedAddress.set(address);
     } catch (error) {
       console.error('Failed to generate address:', error);
       this.notification.error('error_generating_address');
@@ -631,7 +761,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   async copyAddress(): Promise<void> {
-    const address = this.currentAddress();
+    const address = this.selectedAddress();
     if (address) await this.clipboard.copyAddress(address);
   }
 
