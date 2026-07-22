@@ -669,6 +669,8 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: block;
         width: 100%;
@@ -681,10 +683,14 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       }
 
       // Header — blue gradient like send page
+      /* Gradient band on the shared balance-band token (in tandem with the
+         menu balance block; shrinks at the phone tier). */
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 24px;
+        min-height: var(--menu-balance-h);
+        box-sizing: border-box;
+        padding: 0 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -1040,6 +1046,26 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         &.active {
           color: rgb(0, 35, 65);
           font-weight: 500;
+        }
+      }
+
+      /* Phone: circles-only wizard — the label shows for the ACTIVE step
+         only, so 4 steps always fit. Header padding tracks phone. */
+      @include bp.phone {
+        .header {
+          padding: 0 16px;
+        }
+
+        .step-label:not(.active) {
+          display: none;
+        }
+
+        .step {
+          gap: 4px;
+        }
+
+        .step-indicator .step-line {
+          margin: 0 6px;
         }
       }
 

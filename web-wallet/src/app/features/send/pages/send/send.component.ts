@@ -703,15 +703,18 @@ const SANE_PRESET_MAX_SAT_VB = 200;
       }
 
       // Fee section
+      /* Forging-assignment fee-selector geometry: always 4-across, compact
+         (flex-basis 25%, no min-width) — never a stacked full-width column. */
       .fee-options {
         display: flex;
         flex-wrap: wrap;
         gap: 4px;
         margin-bottom: 6px;
+        width: 100%;
 
         button {
-          flex: 1;
-          min-width: 85px;
+          flex: 1 1 calc(25% - 4px);
+          min-width: 0;
           height: auto;
           padding: 4px 2px;
           border-color: #e0e0e0;
@@ -1026,10 +1029,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
            .balance-display, which outranks a shallower hide rule. */
         .header .header-right .balance-display {
           display: none;
-        }
-
-        .fee-options button {
-          min-width: 100%;
         }
 
         .amount-row {

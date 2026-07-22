@@ -337,10 +337,12 @@ type TransactionFilter =
                                 <span>{{ 'view_address_in_explorer' | i18n }}</span>
                               </button>
                             }
-                            <button mat-menu-item (click)="viewTransactionDetails(tx)">
-                              <mat-icon>info</mat-icon>
-                              <span>{{ 'transaction_details' | i18n }}</span>
-                            </button>
+                            @if (!isRemote()) {
+                              <button mat-menu-item (click)="viewTransactionDetails(tx)">
+                                <mat-icon>info</mat-icon>
+                                <span>{{ 'transaction_details' | i18n }}</span>
+                              </button>
+                            }
                             @if (tx.address) {
                               <mat-divider></mat-divider>
                               <button mat-menu-item (click)="sendToAddress(tx.address)">
@@ -1016,6 +1018,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly btcxWallet = inject(BtcxWalletService);
   readonly viewport = inject(ViewportService);
 
+  /** Electrum/remote mode — the Core-only detail view is hidden. */
+  readonly isRemote = computed(() => this.backendRouter.isRemote());
+
   constructor() {
     // Remote/nodeless mode: new blocks arrive via the background sync — ride
     // the btcx-wallet:sync signal and reload silently (no spinner flash; the
@@ -1352,6 +1357,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   // Actions
   viewTransactionDetails(tx: WalletTransaction): void {
+    // Details are a Core-RPC feature (raw tx decode etc.) — no detail view in
+    // Electrum/remote mode.
+    if (this.isRemote()) return;
     this.router.navigate([this.appMode.pageRoute('/transactions'), tx.txid]);
   }
 

@@ -457,10 +457,12 @@ import { MiningService } from '../../../../mining/services';
                                   <span>{{ 'view_address_in_explorer' | i18n }}</span>
                                 </button>
                               }
-                              <button mat-menu-item (click)="viewTransactionDetails(tx)">
-                                <mat-icon>info</mat-icon>
-                                <span>{{ 'transaction_details' | i18n }}</span>
-                              </button>
+                              @if (!isRemote()) {
+                                <button mat-menu-item (click)="viewTransactionDetails(tx)">
+                                  <mat-icon>info</mat-icon>
+                                  <span>{{ 'transaction_details' | i18n }}</span>
+                                </button>
+                              }
                               @if (tx.address) {
                                 <mat-divider></mat-divider>
                                 <button mat-menu-item (click)="sendToAddress(tx.address)">
@@ -652,6 +654,27 @@ import { MiningService } from '../../../../mining/services';
         @include bp.phone {
           grid-template-columns: 1fr;
           grid-template-rows: auto auto minmax(240px, 1fr);
+          /* Old-mobile density: 12px page rhythm, compact cards, 28px amount
+             — frees the vertical space the recent list needs for 3 full rows. */
+          gap: 12px;
+          padding: 12px;
+
+          mat-card-header {
+            padding: 10px 16px 0 16px !important;
+          }
+
+          mat-card-content {
+            padding: 8px 16px 12px 16px !important;
+          }
+
+          .total-balance-card .total-balance {
+            font-size: 28px;
+            margin-bottom: 8px;
+          }
+
+          .total-balance-card .balance-breakdown {
+            padding-top: 8px;
+          }
 
           /* .info-item qualifier beats the base ".blockchain-status-card
              .blockchain-info .info-item { display: flex }" rule, which ties a
@@ -1680,9 +1703,9 @@ export class DashboardComponent implements AfterViewInit {
   // Actions — all navigation goes through pageRoute() so the SAME component
   // links correctly under both shells (desktop `/x` vs nodeless `/wallet/x`).
   viewTransactionDetails(tx: WalletTransaction): void {
-    // The nodeless shell has no per-txid detail route — its history page is
-    // the destination; desktop keeps the txid deep-link.
-    if (this.appMode.isNodeless()) {
+    // Details are a Core-RPC feature — in Electrum/remote mode (any shell)
+    // the destination is the transactions/history LIST instead.
+    if (this.isRemote()) {
       this.router.navigate([this.appMode.pageRoute('/transactions')]);
       return;
     }

@@ -21,6 +21,7 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
 import { AppModeService } from '../../../core/services/app-mode.service';
 import { invoke } from '@tauri-apps/api/core';
 import { MiningService } from '../../services';
+import { downloadTextFile } from '../../../shared/utils/download';
 import { DriveConfig, calculateNetworkCapacityTib, formatCapacity } from '../../models';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { PlanViewerDialogComponent } from '../../components/plan-viewer-dialog/plan-viewer-dialog.component';
@@ -2324,11 +2325,10 @@ export class MiningDashboardComponent implements OnInit, OnDestroy {
     ]);
 
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'deadline_history.csv';
-    link.click();
+    // Shared helper: a detached <a download> click is a silent no-op in the
+    // Tauri webview (WebView2/Android) — downloadTextFile attaches to the DOM
+    // and defers the object-URL revoke, so the export works in-app.
+    void downloadTextFile('deadline_history.csv', csv);
   }
 
   toggleLogFilter(filter: string): void {
