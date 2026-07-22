@@ -58,6 +58,7 @@ export class FitRowsDirective implements AfterViewInit, OnDestroy {
 
   private readonly zone = inject(NgZone);
   private observer: ResizeObserver | null = null;
+  private mutations: MutationObserver | null = null;
   private lastFit: number | null = null;
   private rafId: number | null = null;
 
@@ -67,12 +68,20 @@ export class FitRowsDirective implements AfterViewInit, OnDestroy {
     // can't feed back on themselves within a frame.
     this.observer = new ResizeObserver(() => this.scheduleMeasure());
     this.observer.observe(this.el.nativeElement);
+    // A BOUNDED container never resizes when rows stream in later (async
+    // load), so the attach-time measurement — taken with zero rows and the
+    // fallback stride — would stick forever. Re-measure on child mutations;
+    // the rAF coalescing + emit-on-change guard keeps this loop-free.
+    this.mutations = new MutationObserver(() => this.scheduleMeasure());
+    this.mutations.observe(this.el.nativeElement, { childList: true, subtree: true });
     this.measure();
   }
 
   ngOnDestroy(): void {
     this.observer?.disconnect();
     this.observer = null;
+    this.mutations?.disconnect();
+    this.mutations = null;
     if (this.rafId !== null) cancelAnimationFrame(this.rafId);
     this.rafId = null;
   }
