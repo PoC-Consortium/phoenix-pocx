@@ -1261,6 +1261,12 @@ export class MobileWalletLayoutComponent implements OnInit {
             labelKey: 'receive',
             needsWallet: true,
           },
+          {
+            path: '/wallet/psbt',
+            icon: 'edit_document',
+            labelKey: 'psbt_title',
+            needsWallet: true,
+          },
           { path: '/wallet/contacts', icon: 'contacts', labelKey: 'contacts' },
         ],
       },

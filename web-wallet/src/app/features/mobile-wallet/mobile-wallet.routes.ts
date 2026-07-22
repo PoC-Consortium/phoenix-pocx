@@ -104,6 +104,14 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        // PSBT builder — the same desktop component; client-side PSBT ops
+        // (btcx_psbt_*) make it fully functional in the nodeless shell
+        // (Core-only Join stays hidden via its existing isRemote gate).
+        path: 'psbt',
+        loadComponent: () =>
+          import('../../features/psbt/pages/psbt/psbt.component').then(m => m.PsbtComponent),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./pages/settings/wallet-settings.component').then(m => m.WalletSettingsComponent),

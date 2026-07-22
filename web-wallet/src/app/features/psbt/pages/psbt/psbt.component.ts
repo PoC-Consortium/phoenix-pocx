@@ -35,6 +35,7 @@ import { WalletService } from '../../../../bitcoin/services/wallet/wallet.servic
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
 import { NodeService } from '../../../../node/services/node.service';
 import { ElectronService } from '../../../../core/services/electron.service';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
@@ -648,7 +649,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
             >
             </app-address-display>
             <div class="success-buttons">
-              <button mat-stroked-button routerLink="/transactions">
+              <button mat-stroked-button [routerLink]="appMode.pageRoute('/transactions')">
                 <mat-icon>history</mat-icon>
                 {{ 'view_transactions' | i18n }}
               </button>
@@ -1599,6 +1600,7 @@ export class PsbtComponent implements OnInit {
   private readonly i18n = inject(I18nService);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
+  readonly appMode = inject(AppModeService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly store = inject(Store);
