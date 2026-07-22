@@ -80,29 +80,30 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
         min-height: 0;
       }
 
-      /* Full-width gradient band; the inner row (below) is what carries the
-         column geometry and height, mirroring app-mwallet-page-header. */
+      /* Full-width gradient band. Its height is the shared balance band token
+         (--menu-balance-h) — the SAME height as the menu's balance block — so
+         the page header and the menu balance area move in tandem and both
+         shrink at the mobile breakpoint. */
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 0;
+        height: var(--menu-balance-h);
         flex-shrink: 0;
       }
 
       /* The header row spans the full page width (like the desktop header and
          the app's other page headers) — NOT constrained to the card column —
          so the back arrow sits at the page's left edge and refresh at its
-         right. Horizontal padding is the band's edge inset (24px desktop /
-         16px mobile). min-height lives here (not the band) so the band height
-         derives from the inner row + band padding. */
+         right. Fills the band height; horizontal padding is the band's edge
+         inset (24px desktop / 16px mobile). */
       .header-inner {
         display: flex;
         align-items: center;
         gap: 16px;
         width: 100%;
+        height: 100%;
         box-sizing: border-box;
         padding: 0 24px;
-        min-height: 40px;
 
         h1 {
           margin: 0;
@@ -188,19 +189,10 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
       }
 
       @media (max-width: 600px) {
-        /* Pin the band to 68px — the mobile drawer's balance section
-           (.drawer-wallet-info in mobile-wallet-layout) rendered height,
-           measured in dev tools — so the coins header lines up with the menu's
-           balance block. Fixed height (not padding + button-driven min-height)
-           keeps it exact regardless of the mat-icon-button size. Title 20px. */
-        .header {
-          height: 68px;
-          padding: 0;
-        }
-
+        /* Band height comes from --menu-balance-h (shrinks to the mobile
+           balance-block height at this breakpoint). Only the edge padding and
+           title size change here. */
         .header-inner {
-          height: 100%;
-          min-height: 0;
           padding: 0 16px;
         }
 

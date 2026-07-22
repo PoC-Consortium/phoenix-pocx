@@ -489,7 +489,7 @@ interface NavGroup {
 
       /* Drawer — the desktop main-layout sidenav, mobile-sized. */
       .drawer {
-        width: 250px;
+        width: var(--menu-width);
         background: linear-gradient(180deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
         overflow-x: hidden;
@@ -507,7 +507,7 @@ interface NavGroup {
         --mat-list-list-item-hover-leading-icon-color: white;
         --mat-list-list-item-focus-leading-icon-color: white;
         --mat-list-active-indicator-color: rgba(255, 255, 255, 0.15);
-        --mat-list-list-item-one-line-container-height: 44px;
+        --mat-list-list-item-one-line-container-height: var(--menu-item-h);
         --mat-list-list-item-label-text-size: 14px;
       }
 
@@ -515,7 +515,7 @@ interface NavGroup {
         position: relative;
         display: flex;
         align-items: center;
-        height: 56px;
+        height: var(--toolbar-h);
         padding: 0 16px;
         gap: 10px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -555,22 +555,27 @@ interface NavGroup {
       }
 
       .drawer-wallet-info {
-        padding: 12px 16px;
+        height: var(--menu-balance-h);
+        padding: 0 16px;
         background: rgba(0, 0, 0, 0.2);
         text-align: center;
         flex-shrink: 0;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
 
         .drawer-wallet-name {
           font-size: 12px;
           opacity: 0.8;
-          margin-bottom: 2px;
+          margin-bottom: 4px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
         .drawer-wallet-balance {
-          font-size: 16px;
+          font-size: 17px;
           font-weight: 500;
           font-variant-numeric: tabular-nums;
         }
@@ -675,7 +680,7 @@ interface NavGroup {
         background-color: white !important;
         color: rgba(0, 0, 0, 0.87) !important;
         padding: 0;
-        height: 56px;
+        height: var(--toolbar-h);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         flex-shrink: 0;
         z-index: 2;
