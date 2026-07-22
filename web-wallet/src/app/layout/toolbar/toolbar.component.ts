@@ -164,8 +164,10 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
               </div>
             }
 
-            <!-- Clock-drift Indicator (visible when monitoring is enabled) -->
-            @if (clockDrift.enabled()) {
+            <!-- Clock-drift Indicator (visible when monitoring is enabled).
+                 RPC modes only: drift matters for local-node forging;
+                 remote mode neither forges locally nor serves time. -->
+            @if (clockDrift.enabled() && !nodeService.isRemote()) {
               <div
                 class="status-indicator clock-drift-indicator"
                 [class.clickable]="true"
