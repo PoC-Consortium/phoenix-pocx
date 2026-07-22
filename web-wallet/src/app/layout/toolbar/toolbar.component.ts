@@ -715,6 +715,18 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
           padding: 0.1rem 0.4rem;
           left: calc(50% - 35px);
         }
+
+        /* Wallet + pocket selectors collapse to icon-only chips (the wallet
+           shell's icon-chip look) — the dropdown menus carry the names. */
+        .wallet-button {
+          min-width: 48px;
+          padding: 0 4px;
+
+          .wallet-name,
+          .dropdown-arrow {
+            display: none;
+          }
+        }
       }
     `,
   ],
