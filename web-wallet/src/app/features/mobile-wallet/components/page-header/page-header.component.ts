@@ -45,20 +45,27 @@ import { I18nPipe } from '../../../../core/i18n';
         flex-shrink: 0;
       }
 
-      /* Desktop page header: features/send/pages/send .header. */
+      /* Gradient band on the shared balance-band token — the same height
+         every unified page header uses (in tandem with the menu balance
+         block; responsive via the token, not a local breakpoint). */
       .header-band {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 8px 16px;
+        height: var(--menu-balance-h);
+        box-sizing: border-box;
+        padding: 0 16px;
+        display: flex;
+        align-items: stretch;
       }
 
+      /* Spans the full page width (the app-wide header rule): back arrow at
+         the page's left edge, actions at the right — not the card column. */
       .header-inner {
         display: flex;
         align-items: center;
         gap: 8px;
-        max-width: 448px; /* the 480px page column minus its 16px padding */
-        margin: 0 auto;
-        min-height: 40px;
+        width: 100%;
+        height: 100%;
       }
 
       .back-button {

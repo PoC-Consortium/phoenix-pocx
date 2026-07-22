@@ -108,7 +108,7 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
 
         h1 {
           margin: 0;
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 300;
           white-space: nowrap;
           overflow: hidden;
@@ -195,10 +195,6 @@ import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service
            title size change here. */
         .header-inner {
           padding: 0 16px;
-        }
-
-        .header-inner h1 {
-          font-size: 20px;
         }
 
         .content {

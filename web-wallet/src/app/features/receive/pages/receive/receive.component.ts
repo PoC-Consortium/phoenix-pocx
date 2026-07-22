@@ -264,7 +264,7 @@ type AddressMode = 'existing' | 'generate';
 
         h1 {
           margin: 0;
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 300;
         }
       }

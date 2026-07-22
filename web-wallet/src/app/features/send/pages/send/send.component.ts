@@ -419,7 +419,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
           h1 {
             margin: 0;
             font-weight: 300;
-            font-size: 24px;
+            font-size: 20px;
           }
 
           .back-button {
