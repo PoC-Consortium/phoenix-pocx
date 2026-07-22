@@ -98,6 +98,8 @@ export interface MnemonicEntryState {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .word-length-selector {
         display: flex;
         gap: 8px;
@@ -192,7 +194,7 @@ export interface MnemonicEntryState {
         }
       }
 
-      @media (max-width: 599px) {
+      @include bp.phone {
         .mnemonic-input-grid {
           grid-template-columns: repeat(3, 1fr);
 

@@ -103,6 +103,8 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .summary-cards {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -111,13 +113,13 @@ import { I18nPipe, I18nService } from '../../../core/i18n';
         min-height: fit-content;
       }
 
-      @media (max-width: 1100px) {
+      @include bp.desktop-down {
         .summary-cards {
           grid-template-columns: repeat(2, 1fr);
         }
       }
 
-      @media (max-width: 600px) {
+      @include bp.phone {
         .summary-cards {
           grid-template-columns: 1fr;
         }

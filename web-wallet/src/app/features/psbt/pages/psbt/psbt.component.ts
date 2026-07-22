@@ -739,7 +739,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
         }
       }
 
-      @media (max-width: 900px) {
+      @include bp.tablet-down {
         .content.wide .stats {
           grid-template-columns: repeat(2, 1fr);
         }
@@ -1593,7 +1593,7 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
       }
 
       // ============ Responsive ============
-      @media (max-width: 600px) {
+      @include bp.phone {
         .content {
           padding: 16px;
         }

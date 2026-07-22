@@ -373,6 +373,8 @@ import { BtcxWalletService, BtcxCompartment } from '../../../../core/services/bt
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       /* Main Container - uses flex layout from app.component */
       :host {
         display: block;
@@ -835,7 +837,7 @@ import { BtcxWalletService, BtcxCompartment } from '../../../../core/services/bt
       }
 
       /* Responsive */
-      @media (max-width: 600px) {
+      @include bp.phone {
         .box-actions {
           flex-direction: column;
           align-items: stretch;

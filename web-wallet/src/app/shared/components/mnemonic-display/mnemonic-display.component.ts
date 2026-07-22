@@ -33,6 +33,8 @@ import { I18nPipe } from '../../../core/i18n';
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .mnemonic-display {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -66,7 +68,7 @@ import { I18nPipe } from '../../../core/i18n';
         margin-bottom: 16px;
       }
 
-      @media (max-width: 599px) {
+      @include bp.phone {
         .mnemonic-display {
           grid-template-columns: repeat(3, 1fr);
         }

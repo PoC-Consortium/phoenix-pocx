@@ -60,6 +60,8 @@ import { I18nPipe } from '../../../core/i18n';
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: flex;
         flex-direction: column;
@@ -94,7 +96,7 @@ import { I18nPipe } from '../../../core/i18n';
         min-height: 200px;
       }
 
-      @media (max-width: 900px) {
+      @include bp.tablet-down {
         .detail-row {
           grid-template-columns: 1fr;
           gap: 12px;

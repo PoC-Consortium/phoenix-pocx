@@ -35,6 +35,8 @@ import { Component, Input } from '@angular/core';
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .step-header {
         padding: 16px 24px;
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
@@ -45,7 +47,7 @@ import { Component, Input } from '@angular/core';
         border-radius: 4px 4px 0 0;
       }
 
-      @media (max-width: 599px) {
+      @include bp.phone {
         .step-header {
           flex-direction: column;
           gap: 12px;

@@ -1187,7 +1187,7 @@ interface NavGroup {
           height: 22px;
         }
 
-        @media (max-width: 600px) {
+        @include bp.phone {
           .lang-name-text {
             display: none;
           }

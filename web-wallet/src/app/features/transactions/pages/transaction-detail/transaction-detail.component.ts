@@ -439,6 +439,8 @@ type OutputReference =
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .page-layout {
         display: flex;
         flex-direction: column;
@@ -695,7 +697,7 @@ type OutputReference =
           gap: 16px;
           align-items: flex-start;
 
-          @media (max-width: 900px) {
+          @include bp.tablet-down {
             flex-direction: column;
 
             .io-arrow {
