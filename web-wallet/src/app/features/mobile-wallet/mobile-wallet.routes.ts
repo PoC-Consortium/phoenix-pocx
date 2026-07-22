@@ -80,11 +80,13 @@ export const MOBILE_WALLET_ROUTES: Routes = [
       // Wallet-only mode is "transactions only" — forging assignments are
       // hidden and the route is blocked (deep-link defense in depth).
       {
+        // Unified responsive forging-assignment page — the same component
+        // the desktop /forging-assignment route uses (remote/Core branches).
         path: 'assignment',
         canActivate: [notWalletOnlyGuard],
         loadComponent: () =>
-          import('./pages/assignment/wallet-assignment.component').then(
-            m => m.WalletAssignmentComponent
+          import('../../features/forging-assignment/pages/forging-assignment/forging-assignment.component').then(
+            m => m.ForgingAssignmentComponent
           ),
       },
       {
