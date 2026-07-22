@@ -1028,7 +1028,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     effect(() => {
       this.btcxWallet.lastSync();
       untracked(() => {
-        if (this.walletManager.activeWallet) void this.loadTransactions();
+        if (this.walletManager.activeWallet) void this.reloadIfChanged();
       });
     });
   }
@@ -1186,6 +1186,28 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  /** Last tx probe {total, tip} — sync ticks skip identical reloads. */
+  private lastProbe: { total: number; tip: number } | null = null;
+
+  /** Sync tick: refetch only when the probe says the history moved. */
+  private async reloadIfChanged(): Promise<void> {
+    try {
+      const probe = await this.btcxWallet.txProbe();
+      if (
+        this.lastProbe &&
+        this.lastProbe.total === probe.total &&
+        this.lastProbe.tip === probe.tip &&
+        this.transactions().length > 0
+      ) {
+        return;
+      }
+      this.lastProbe = probe;
+    } catch {
+      // probe unavailable (Core mode / older backend) — plain reload
+    }
+    await this.loadTransactions();
+  }
+
   async loadTransactions(): Promise<void> {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
@@ -1200,9 +1222,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       const count = this.loadLimit === 0 ? 999999 : this.loadLimit;
       const txs = await this.backendRouter.wallet().listTransactions(walletName, count, 0);
 
-      // Sort by time descending — copy first to avoid mutating the RPC response.
-      const sorted = [...txs].sort((a, b) => b.time - a.time);
-      this.transactions.set(sorted);
+      // Both backends return newest-first — no client re-sort.
+      this.transactions.set(txs);
     } catch (error) {
       console.error('Failed to load transactions:', error);
     } finally {

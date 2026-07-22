@@ -52,7 +52,11 @@ export class CoreWalletBackend implements WalletBackend {
     count: number,
     skip = 0
   ): Promise<WalletTransaction[]> {
-    return this.walletRpc.listTransactions(walletName, '*', count, skip);
+    // Core's listtransactions returns OLDEST-first; the backend contract
+    // (matching the Electrum/BDK side) is newest-first, so consumers never
+    // re-sort.
+    const txs = await this.walletRpc.listTransactions(walletName, '*', count, skip);
+    return [...txs].sort((a, b) => b.time - a.time);
   }
 
   async getNewAddress(walletName: string, label = '', type?: CoreAddressType): Promise<string> {

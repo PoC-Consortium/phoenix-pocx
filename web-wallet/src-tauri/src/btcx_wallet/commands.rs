@@ -1836,23 +1836,89 @@ pub fn wallet_transactions_impl(
     offset: Option<usize>,
 ) -> Result<BtcxWalletTxPage, String> {
     let network = state.get_config().network;
-    let infos = state
-        .backend()?
-        .wallet_transactions()
-        .map_err(|e| format!("{e:#}"))?;
-    let total = infos.len();
     state.with_entry(|entry| {
-        Ok(BtcxWalletTxPage {
-            items: infos
-                .into_iter()
-                .skip(offset.unwrap_or(0))
-                .take(limit.unwrap_or(usize::MAX))
-                .map(|info| {
-                    let address = tx_display_address(entry, network, &info);
-                    BtcxWalletTxDto { info, address }
-                })
-                .collect(),
-            total,
+        use bdk_wallet::chain::ChainPosition;
+        let tip = entry.wallet.latest_checkpoint().height();
+
+        // CHEAP pass over the whole history: sort keys only (confirmations +
+        // timestamp) — no amount, fee or address math. The old path computed
+        // sent_and_received AND calculate_fee for EVERY tx ever before
+        // slicing, which made fat wallets take seconds per call.
+        let mut keys: Vec<(bitcoin::Txid, u64, Option<u64>)> = entry
+            .wallet
+            .transactions()
+            .map(|wtx| {
+                let (confirmations, timestamp) = match wtx.chain_position {
+                    ChainPosition::Confirmed { anchor, .. } => (
+                        u64::from((tip + 1).saturating_sub(anchor.block_id.height)),
+                        Some(anchor.confirmation_time),
+                    ),
+                    ChainPosition::Unconfirmed {
+                        first_seen,
+                        last_seen,
+                    } => (0, first_seen.or(last_seen)),
+                };
+                (wtx.tx_node.txid, confirmations, timestamp)
+            })
+            .collect();
+        // The crate's ordering, verbatim: mempool first, then shallow, then
+        // deep; ties by descending time; unbroadcast (no timestamp) first.
+        keys.sort_by_key(|(_, confs, ts)| (*confs, std::cmp::Reverse(ts.unwrap_or(u64::MAX))));
+        let total = keys.len();
+
+        // EXPENSIVE math only for the requested window. Fee is computed for
+        // SEND rows only (it shapes the displayed net amount); receives — the
+        // bulk of a mining wallet — skip prevout resolution entirely. Full
+        // fee detail stays on-demand (detail views), never per list row.
+        let items = keys
+            .into_iter()
+            .skip(offset.unwrap_or(0))
+            .take(limit.unwrap_or(usize::MAX))
+            .filter_map(|(txid, confirmations, timestamp)| {
+                let wtx = entry.wallet.get_tx(txid)?;
+                let tx = wtx.tx_node.tx.clone();
+                let (sent, received) = entry.wallet.sent_and_received(&tx);
+                let (sent, received) = (sent.to_sat(), received.to_sat());
+                let (direction, amount_sat, fee_sat) = if sent > received {
+                    let net_out = sent - received;
+                    let fee = entry.wallet.calculate_fee(&tx).ok().map(|a| a.to_sat());
+                    ("sent", net_out - fee.unwrap_or(0).min(net_out), fee)
+                } else {
+                    ("received", received - sent, None)
+                };
+                let info = WalletTxInfo {
+                    txid: txid.to_string(),
+                    direction: direction.into(),
+                    amount_sat,
+                    fee_sat,
+                    vsize: tx.vsize() as u64,
+                    confirmations,
+                    timestamp,
+                };
+                let address = tx_display_address(entry, network, &info);
+                Some(BtcxWalletTxDto { info, address })
+            })
+            .collect();
+        Ok(BtcxWalletTxPage { items, total })
+    })
+}
+
+/// Near-free change probe for the transaction list: history size + tip.
+/// Callers compare against the last probe and skip refetching the (still
+/// windowed, but not free) transaction list when nothing moved.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxTxProbe {
+    pub total: usize,
+    pub tip: u32,
+}
+
+#[tauri::command]
+pub fn btcx_wallet_tx_probe(state: State<'_, SharedBtcxWalletState>) -> Result<BtcxTxProbe, String> {
+    state.with_entry(|entry| {
+        Ok(BtcxTxProbe {
+            total: entry.wallet.transactions().count(),
+            tip: entry.wallet.latest_checkpoint().height(),
         })
     })
 }

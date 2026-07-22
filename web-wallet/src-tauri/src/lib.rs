@@ -1104,6 +1104,7 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_balance,
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_transactions,
+            btcx_wallet::commands::btcx_wallet_tx_probe,
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_send,
             #[cfg(feature = "wallet")]

@@ -87,8 +87,9 @@ export class ElectrumWalletBackend implements WalletBackend {
   }
 
   async getWalletDetails(): Promise<WalletBackendDetails> {
-    // limit 0 = count-only: total without items, DTO mapping or IPC bulk.
-    const { total } = await this.btcxWallet.fetchTransactionsPage(0);
+    // Near-free probe — the old limit-0 page call still walked the whole
+    // history on the Rust side just to count it.
+    const { total } = await this.btcxWallet.txProbe();
     return { txCount: total, watchOnly: false };
   }
 

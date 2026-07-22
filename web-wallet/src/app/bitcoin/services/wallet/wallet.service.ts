@@ -67,6 +67,8 @@ export class WalletService implements OnDestroy {
   private readonly _recentTransactions = signal<WalletTransaction[]>([]);
   private readonly _activeMultisig = signal<MultisigInfo | null>(null);
   private readonly _activeWatchOnly = signal<boolean>(false);
+  /** Last remote tx probe {total, tip} — reload gate for sync ticks. */
+  private _lastTxProbe: { total: number; tip: number } | null = null;
 
   // Public readonly signals
   readonly balance = this._balance.asReadonly();
@@ -176,14 +178,30 @@ export class WalletService implements OnDestroy {
       this._txCount.set(details.txCount);
       this._activeWatchOnly.set(details.watchOnly);
 
-      // Fetch recent transactions (100 for chart history, sorted newest first)
-      const transactions = await backend.listTransactions(walletName, 100);
-      const recentTxs = [...transactions].sort((a, b) => b.time - a.time);
-      this._recentTransactions.set(recentTxs);
-      this.recentTransactionsSubject.next(recentTxs); // Keep observable in sync
+      // Fetch recent transactions (100 for chart history). In remote mode
+      // this refresh runs on EVERY sync tick — skip the (windowed but not
+      // free) list fetch when the probe says nothing moved.
+      let skipTxFetch = false;
+      if (remote) {
+        try {
+          const probe = await this.btcxWallet.txProbe();
+          skipTxFetch =
+            this._lastTxProbe !== null &&
+            this._lastTxProbe.total === probe.total &&
+            this._lastTxProbe.tip === probe.tip &&
+            this._recentTransactions().length > 0;
+          this._lastTxProbe = probe;
+        } catch {
+          // probe unavailable — fall through to a normal fetch
+        }
+      }
+      if (!skipTxFetch) {
+        const transactions = await backend.listTransactions(walletName, 100);
+        const recentTxs = [...transactions].sort((a, b) => b.time - a.time);
+        this._recentTransactions.set(recentTxs);
+      }
 
       // Update transaction state tracking for notifications
-      this.transactionState.updateTransactions(recentTxs);
 
       this._lastUpdated.set(new Date());
     } catch (error) {

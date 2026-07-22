@@ -1002,6 +1002,12 @@ export class BtcxWalletService {
    * `limit: 0` is a cheap count-only query (no items, no per-item work).
    * Both absent = the full history. Throws on failure.
    */
+  /** Near-free change probe: history size + tip. Callers compare with the
+   *  last probe and skip refetching the list when nothing moved. */
+  async txProbe(): Promise<{ total: number; tip: number }> {
+    return invoke<{ total: number; tip: number }>('btcx_wallet_tx_probe');
+  }
+
   async fetchTransactionsPage(
     limit?: number,
     offset?: number
