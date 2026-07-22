@@ -266,6 +266,21 @@ import { MiningService } from '../../../../mining/services';
           </mat-card-content>
         </mat-card>
 
+        <!-- Send / Receive quick actions — the old mobile home's row; phone
+             only (wider layouts reach them via the nav). -->
+        @if (viewport.phone()) {
+          <div class="actions-row">
+            <button mat-raised-button color="primary" (click)="goSend()">
+              <mat-icon>send</mat-icon>
+              {{ 'send' | i18n }}
+            </button>
+            <button mat-raised-button (click)="goReceive()">
+              <mat-icon>call_received</mat-icon>
+              {{ 'receive' | i18n }}
+            </button>
+          </div>
+        }
+
         <!-- Balance Chart Card -->
         <mat-card class="balance-chart-card">
           <mat-card-header>
@@ -654,27 +669,13 @@ import { MiningService } from '../../../../mining/services';
         @include bp.phone {
           grid-template-columns: 1fr;
           grid-template-rows: auto auto minmax(240px, 1fr);
-          /* Old-mobile density: 12px page rhythm, compact cards, 28px amount
-             — frees the vertical space the recent list needs for 3 full rows. */
+          /* 12px page rhythm (old mobile). Card-density overrides live at
+             the END of this stylesheet — they must FOLLOW the base card
+             blocks to win their equal-specificity !important ties. */
           gap: 12px;
           padding: 12px;
-
-          mat-card-header {
-            padding: 10px 16px 0 16px !important;
-          }
-
-          mat-card-content {
-            padding: 8px 16px 12px 16px !important;
-          }
-
-          .total-balance-card .total-balance {
-            font-size: 28px;
-            margin-bottom: 8px;
-          }
-
-          .total-balance-card .balance-breakdown {
-            padding-top: 8px;
-          }
+          /* Room for the actions row: net, balance, actions, transactions. */
+          grid-template-rows: auto auto auto minmax(240px, 1fr);
 
           /* .info-item qualifier beats the base ".blockchain-status-card
              .blockchain-info .info-item { display: flex }" rule, which ties a
@@ -1250,6 +1251,47 @@ import { MiningService } from '../../../../mining/services';
           }
         }
       }
+
+      /* Quick actions row (phone): the old mobile home's Send/Receive pair. */
+      .actions-row {
+        display: flex;
+        gap: 8px;
+
+        button {
+          flex: 1;
+        }
+      }
+
+      /* ── Phone density (old mobile rhythm) ─────────────────────────────
+         MUST stay the LAST block: the base card rules above use equally
+         specific selectors (some with !important), and a same-specificity
+         tie is decided by source order. */
+      @include bp.phone {
+        .blockchain-status-card mat-card-header,
+        .total-balance-card mat-card-header,
+        .transactions-card mat-card-header,
+        .mine-hint-card mat-card-header {
+          padding: 10px 16px 0 16px !important;
+        }
+
+        .blockchain-status-card mat-card-content,
+        .total-balance-card mat-card-content {
+          padding: 8px 16px 12px 16px !important;
+        }
+
+        .total-balance-card .total-balance {
+          font-size: 28px;
+          margin-bottom: 8px;
+        }
+
+        .total-balance-card .balance-breakdown {
+          padding-top: 8px;
+
+          .breakdown-item {
+            padding: 2px 0;
+          }
+        }
+      }
     `,
   ],
 })
@@ -1559,6 +1601,14 @@ export class DashboardComponent implements AfterViewInit {
   /** Open the per-address "Coins & Addresses" view (shell-aware route). */
   goToCoins(): void {
     void this.router.navigate([this.appMode.pageRoute('/coins')]);
+  }
+
+  goSend(): void {
+    void this.router.navigate([this.appMode.pageRoute('/send')]);
+  }
+
+  goReceive(): void {
+    void this.router.navigate([this.appMode.pageRoute('/receive')]);
   }
 
   // Blockchain info methods
