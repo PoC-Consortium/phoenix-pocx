@@ -9,6 +9,7 @@ import { BtcxPipe } from '../../../../shared/pipes';
 import { ClipboardService, ContactsStoreService } from '../../../../shared/services';
 import { BlockExplorerService } from '../../../../shared/services/block-explorer.service';
 import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
 
 /**
  * TxRowComponent - ONE transaction row for every mobile list.
@@ -113,6 +114,14 @@ import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-
   `,
   styles: [
     `
+      /* Block host: a bare custom element is inline-level, which lets the row
+         shrink-to-fit inside flex parents (dashboard recent list) — the
+         space-between rows then stop short of the card's right edge. Block
+         makes the row span its container, right-aligning amount/status/menu. */
+      :host {
+        display: block;
+      }
+
       .tx-row {
         display: flex;
         align-items: flex-start;
@@ -254,6 +263,7 @@ export class TxRowComponent {
   private readonly clipboard = inject(ClipboardService);
   private readonly explorer = inject(BlockExplorerService);
   private readonly router = inject(Router);
+  private readonly appMode = inject(AppModeService);
 
   readonly tx = input.required<BtcxWalletTx>();
 
@@ -276,11 +286,13 @@ export class TxRowComponent {
     if (address) await this.clipboard.copyAddress(address);
   }
 
-  /** Contacts page in add-mode with this row's address prefilled. */
+  /** Contacts page in add-mode with this row's address prefilled (shell-aware). */
   addToContacts(): void {
     const address = this.tx().address;
     if (!address) return;
-    void this.router.navigate(['/wallet/contacts'], { queryParams: { add: address } });
+    void this.router.navigate([this.appMode.pageRoute('/contacts')], {
+      queryParams: { add: address },
+    });
   }
 
   openInExplorer(): void {

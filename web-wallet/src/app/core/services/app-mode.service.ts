@@ -80,6 +80,24 @@ export class AppModeService {
    */
   readonly miningEnabled = computed(() => this.hasMiningBackend() && !this.isWalletOnly());
 
+  /**
+   * Map a desktop page route onto the shell the app is running in.
+   *
+   * The nodeless shell (mobile / wallet-only) mounts the SAME unified page
+   * components under the `/wallet` route tree, so shared components must
+   * never hard-code desktop URLs. The exceptions cover routes whose nodeless
+   * path differs by more than the prefix; everything else just gains
+   * `/wallet`. On desktop shells the path is returned unchanged.
+   */
+  pageRoute(desktopPath: string): string {
+    if (!this.isNodeless()) return desktopPath;
+    const exceptions: Record<string, string> = {
+      '/dashboard': '/wallet',
+      '/transactions': '/wallet/history',
+    };
+    return exceptions[desktopPath] ?? `/wallet${desktopPath}`;
+  }
+
   /** Whether the mode has been initialized (internal guard) */
   private readonly _isInitialized = signal(false);
 
