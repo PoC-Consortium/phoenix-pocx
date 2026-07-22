@@ -6,8 +6,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatRadioModule } from '@angular/material/radio';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { QRCodeComponent } from 'angularx-qrcode';
@@ -16,24 +14,16 @@ import { takeUntil, skip } from 'rxjs/operators';
 import { I18nPipe } from '../../../../core/i18n';
 import { ClipboardService, NotificationService } from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
-import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { buildPaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import { NodeService } from '../../../../node/services/node.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 
-interface AddressInfo {
-  address: string;
-  purpose: string;
-  isUsed: boolean;
-  txCount: number;
-  label: string;
-}
-
-type AddressMode = 'existing' | 'generate';
-
 /**
- * ReceiveComponent - Compact payment request form
+ * ReceiveComponent - Compact, mobile-style receive page (same design at
+ * desktop, just slightly wider). Shows the latest VIRGIN (first-unused)
+ * address with its QR by default plus a single "Generate new address"
+ * button — no past-address selector.
  */
 @Component({
   selector: 'app-receive',
@@ -45,8 +35,6 @@ type AddressMode = 'existing' | 'generate';
     MatIconModule,
     MatFormFieldModule,
     MatInputModule,
-    MatSelectModule,
-    MatRadioModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
     QRCodeComponent,
@@ -75,150 +63,112 @@ type AddressMode = 'existing' | 'generate';
               <mat-icon class="spend-only-icon">block</mat-icon>
               <span>{{ 'mwallet_receive_v30_blocked' | i18n }}</span>
             </div>
-          } @else {
-            <!-- Address Selection (hidden for single-address wallets: one
-                 fixed address, nothing to pick or generate) -->
-            @if (!singleAddress()) {
-              <div class="form-section">
-                <div class="address-mode-row">
-                  <mat-radio-group [(ngModel)]="addressMode" (change)="onAddressModeChange()">
-                    <mat-radio-button value="existing">{{
-                      'use_existing_address' | i18n
-                    }}</mat-radio-button>
-                    <div class="generate-option">
-                      <mat-radio-button value="generate">{{
-                        'generate_new_address' | i18n
-                      }}</mat-radio-button>
-                      @if (addressMode === 'generate') {
-                        <button
-                          type="button"
-                          class="regenerate-btn"
-                          (click)="generateNewAddress()"
-                          [disabled]="isGenerating()"
-                          [title]="'generate_new' | i18n"
-                        >
-                          @if (isGenerating()) {
-                            <mat-spinner diameter="18"></mat-spinner>
-                          } @else {
-                            <mat-icon>refresh</mat-icon>
-                          }
-                        </button>
-                      }
-                    </div>
-                  </mat-radio-group>
-                </div>
-
-                @if (addressMode === 'existing' && canEnumerate()) {
-                  @if (!isLoadingAddresses()) {
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>{{ 'select_address' | i18n }}</mat-label>
-                      <mat-select [(ngModel)]="selectedAddress">
-                        @for (addr of existingAddresses(); track addr.address) {
-                          <mat-option [value]="addr.address">
-                            <span class="address-option"
-                              >{{ addr.address }}{{ getAddressDisplayLabel(addr) }}</span
-                            >
-                          </mat-option>
-                        }
-                      </mat-select>
-                    </mat-form-field>
-                  } @else {
-                    <div class="loading-inline">
-                      <mat-spinner diameter="20"></mat-spinner>
-                      <span>{{ 'loading_addresses' | i18n }}</span>
-                    </div>
-                  }
-                }
+          } @else if (currentAddress()) {
+            <!-- QR + copy rows for the current first-unused address -->
+            <div class="qr-section">
+              <div class="qr-code-container">
+                <qrcode
+                  [qrdata]="paymentUri()"
+                  [width]="200"
+                  [errorCorrectionLevel]="'M'"
+                  [margin]="1"
+                  [colorDark]="'#1E3A5F'"
+                  [colorLight]="'#FFFFFF'"
+                ></qrcode>
               </div>
-            } @else {
+
+              <div class="info-row">
+                <span class="info-label">{{ 'address' | i18n }}:</span>
+                <div
+                  class="info-value-row copyable"
+                  (click)="copyAddress()"
+                  [matTooltip]="'copy' | i18n"
+                >
+                  <span class="address-value">{{ currentAddress() }}</span>
+                  <mat-icon class="copy-icon">content_copy</mat-icon>
+                </div>
+              </div>
+
+              <div class="info-row">
+                <span class="info-label">{{ 'payment_uri' | i18n }}:</span>
+                <div
+                  class="info-value-row copyable"
+                  (click)="copyPaymentUri()"
+                  [matTooltip]="'copy' | i18n"
+                >
+                  <span class="uri-value">{{ paymentUri() }}</span>
+                  <mat-icon class="copy-icon">content_copy</mat-icon>
+                </div>
+              </div>
+            </div>
+
+            @if (singleAddress()) {
+              <!-- Remote single-address (wpkh-WIF) wallet: ONE fixed address,
+                   nothing to generate — the button collapses to a hint. -->
               <p class="single-hint">{{ 'mwallet_receive_single_hint' | i18n }}</p>
-            }
-
-            <!-- Amount -->
-            <div class="form-section">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'amount_optional' | i18n }}</mat-label>
-                <input
-                  matInput
-                  type="number"
-                  [(ngModel)]="amount"
-                  placeholder="0.00000000"
-                  step="0.00000001"
-                  min="0"
-                  autocomplete="off"
-                />
-                <span matTextSuffix>BTCX</span>
-              </mat-form-field>
-            </div>
-
-            <!-- Label -->
-            <div class="form-section">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'label_optional' | i18n }}</mat-label>
-                <input
-                  matInput
-                  [(ngModel)]="label"
-                  [placeholder]="'label_placeholder' | i18n"
-                  maxlength="50"
-                  autocomplete="off"
-                />
-              </mat-form-field>
-            </div>
-
-            <!-- QR Code Section -->
-            @if (currentAddress()) {
-              <div class="qr-section">
-                <div class="qr-code-container">
-                  <qrcode
-                    [qrdata]="paymentUri()"
-                    [width]="200"
-                    [errorCorrectionLevel]="'M'"
-                    [margin]="1"
-                    [colorDark]="'#1E3A5F'"
-                    [colorLight]="'#FFFFFF'"
-                  ></qrcode>
-                </div>
-
-                <div class="info-row">
-                  <span class="info-label">{{ 'address' | i18n }}:</span>
-                  <div
-                    class="info-value-row copyable"
-                    (click)="copyAddress()"
-                    [matTooltip]="'copy' | i18n"
-                  >
-                    <span class="address-value">{{ currentAddress() }}</span>
-                    <mat-icon class="copy-icon">content_copy</mat-icon>
-                  </div>
-                </div>
-
-                <div class="info-row">
-                  <span class="info-label">{{ 'payment_uri' | i18n }}:</span>
-                  <div
-                    class="info-value-row copyable"
-                    (click)="copyPaymentUri()"
-                    [matTooltip]="'copy' | i18n"
-                  >
-                    <span class="uri-value">{{ paymentUri() }}</span>
-                    <mat-icon class="copy-icon">content_copy</mat-icon>
-                  </div>
-                </div>
-              </div>
-            } @else if (loadError()) {
-              <!-- The old mobile receive's failed-state with retry. -->
-              <div class="no-address">
-                <mat-icon>error_outline</mat-icon>
-                <span>{{ 'mwallet_address_failed' | i18n }}</span>
-                <button mat-stroked-button (click)="loadReceiveAddresses()">
-                  <mat-icon>refresh</mat-icon>
-                  {{ 'retry' | i18n }}
+            } @else {
+              <div class="generate-row">
+                <button
+                  mat-stroked-button
+                  (click)="generateNewAddress()"
+                  [disabled]="isGenerating()"
+                >
+                  @if (isGenerating()) {
+                    <mat-spinner diameter="18" class="button-spinner"></mat-spinner>
+                  } @else {
+                    <mat-icon>refresh</mat-icon>
+                  }
+                  {{ 'generate_new_address' | i18n }}
                 </button>
               </div>
-            } @else {
-              <div class="no-address">
-                <mat-icon>qr_code</mat-icon>
-                <span>{{ 'select_or_generate_address' | i18n }}</span>
-              </div>
             }
+
+            <!-- Optional amount + label (feed the URI/QR) — visually secondary -->
+            <div class="optional-fields">
+              <div class="form-section">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ 'amount_optional' | i18n }}</mat-label>
+                  <input
+                    matInput
+                    type="number"
+                    [(ngModel)]="amount"
+                    placeholder="0.00000000"
+                    step="0.00000001"
+                    min="0"
+                    autocomplete="off"
+                  />
+                  <span matTextSuffix>BTCX</span>
+                </mat-form-field>
+              </div>
+
+              <div class="form-section">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ 'label_optional' | i18n }}</mat-label>
+                  <input
+                    matInput
+                    [(ngModel)]="label"
+                    [placeholder]="'label_placeholder' | i18n"
+                    maxlength="50"
+                    autocomplete="off"
+                  />
+                </mat-form-field>
+              </div>
+            </div>
+          } @else if (loadError()) {
+            <!-- The old mobile receive's failed-state with retry. -->
+            <div class="no-address">
+              <mat-icon>error_outline</mat-icon>
+              <span>{{ 'mwallet_address_failed' | i18n }}</span>
+              <button mat-stroked-button (click)="loadReceiveAddress()">
+                <mat-icon>refresh</mat-icon>
+                {{ 'retry' | i18n }}
+              </button>
+            </div>
+          } @else {
+            <div class="loading-inline">
+              <mat-spinner diameter="20"></mat-spinner>
+              <span>{{ 'loading_addresses' | i18n }}</span>
+            </div>
           }
         </div>
       </div>
@@ -254,7 +204,8 @@ type AddressMode = 'existing' | 'generate';
       .single-hint {
         color: rgba(0, 0, 0, 0.55);
         font-size: 13px;
-        margin: 0 0 16px;
+        text-align: center;
+        margin: 0 0 12px;
       }
 
       .header-left {
@@ -283,7 +234,7 @@ type AddressMode = 'existing' | 'generate';
         background: #ffffff;
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        max-width: 500px;
+        max-width: 560px;
         width: 100%;
         padding: 16px 20px;
         overflow: hidden;
@@ -298,88 +249,12 @@ type AddressMode = 'existing' | 'generate';
         width: 100%;
       }
 
-      /* Address mode */
-      .address-mode-row {
-        margin-bottom: 12px;
-
-        mat-radio-group {
-          display: flex;
-          gap: 24px;
-          flex-wrap: wrap;
-        }
-
-        .generate-option {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-
-        .regenerate-btn {
-          width: 28px;
-          height: 28px;
-          min-width: 28px;
-          max-width: 28px;
-          padding: 0;
-          border: none;
-          background: transparent;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 50%;
-
-          mat-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
-            color: #1976d2;
-          }
-
-          mat-spinner {
-            margin: 0;
-          }
-
-          &:hover {
-            background: rgba(25, 118, 210, 0.08);
-          }
-
-          &:disabled {
-            cursor: default;
-            opacity: 0.6;
-
-            &:hover {
-              background: transparent;
-            }
-          }
-        }
-
-        ::ng-deep .mat-mdc-radio-button .mdc-label {
-          font-size: 14px;
-        }
-      }
-
-      /* Address dropdown option - full width */
-      .address-option {
-        font-family: monospace;
-        font-size: 12px;
-        white-space: nowrap;
-      }
-
-      ::ng-deep .mat-mdc-select-panel {
-        max-width: none !important;
-      }
-
-      /* Selected address in trigger - monospace to fit */
-      ::ng-deep .mat-mdc-select-value-text {
-        font-family: monospace;
-        font-size: 14px;
-      }
-
       .loading-inline {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
-        padding: 8px 0;
+        padding: 24px 0;
         color: #666;
         font-size: 13px;
       }
@@ -414,7 +289,7 @@ type AddressMode = 'existing' | 'generate';
       /* QR Section */
       .qr-section {
         text-align: center;
-        padding-top: 8px;
+        padding-top: 4px;
       }
 
       .qr-code-container {
@@ -484,11 +359,38 @@ type AddressMode = 'existing' | 'generate';
         flex: 1;
       }
 
-      /* No address state */
+      /* Generate new address */
+      .generate-row {
+        display: flex;
+        justify-content: center;
+        margin: 4px 0 16px;
+
+        .button-spinner {
+          display: inline-block;
+          margin-right: 8px;
+        }
+
+        mat-icon {
+          margin-right: 4px;
+        }
+      }
+
+      /* Optional amount/label — visually secondary */
+      .optional-fields {
+        border-top: 1px solid #eee;
+        padding-top: 12px;
+
+        .form-section:last-child {
+          margin-bottom: 0;
+        }
+      }
+
+      /* Failed state */
       .no-address {
         display: flex;
         flex-direction: column;
         align-items: center;
+        gap: 8px;
         padding: 32px 0;
         color: rgba(0, 0, 0, 0.38);
 
@@ -496,7 +398,6 @@ type AddressMode = 'existing' | 'generate';
           font-size: 48px;
           width: 48px;
           height: 48px;
-          margin-bottom: 8px;
         }
 
         span {
@@ -538,6 +439,10 @@ type AddressMode = 'existing' | 'generate';
           background: #424242;
         }
 
+        .single-hint {
+          color: rgba(255, 255, 255, 0.55);
+        }
+
         .info-row .info-label {
           color: #aaa;
         }
@@ -552,6 +457,10 @@ type AddressMode = 'existing' | 'generate';
 
         .address-value {
           color: #90caf9;
+        }
+
+        .optional-fields {
+          border-top-color: #555;
         }
 
         .no-address {
@@ -569,27 +478,26 @@ type AddressMode = 'existing' | 'generate';
           padding: 0 16px;
         }
 
-        .address-mode-row mat-radio-group {
-          flex-direction: column;
-          gap: 8px;
-        }
-
         /* Compact phone rhythm: tighter page/card padding + section spacing. */
         .content {
           padding: 12px;
         }
 
         .receive-card {
+          max-width: 480px;
           padding: 14px 16px;
         }
 
         .form-section {
-          margin-bottom: 6px;
+          margin-bottom: 8px;
         }
 
         .qr-section {
-          margin-top: 8px;
-          padding-top: 8px;
+          padding-top: 2px;
+        }
+
+        .generate-row {
+          margin: 2px 0 12px;
         }
       }
     `,
@@ -597,7 +505,6 @@ type AddressMode = 'existing' | 'generate';
 })
 export class ReceiveComponent implements OnInit, OnDestroy {
   private readonly walletManager = inject(WalletManagerService);
-  private readonly walletRpc = inject(WalletRpcService);
   private readonly clipboard = inject(ClipboardService);
   private readonly notification = inject(NotificationService);
   private readonly location = inject(Location);
@@ -605,14 +512,6 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   private readonly btcxWallet = inject(BtcxWalletService);
   private readonly backendRouter = inject(BackendRouterService);
   private readonly destroy$ = new Subject<void>();
-
-  /**
-   * Whether the current backend can enumerate ALL of the wallet's addresses
-   * (the existing-address dropdown). Only Core RPC can; the remote/BDK backend
-   * exposes just the current first-unused, so there the dropdown collapses to
-   * that single value.
-   */
-  readonly canEnumerate = computed(() => !this.backendRouter.isRemote());
 
   /**
    * Remote (Electrum) mode + a legacy v30 (coin-0') pocket = spend-only:
@@ -625,8 +524,8 @@ export class ReceiveComponent implements OnInit, OnDestroy {
 
   /**
    * Remote single-address (wpkh-WIF) wallet: ONE fixed address, nothing to
-   * enumerate or generate — the mode radio collapses to a hint (the old
-   * mobile receive's mwallet_receive_single_hint behavior).
+   * generate — the generate button collapses to a hint (the old mobile
+   * receive's mwallet_receive_single_hint behavior).
    */
   readonly singleAddress = computed(
     () => this.nodeService.isRemote() && this.btcxWallet.singleAddress()
@@ -635,18 +534,11 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   /** Address load failed (e.g. wallet runtime briefly closed) — offer retry. */
   readonly loadError = signal(false);
 
-  addressMode: AddressMode = 'existing';
-  existingAddresses = signal<AddressInfo[]>([]);
-  selectedAddress = '';
-  isLoadingAddresses = signal(false);
-  generatedAddress = signal('');
-  isGenerating = signal(false);
+  /** The shown receive address: latest virgin (first-unused) by default. */
+  readonly currentAddress = signal('');
+  readonly isGenerating = signal(false);
   amount: number | null = null;
   label = '';
-
-  currentAddress(): string {
-    return this.addressMode === 'existing' ? this.selectedAddress : this.generatedAddress();
-  }
 
   paymentUri(): string {
     return buildPaymentUri({
@@ -657,7 +549,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Subscribe to wallet changes to reload addresses. Switching INTO a
+    // Subscribe to wallet changes to reload the address. Switching INTO a
     // v30 pocket clears the shown address and derives nothing; switching
     // out reloads normally.
     this.walletManager.activeWallet$
@@ -666,12 +558,10 @@ export class ReceiveComponent implements OnInit, OnDestroy {
         takeUntil(this.destroy$)
       )
       .subscribe(() => {
-        this.selectedAddress = '';
-        this.generatedAddress.set('');
-        this.addressMode = 'existing';
-        this.existingAddresses.set([]);
+        this.currentAddress.set('');
+        this.loadError.set(false);
         if (!this.spendOnly()) {
-          this.loadReceiveAddresses();
+          this.loadReceiveAddress();
         }
       });
 
@@ -688,7 +578,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
       await this.btcxWallet.initialize();
     }
     if (!this.spendOnly()) {
-      await this.loadReceiveAddresses();
+      await this.loadReceiveAddress();
     }
   }
 
@@ -702,99 +592,27 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Set the shown/default address to the first VIRGIN (never-received)
-   * address via the backend seam — identical in Core and remote modes
-   * (`currentReceiveAddress`), matching what mobile does. In Core mode ALSO
-   * build the existing-address dropdown; the remote/BDK backend can't
-   * enumerate every address, so there the single current address is the only
-   * selectable value.
+   * Show the first VIRGIN (never-received) address via the backend seam —
+   * identical in Core and remote modes (`currentReceiveAddress`).
    */
-  async loadReceiveAddresses(): Promise<void> {
+  async loadReceiveAddress(): Promise<void> {
     if (this.spendOnly()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
-    this.isLoadingAddresses.set(true);
     this.loadError.set(false);
     try {
-      const backend = this.backendRouter.wallet();
-      const current = await backend.currentReceiveAddress(walletName);
-
-      if (this.canEnumerate()) {
-        await this.loadExistingAddressList(walletName, current);
-      } else {
-        // Remote: no address enumeration available — the current first-unused
-        // is the only entry (dropdown is hidden in remote anyway).
-        this.existingAddresses.set(
-          current
-            ? [{ address: current, purpose: 'receive', isUsed: false, txCount: 0, label: '' }]
-            : []
-        );
-      }
-
-      // Default the selection to the first virgin, matching mobile.
-      this.selectedAddress = current;
+      const current = await this.backendRouter.wallet().currentReceiveAddress(walletName);
+      this.currentAddress.set(current);
     } catch (error) {
-      console.error('Failed to load addresses:', error);
+      console.error('Failed to load address:', error);
       // Only surface the retry state when nothing usable is on screen.
       if (!this.currentAddress()) this.loadError.set(true);
-    } finally {
-      this.isLoadingAddresses.set(false);
     }
-  }
-
-  /**
-   * Build the Core existing-address dropdown. `isUsed` reflects REAL on-chain
-   * usage (received sats / txids from `listreceivedbyaddress`), not the old
-   * `labels.length` heuristic. `ensure` guarantees the current first-unused is
-   * present so the selected value always has a matching option.
-   */
-  private async loadExistingAddressList(walletName: string, ensure?: string): Promise<void> {
-    const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
-
-    // Real usage + label per address in a single call (minconf 0 counts
-    // unconfirmed receives; include_empty surfaces revealed-but-unused ones).
-    const usage = new Map<string, { used: boolean; label: string }>();
-    try {
-      const received = await this.walletRpc.listReceivedByAddress(walletName, 0, true);
-      for (const r of received) {
-        usage.set(r.address, {
-          used: Math.round(r.amount * 1e8) > 0 || r.txids.length > 0,
-          label: r.label ?? '',
-        });
-      }
-    } catch {
-      // best-effort — used/label fall back to defaults below.
-    }
-
-    const addresses: AddressInfo[] = [];
-    for (const [address, info] of Object.entries(addressMap)) {
-      if (!this.isBech32Address(address)) continue;
-      const u = usage.get(address);
-      addresses.push({
-        address,
-        purpose: (info as { purpose?: string }).purpose || 'receive',
-        isUsed: u?.used ?? false,
-        txCount: 0,
-        label: u?.label ?? '',
-      });
-    }
-
-    if (ensure && !addresses.some(a => a.address === ensure)) {
-      addresses.unshift({
-        address: ensure,
-        purpose: 'receive',
-        isUsed: false,
-        txCount: 0,
-        label: '',
-      });
-    }
-
-    this.existingAddresses.set(addresses);
   }
 
   async generateNewAddress(): Promise<void> {
-    if (this.spendOnly() || this.isGenerating()) return;
+    if (this.spendOnly() || this.singleAddress() || this.isGenerating()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
@@ -803,22 +621,12 @@ export class ReceiveComponent implements OnInit, OnDestroy {
       const address = await this.backendRouter
         .wallet()
         .getNewAddress(walletName, this.label || '', 'bech32');
-      this.generatedAddress.set(address);
-      // Core: refresh the dropdown so the freshly revealed address shows.
-      if (this.canEnumerate()) {
-        await this.loadExistingAddressList(walletName, this.selectedAddress);
-      }
+      this.currentAddress.set(address);
     } catch (error) {
       console.error('Failed to generate address:', error);
       this.notification.error('error_generating_address');
     } finally {
       this.isGenerating.set(false);
-    }
-  }
-
-  onAddressModeChange(): void {
-    if (this.addressMode === 'generate' && !this.generatedAddress()) {
-      this.generateNewAddress();
     }
   }
 
@@ -833,27 +641,5 @@ export class ReceiveComponent implements OnInit, OnDestroy {
       await this.clipboard.copy(uri);
       this.notification.success('payment_uri_copied');
     }
-  }
-
-  private isBech32Address(address: string): boolean {
-    const lower = address.toLowerCase();
-    // Every PoCX network (pocx/tpocx/rpocx) and BOTH witness versions — the
-    // active wallet may be a SegWit (…1q) OR Taproot (…1p) compartment, and
-    // regtest uses the rpocx HRP. Standard Bitcoin HRPs kept defensively.
-    return (
-      lower.startsWith('pocx1') ||
-      lower.startsWith('tpocx1') ||
-      lower.startsWith('rpocx1') ||
-      lower.startsWith('bc1') ||
-      lower.startsWith('tb1') ||
-      lower.startsWith('bcrt1')
-    );
-  }
-
-  getAddressDisplayLabel(addr: AddressInfo): string {
-    const parts: string[] = [];
-    if (addr.label) parts.push(addr.label);
-    if (addr.purpose === 'receive' && !addr.isUsed) parts.push('never used');
-    return parts.length > 0 ? ` (${parts.join(' - ')})` : '';
   }
 }

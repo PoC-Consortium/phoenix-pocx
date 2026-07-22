@@ -143,7 +143,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
           <!-- Send Form -->
           <div class="send-card">
             <!-- Recipient Section -->
-            <div class="form-section">
+            <div class="form-section recipient-section">
               <h3 class="section-title">{{ 'recipient' | i18n }}</h3>
               <div class="recipient-row">
                 <mat-form-field appearance="outline" class="recipient-field">
@@ -199,7 +199,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
             </div>
 
             <!-- Amount Section -->
-            <div class="form-section">
+            <div class="form-section amount-section">
               <h3 class="section-title">{{ 'amount' | i18n }}</h3>
               <div class="amount-row">
                 <mat-form-field appearance="outline" class="amount-field">
@@ -1031,11 +1031,20 @@ const SANE_PRESET_MAX_SAT_VB = 200;
           display: none;
         }
 
-        .amount-row {
-          flex-direction: column;
+        /* The floating mat-form-field labels carry the meaning at phone —
+           hide ONLY the recipient/amount headings (fee/options keep theirs).
+           Match the base rule's depth (.form-section .section-title) so this
+           later media-query rule wins the specificity tie. */
+        .recipient-section .section-title,
+        .amount-section .section-title {
+          display: none;
+        }
 
-          .max-button {
-            width: 100%;
+        /* Amount input + MAX stay on ONE row: input flexes, MAX auto-width. */
+        .amount-row {
+          .amount-field {
+            flex: 1;
+            min-width: 0;
           }
         }
 

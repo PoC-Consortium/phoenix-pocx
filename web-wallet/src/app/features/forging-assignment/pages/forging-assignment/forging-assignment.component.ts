@@ -1,613 +1,360 @@
 import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
-import { CommonModule, DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { Location } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatTabsModule } from '@angular/material/tabs';
+import { MatSelectModule } from '@angular/material/select';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { Store } from '@ngrx/store';
 import { Subject } from 'rxjs';
 import { takeUntil, skip } from 'rxjs/operators';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
+import { HashTruncatePipe } from '../../../../shared/pipes';
+import { DecimalInputDirective } from '../../../../shared/directives';
+import { Contact, ContactsStoreService, NotificationService } from '../../../../shared/services';
 import { PassphraseDialogComponent } from '../../../../shared';
 import type { PassphraseDialogResult } from '../../../../shared';
-import { NotificationService } from '../../../../shared/services';
-import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
-import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
-import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
-import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
-import { Store } from '@ngrx/store';
-import { toSignal } from '@angular/core/rxjs-interop';
+import {
+  ConfirmDialogComponent,
+  ConfirmDialogData,
+} from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
-import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
 import {
   MiningRpcService,
-  AssignmentStatus,
   AssignmentState,
+  AssignmentStatus,
 } from '../../../../bitcoin/services/rpc/mining-rpc.service';
-import { MiningService } from '../../../../mining/services/mining.service';
+import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
+import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
+import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
+import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { NodeService } from '../../../../node/services/node.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { MiningService } from '../../../../mining/services';
+import { PageHeaderComponent } from '../../../mobile-wallet/components/page-header/page-header.component';
 import {
   PoolAddressOption,
   poolAddressOptionsForChains,
 } from '../../../../mining/models/mining.models';
 
-type OperationMode = 'create' | 'revoke' | 'check';
-
+/** One fee choice — `blocks` feeds the Core-mode estimatesmartfee call. */
 interface FeeOption {
   label: string;
   blocks: number;
   feeRate: number | null;
-  timeEstimate: string;
-}
-
-interface WalletAddress {
-  address: string;
-  label: string;
-  isSegwitV0: boolean;
 }
 
 /**
- * ForgingAssignmentComponent manages forging assignments for Bitcoin-PoCX.
+ * Assumed vsize of an assignment/revocation tx for the fee preview:
+ * 1 P2WPKH input + OP_RETURN payload + change, ~170 vB (the send page's
+ * preview assumption, which the OP_RETURN output roughly matches).
+ */
+const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
+
+/**
+ * ForgingAssignmentComponent — the ONE responsive forging-assignment page,
+ * serving both the desktop route (`/forging-assignment`, main-layout) and
+ * the mobile-wallet route (`/wallet/assignment`, mobile-wallet-layout).
  *
- * Features:
- * - Create new forging assignments (delegate forging rights)
- * - Revoke existing assignments
- * - Check assignment status
- * - Shows progress for pending assignments/revocations
+ * The design is the mobile page's single-CARD flow: pick a wallet address
+ * (the assignment must spend a coin on the plot address), see its
+ * assignment state — badge + details — and the matching action (create or
+ * revoke). Desktop widths render the same card a little wider with
+ * send-page-style uppercase section labels above the input groups; at
+ * phone widths the original mobile look is unchanged.
+ *
+ * Mode seam (the unified send page's pattern): remote (Electrum) mode
+ * drives the client-side BtcxWalletService assignment methods (OP_RETURN
+ * txs built and signed via BDK, status derived from Electrum script
+ * history); node modes drive the node's assignment RPCs
+ * (get_assignment / create_assignment / revoke_assignment) with the
+ * wallet identity from `walletManager.activeWallet`.
  */
 @Component({
   selector: 'app-forging-assignment',
   standalone: true,
   imports: [
-    CommonModule,
     FormsModule,
     RouterModule,
-    MatCardModule,
+    MatAutocompleteModule,
     MatButtonModule,
     MatIconModule,
+    MatDividerModule,
     MatFormFieldModule,
     MatInputModule,
-    MatTabsModule,
-    MatProgressSpinnerModule,
-    MatProgressBarModule,
-    MatAutocompleteModule,
-    MatTooltipModule,
+    MatSelectModule,
+    MatMenuModule,
     MatDialogModule,
-    I18nPipe,
+    MatProgressSpinnerModule,
+    MatTooltipModule,
     DecimalPipe,
+    NgTemplateOutlet,
+    HashTruncatePipe,
+    DecimalInputDirective,
+    I18nPipe,
+    PageHeaderComponent,
   ],
   template: `
-    <div class="page-layout">
-      <!-- Header -->
-      <div class="header">
-        <div class="header-left">
-          <button mat-icon-button class="back-button" (click)="goBack()">
+    <app-mwallet-page-header titleKey="forging_assignment" [backLink]="backTarget">
+      <button
+        mat-icon-button
+        [disabled]="statusLoading() || !plotAddress"
+        (click)="checkStatus()"
+        [matTooltip]="'refresh' | i18n"
+      >
+        <mat-icon [class.spinning]="statusLoading()">refresh</mat-icon>
+      </button>
+    </app-mwallet-page-header>
+
+    <div class="page">
+      @if (walletGateClosed()) {
+        <div class="card empty-card">
+          <mat-icon class="empty-icon">lock</mat-icon>
+          <p class="hint-text">{{ 'mwallet_wallet_not_open' | i18n }}</p>
+          <button mat-stroked-button [routerLink]="backTarget">
             <mat-icon>arrow_back</mat-icon>
+            {{ 'back' | i18n }}
           </button>
-          <h1>{{ 'forging_assignment' | i18n }}</h1>
         </div>
-        <div class="header-right">
-          <div class="block-height">
-            <span class="block-label">{{ 'block_height' | i18n }}:</span>
-            <span class="block-value">{{ currentBlockHeight() | number }}</span>
-          </div>
+      } @else if (walletNotSegwit()) {
+        <!-- Remote mode, non-segwit wallet (taproot, or imported legacy
+             descriptors): plot addresses are segwit-v0 witness programs, so
+             this wallet can never create or revoke an assignment — gate the
+             whole form (the wizard's hint pattern); the wallet switcher is
+             the remedy. Node-mode Core wallets are never gated here. -->
+        <div class="card empty-card">
+          <mat-icon class="empty-icon">block</mat-icon>
+          <p class="hint-text">{{ gateHintKey() | i18n }}</p>
+          <button mat-stroked-button [routerLink]="backTarget">
+            <mat-icon>arrow_back</mat-icon>
+            {{ 'back' | i18n }}
+          </button>
         </div>
-      </div>
-
-      <div class="content">
-        <div class="assignment-card">
-          @if (assignmentsGated()) {
-            <!-- Remote mode + non-segwit wallet (taproot or imported
-                 legacy): a plot address is a 20-byte segwit-v0 witness
-                 program, so this wallet can never own one and assignments
-                 are gated (the mobile page's pattern) — switch to a SegWit
-                 wallet to manage assignments. -->
-            <div class="description-box">
-              <mat-icon class="description-icon">warning_amber</mat-icon>
-              <div class="description-text">{{ gateHintKey() | i18n }}</div>
-            </div>
+      } @else {
+        <!-- Everything in ONE card: selector + status + matching action -->
+        <div class="card">
+          @if (walletAddresses().length === 0) {
+            <p class="hint-text">{{ 'mwallet_assignment_no_funded' | i18n }}</p>
           } @else {
-            <!-- Tab Navigation -->
-            <mat-tab-group
-              [(selectedIndex)]="selectedTabIndex"
-              (selectedIndexChange)="onTabChange($event)"
-              class="assignment-tabs"
-            >
-              <!-- Create Assignment Tab -->
-              <mat-tab>
-                <ng-template mat-tab-label>
-                  <mat-icon class="tab-icon">add_circle_outline</mat-icon>
-                  <span class="tab-label">{{ 'create_assignment' | i18n }}</span>
-                </ng-template>
+            <!-- Send-page-style section label (desktop widths only) -->
+            <h3 class="section-label">{{ 'plot_address' | i18n }}</h3>
+            <mat-form-field appearance="outline" class="full-width slim-field">
+              <mat-label>{{ 'plot_address' | i18n }}</mat-label>
+              <mat-select
+                [(ngModel)]="plotAddress"
+                (ngModelChange)="checkStatus()"
+                [disabled]="busy()"
+              >
+                @for (addr of walletAddresses(); track addr) {
+                  <mat-option [value]="addr">{{ addr | hashTruncate: 16 : 8 }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          }
 
-                <div class="tab-content">
-                  <!-- Description -->
-                  <div class="description-box">
-                    <mat-icon class="description-icon">info_outline</mat-icon>
-                    <div class="description-text">{{ 'create_assignment_description' | i18n }}</div>
+          <!-- Status -->
+          @if (plotAddress) {
+            @if (statusLoading()) {
+              <div class="status-loading">
+                <mat-spinner diameter="24"></mat-spinner>
+              </div>
+            } @else if (statusError()) {
+              <p class="error-text">{{ 'error_checking_status' | i18n }}: {{ statusError() }}</p>
+            } @else if (status(); as s) {
+              <div class="state-badge" [class]="badgeClass(s.state)">{{ s.state }}</div>
+
+              @switch (s.state) {
+                @case ('UNASSIGNED') {
+                  <p class="hint-text small">{{ 'can_create_assignment' | i18n }}</p>
+                }
+                @case ('ASSIGNING') {
+                  <div class="detail-row">
+                    <span class="detail-label">{{ 'forging_address' | i18n }}</span>
+                    <span class="detail-value mono">{{ s.forging_address }}</span>
                   </div>
-
-                  <!-- Plot Address -->
-                  <div class="field-group">
-                    <label class="field-label">{{ 'plot_address' | i18n }}</label>
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
-                      <input
-                        matInput
-                        [matAutocomplete]="createPlotAuto"
-                        [(ngModel)]="selectedPlotAddress"
-                        (ngModelChange)="onPlotAddressChange($event)"
-                        placeholder="tb1q... / bc1q..."
-                      />
-                      <mat-autocomplete #createPlotAuto="matAutocomplete">
-                        @for (addr of walletAddresses(); track addr.address) {
-                          <mat-option [value]="addr.address">
-                            <span class="address-option">
-                              <span class="address-text">{{ addr.address }}</span>
-                              @if (addr.label) {
-                                <span class="address-label">({{ addr.label }})</span>
-                              }
-                            </span>
-                          </mat-option>
-                        }
-                      </mat-autocomplete>
-                      @if (isPlotAddressValid()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-valid"
-                          [matTooltip]="'address_valid' | i18n"
-                          >check_circle</mat-icon
-                        >
-                      } @else if (plotAddressError()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-invalid"
-                          [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
-                          >error</mat-icon
-                        >
-                      }
-                      @let createPlotErr = plotAddressError();
-                      @if (createPlotErr) {
-                        <mat-hint class="error-hint">
-                          {{ createPlotErr.key | i18n: createPlotErr.params }}
-                        </mat-hint>
-                      }
-                    </mat-form-field>
+                  <div class="detail-row">
+                    <span class="detail-label">{{ 'activates_at_block' | i18n }}</span>
+                    <span class="detail-value">
+                      {{ s.activation_height | number }}
+                      · {{ blocksRemaining(s) }} {{ 'blocks_remaining' | i18n }}
+                    </span>
                   </div>
-
-                  <!-- Forging Address -->
-                  <div class="field-group">
-                    <label class="field-label">{{ 'forging_address' | i18n }}</label>
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>{{ 'select_or_enter_forging_address' | i18n }}</mat-label>
-                      <input
-                        matInput
-                        [matAutocomplete]="forgingAuto"
-                        [(ngModel)]="forgingAddress"
-                        (ngModelChange)="onForgingAddressChange()"
-                        placeholder="pocx1q... / tb1q... / bc1q..."
-                      />
-                      <mat-autocomplete #forgingAuto="matAutocomplete">
-                        @for (opt of poolAddressOptions(); track opt.address) {
-                          <mat-option [value]="opt.address">
-                            <span class="address-option">
-                              <span class="address-label">{{ opt.label || opt.poolName }}</span>
-                              <span class="address-text">{{ opt.address }}</span>
-                            </span>
-                          </mat-option>
-                        }
-                      </mat-autocomplete>
-                      @if (isForgingAddressValid()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-valid"
-                          [matTooltip]="'address_valid' | i18n"
-                          >check_circle</mat-icon
-                        >
-                      } @else if (forgingAddressError()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-invalid"
-                          [matTooltip]="
-                            forgingAddressError()!.key | i18n: forgingAddressError()!.params
-                          "
-                          >error</mat-icon
-                        >
-                      }
-                      @let forgErr = forgingAddressError();
-                      @if (forgErr) {
-                        <mat-hint class="error-hint">
-                          {{ forgErr.key | i18n: forgErr.params }}
-                        </mat-hint>
-                      }
-                    </mat-form-field>
+                }
+                @case ('ASSIGNED') {
+                  <div class="detail-row">
+                    <span class="detail-label">{{ 'forging_address' | i18n }}</span>
+                    <span class="detail-value mono">{{ s.forging_address }}</span>
                   </div>
-
-                  <!-- Fee Section -->
-                  <ng-container *ngTemplateOutlet="feeSection"></ng-container>
-
-                  <!-- Action Buttons -->
-                  <div class="action-buttons">
-                    <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
-                    <button
-                      mat-raised-button
-                      color="primary"
-                      (click)="onSubmit()"
-                      [disabled]="!canSubmit()"
-                    >
-                      @if (isSubmitting()) {
-                        <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-                      } @else {
-                        <mat-icon>add_circle</mat-icon>
-                      }
-                      <span>{{ 'create_assignment' | i18n }}</span>
-                    </button>
-                  </div>
-                </div>
-              </mat-tab>
-
-              <!-- Revoke Assignment Tab -->
-              <mat-tab>
-                <ng-template mat-tab-label>
-                  <mat-icon class="tab-icon">remove_circle_outline</mat-icon>
-                  <span class="tab-label">{{ 'revoke_assignment' | i18n }}</span>
-                </ng-template>
-
-                <div class="tab-content">
-                  <!-- Description -->
-                  <div class="description-box">
-                    <mat-icon class="description-icon">info_outline</mat-icon>
-                    <div class="description-text">{{ 'revoke_assignment_description' | i18n }}</div>
-                  </div>
-
-                  <!-- Plot Address -->
-                  <div class="field-group">
-                    <label class="field-label">{{ 'plot_address' | i18n }}</label>
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
-                      <input
-                        matInput
-                        [matAutocomplete]="revokePlotAuto"
-                        [(ngModel)]="selectedPlotAddress"
-                        (ngModelChange)="onPlotAddressChange($event)"
-                        placeholder="tb1q... / bc1q..."
-                      />
-                      <mat-autocomplete #revokePlotAuto="matAutocomplete">
-                        @for (addr of walletAddresses(); track addr.address) {
-                          <mat-option [value]="addr.address">
-                            <span class="address-option">
-                              <span class="address-text">{{ addr.address }}</span>
-                              @if (addr.label) {
-                                <span class="address-label">({{ addr.label }})</span>
-                              }
-                            </span>
-                          </mat-option>
-                        }
-                      </mat-autocomplete>
-                      @if (isPlotAddressValid()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-valid"
-                          [matTooltip]="'address_valid' | i18n"
-                          >check_circle</mat-icon
-                        >
-                      } @else if (plotAddressError()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-invalid"
-                          [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
-                          >error</mat-icon
-                        >
-                      }
-                      @let revokePlotErr = plotAddressError();
-                      @if (revokePlotErr) {
-                        <mat-hint class="error-hint">
-                          {{ revokePlotErr.key | i18n: revokePlotErr.params }}
-                        </mat-hint>
-                      }
-                    </mat-form-field>
-                  </div>
-
-                  <!-- Fee Section -->
-                  <ng-container *ngTemplateOutlet="feeSection"></ng-container>
-
-                  <!-- Action Buttons -->
-                  <div class="action-buttons">
-                    <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
-                    <button
-                      mat-raised-button
-                      color="warn"
-                      (click)="onSubmit()"
-                      [disabled]="!canSubmit()"
-                    >
-                      @if (isSubmitting()) {
-                        <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-                      } @else {
-                        <mat-icon>remove_circle</mat-icon>
-                      }
-                      <span>{{ 'revoke_assignment' | i18n }}</span>
-                    </button>
-                  </div>
-                </div>
-              </mat-tab>
-
-              <!-- Check Status Tab -->
-              <mat-tab>
-                <ng-template mat-tab-label>
-                  <mat-icon class="tab-icon">search</mat-icon>
-                  <span class="tab-label">{{ 'check_status' | i18n }}</span>
-                </ng-template>
-
-                <div class="tab-content">
-                  <!-- Description -->
-                  <div class="description-box">
-                    <mat-icon class="description-icon">info_outline</mat-icon>
-                    <div class="description-text">{{ 'check_status_description' | i18n }}</div>
-                  </div>
-
-                  <!-- Plot Address -->
-                  <div class="field-group">
-                    <label class="field-label">{{ 'plot_address' | i18n }}</label>
-                    <mat-form-field appearance="outline" class="full-width">
-                      <mat-label>{{ 'select_or_enter_plot_address' | i18n }}</mat-label>
-                      <input
-                        matInput
-                        [matAutocomplete]="checkPlotAuto"
-                        [(ngModel)]="selectedPlotAddress"
-                        (ngModelChange)="onPlotAddressChange($event)"
-                        placeholder="tb1q... / bc1q..."
-                      />
-                      <mat-autocomplete #checkPlotAuto="matAutocomplete">
-                        @for (addr of walletAddresses(); track addr.address) {
-                          <mat-option [value]="addr.address">
-                            <span class="address-option">
-                              <span class="address-text">{{ addr.address }}</span>
-                              @if (addr.label) {
-                                <span class="address-label">({{ addr.label }})</span>
-                              }
-                            </span>
-                          </mat-option>
-                        }
-                      </mat-autocomplete>
-                      @if (isPlotAddressValid()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-valid"
-                          [matTooltip]="'address_valid' | i18n"
-                          >check_circle</mat-icon
-                        >
-                      } @else if (plotAddressError()) {
-                        <mat-icon
-                          matSuffix
-                          class="address-badge address-badge-invalid"
-                          [matTooltip]="plotAddressError()!.key | i18n: plotAddressError()!.params"
-                          >error</mat-icon
-                        >
-                      }
-                      @let checkPlotErr = plotAddressError();
-                      @if (checkPlotErr) {
-                        <mat-hint class="error-hint">
-                          {{ checkPlotErr.key | i18n: checkPlotErr.params }}
-                        </mat-hint>
-                      }
-                    </mat-form-field>
-                  </div>
-
-                  <!-- Status Display -->
-                  <div class="status-section">
-                    <div class="status-header">
-                      <h3>{{ 'assignment_status' | i18n }}</h3>
-                      <button
-                        mat-icon-button
-                        (click)="checkStatus()"
-                        [disabled]="!isPlotAddressValid() || isCheckingStatus()"
-                        [matTooltip]="'refresh' | i18n"
-                      >
-                        <mat-icon [class.spinning]="isCheckingStatus()">refresh</mat-icon>
-                      </button>
+                  @if (s.activation_height) {
+                    <div class="detail-row">
+                      <span class="detail-label">{{ 'activated_at_block' | i18n }}</span>
+                      <span class="detail-value">{{ s.activation_height | number }}</span>
                     </div>
-
-                    <!-- Status Content -->
-                    @if (assignmentStatus()) {
-                      <div class="status-content">
-                        <!-- State Badge -->
-                        <div
-                          class="state-badge"
-                          [ngClass]="getStateBadgeClass(assignmentStatus()!.state)"
-                        >
-                          {{ assignmentStatus()!.state }}
-                        </div>
-
-                        <!-- Status Details -->
-                        <div class="status-details">
-                          <!-- UNASSIGNED -->
-                          @if (assignmentStatus()!.state === 'UNASSIGNED') {
-                            <p class="status-message">{{ 'no_assignment_exists' | i18n }}</p>
-                            <p class="status-hint">{{ 'can_create_assignment' | i18n }}</p>
-                          }
-
-                          <!-- ASSIGNING -->
-                          @if (assignmentStatus()!.state === 'ASSIGNING') {
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.forging_address
-                              }}</span>
-                            </div>
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'created_at_block' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.assignment_height | number
-                              }}</span>
-                            </div>
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'activates_at_block' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.activation_height | number
-                              }}</span>
-                            </div>
-                            <div class="progress-section">
-                              <mat-progress-bar
-                                mode="determinate"
-                                [value]="getProgressPercentage()"
-                              ></mat-progress-bar>
-                              <div class="progress-info">
-                                <span
-                                  >{{ getBlocksRemaining() }} {{ 'blocks_remaining' | i18n }}</span
-                                >
-                                <span>{{ getEstimatedTime() }}</span>
-                              </div>
-                            </div>
-                          }
-
-                          <!-- ASSIGNED -->
-                          @if (assignmentStatus()!.state === 'ASSIGNED') {
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.forging_address
-                              }}</span>
-                            </div>
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'created_at_block' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.assignment_height | number
-                              }}</span>
-                            </div>
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'activated_at_block' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.activation_height | number
-                              }}</span>
-                            </div>
-                            <p class="status-message success">{{ 'assignment_active' | i18n }}</p>
-                          }
-
-                          <!-- REVOKING -->
-                          @if (assignmentStatus()!.state === 'REVOKING') {
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'forging_address' | i18n }}:</span>
-                              <span class="detail-value"
-                                >{{ assignmentStatus()!.forging_address }} ({{
-                                  'still_active' | i18n
-                                }})</span
-                              >
-                            </div>
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'revoked_at_block' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.revocation_height | number
-                              }}</span>
-                            </div>
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'effective_at_block' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.revocation_effective_height | number
-                              }}</span>
-                            </div>
-                            <div class="progress-section">
-                              <mat-progress-bar
-                                mode="determinate"
-                                [value]="getProgressPercentage()"
-                                color="warn"
-                              ></mat-progress-bar>
-                              <div class="progress-info">
-                                <span
-                                  >{{ getBlocksRemaining() }} {{ 'blocks_remaining' | i18n }}</span
-                                >
-                                <span>{{ getEstimatedTime() }}</span>
-                              </div>
-                            </div>
-                          }
-
-                          <!-- REVOKED -->
-                          @if (assignmentStatus()!.state === 'REVOKED') {
-                            <div class="detail-row">
-                              <span class="detail-label"
-                                >{{ 'previously_assigned_to' | i18n }}:</span
-                              >
-                              <span class="detail-value">{{
-                                assignmentStatus()!.forging_address
-                              }}</span>
-                            </div>
-                            <div class="detail-row">
-                              <span class="detail-label">{{ 'revocation_effective' | i18n }}:</span>
-                              <span class="detail-value">{{
-                                assignmentStatus()!.revocation_effective_height | number
-                              }}</span>
-                            </div>
-                            <p class="status-message">{{ 'assignment_revoked' | i18n }}</p>
-                            <p class="status-hint">{{ 'can_create_new_assignment' | i18n }}</p>
-                          }
-                        </div>
-                      </div>
-                    }
-
-                    <!-- No Status Yet -->
-                    @if (!assignmentStatus() && !isCheckingStatus()) {
-                      <div class="no-status">
-                        <mat-icon>help_outline</mat-icon>
-                        <span>{{ 'no_status_checked' | i18n }}</span>
-                      </div>
-                    }
-
-                    <!-- Loading -->
-                    @if (isCheckingStatus()) {
-                      <div class="loading-status">
-                        <mat-spinner diameter="24"></mat-spinner>
-                        <span>{{ 'checking_status' | i18n }}</span>
-                      </div>
-                    }
+                  }
+                }
+                @case ('REVOKING') {
+                  <div class="detail-row">
+                    <span class="detail-label">
+                      {{ 'forging_address' | i18n }} ({{ 'still_active' | i18n }})
+                    </span>
+                    <span class="detail-value mono">{{ s.forging_address }}</span>
                   </div>
+                  <div class="detail-row">
+                    <span class="detail-label">{{ 'effective_at_block' | i18n }}</span>
+                    <span class="detail-value">
+                      {{ s.revocation_effective_height | number }}
+                      · {{ blocksRemaining(s) }} {{ 'blocks_remaining' | i18n }}
+                    </span>
+                  </div>
+                }
+                @case ('REVOKED') {
+                  @if (s.forging_address) {
+                    <div class="detail-row">
+                      <span class="detail-label">{{ 'previously_assigned_to' | i18n }}</span>
+                      <span class="detail-value mono">{{ s.forging_address }}</span>
+                    </div>
+                  }
+                  <p class="hint-text small">{{ 'can_create_new_assignment' | i18n }}</p>
+                }
+              }
 
-                  <!-- Action Buttons -->
-                  <div class="action-buttons">
-                    <button mat-stroked-button (click)="clear()">{{ 'clear' | i18n }}</button>
+              <!-- Matching action -->
+              @if (canCreate(s.state)) {
+                <mat-divider class="section-divider"></mat-divider>
+
+                <h3 class="section-label">{{ 'forging_address' | i18n }}</h3>
+                <!-- Combo: free text + the configured pools' published
+                     forging addresses (sourced from the mining chain
+                     configs) -->
+                <mat-form-field appearance="outline" class="full-width slim-field">
+                  <mat-label>
+                    {{
+                      (poolAddressOptions().length > 0
+                        ? 'select_or_enter_forging_address'
+                        : 'forging_address'
+                      ) | i18n
+                    }}
+                  </mat-label>
+                  <input
+                    matInput
+                    [matAutocomplete]="forgingAuto"
+                    [(ngModel)]="forgingAddress"
+                    (ngModelChange)="validateForgingAddress()"
+                    autocomplete="off"
+                    autocapitalize="none"
+                    spellcheck="false"
+                  />
+                  <mat-autocomplete #forgingAuto="matAutocomplete">
+                    @for (opt of poolAddressOptions(); track opt.address) {
+                      <mat-option [value]="opt.address">
+                        <div class="pool-option">
+                          <span class="pool-option-name">{{ opt.label || opt.poolName }}</span>
+                          <span class="pool-option-address">
+                            {{ opt.address | hashTruncate: 14 : 8 }}
+                          </span>
+                        </div>
+                      </mat-option>
+                    }
+                  </mat-autocomplete>
+                  @if (forgingValid()) {
+                    <mat-icon matSuffix class="suffix-valid">check_circle</mat-icon>
+                  }
+                  @if (contacts().length > 0) {
                     <button
-                      mat-raised-button
-                      color="primary"
-                      (click)="checkStatus()"
-                      [disabled]="!isPlotAddressValid() || isCheckingStatus()"
+                      mat-icon-button
+                      matSuffix
+                      type="button"
+                      [matMenuTriggerFor]="contactsMenu"
+                      [matTooltip]="'select_contact' | i18n"
                     >
-                      @if (isCheckingStatus()) {
-                        <mat-spinner diameter="20" class="button-spinner"></mat-spinner>
-                      } @else {
-                        <mat-icon>search</mat-icon>
-                      }
-                      <span>{{ 'check_status' | i18n }}</span>
+                      <mat-icon>contacts</mat-icon>
                     </button>
-                  </div>
-                </div>
-              </mat-tab>
-            </mat-tab-group>
+                  }
+                </mat-form-field>
+                <mat-menu #contactsMenu="matMenu">
+                  @for (contact of contacts(); track contact.id) {
+                    <button mat-menu-item (click)="selectContact(contact)">
+                      <div class="contact-option">
+                        <span class="contact-option-name">{{ contact.name }}</span>
+                        <span class="contact-option-address">
+                          {{ contact.address | hashTruncate: 14 : 8 }}
+                        </span>
+                      </div>
+                    </button>
+                  }
+                </mat-menu>
+                @let forgErr = forgingError();
+                @if (forgErr) {
+                  <p class="error-text">{{ forgErr.key | i18n: forgErr.params }}</p>
+                }
+
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
+
+                <button
+                  mat-raised-button
+                  color="primary"
+                  class="full-width action-button"
+                  [disabled]="!forgingValid() || busy()"
+                  (click)="create()"
+                >
+                  @if (busy()) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  } @else {
+                    <mat-icon>assignment_turned_in</mat-icon>
+                  }
+                  {{ 'create_assignment' | i18n }}
+                </button>
+              } @else if (s.state === 'ASSIGNED') {
+                <mat-divider class="section-divider"></mat-divider>
+
+                <p class="hint-text small">{{ 'revoke_assignment_description' | i18n }}</p>
+
+                <ng-container *ngTemplateOutlet="feeSection"></ng-container>
+
+                <button
+                  mat-stroked-button
+                  class="full-width action-button revoke-button"
+                  [disabled]="busy()"
+                  (click)="revoke()"
+                >
+                  @if (busy()) {
+                    <mat-spinner diameter="20"></mat-spinner>
+                  } @else {
+                    <mat-icon>assignment_return</mat-icon>
+                  }
+                  {{ 'revoke_assignment' | i18n }}
+                </button>
+              }
+            }
           }
         </div>
-      </div>
+      }
     </div>
 
-    <!-- Shared fee section (Create + Revoke tabs) -->
+    <!-- Fee section — the app's reference fee selector (assignment style) -->
     <ng-template #feeSection>
       <div class="fee-section">
-        <div class="section-header">
-          <label class="field-label">{{ 'fee' | i18n }}</label>
+        <div class="fee-header">
+          <span class="fee-title">{{ 'fee' | i18n }}</span>
           <button
+            mat-icon-button
             type="button"
-            class="refresh-button"
-            (click)="refreshFeeEstimates()"
+            class="fee-refresh"
+            (click)="loadFeeEstimates()"
             [disabled]="isLoadingFees()"
-            [title]="'refresh_fees' | i18n"
+            [matTooltip]="'refresh_fees' | i18n"
           >
             <mat-icon [class.spinning]="isLoadingFees()">refresh</mat-icon>
           </button>
@@ -617,280 +364,162 @@ interface WalletAddress {
           @for (option of feeOptions; track option.label) {
             <button
               mat-stroked-button
+              type="button"
+              class="fee-chip"
               [class.selected]="selectedFeeOption === option"
               (click)="selectFeeOption(option)"
               [disabled]="option.feeRate === null && option.label !== 'fee_custom'"
             >
-              <div class="fee-option">
-                <span class="fee-label">{{ option.label | i18n }}</span>
-                @if (option.label === 'fee_custom') {
-                  <mat-icon class="custom-icon">tune</mat-icon>
-                } @else if (option.feeRate !== null) {
-                  <span class="fee-rate">{{ option.feeRate | number: '1.3-3' }} sat/vB</span>
-                  <span class="fee-time">{{ option.timeEstimate }}</span>
-                } @else {
-                  <span class="fee-rate">--</span>
-                }
-              </div>
+              <span class="fee-label">{{ option.label | i18n }}</span>
+              @if (option.label === 'fee_custom') {
+                <mat-icon class="custom-icon">tune</mat-icon>
+              } @else if (option.feeRate !== null) {
+                <!-- Break amount / unit — both don't fit the chip width. -->
+                <span class="fee-rate">{{ option.feeRate | number: '1.3-3' }}<br />sat/vB</span>
+              } @else {
+                <span class="fee-rate">--</span>
+              }
             </button>
           }
         </div>
 
         @if (selectedFeeOption?.label === 'fee_custom') {
-          <div class="custom-fee-input">
-            <mat-form-field appearance="outline">
-              <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
-              <input
-                matInput
-                type="number"
-                [(ngModel)]="customFeeRate"
-                (ngModelChange)="onCustomFeeChange()"
-                min="0.1"
-                step="0.001"
-                autocomplete="off"
-              />
-            </mat-form-field>
-          </div>
+          <mat-form-field appearance="outline" class="full-width slim-field custom-fee-field">
+            <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
+            <input
+              matInput
+              appDecimal
+              inputmode="decimal"
+              [(ngModel)]="customFeeRate"
+              (ngModelChange)="onCustomFeeChange()"
+              autocomplete="off"
+            />
+          </mat-form-field>
         }
+
+        <!-- Live estimate for the assignment tx (the send page's
+             .fee-summary treatment) -->
+        <div class="fee-summary">
+          <span class="fee-summary-label">{{ 'estimated_fee' | i18n }}:</span>
+          <span class="fee-summary-value">
+            ~{{ estimatedFeeSat() / 100000000 | number: '1.8-8' }} BTCX ({{
+              estimatedFeeSat() | number: '1.0-0'
+            }}
+            sats)
+          </span>
+        </div>
       </div>
     </ng-template>
   `,
   styles: [
     `
-      :host {
-        display: block;
-        width: 100%;
-      }
+      @use 'breakpoints' as bp;
 
-      .page-layout {
+      /* Base = desktop: a little wider than the phone column, send-page
+         content padding. The phone tier below restores the exact original
+         mobile geometry. */
+      .page {
+        padding: 24px 16px;
         display: flex;
         flex-direction: column;
-        min-height: 100%;
-      }
-
-      // Header
-      .header {
-        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-        color: white;
-        padding: 16px 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-
-          h1 {
-            margin: 0;
-            font-weight: 300;
-            font-size: 24px;
-          }
-
-          .back-button {
-            color: rgba(255, 255, 255, 0.9);
-
-            &:hover {
-              background: rgba(255, 255, 255, 0.1);
-            }
-          }
-        }
-
-        .header-right {
-          .block-height {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 8px 16px;
-            border-radius: 20px;
-
-            .block-label {
-              color: rgba(255, 255, 255, 0.7);
-              margin-right: 8px;
-            }
-
-            .block-value {
-              color: #fff;
-              font-weight: 500;
-            }
-          }
-        }
-      }
-
-      // Content
-      .content {
-        padding: 24px;
-        display: flex;
-        justify-content: center;
-      }
-
-      .assignment-card {
-        width: 100%;
+        gap: 16px;
         max-width: 600px;
-        background: #fff;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        padding: 24px;
-        overflow: hidden;
+        width: 100%;
+        margin: 0 auto;
         box-sizing: border-box;
       }
 
-      // Tab Navigation
-      .assignment-tabs {
-        // MDC Tab styling for Material 19
-        ::ng-deep {
-          .mat-mdc-tab-header {
-            border-bottom: 1px solid #e0e0e0;
-          }
+      .spinning {
+        animation: spin 1s linear infinite;
+      }
 
-          .mat-mdc-tab {
-            min-width: 120px;
-            padding: 0 12px;
-            flex-grow: 1;
-          }
-
-          .mdc-tab__text-label {
-            font-size: 13px;
-          }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
         }
-
-        .tab-icon {
-          margin-right: 6px;
-          font-size: 18px;
-          width: 18px;
-          height: 18px;
-        }
-
-        .tab-label {
-          font-weight: 500;
-          font-size: 13px;
-        }
-
-        .tab-content {
-          padding: 24px 0;
+        to {
+          transform: rotate(360deg);
         }
       }
 
-      // Field Groups
-      .field-group {
-        margin-bottom: 20px;
-
-        .field-label {
-          display: block;
-          font-size: 14px;
-          font-weight: 600;
-          color: rgb(0, 35, 65);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 8px;
-        }
+      .card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        padding: 16px;
       }
 
       .full-width {
         width: 100%;
       }
 
-      .address-option {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+      .slim-field {
+        margin-bottom: -8px;
+      }
 
-        .address-text {
-          font-family: monospace;
-        }
+      .section-divider {
+        margin: 12px 0;
+      }
 
-        .address-label {
-          color: #666;
+      /* Send-page section label (uppercase mini-header above the input
+         group) — desktop widths only; hidden at the phone tier. */
+      .section-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: rgb(0, 35, 65);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0 0 4px;
+      }
+
+      .hint-text {
+        color: rgba(0, 0, 0, 0.6);
+        font-size: 13px;
+        margin: 0 0 12px;
+
+        &.small {
           font-size: 12px;
+          margin-bottom: 8px;
         }
       }
 
-      // Description Box
-      .description-box {
-        display: flex;
-        align-items: flex-start;
-        padding: 12px 16px;
-        border-radius: 6px;
-        margin-bottom: 24px;
-        background: #f8f9fa;
-        border: 1px solid #e0e0e0;
-
-        .description-icon {
-          margin-right: 12px;
-          flex-shrink: 0;
-          color: #666;
-          font-size: 20px;
-          width: 20px;
-          height: 20px;
-        }
-
-        .description-text {
-          font-size: 13px;
-          line-height: 1.5;
-          color: #555;
-        }
+      .error-text {
+        color: #c62828;
+        font-size: 13px;
+        margin: 0 0 12px;
       }
 
-      // Status Section
-      .status-section {
-        background: #ffffff;
-        border-radius: 8px;
+      .suffix-valid {
+        color: #4caf50;
+      }
+
+      .empty-card {
+        text-align: center;
         padding: 20px;
-        margin-bottom: 24px;
-        border: 1px solid #e0e0e0;
 
-        .status-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-
-          h3 {
-            margin: 0;
-            font-size: 16px;
-            font-weight: 600;
-            color: rgb(0, 35, 65);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-          }
-
-          mat-icon.spinning {
-            animation: spin 1s linear infinite;
-          }
-        }
-
-        .status-content {
-          padding: 16px;
-          background: #fff;
-          border-radius: 8px;
-        }
-
-        .no-status,
-        .loading-status {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 32px;
-          color: #999;
-          gap: 12px;
-
-          mat-icon {
-            font-size: 32px;
-            width: 32px;
-            height: 32px;
-          }
+        .empty-icon {
+          font-size: 36px;
+          width: 36px;
+          height: 36px;
+          color: rgba(0, 0, 0, 0.3);
         }
       }
 
-      // State Badges
+      .status-loading {
+        display: flex;
+        justify-content: center;
+        padding: 12px 0;
+      }
+
       .state-badge {
         display: inline-block;
-        padding: 6px 16px;
+        padding: 3px 12px;
         border-radius: 20px;
         font-weight: 600;
-        font-size: 12px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 1px;
-        margin-bottom: 16px;
+        margin: 8px 0;
 
         &.badge-unassigned {
           background: #e0e0e0;
@@ -918,423 +547,373 @@ interface WalletAddress {
         }
       }
 
-      // Status Details
-      .status-details {
-        .detail-row {
-          display: flex;
-          align-items: center;
-          padding: 8px 0;
-          border-bottom: 1px solid #f0f0f0;
-
-          &:last-child {
-            border-bottom: none;
-          }
-
-          .detail-label {
-            flex: 0 0 180px;
-            color: #666;
-            font-size: 14px;
-          }
-
-          .detail-value {
-            font-family: monospace;
-            font-size: 14px;
-            color: #333;
-          }
-        }
-
-        .status-message {
-          margin: 16px 0 8px;
-          font-size: 14px;
-          color: #666;
-
-          &.success {
-            color: #2e7d32;
-            font-weight: 500;
-          }
-        }
-
-        .status-hint {
-          margin: 0;
-          font-size: 13px;
-          color: #999;
-          font-style: italic;
-        }
-      }
-
-      // Progress Section
-      .progress-section {
-        margin-top: 16px;
-        padding: 16px;
-        background: #ffffff;
-        border-radius: 8px;
-
-        mat-progress-bar {
-          height: 8px;
-          border-radius: 4px;
-        }
-
-        .progress-info {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 8px;
-          font-size: 13px;
-          color: #666;
-        }
-      }
-
-      // Fee Section
-      .fee-section {
-        margin-top: 16px;
-        padding-top: 16px;
-        border-top: 1px solid #e0e0e0;
-        overflow: hidden;
-
-        .section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-end;
-          margin-bottom: 8px;
-
-          .field-label {
-            margin-bottom: 0;
-          }
-
-          .refresh-button {
-            width: 24px;
-            height: 24px;
-            min-width: 24px;
-            max-width: 24px;
-            padding: 0;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            flex-shrink: 0;
-
-            mat-icon {
-              font-size: 16px;
-              width: 16px;
-              height: 16px;
-              line-height: 16px;
-              color: #666;
-              margin: 0;
-
-              &.spinning {
-                animation: spin 1s linear infinite;
-              }
-            }
-
-            &:hover {
-              background: rgba(0, 0, 0, 0.04);
-
-              mat-icon {
-                color: #1976d2;
-              }
-            }
-
-            &:disabled {
-              cursor: default;
-              opacity: 0.5;
-
-              &:hover {
-                background: transparent;
-              }
-            }
-          }
-        }
-
-        .fee-options {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 4px;
-          margin-bottom: 8px;
-          width: 100%;
-
-          button {
-            flex: 1 1 calc(25% - 4px);
-            min-width: 0;
-            height: auto;
-            padding: 4px 2px;
-            border-color: #e0e0e0;
-
-            &.selected {
-              border-color: #1976d2;
-              background: rgba(25, 118, 210, 0.08);
-            }
-
-            .fee-option {
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              gap: 1px;
-
-              .fee-label {
-                font-weight: 600;
-                font-size: 11px;
-                color: rgb(0, 35, 65);
-              }
-
-              .fee-rate {
-                font-size: 12px;
-                font-weight: 500;
-                color: #1976d2;
-                font-family: monospace;
-              }
-
-              .fee-time {
-                font-size: 10px;
-                color: #888;
-              }
-
-              .custom-icon {
-                font-size: 18px;
-                height: 18px;
-                width: 18px;
-                color: #666;
-              }
-            }
-          }
-        }
-
-        .custom-fee-input {
-          margin-bottom: 4px;
-
-          mat-form-field {
-            max-width: 180px;
-          }
-        }
-      }
-
-      // Action Buttons
-      .action-buttons {
+      .detail-row {
         display: flex;
-        justify-content: flex-end;
-        gap: 12px;
-        padding-top: 24px;
-        margin-top: 24px;
-        border-top: 1px solid #e0e0e0;
+        flex-direction: column;
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 
-        button {
-          min-width: 160px;
+        &:last-of-type {
+          border-bottom: none;
+        }
+
+        .detail-label {
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: rgba(0, 0, 0, 0.5);
+          margin-bottom: 2px;
+        }
+
+        .detail-value {
+          font-size: 13px;
+          font-variant-numeric: tabular-nums;
+        }
+      }
+
+      .mono {
+        font-family: monospace;
+        word-break: break-all;
+      }
+
+      .contact-option {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.3;
+
+        .contact-option-name {
+          font-size: 14px;
+        }
+
+        .contact-option-address {
+          font-size: 11px;
+          font-family: monospace;
+          color: rgba(0, 0, 0, 0.55);
+        }
+      }
+
+      /* Pool entries of the forging-address combo. */
+      .pool-option {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.3;
+
+        .pool-option-name {
+          font-size: 14px;
+        }
+
+        .pool-option-address {
+          font-size: 11px;
+          font-family: monospace;
+          color: rgba(0, 0, 0, 0.55);
+        }
+      }
+
+      /* Fee section — the app's reference fee selector. The FEE title is a
+         section label on desktop widths; the phone tier restores the
+         original mobile mini-header. */
+      .fee-section {
+        margin: 12px 0 4px;
+      }
+
+      .fee-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 4px;
+
+        .fee-title {
+          font-size: 13px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: rgb(0, 35, 65);
+        }
+
+        .fee-refresh {
+          width: 32px;
+          height: 32px;
+          padding: 4px;
 
           mat-icon {
-            margin-right: 8px;
-          }
-
-          .button-spinner {
-            display: inline-block;
-            margin-right: 8px;
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            color: rgba(0, 0, 0, 0.45);
           }
         }
       }
 
-      // Error hints
-      .error-hint {
-        color: #f44336;
-      }
+      .fee-options {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
 
-      .address-badge-valid {
-        color: #2e7d32;
-      }
+        .fee-chip {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0;
+          min-width: 0;
+          padding: 4px 2px;
+          height: auto;
+          line-height: 1.3;
 
-      .address-badge-invalid {
-        color: #c62828;
-      }
+          &.selected {
+            border-color: #1976d2;
+            background: rgba(25, 118, 210, 0.08);
+          }
 
-      // Animations
-      @keyframes spin {
-        from {
-          transform: rotate(0deg);
+          /* Material wraps the projected content in .mdc-button__label, so
+             the flex column above cannot stack the two spans — make them
+             blocks and keep the rate on one line: "Slow" / "1 sat/vB"
+             (the same fix the send page's fee chips carry). */
+          .fee-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+          }
+
+          .fee-rate {
+            display: block;
+            white-space: nowrap;
+            text-align: center;
+            font-size: 10px;
+            color: rgba(0, 0, 0, 0.55);
+            font-variant-numeric: tabular-nums;
+          }
+
+          .custom-icon {
+            display: block;
+            margin: 0 auto;
+            font-size: 14px;
+            width: 14px;
+            height: 14px;
+            color: rgba(0, 0, 0, 0.55);
+          }
         }
-        to {
-          transform: rotate(360deg);
+      }
+
+      .custom-fee-field {
+        margin-top: 10px;
+      }
+
+      /* Live fee line (the send page's .fee-summary, mobile-sized). */
+      .fee-summary {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 12px;
+        margin-top: 10px;
+
+        .fee-summary-label {
+          color: rgba(0, 0, 0, 0.6);
+          flex-shrink: 0;
+        }
+
+        .fee-summary-value {
+          text-align: right;
+          font-variant-numeric: tabular-nums;
         }
       }
 
-      // Dark theme
+      .action-button {
+        margin-top: 12px;
+      }
+
+      .revoke-button {
+        color: #d84315;
+        border-color: currentColor;
+      }
+
       :host-context(.dark-theme) {
-        .assignment-card {
+        .card {
           background: #424242;
         }
 
-        .field-label,
-        .status-header h3 {
+        .section-label {
           color: #ffffff;
         }
 
-        .description-box {
-          background: #333;
-          border-color: #555;
+        .hint-text {
+          color: rgba(255, 255, 255, 0.6);
         }
 
-        .status-section {
-          background: #333;
-          border-color: #555;
-
-          .status-content {
-            background: #424242;
-          }
+        .empty-card .empty-icon {
+          color: rgba(255, 255, 255, 0.3);
         }
 
         .detail-row {
-          border-bottom-color: #555 !important;
+          border-bottom-color: rgba(255, 255, 255, 0.08);
 
-          .detail-value {
-            color: #ffffff;
+          .detail-label {
+            color: rgba(255, 255, 255, 0.5);
           }
         }
 
-        .progress-section {
-          background: #333;
+        .fee-header .fee-title {
+          color: #ffffff;
+        }
+
+        .fee-summary .fee-summary-label {
+          color: rgba(255, 255, 255, 0.6);
+        }
+
+        .fee-header .fee-refresh mat-icon {
+          color: rgba(255, 255, 255, 0.55);
+        }
+
+        .fee-options .fee-chip {
+          .fee-rate,
+          .custom-icon {
+            color: rgba(255, 255, 255, 0.55);
+          }
+
+          &.selected {
+            border-color: #64b5f6;
+            background: rgba(100, 181, 246, 0.12);
+          }
         }
       }
 
-      // Responsive
-      @media (max-width: 600px) {
-        .status-details .detail-row {
-          flex-direction: column;
-          align-items: flex-start;
-
-          .detail-label {
-            flex: none;
-            margin-bottom: 4px;
-          }
+      /* Phone tier: the ORIGINAL mobile look, unchanged — narrow column,
+         no section labels, the slim FEE mini-header. */
+      @include bp.phone {
+        .page {
+          padding: 16px;
+          max-width: 480px;
         }
 
-        .action-buttons {
-          flex-direction: column;
+        .section-label {
+          display: none;
+        }
 
-          button {
-            width: 100%;
-          }
+        .fee-header .fee-title {
+          font-size: 11px;
+          letter-spacing: 0.4px;
+          color: rgba(0, 0, 0, 0.5);
+        }
+
+        :host-context(.dark-theme) .fee-header .fee-title {
+          color: rgba(255, 255, 255, 0.5);
         }
       }
     `,
   ],
 })
 export class ForgingAssignmentComponent implements OnInit, OnDestroy {
-  private readonly location = inject(Location);
-  private readonly notification = inject(NotificationService);
-  private readonly i18n = inject(I18nService);
+  readonly wallet = inject(BtcxWalletService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
-  private readonly blockchainState = inject(BlockchainStateService);
   private readonly miningRpc = inject(MiningRpcService);
-  private readonly miningService = inject(MiningService);
+  private readonly nodeService = inject(NodeService);
+  private readonly appMode = inject(AppModeService);
+  private readonly mining = inject(MiningService);
+  private readonly contactsStore = inject(ContactsStoreService);
+  private readonly i18n = inject(I18nService);
+  private readonly notifications = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
   private readonly store = inject(Store);
-  private readonly nodeService = inject(NodeService);
-  private readonly btcxWallet = inject(BtcxWalletService);
 
   /** Remote (Electrum) mode: assignments run client-side, no node RPC. */
   readonly isRemote = this.nodeService.isRemote;
 
+  /** Shell-aware back/exit target (desktop dashboard or mobile home). */
+  readonly backTarget = this.appMode.pageRoute('/dashboard');
+
+  private readonly destroy$ = new Subject<void>();
+
   /**
-   * Remote mode with a NON-SEGWIT btcx wallet — taproot (BIP-86) or an
-   * imported legacy (pkh / sh-wpkh) descriptor wallet: a plot address is a
-   * 20-byte segwit-v0 witness program, so this wallet can never own one —
-   * the whole page is gated (the Rust command guard's UI counterpart).
-   * Node mode (Core RPC wallets) is never gated here.
+   * Wallet addresses offered as plot addresses. Remote mode: addresses
+   * holding a spendable coin (assignment prerequisite — the assignment tx
+   * spends a coin on the plot address). Node mode: the Core wallet's
+   * SegWit-v0 receiving addresses via the node's label registry.
    */
-  readonly assignmentsGated = computed(() => {
-    const kind = this.btcxWallet.descriptorPolicy()?.kind;
+  readonly walletAddresses = signal<string[]>([]);
+  readonly status = signal<AssignmentStatus | null>(null);
+  readonly statusLoading = signal(false);
+  readonly statusError = signal<string | null>(null);
+  readonly busy = signal(false);
+  readonly forgingValid = signal(false);
+  readonly forgingError = signal<{ key: string; params?: Record<string, string> } | null>(null);
+
+  private readonly storeNetwork = toSignal(this.store.select(selectNetwork), {
+    initialValue: 'mainnet' as Network,
+  });
+
+  /** App network for validation/contacts, from the mode's source of truth. */
+  readonly network = computed<Network>(() =>
+    this.isRemote() ? this.wallet.network() : this.storeNetwork()
+  );
+
+  readonly contacts = computed(() => this.contactsStore.forNetwork(this.network()));
+
+  /** Remote mode without an open local wallet: the whole page is gated. */
+  readonly walletGateClosed = computed(() => this.isRemote() && !this.wallet.walletActive());
+
+  /**
+   * Remote mode with a NON-SEGWIT btcx wallet — taproot (BIP-86) or
+   * imported legacy (pkh / sh-wpkh) descriptors: a plot address is a
+   * 20-byte segwit-v0 witness program, so neither can ever own one (the
+   * setup wizard's gate, applied to assignments). Node-mode Core wallets
+   * are never gated here.
+   */
+  readonly walletNotSegwit = computed(() => {
+    const kind = this.wallet.descriptorPolicy()?.kind;
     return this.isRemote() && !!kind && kind !== 'bip84';
   });
 
   /** The gate's explanation, matched to the wallet's actual script class. */
   readonly gateHintKey = computed(() =>
-    this.btcxWallet.descriptorPolicy()?.kind === 'legacy'
+    this.wallet.descriptorPolicy()?.kind === 'legacy'
       ? 'assignment_legacy_hint'
       : 'assignment_taproot_hint'
   );
 
   /**
-   * Assignment status via the mode's backend: node `get_assignment` RPC or
-   * the client-side Electrum history derivation — identical DTOs.
-   */
-  private async fetchAssignmentStatus(plotAddress: string): Promise<AssignmentStatus> {
-    if (this.isRemote()) {
-      return (await this.btcxWallet.getAssignment(plotAddress)) as AssignmentStatus;
-    }
-    return this.miningRpc.getAssignmentStatus(plotAddress);
-  }
-
-  /**
-   * Forging addresses from configured pool chains, offered as a dropdown on the
-   * forging-address field. Free-text entry remains available. Shared helper:
-   * falls back to the predefined-pool registry for chains whose persisted
-   * list is empty (configs predating the poolAddresses field).
+   * Forging addresses published by the configured pool chains, offered in
+   * the forging-address combo via the shared helper: persisted
+   * ChainConfig.poolAddresses first, falling back to the predefined-pool
+   * registry (endpoint match) for configs that predate the field.
+   * Free-text entry remains available.
    */
   readonly poolAddressOptions = computed<PoolAddressOption[]>(() =>
-    poolAddressOptionsForChains(this.miningService.config()?.chains)
+    poolAddressOptionsForChains(this.mining.config()?.chains)
   );
-  readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
-  private readonly destroy$ = new Subject<void>();
 
-  // Tab selection
-  selectedTabIndex = 0;
-  currentMode: OperationMode = 'create';
-
-  // Form fields
-  selectedPlotAddress = '';
+  plotAddress = '';
   forgingAddress = '';
-  walletAddresses = signal<WalletAddress[]>([]);
 
-  // Status display
-  assignmentStatus = signal<AssignmentStatus | null>(null);
-  isCheckingStatus = signal(false);
-  // Block height from centralized BlockchainStateService - auto-updates via polling
-  currentBlockHeight = computed(() => this.blockchainState.blockHeight());
-
-  // Transaction state
-  isSubmitting = signal(false);
-
-  // Fee estimation
-  isLoadingFees = signal(false);
+  // Fee estimation — the app's reference fee selector (same options, same
+  // defaulting: normal when estimates load, custom otherwise). Remote mode
+  // uses the Electrum fee estimates; node mode uses estimatesmartfee per
+  // preset (the `blocks` targets).
+  readonly isLoadingFees = signal(false);
   customFeeRate: number | null = 1;
   feeOptions: FeeOption[] = [
-    { label: 'fee_slow', blocks: 144, feeRate: null, timeEstimate: '~60 min' },
-    { label: 'fee_normal', blocks: 6, feeRate: null, timeEstimate: '~30 min' },
-    { label: 'fee_fast', blocks: 1, feeRate: null, timeEstimate: '~10 min' },
-    { label: 'fee_custom', blocks: 6, feeRate: null, timeEstimate: '' },
+    { label: 'fee_slow', blocks: 144, feeRate: null },
+    { label: 'fee_normal', blocks: 6, feeRate: null },
+    { label: 'fee_fast', blocks: 1, feeRate: null },
+    { label: 'fee_custom', blocks: 6, feeRate: null },
   ];
   selectedFeeOption: FeeOption | null = null;
 
-  // Validation
-  isPlotAddressValid = signal(false);
-  isForgingAddressValid = signal(false);
-  plotAddressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
-  forgingAddressError = signal<{ key: string; params?: Record<string, string> } | null>(null);
-
   ngOnInit(): void {
-    this.loadWalletAddresses();
-    this.loadFeeEstimates();
-    // Ensure the mining chain configs are loaded (pool forging-address
-    // dropdown) — the signal-driven computed picks them up when they land.
-    void this.miningService.getState().catch(err => {
+    this.contactsStore.load();
+    // Load the mining state so the pool combobox sees the chain configs.
+    void this.mining.getState().catch(err => {
       console.warn('Failed to load mining state for pool addresses:', err);
     });
-    // Note: Block height is now handled by BlockchainStateService with auto-refresh
+    void this.init();
 
-    // Subscribe to wallet changes to reload addresses
+    // Reload on wallet switch — the manager is the one wallet-identity
+    // source for every shell (fed by the btcx bridge in the nodeless one).
     this.walletManager.activeWallet$
-      .pipe(
-        skip(1), // Skip initial value since we already loaded
-        takeUntil(this.destroy$)
-      )
-      .subscribe(() => {
-        this.clearStatus();
-        this.selectedPlotAddress = '';
-        this.forgingAddress = '';
-        this.loadWalletAddresses();
-        this.loadFeeEstimates();
-      });
+      .pipe(skip(1), takeUntil(this.destroy$))
+      .subscribe(() => this.onWalletChanged());
   }
 
   ngOnDestroy(): void {
@@ -1342,193 +921,77 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  goBack(): void {
-    this.location.back();
+  private async init(): Promise<void> {
+    if (this.isRemote()) {
+      await this.wallet.initialize();
+      if (!this.wallet.walletActive()) return;
+    }
+    void this.loadFeeEstimates();
+    await this.loadWalletAddresses();
   }
 
-  onTabChange(index: number): void {
-    const modes: OperationMode[] = ['create', 'revoke', 'check'];
-    this.currentMode = modes[index];
-    this.clearStatus();
-    this.validateInputs();
+  private onWalletChanged(): void {
+    this.status.set(null);
+    this.statusError.set(null);
+    this.plotAddress = '';
+    this.forgingAddress = '';
+    this.forgingValid.set(false);
+    this.forgingError.set(null);
+    this.walletAddresses.set([]);
+    if (this.isRemote() && !this.wallet.walletActive()) return;
+    void this.loadFeeEstimates();
+    void this.loadWalletAddresses();
   }
 
   private async loadWalletAddresses(): Promise<void> {
-    const walletName = this.walletManager.activeWallet;
-    if (!walletName) return;
-
-    // Remote mode: offer the wallet's FUNDED addresses — an assignment must
-    // spend a coin on the plot address, so unfunded addresses can't sign
-    // one anyway (and the local wallet has no label registry).
-    if (this.isRemote()) {
-      try {
-        const utxos = await this.walletService.listUnspent(0);
-        const unique = [...new Set(utxos.map(u => u.address).filter(a => !!a))];
-        this.walletAddresses.set(unique.map(address => ({ address, label: '', isSegwitV0: true })));
-      } catch (error) {
-        console.error('Failed to load wallet addresses:', error);
-      }
-      return;
-    }
-
     try {
-      // Get all addresses with empty label (receiving addresses)
-      const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
-      const addresses: WalletAddress[] = [];
-
-      for (const address of Object.keys(addressMap)) {
-        // Check if it's a SegWit v0 address (bech32 starting with bc1q/tb1q or pocx1q/tpocx1q)
-        const isSegwitV0 = /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(address);
-        if (isSegwitV0) {
-          const addrInfo = await this.walletRpc.getAddressInfo(walletName, address);
-          addresses.push({
-            address,
-            label: addrInfo.labels?.[0] || '',
-            isSegwitV0: true,
-          });
+      let addresses: string[];
+      if (this.isRemote()) {
+        // Funded wallet addresses — non-change first, then change, deduped.
+        const utxos = await this.wallet.utxos();
+        const sorted = [...utxos].sort((a, b) => Number(a.isChange) - Number(b.isChange));
+        addresses = [];
+        for (const utxo of sorted) {
+          if (utxo.address && !addresses.includes(utxo.address)) {
+            addresses.push(utxo.address);
+          }
         }
+      } else {
+        const walletName = this.walletManager.activeWallet;
+        if (!walletName) return;
+        // Receiving addresses (empty label), SegWit v0 only — bech32
+        // starting with bc1q/tb1q or pocx1q/tpocx1q (the node's assignment
+        // RPCs reject everything else).
+        const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
+        addresses = Object.keys(addressMap).filter(address =>
+          /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(address)
+        );
       }
-
       this.walletAddresses.set(addresses);
-    } catch (error) {
-      console.error('Failed to load wallet addresses:', error);
+      if (!this.plotAddress && addresses.length > 0) {
+        this.plotAddress = addresses[0];
+        await this.checkStatus();
+      }
+    } catch (err) {
+      console.error('Failed to load wallet addresses:', err);
     }
   }
 
-  onPlotAddressChange(address: string): void {
-    this.selectedPlotAddress = address;
-    this.validatePlotAddress();
-    this.clearStatus();
-  }
-
-  onForgingAddressChange(): void {
-    this.validateForgingAddress();
-  }
-
-  private validatePlotAddress(): void {
-    const address = this.selectedPlotAddress.trim();
-    if (!address) {
-      this.isPlotAddressValid.set(false);
-      this.plotAddressError.set(null);
-      return;
-    }
-    const result = validatePocxAddress(address);
-    if (result.kind === 'empty') {
-      this.isPlotAddressValid.set(false);
-      this.plotAddressError.set(null);
-      return;
-    }
-    if (result.kind !== 'valid') {
-      this.isPlotAddressValid.set(false);
-      this.plotAddressError.set({ key: 'invalid_address' });
-      return;
-    }
-    const appNet = this.network();
-    if (result.network !== appNet) {
-      this.isPlotAddressValid.set(false);
-      this.plotAddressError.set({
-        key: 'address_wrong_network',
-        params: {
-          addressNetwork: this.translateNetwork(result.network),
-          appNetwork: this.translateNetwork(appNet),
-        },
-      });
-      return;
-    }
-    if (result.type !== 'Bech32 (SegWit)') {
-      this.isPlotAddressValid.set(false);
-      this.plotAddressError.set({ key: 'address_must_be_segwit_v0' });
-      return;
-    }
-    this.isPlotAddressValid.set(true);
-    this.plotAddressError.set(null);
-  }
-
-  private validateForgingAddress(): void {
-    const address = this.forgingAddress.trim();
-    if (!address) {
-      this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set(null);
-      return;
-    }
-    const result = validatePocxAddress(address);
-    if (result.kind === 'empty') {
-      this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set(null);
-      return;
-    }
-    if (result.kind !== 'valid') {
-      this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set({ key: 'invalid_address' });
-      return;
-    }
-    const appNet = this.network();
-    if (result.network !== appNet) {
-      this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set({
-        key: 'address_wrong_network',
-        params: {
-          addressNetwork: this.translateNetwork(result.network),
-          appNetwork: this.translateNetwork(appNet),
-        },
-      });
-      return;
-    }
-    if (result.type !== 'Bech32 (SegWit)') {
-      this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set({ key: 'address_must_be_segwit_v0' });
-      return;
-    }
-    if (address.toLowerCase() === this.selectedPlotAddress.toLowerCase()) {
-      this.isForgingAddressValid.set(false);
-      this.forgingAddressError.set({ key: 'forging_address_must_differ' });
-      return;
-    }
-    this.isForgingAddressValid.set(true);
-    this.forgingAddressError.set(null);
-  }
-
-  private translateNetwork(network: Network): string {
-    return this.i18n.get(network);
-  }
-
-  private validateInputs(): void {
-    this.validatePlotAddress();
-    if (this.currentMode === 'create') {
-      this.validateForgingAddress();
-    }
-  }
-
-  canSubmit(): boolean {
-    if (this.isSubmitting()) return false;
-
-    switch (this.currentMode) {
-      case 'create':
-        return this.isPlotAddressValid() && this.isForgingAddressValid();
-      case 'revoke':
-        return this.isPlotAddressValid();
-      case 'check':
-        return this.isPlotAddressValid();
-      default:
-        return false;
-    }
-  }
-
-  // Fee estimation methods
+  /** Same estimates + rounding + defaulting as the send-page fee section. */
   async loadFeeEstimates(): Promise<void> {
+    if (this.isLoadingFees()) return;
     this.isLoadingFees.set(true);
     try {
       if (this.isRemote()) {
-        // One Electrum estimate call covers all presets.
-        const estimates = await this.btcxWallet.fetchFeeEstimates();
-        const bySpeed: Record<string, number | null> = {
+        const estimates = await this.wallet.fetchFeeEstimates();
+        const byLabel: Record<string, number | null | undefined> = {
           fee_slow: estimates.slow,
           fee_normal: estimates.normal,
           fee_fast: estimates.fast,
         };
         for (const option of this.feeOptions) {
           if (option.label === 'fee_custom') continue;
-          const rate = bySpeed[option.label];
+          const rate = byLabel[option.label];
           // floor stays (hard-coded 1); apply it at 0.001 resolution, no integer rounding
           option.feeRate = rate != null ? Math.max(1, Math.round(rate * 1000) / 1000) : null;
         }
@@ -1542,20 +1005,17 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
           }
         }
       }
-      // Default to custom 1 sat/vB if no estimates available, normal otherwise
-      const hasEstimates = this.feeOptions.some(
-        o => o.label !== 'fee_custom' && o.feeRate !== null
-      );
-      this.selectedFeeOption = hasEstimates ? this.feeOptions[1] : this.feeOptions[3];
     } catch (error) {
       console.error('Failed to load fee estimates:', error);
     } finally {
+      const hasEstimates = this.feeOptions.some(
+        o => o.label !== 'fee_custom' && o.feeRate !== null
+      );
+      if (!this.selectedFeeOption || this.selectedFeeOption.feeRate === null) {
+        this.selectedFeeOption = hasEstimates ? this.feeOptions[1] : this.feeOptions[3];
+      }
       this.isLoadingFees.set(false);
     }
-  }
-
-  refreshFeeEstimates(): void {
-    this.loadFeeEstimates();
   }
 
   selectFeeOption(option: FeeOption): void {
@@ -1571,35 +1031,104 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     }
   }
 
-  getSelectedFeeRate(): number | undefined {
+  /** Selected rate in sat/vB, or undefined for the backend's default. */
+  private getSelectedFeeRate(): number | undefined {
     if (this.selectedFeeOption?.label === 'fee_custom') {
       return this.customFeeRate ?? undefined;
     }
     return this.selectedFeeOption?.feeRate ?? undefined;
   }
 
+  /** Live fee preview for the assignment tx, sats (rate × assumed vsize). */
+  estimatedFeeSat(): number {
+    return Math.ceil((this.getSelectedFeeRate() ?? 1) * ASSIGNMENT_PREVIEW_VSIZE_VB);
+  }
+
   async checkStatus(): Promise<void> {
-    if (!this.isPlotAddressValid()) return;
-
-    this.isCheckingStatus.set(true);
-    this.assignmentStatus.set(null);
-
+    const address = this.plotAddress;
+    if (!address || this.statusLoading()) return;
+    this.statusLoading.set(true);
+    this.statusError.set(null);
+    this.status.set(null);
     try {
-      // Block height is auto-refreshed by BlockchainStateService
-      const status = await this.fetchAssignmentStatus(this.selectedPlotAddress);
-      this.assignmentStatus.set(status);
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      this.notification.error(`${this.i18n.get('error_checking_status')}: ${errorMsg}`);
+      // Identical DTOs from both backends: the node's `get_assignment` RPC
+      // or the client-side Electrum script-history derivation.
+      const status = this.isRemote()
+        ? ((await this.wallet.getAssignment(address)) as AssignmentStatus)
+        : await this.miningRpc.getAssignmentStatus(address);
+      this.status.set(status);
+    } catch (err) {
+      this.statusError.set(`${err}`);
     } finally {
-      this.isCheckingStatus.set(false);
+      this.statusLoading.set(false);
     }
   }
 
+  canCreate(state: AssignmentState): boolean {
+    return state === 'UNASSIGNED' || state === 'REVOKED';
+  }
+
+  /** Blocks until a pending create activates / a pending revoke lands. */
+  blocksRemaining(status: AssignmentStatus): number {
+    const target =
+      status.state === 'ASSIGNING' ? status.activation_height : status.revocation_effective_height;
+    if (!target) return 0;
+    return Math.max(0, target - status.height);
+  }
+
+  badgeClass(state: AssignmentState): string {
+    return `badge-${state.toLowerCase()}`;
+  }
+
+  selectContact(contact: Contact): void {
+    this.forgingAddress = contact.address;
+    this.validateForgingAddress();
+  }
+
+  /** Rules enforced by both backends: segwit v0, right network, ≠ plot. */
+  validateForgingAddress(): void {
+    this.forgingValid.set(false);
+    const result = validatePocxAddress(this.forgingAddress);
+    switch (result.kind) {
+      case 'empty':
+        this.forgingError.set(null);
+        break;
+      case 'invalid_format':
+        this.forgingError.set({ key: 'address_invalid_format' });
+        break;
+      case 'invalid_checksum':
+        this.forgingError.set({ key: 'address_invalid_checksum' });
+        break;
+      case 'valid':
+        if (result.network !== this.network()) {
+          this.forgingError.set({
+            key: 'address_wrong_network',
+            params: {
+              addressNetwork: this.i18n.get(result.network),
+              appNetwork: this.i18n.get(this.network()),
+            },
+          });
+        } else if (result.type !== 'Bech32 (SegWit)') {
+          this.forgingError.set({ key: 'address_must_be_segwit_v0' });
+        } else if (this.forgingAddress.trim() === this.plotAddress) {
+          this.forgingError.set({ key: 'forging_address_must_differ' });
+        } else {
+          this.forgingError.set(null);
+          this.forgingValid.set(true);
+        }
+        break;
+    }
+  }
+
+  /**
+   * Encrypted-wallet unlock, per mode (the unified send page's flow):
+   * remote checks the local seed lock, node mode the Core wallet's
+   * `unlocked_until`. Prompts with the shared passphrase dialog.
+   */
   private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
     if (this.isRemote()) {
       // Local wallet: only a passphrase-encrypted seed can be locked.
-      const status = await this.btcxWallet.refreshStatus();
+      const status = await this.wallet.refreshStatus();
       if (status?.seed !== 'locked') return true;
       const dialogRef = this.dialog.open(PassphraseDialogComponent, {
         width: '400px',
@@ -1607,7 +1136,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       });
       const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
       if (!result) return false; // user cancelled
-      await this.btcxWallet.unlock(result.passphrase);
+      await this.wallet.unlock(result.passphrase);
       return true;
     }
 
@@ -1625,169 +1154,83 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     return true;
   }
 
-  async onSubmit(): Promise<void> {
-    if (this.isSubmitting()) return;
-    if (!this.canSubmit()) return;
-
+  async create(): Promise<void> {
+    if (!this.forgingValid() || this.busy()) return;
     const walletName = this.walletManager.activeWallet;
     if (!walletName) {
-      this.notification.error(this.i18n.get('no_wallet_selected'));
+      this.notifications.error(this.i18n.get('no_wallet_selected'));
       return;
     }
-
-    this.isSubmitting.set(true);
-
+    this.busy.set(true);
     try {
-      // Pre-flight check: verify current state allows the operation
-      try {
-        const status = await this.fetchAssignmentStatus(this.selectedPlotAddress);
-
-        if (this.currentMode === 'create') {
-          if (status.state !== 'UNASSIGNED' && status.state !== 'REVOKED') {
-            this.notification.error(
-              this.i18n.get('cannot_create_assignment_state').replace('{state}', status.state)
-            );
-            return;
-          }
-        } else if (this.currentMode === 'revoke') {
-          if (status.state !== 'ASSIGNED') {
-            this.notification.error(
-              this.i18n.get('cannot_revoke_assignment_state').replace('{state}', status.state)
-            );
-            return;
-          }
-        }
-      } catch {
-        // If get_assignment fails, the plot might be unassigned (no record)
-        // For create, this is OK. For revoke, this is an error.
-        if (this.currentMode === 'revoke') {
-          this.notification.error(this.i18n.get('no_assignment_to_revoke'));
-          return;
-        }
-      }
-
       if (!(await this.ensureWalletUnlocked(walletName))) {
         return;
       }
-
       const feeRate = this.getSelectedFeeRate();
-
-      if (this.currentMode === 'create') {
-        const result = this.isRemote()
-          ? await this.btcxWallet.createAssignment(
-              this.selectedPlotAddress,
-              this.forgingAddress.trim(),
-              feeRate
-            )
-          : await this.miningRpc.createForgingAssignment(
-              walletName,
-              this.selectedPlotAddress,
-              this.forgingAddress.trim(),
-              feeRate
-            );
-        this.notification.success(
-          `${this.i18n.get('assignment_created_success')} (${result.txid.substring(0, 16)}...)`
+      if (this.isRemote()) {
+        await this.wallet.createAssignment(this.plotAddress, this.forgingAddress.trim(), feeRate);
+      } else {
+        await this.miningRpc.createForgingAssignment(
+          walletName,
+          this.plotAddress,
+          this.forgingAddress.trim(),
+          feeRate
         );
-        this.walletService.refresh();
-        this.clear();
-      } else if (this.currentMode === 'revoke') {
-        const result = this.isRemote()
-          ? await this.btcxWallet.revokeAssignment(this.selectedPlotAddress, feeRate)
-          : await this.miningRpc.revokeForgingAssignment(
-              walletName,
-              this.selectedPlotAddress,
-              feeRate
-            );
-        this.notification.success(
-          `${this.i18n.get('revocation_created_success')} (${result.txid.substring(0, 16)}...)`
-        );
-        this.walletService.refresh();
-        this.clear();
       }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      this.notification.error(`${this.i18n.get('transaction_failed')}: ${errorMsg}`);
+      this.notifications.success(this.i18n.get('assignment_created_success'));
+      this.walletService.refresh();
+      this.forgingAddress = '';
+      this.forgingValid.set(false);
+      await this.checkStatus();
+    } catch (err) {
+      this.notifications.error(`${err}`);
     } finally {
-      this.isSubmitting.set(false);
+      this.busy.set(false);
     }
   }
 
-  clear(): void {
-    this.selectedPlotAddress = '';
-    this.forgingAddress = '';
-    this.assignmentStatus.set(null);
-    this.isPlotAddressValid.set(false);
-    this.isForgingAddressValid.set(false);
-    this.plotAddressError.set(null);
-    this.forgingAddressError.set(null);
+  revoke(): void {
+    if (this.busy()) return;
+    const data: ConfirmDialogData = {
+      title: this.i18n.get('revoke_assignment'),
+      message: this.i18n.get('revoke_assignment_description'),
+      confirmText: this.i18n.get('revoke_assignment'),
+      cancelText: this.i18n.get('cancel'),
+      type: 'danger',
+    };
+    this.dialog
+      .open(ConfirmDialogComponent, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean) => {
+        if (!confirmed) return;
+        void this.doRevoke();
+      });
   }
 
-  clearStatus(): void {
-    this.assignmentStatus.set(null);
-  }
-
-  // Helper methods for template
-  getStateBadgeClass(state: AssignmentState): string {
-    switch (state) {
-      case 'UNASSIGNED':
-        return 'badge-unassigned';
-      case 'ASSIGNING':
-        return 'badge-assigning';
-      case 'ASSIGNED':
-        return 'badge-assigned';
-      case 'REVOKING':
-        return 'badge-revoking';
-      case 'REVOKED':
-        return 'badge-revoked';
-      default:
-        return 'badge-unassigned';
+  private async doRevoke(): Promise<void> {
+    const walletName = this.walletManager.activeWallet;
+    if (!walletName) {
+      this.notifications.error(this.i18n.get('no_wallet_selected'));
+      return;
     }
-  }
-
-  getBlocksRemaining(): number {
-    const status = this.assignmentStatus();
-    if (!status) return 0;
-
-    if (status.state === 'ASSIGNING' && status.activation_height) {
-      return Math.max(0, status.activation_height - this.currentBlockHeight());
+    this.busy.set(true);
+    try {
+      if (!(await this.ensureWalletUnlocked(walletName))) {
+        return;
+      }
+      const feeRate = this.getSelectedFeeRate();
+      if (this.isRemote()) {
+        await this.wallet.revokeAssignment(this.plotAddress, feeRate);
+      } else {
+        await this.miningRpc.revokeForgingAssignment(walletName, this.plotAddress, feeRate);
+      }
+      this.notifications.success(this.i18n.get('revocation_created_success'));
+      this.walletService.refresh();
+      await this.checkStatus();
+    } catch (err) {
+      this.notifications.error(`${err}`);
+    } finally {
+      this.busy.set(false);
     }
-
-    if (status.state === 'REVOKING' && status.revocation_effective_height) {
-      return Math.max(0, status.revocation_effective_height - this.currentBlockHeight());
-    }
-
-    return 0;
-  }
-
-  getProgressPercentage(): number {
-    const status = this.assignmentStatus();
-    if (!status) return 0;
-
-    // Assignment delay: 30 blocks (~1 hour), Revocation delay: 720 blocks (~1 day)
-    const delayBlocks = status.state === 'REVOKING' ? 720 : 30;
-    const remaining = this.getBlocksRemaining();
-    const elapsed = delayBlocks - remaining;
-
-    return Math.min(100, Math.max(0, (elapsed / delayBlocks) * 100));
-  }
-
-  getEstimatedTime(): string {
-    const blocks = this.getBlocksRemaining();
-    if (blocks <= 0) return '';
-
-    // Bitcoin-PoCX: ~2 minutes per block
-    const minutes = blocks * 2;
-
-    if (minutes < 60) {
-      return `~${minutes} ${this.i18n.get('minutes')}`;
-    }
-
-    const hours = Math.round(minutes / 60);
-    if (hours < 24) {
-      return `~${hours} ${this.i18n.get('hours')}`;
-    }
-
-    const days = Math.round(hours / 24);
-    return `~${days} ${this.i18n.get('days')}`;
   }
 }
