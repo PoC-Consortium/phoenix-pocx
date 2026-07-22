@@ -173,7 +173,7 @@ interface NavGroup {
       }
 
       .sidenav {
-        width: 240px;
+        width: var(--menu-width);
         background: linear-gradient(180deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
         overflow-x: hidden;
@@ -193,7 +193,7 @@ interface NavGroup {
         --mat-list-list-item-hover-leading-icon-color: white;
         --mat-list-list-item-focus-leading-icon-color: white;
         --mat-list-active-indicator-color: rgba(255, 255, 255, 0.15);
-        --mat-list-list-item-one-line-container-height: 40px;
+        --mat-list-list-item-one-line-container-height: var(--menu-item-h);
         --mat-list-list-item-label-text-size: 13px;
       }
 
@@ -201,7 +201,7 @@ interface NavGroup {
         position: relative;
         display: flex;
         align-items: center;
-        height: 64px;
+        height: var(--toolbar-h);
         padding: 0 16px;
         gap: 10px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -288,7 +288,8 @@ interface NavGroup {
       }
 
       .wallet-info {
-        padding: 16px 24px;
+        height: var(--menu-balance-h);
+        padding: 0 24px;
         background: rgba(0, 0, 0, 0.2);
         display: flex;
         flex-direction: column;
@@ -305,6 +306,13 @@ interface NavGroup {
         // Increase balance display size
         ::ng-deep app-balance-display {
           font-size: 17px;
+        }
+      }
+
+      // Version line is desktop chrome — hidden at the mobile breakpoint.
+      @media (max-width: 600px) {
+        .header-version {
+          display: none;
         }
       }
 

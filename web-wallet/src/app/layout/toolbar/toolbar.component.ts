@@ -397,7 +397,7 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
         background-color: white !important;
         color: rgba(0, 0, 0, 0.87) !important;
         padding: 0;
-        height: 64px;
+        height: var(--toolbar-h);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
         /* Ensure all text/buttons inside toolbar have correct colors */
@@ -459,7 +459,7 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
 
       .action-button {
         min-width: 64px;
-        height: 64px;
+        height: var(--toolbar-h);
         border-radius: 0;
       }
 

@@ -32,6 +32,29 @@ body {
 // bottom navigation half off-screen.
 :root {
   --android-safe-top: 0px;
+
+  // Unified menu/shell dimensions — the single source of truth shared by the
+  // desktop sidenav (main-layout) and the nodeless drawer (mobile-wallet-
+  // layout) so the two shells never drift. Values are the DESKTOP spec.
+  //
+  // Two "bands" appear in BOTH the menu and the pages and must move in tandem;
+  // each shrinks at the lowest breakpoint (see below):
+  //   --toolbar-h     = app top bar  ↔ menu logo/title bar
+  //   --menu-balance-h = page header ↔ menu balance block
+  // --menu-width and --menu-item-h are fixed at all widths. Per-variant item
+  // GATING (wallet-only shows fewer entries) is unaffected — this is size only.
+  --menu-width: 240px; // sidenav / drawer width
+  --menu-item-h: 40px; // nav list item height
+  --toolbar-h: 64px; // top bar: app toolbar + menu logo/title bar
+  --menu-balance-h: 71px; // balance band: menu balance block + page headers
+}
+
+// Lowest breakpoint: both shared bands shrink by width.
+@media (max-width: 600px) {
+  :root {
+    --toolbar-h: 56px;
+    --menu-balance-h: 68px;
+  }
 }
 
 body.platform-android {
