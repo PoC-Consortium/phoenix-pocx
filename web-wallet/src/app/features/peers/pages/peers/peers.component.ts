@@ -185,6 +185,8 @@ type PeerRow = PeerInfo & { versionClass: string };
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: block;
         width: 100%;
@@ -524,7 +526,7 @@ type PeerRow = PeerInfo & { versionClass: string };
         }
       }
 
-      @media (max-width: 768px) {
+      @include bp.tablet-down {
         .header {
           padding: 12px 16px;
 

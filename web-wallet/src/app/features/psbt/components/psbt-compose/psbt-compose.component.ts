@@ -548,6 +548,8 @@ const UTXO_PAGE_SIZE = 10;
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: block;
       }
@@ -1276,7 +1278,7 @@ const UTXO_PAGE_SIZE = 10;
       }
 
       // Responsive
-      @media (max-width: 600px) {
+      @include bp.phone {
         .output-row {
           flex-wrap: wrap;
 

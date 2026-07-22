@@ -165,6 +165,8 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       /* Flex-fill the bounded parent (the wrapper's .coins-card) so the row
          viewport height is viewport-derived — giving FitRowsDirective a real
          height to measure under BOTH shells. */
@@ -330,7 +332,7 @@ export function aggregateCoins(coins: WalletCoin[]): AddressBalance[] {
       /* Responsive — reflow each table row to a stacked card below 600px
          (tablet portrait, phone). The address wraps at full width; the three
          stat cells collapse onto one meta line under it. */
-      @media (max-width: 600px) {
+      @include bp.phone {
         .table-header {
           display: none;
         }

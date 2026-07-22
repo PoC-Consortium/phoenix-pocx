@@ -85,6 +85,8 @@ export interface BreadcrumbItem {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .page-layout {
         min-height: 100vh;
         display: flex;
@@ -187,7 +189,7 @@ export interface BreadcrumbItem {
         }
       }
 
-      @media (max-width: 599px) {
+      @include bp.phone {
         .page-header-section {
           padding: 16px;
           min-height: 120px;

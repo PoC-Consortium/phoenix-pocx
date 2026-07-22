@@ -1,6 +1,7 @@
 // Phoenix Wallet - Global Styles
 
 // Import custom theme (using @use to avoid deprecation warnings)
+@use 'breakpoints' as bp;
 @use 'styles/theme';
 @use 'styles/utilities';
 
@@ -50,7 +51,7 @@ body {
 }
 
 // Lowest breakpoint: both shared bands shrink by width.
-@media (max-width: 600px) {
+@include bp.phone {
   :root {
     --toolbar-h: 56px;
     --menu-balance-h: 68px;
@@ -419,7 +420,7 @@ a {
 // Responsive Utilities
 // ============================================================
 
-@media (max-width: 599px) {
+@include bp.phone {
   .hide-mobile {
     display: none !important;
   }
@@ -429,7 +430,7 @@ a {
   }
 }
 
-@media (min-width: 600px) {
+@media (min-width: (bp.$phone + 1)) {
   .hide-desktop {
     display: none !important;
   }
@@ -462,7 +463,7 @@ a {
   overflow-y: auto !important;
 }
 
-@media (max-width: 600px) {
+@include bp.phone {
   .lang-dropdown-menu {
     max-height: calc(100vh - 72px) !important; // smaller toolbar on mobile
   }

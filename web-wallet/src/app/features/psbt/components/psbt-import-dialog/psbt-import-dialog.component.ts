@@ -82,6 +82,8 @@ export interface PsbtImportDialogData {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .title-icon {
         margin-right: 8px;
         vertical-align: middle;
@@ -93,7 +95,7 @@ export interface PsbtImportDialogData {
         max-width: 520px;
       }
 
-      @media (max-width: 600px) {
+      @include bp.phone {
         mat-dialog-content {
           min-width: unset;
         }

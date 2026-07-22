@@ -136,6 +136,8 @@ import { MobileNavComponent } from '../../shared/components/mobile-nav/mobile-na
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .mining-layout {
         display: flex;
         flex-direction: column;
@@ -259,7 +261,7 @@ import { MobileNavComponent } from '../../shared/components/mobile-nav/mobile-na
           height: 24px;
         }
 
-        @media (max-width: 600px) {
+        @include bp.phone {
           .lang-name-text {
             display: none;
           }
@@ -302,7 +304,7 @@ import { MobileNavComponent } from '../../shared/components/mobile-nav/mobile-na
         }
       }
 
-      @media (max-width: 600px) {
+      @include bp.phone {
         .mining-toolbar {
           height: 56px;
         }

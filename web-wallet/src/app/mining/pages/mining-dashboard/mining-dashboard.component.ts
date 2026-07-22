@@ -586,6 +586,8 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: flex;
         flex-direction: column;
@@ -633,7 +635,7 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
       }
 
       /* Mobile/small screens: ensure content has intrinsic height for scrolling */
-      @media (max-height: 700px) {
+      @include bp.short {
         .main-content {
           display: block; /* Switch from flex to block for proper scroll behavior */
           padding: 16px;
@@ -649,7 +651,7 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
       }
 
       /* Mobile width: switch to block layout for proper stacking */
-      @media (max-width: 900px) {
+      @include bp.tablet-down {
         .main-content {
           display: block;
           padding: 12px;
@@ -673,13 +675,13 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
         min-height: fit-content; /* Ensure cards don't collapse */
       }
 
-      @media (max-width: 1100px) {
+      @include bp.desktop-down {
         .summary-cards {
           grid-template-columns: repeat(2, 1fr);
         }
       }
 
-      @media (max-width: 600px) {
+      @include bp.phone {
         .summary-cards {
           grid-template-columns: 1fr;
         }
@@ -1222,7 +1224,7 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
         min-height: 150px;
       }
 
-      @media (max-width: 900px) {
+      @include bp.tablet-down {
         .detail-row {
           grid-template-columns: 1fr;
           gap: 12px;
@@ -1255,7 +1257,7 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
       }
 
       /* Small screens: use fixed heights instead of flex ratios */
-      @media (max-height: 700px) {
+      @include bp.short {
         .detail-row {
           flex: none;
           min-height: auto;
@@ -1494,7 +1496,7 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
       }
 
       /* Small screens: fixed height for activity */
-      @media (max-height: 700px) {
+      @include bp.short {
         .activity-section {
           flex: none;
           height: 150px;
@@ -1503,7 +1505,7 @@ import { OrphanResolutionDialogComponent } from '../../components/orphan-resolut
       }
 
       /* Mobile: ensure activity section doesn't overlap */
-      @media (max-width: 900px) {
+      @include bp.tablet-down {
         .activity-section {
           flex: none;
           min-height: 140px;

@@ -1148,6 +1148,8 @@ function withListenPort(listenAddress: string, port: number): string {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .settings-page {
         min-height: 100vh;
         background: #eceff1;
@@ -1872,7 +1874,7 @@ function withListenPort(listenAddress: string, port: number): string {
       }
 
       /* Responsive */
-      @media (max-width: 600px) {
+      @include bp.phone {
         .settings-content {
           padding: 16px;
         }

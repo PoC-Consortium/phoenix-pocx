@@ -385,6 +385,8 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: block;
         position: relative;
@@ -557,7 +559,7 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
         }
 
         /* On screens < 1280px, show icon instead of text */
-        @media (max-width: 1279px) {
+        @include bp.desktop-down {
           .lang-name-text {
             display: none;
           }
@@ -669,7 +671,7 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
       }
 
       /* Responsive */
-      @media (max-width: 600px) {
+      @include bp.phone {
         .toolbar {
           height: 56px;
         }
