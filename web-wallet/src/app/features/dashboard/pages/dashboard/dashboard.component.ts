@@ -1791,13 +1791,7 @@ export class DashboardComponent implements AfterViewInit {
   // Actions — all navigation goes through pageRoute() so the SAME component
   // links correctly under both shells (desktop `/x` vs nodeless `/wallet/x`).
   viewTransactionDetails(tx: WalletTransaction): void {
-    // Details are a Core-RPC feature — in Electrum/remote mode (any shell)
-    // the destination is the transactions/history LIST instead.
-    if (this.isRemote()) {
-      this.router.navigate([this.appMode.pageRoute('/transactions')]);
-      return;
-    }
-    this.router.navigate(['/transactions', tx.txid]);
+    this.router.navigate([this.appMode.pageRoute('/transactions'), tx.txid]);
   }
 
   copyToClipboard(text: string): void {

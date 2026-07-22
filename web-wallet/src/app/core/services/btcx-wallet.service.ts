@@ -106,6 +106,48 @@ export interface BtcxWalletTx {
   address: string | null;
 }
 
+/** Wire shape of `btcx_wallet_tx_detail` (camelCase from serde). */
+export interface BtcxTxDetailInput {
+  coinbase: boolean;
+  txid: string;
+  vout: number;
+  sequence: number;
+  /** Prevout data when the wallet's tx graph knows the funding output. */
+  prevAddress: string | null;
+  prevValueSat: number | null;
+}
+
+export interface BtcxTxDetailOutput {
+  n: number;
+  address: string | null;
+  opReturn: boolean;
+  valueSat: number;
+  scriptHex: string;
+  scriptAsm: string;
+}
+
+/** Full on-demand transaction detail from the synced BDK graph. */
+export interface BtcxTxDetail {
+  txid: string;
+  wtxid: string;
+  rawHex: string;
+  size: number;
+  vsize: number;
+  weight: number;
+  version: number;
+  locktime: number;
+  direction: 'sent' | 'received';
+  amountSat: number;
+  feeSat: number | null;
+  confirmations: number;
+  timestamp: number | null;
+  blockHeight: number | null;
+  blockHash: string | null;
+  rbf: boolean;
+  inputs: BtcxTxDetailInput[];
+  outputs: BtcxTxDetailOutput[];
+}
+
 /** Fee estimates in decimal sat/vB (`btcx_wallet_fee_estimates`). */
 export interface BtcxFeeEstimates {
   /** Coin feerate floor (the custom field's minimum/default). */
@@ -1006,6 +1048,13 @@ export class BtcxWalletService {
    *  last probe and skip refetching the list when nothing moved. */
   async txProbe(): Promise<{ total: number; tip: number }> {
     return invoke<{ total: number; tip: number }>('btcx_wallet_tx_probe');
+  }
+
+  /** On-demand full detail for one tx (in/outputs, sizes, raw hex, block),
+   *  served from the synced BDK graph — the remote-mode stand-in for Core's
+   *  gettransaction + verbose getrawtransaction. */
+  async txDetail(txid: string): Promise<BtcxTxDetail> {
+    return invoke<BtcxTxDetail>('btcx_wallet_tx_detail', { txid });
   }
 
   async fetchTransactionsPage(

@@ -71,6 +71,13 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        path: 'history/:txid',
+        loadComponent: () =>
+          import(
+            '../../features/transactions/pages/transaction-detail/transaction-detail.component'
+          ).then(m => m.TransactionDetailComponent),
+      },
+      {
         // Unified responsive coins/balance-details page — the same component
         // the desktop /coins route uses (features/coins).
         path: 'coins',
