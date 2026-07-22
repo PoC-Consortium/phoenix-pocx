@@ -1790,11 +1790,10 @@ pub fn tx_display_address(
     entry: &WalletEntry,
     network: WalletNetwork,
     info: &WalletTxInfo,
+    tx: &bitcoin::Transaction,
 ) -> Option<String> {
     use bdk_wallet::KeychainKind;
 
-    let txid: bitcoin::Txid = info.txid.parse().ok()?;
-    let tx = entry.wallet.get_tx(txid)?.tx_node.tx.clone();
     let spks = || tx.output.iter().map(|o| &o.script_pubkey);
     let own_external = |spk: &bitcoin::ScriptBuf| {
         matches!(
@@ -1844,7 +1843,16 @@ pub fn wallet_transactions_impl(
         // timestamp) — no amount, fee or address math. The old path computed
         // sent_and_received AND calculate_fee for EVERY tx ever before
         // slicing, which made fat wallets take seconds per call.
-        let mut keys: Vec<(bitcoin::Txid, u64, Option<u64>)> = entry
+        // The tx Arc rides along from this single canonicalization pass —
+        // get_tx() re-canonicalizes the WHOLE graph on every call (O(history)
+        // each), so the window below must never touch it.
+        type Key = (
+            bitcoin::Txid,
+            std::sync::Arc<bitcoin::Transaction>,
+            u64,
+            Option<u64>,
+        );
+        let mut keys: Vec<Key> = entry
             .wallet
             .transactions()
             .map(|wtx| {
@@ -1858,12 +1866,17 @@ pub fn wallet_transactions_impl(
                         last_seen,
                     } => (0, first_seen.or(last_seen)),
                 };
-                (wtx.tx_node.txid, confirmations, timestamp)
+                (
+                    wtx.tx_node.txid,
+                    wtx.tx_node.tx.clone(),
+                    confirmations,
+                    timestamp,
+                )
             })
             .collect();
         // The crate's ordering, verbatim: mempool first, then shallow, then
         // deep; ties by descending time; unbroadcast (no timestamp) first.
-        keys.sort_by_key(|(_, confs, ts)| (*confs, std::cmp::Reverse(ts.unwrap_or(u64::MAX))));
+        keys.sort_by_key(|(_, _, confs, ts)| (*confs, std::cmp::Reverse(ts.unwrap_or(u64::MAX))));
         let total = keys.len();
 
         // EXPENSIVE math only for the requested window. Fee is computed for
@@ -1874,9 +1887,7 @@ pub fn wallet_transactions_impl(
             .into_iter()
             .skip(offset.unwrap_or(0))
             .take(limit.unwrap_or(usize::MAX))
-            .filter_map(|(txid, confirmations, timestamp)| {
-                let wtx = entry.wallet.get_tx(txid)?;
-                let tx = wtx.tx_node.tx.clone();
+            .map(|(txid, tx, confirmations, timestamp)| {
                 let (sent, received) = entry.wallet.sent_and_received(&tx);
                 let (sent, received) = (sent.to_sat(), received.to_sat());
                 let (direction, amount_sat, fee_sat) = if sent > received {
@@ -1895,8 +1906,8 @@ pub fn wallet_transactions_impl(
                     confirmations,
                     timestamp,
                 };
-                let address = tx_display_address(entry, network, &info);
-                Some(BtcxWalletTxDto { info, address })
+                let address = tx_display_address(entry, network, &info, &tx);
+                BtcxWalletTxDto { info, address }
             })
             .collect();
         Ok(BtcxWalletTxPage { items, total })
