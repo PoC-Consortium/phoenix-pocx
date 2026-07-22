@@ -29,7 +29,7 @@ import { AppModeService } from '../../../core/services/app-mode.service';
           <span class="nav-label">{{ 'mwallet_title' | i18n }}</span>
         </a>
         @if (appMode.isMobileMode()) {
-          <a routerLink="/miner" routerLinkActive="active" class="nav-item">
+          <a routerLink="/wallet/mining" routerLinkActive="active" class="nav-item">
             <mat-icon>hardware</mat-icon>
             <span class="nav-label">{{ 'mining' | i18n }}</span>
           </a>

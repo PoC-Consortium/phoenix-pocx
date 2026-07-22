@@ -283,15 +283,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                   </mat-form-field>
                 </div>
               }
-
-              <div class="fee-summary">
-                <span class="fee-label">{{ 'estimated_fee' | i18n }}:</span>
-                <span class="fee-value">
-                  {{ selectedFeeOption?.estimatedFee ?? 0 | number: '1.8-8' }}
-                  {{ currencySymbol() }} ({{ getEstimatedFeeSats() | number: '1.0-0' }}
-                  sats)
-                </span>
-              </div>
             </div>
 
             <!-- Options Section -->
@@ -766,27 +757,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
         }
       }
 
-      .fee-summary {
-        display: flex;
-        justify-content: space-between;
-        padding: 6px 10px;
-        background: #f5f7fa;
-        border-radius: 4px;
-        margin-bottom: 14px;
-
-        .fee-label {
-          color: #666;
-          font-size: 13px;
-        }
-
-        .fee-value {
-          font-family: monospace;
-          font-weight: 500;
-          font-size: 13px;
-          color: rgb(0, 35, 65);
-        }
-      }
-
       // Options section
       .options-section {
         .option-row {
@@ -996,7 +966,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
           border-bottom-color: #555 !important;
         }
 
-        .fee-summary,
         .summary-section {
           background: #333;
         }

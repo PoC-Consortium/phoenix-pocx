@@ -105,7 +105,7 @@ type TransactionFilter =
     I18nPipe,
   ],
   template: `
-    <div class="page-layout">
+    <div class="page-layout" [class.filters-open]="filtersOpen()">
       <!-- Header with gradient background -->
       <div class="header">
         <div class="header-left">
@@ -115,28 +115,50 @@ type TransactionFilter =
           <h1>{{ 'transactions' | i18n }}</h1>
         </div>
         <div class="header-right">
+          <!-- Phone-only: expand/collapse the filter row + load limit -->
+          <button
+            mat-icon-button
+            class="refresh-button filter-toggle"
+            [class.active]="filtersOpen()"
+            (click)="filtersOpen.set(!filtersOpen())"
+            [matTooltip]="'search' | i18n"
+          >
+            <mat-icon>filter_list</mat-icon>
+          </button>
+
           <!-- Export CSV (kept apart from the load-limit + refresh pair) -->
           <button
             mat-icon-button
             [disabled]="loading() || filteredTransactions().length === 0"
             (click)="exportCsv()"
             [matTooltip]="'export_csv' | i18n"
-            class="refresh-button"
+            class="refresh-button export-button"
           >
             <mat-icon>file_download</mat-icon>
           </button>
 
-          <!-- Load Limit -->
-          <mat-form-field appearance="outline" class="limit-field">
-            <mat-label>{{ 'load_limit' | i18n }}</mat-label>
-            <mat-select [(value)]="loadLimit" (selectionChange)="onLoadLimitChange()">
-              @for (option of loadLimitOptions; track option.value) {
-                <mat-option [value]="option.value">{{ option.label }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
+          <!-- Load limit: its own icon + menu (refresh stays one tap). -->
+          <button
+            mat-icon-button
+            [disabled]="loading()"
+            [matMenuTriggerFor]="limitMenu"
+            [matTooltip]="'load_limit' | i18n"
+            class="refresh-button"
+          >
+            <mat-icon>format_list_numbered</mat-icon>
+          </button>
+          <mat-menu #limitMenu="matMenu">
+            @for (option of loadLimitOptions; track option.value) {
+              <button mat-menu-item (click)="setLoadLimit(option.value)">
+                <mat-icon>{{
+                  loadLimit === option.value ? 'radio_button_checked' : 'radio_button_unchecked'
+                }}</mat-icon>
+                <span>{{ option.label }}</span>
+              </button>
+            }
+          </mat-menu>
 
-          <!-- Refresh Button -->
+          <!-- Refresh: plain one-tap -->
           <button
             mat-icon-button
             [disabled]="loading()"
@@ -345,12 +367,10 @@ type TransactionFilter =
                                 <span>{{ 'view_address_in_explorer' | i18n }}</span>
                               </button>
                             }
-                            @if (!isRemote()) {
-                              <button mat-menu-item (click)="viewTransactionDetails(tx)">
-                                <mat-icon>info</mat-icon>
-                                <span>{{ 'transaction_details' | i18n }}</span>
-                              </button>
-                            }
+                            <button mat-menu-item (click)="viewTransactionDetails(tx)">
+                              <mat-icon>info</mat-icon>
+                              <span>{{ 'transaction_details' | i18n }}</span>
+                            </button>
                             @if (tx.address) {
                               <mat-divider></mat-divider>
                               <button mat-menu-item (click)="sendToAddress(tx.address)">
@@ -477,55 +497,6 @@ type TransactionFilter =
         display: flex;
         align-items: center;
         gap: 12px;
-
-        .limit-field {
-          width: 140px;
-
-          ::ng-deep {
-            .mat-mdc-text-field-wrapper {
-              background: rgba(255, 255, 255, 0.1);
-              padding: 0 12px;
-            }
-
-            .mdc-notched-outline__leading,
-            .mdc-notched-outline__notch,
-            .mdc-notched-outline__trailing {
-              border-color: rgba(255, 255, 255, 0.3) !important;
-            }
-
-            .mat-mdc-form-field-flex {
-              height: 40px;
-              align-items: center;
-            }
-
-            .mat-mdc-form-field-infix {
-              padding: 0;
-              min-height: 40px;
-              display: flex;
-              align-items: center;
-            }
-
-            .mat-mdc-select-value,
-            .mat-mdc-select-arrow,
-            .mdc-floating-label {
-              color: white !important;
-            }
-
-            .mdc-floating-label {
-              top: 50% !important;
-              transform: translateY(-50%) !important;
-            }
-
-            .mdc-floating-label--float-above {
-              top: 0 !important;
-              transform: translateY(-50%) scale(0.75) !important;
-            }
-
-            .mat-mdc-form-field-subscript-wrapper {
-              display: none;
-            }
-          }
-        }
 
         .refresh-button {
           color: white;
@@ -961,14 +932,37 @@ type TransactionFilter =
         }
       }
 
+      /* The funnel only exists at phone — desktop shows the filters inline. */
+      .filter-toggle {
+        display: none;
+      }
+
       @include bp.phone {
         .header {
           padding: 0 16px;
         }
 
-        /* The old mobile history had no filters and no load-limit select. */
-        .filter-row,
-        .limit-field {
+        .filter-toggle {
+          display: inline-flex;
+
+          &.active mat-icon {
+            color: #ffd54f;
+          }
+        }
+
+        /* Collapsed by default (the old mobile look); the funnel reveals
+           the filter row (wrapping). */
+        .filter-row {
+          display: none;
+        }
+
+        .filters-open .filter-row {
+          display: flex;
+          flex-wrap: wrap;
+        }
+
+        /* Nobody exports CSV on a phone. */
+        .export-button {
           display: none;
         }
 
@@ -1032,7 +1026,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     effect(() => {
       this.btcxWallet.lastSync();
       untracked(() => {
-        if (this.walletManager.activeWallet) void this.loadTransactions();
+        if (this.walletManager.activeWallet) void this.reloadIfChanged();
       });
     });
   }
@@ -1045,6 +1039,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   transactions = signal<WalletTransaction[]>([]);
   activeFilter = signal<TransactionFilter>('all');
   pageIndex = signal(0);
+  /** Phone: the filter row + load limit are collapsed behind the funnel. */
+  readonly filtersOpen = signal(false);
   /**
    * Fit-derived page size at EVERY width (the app-wide pattern): FitRows
    * measures how many rows fit the table/card viewport — no items-per-page
@@ -1188,6 +1184,28 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  /** Last tx probe {total, tip} — sync ticks skip identical reloads. */
+  private lastProbe: { total: number; tip: number } | null = null;
+
+  /** Sync tick: refetch only when the probe says the history moved. */
+  private async reloadIfChanged(): Promise<void> {
+    try {
+      const probe = await this.btcxWallet.txProbe();
+      if (
+        this.lastProbe &&
+        this.lastProbe.total === probe.total &&
+        this.lastProbe.tip === probe.tip &&
+        this.transactions().length > 0
+      ) {
+        return;
+      }
+      this.lastProbe = probe;
+    } catch {
+      // probe unavailable (Core mode / older backend) — plain reload
+    }
+    await this.loadTransactions();
+  }
+
   async loadTransactions(): Promise<void> {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
@@ -1202,14 +1220,19 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       const count = this.loadLimit === 0 ? 999999 : this.loadLimit;
       const txs = await this.backendRouter.wallet().listTransactions(walletName, count, 0);
 
-      // Sort by time descending — copy first to avoid mutating the RPC response.
-      const sorted = [...txs].sort((a, b) => b.time - a.time);
-      this.transactions.set(sorted);
+      // Both backends return newest-first — no client re-sort.
+      this.transactions.set(txs);
     } catch (error) {
       console.error('Failed to load transactions:', error);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Menu pick: adopt the limit and reload with it. */
+  setLoadLimit(value: number): void {
+    this.loadLimit = value;
+    this.onLoadLimitChange();
   }
 
   onLoadLimitChange(): void {
@@ -1359,9 +1382,6 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   // Actions
   viewTransactionDetails(tx: WalletTransaction): void {
-    // Details are a Core-RPC feature (raw tx decode etc.) — no detail view in
-    // Electrum/remote mode.
-    if (this.isRemote()) return;
     this.router.navigate([this.appMode.pageRoute('/transactions'), tx.txid]);
   }
 

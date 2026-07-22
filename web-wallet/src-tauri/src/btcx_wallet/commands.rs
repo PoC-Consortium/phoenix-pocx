@@ -1790,11 +1790,10 @@ pub fn tx_display_address(
     entry: &WalletEntry,
     network: WalletNetwork,
     info: &WalletTxInfo,
+    tx: &bitcoin::Transaction,
 ) -> Option<String> {
     use bdk_wallet::KeychainKind;
 
-    let txid: bitcoin::Txid = info.txid.parse().ok()?;
-    let tx = entry.wallet.get_tx(txid)?.tx_node.tx.clone();
     let spks = || tx.output.iter().map(|o| &o.script_pubkey);
     let own_external = |spk: &bitcoin::ScriptBuf| {
         matches!(
@@ -1836,23 +1835,243 @@ pub fn wallet_transactions_impl(
     offset: Option<usize>,
 ) -> Result<BtcxWalletTxPage, String> {
     let network = state.get_config().network;
-    let infos = state
-        .backend()?
-        .wallet_transactions()
-        .map_err(|e| format!("{e:#}"))?;
-    let total = infos.len();
     state.with_entry(|entry| {
-        Ok(BtcxWalletTxPage {
-            items: infos
-                .into_iter()
-                .skip(offset.unwrap_or(0))
-                .take(limit.unwrap_or(usize::MAX))
-                .map(|info| {
-                    let address = tx_display_address(entry, network, &info);
-                    BtcxWalletTxDto { info, address }
-                })
-                .collect(),
-            total,
+        use bdk_wallet::chain::ChainPosition;
+        let tip = entry.wallet.latest_checkpoint().height();
+
+        // CHEAP pass over the whole history: sort keys only (confirmations +
+        // timestamp) — no amount, fee or address math. The old path computed
+        // sent_and_received AND calculate_fee for EVERY tx ever before
+        // slicing, which made fat wallets take seconds per call.
+        // The tx Arc rides along from this single canonicalization pass —
+        // get_tx() re-canonicalizes the WHOLE graph on every call (O(history)
+        // each), so the window below must never touch it.
+        type Key = (
+            bitcoin::Txid,
+            std::sync::Arc<bitcoin::Transaction>,
+            u64,
+            Option<u64>,
+        );
+        let mut keys: Vec<Key> = entry
+            .wallet
+            .transactions()
+            .map(|wtx| {
+                let (confirmations, timestamp) = match wtx.chain_position {
+                    ChainPosition::Confirmed { anchor, .. } => (
+                        u64::from((tip + 1).saturating_sub(anchor.block_id.height)),
+                        Some(anchor.confirmation_time),
+                    ),
+                    ChainPosition::Unconfirmed {
+                        first_seen,
+                        last_seen,
+                    } => (0, first_seen.or(last_seen)),
+                };
+                (
+                    wtx.tx_node.txid,
+                    wtx.tx_node.tx.clone(),
+                    confirmations,
+                    timestamp,
+                )
+            })
+            .collect();
+        // The crate's ordering, verbatim: mempool first, then shallow, then
+        // deep; ties by descending time; unbroadcast (no timestamp) first.
+        keys.sort_by_key(|(_, _, confs, ts)| (*confs, std::cmp::Reverse(ts.unwrap_or(u64::MAX))));
+        let total = keys.len();
+
+        // EXPENSIVE math only for the requested window. Fee is computed for
+        // SEND rows only (it shapes the displayed net amount); receives — the
+        // bulk of a mining wallet — skip prevout resolution entirely. Full
+        // fee detail stays on-demand (detail views), never per list row.
+        let items = keys
+            .into_iter()
+            .skip(offset.unwrap_or(0))
+            .take(limit.unwrap_or(usize::MAX))
+            .map(|(txid, tx, confirmations, timestamp)| {
+                let (sent, received) = entry.wallet.sent_and_received(&tx);
+                let (sent, received) = (sent.to_sat(), received.to_sat());
+                let (direction, amount_sat, fee_sat) = if sent > received {
+                    let net_out = sent - received;
+                    let fee = entry.wallet.calculate_fee(&tx).ok().map(|a| a.to_sat());
+                    ("sent", net_out - fee.unwrap_or(0).min(net_out), fee)
+                } else {
+                    ("received", received - sent, None)
+                };
+                let info = WalletTxInfo {
+                    txid: txid.to_string(),
+                    direction: direction.into(),
+                    amount_sat,
+                    fee_sat,
+                    vsize: tx.vsize() as u64,
+                    confirmations,
+                    timestamp,
+                };
+                let address = tx_display_address(entry, network, &info, &tx);
+                BtcxWalletTxDto { info, address }
+            })
+            .collect();
+        Ok(BtcxWalletTxPage { items, total })
+    })
+}
+
+/// Near-free change probe for the transaction list: history size + tip.
+/// Callers compare against the last probe and skip refetching the (still
+/// windowed, but not free) transaction list when nothing moved.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxTxProbe {
+    pub total: usize,
+    pub tip: u32,
+}
+
+#[tauri::command]
+pub fn btcx_wallet_tx_probe(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxTxProbe, String> {
+    state.with_entry(|entry| {
+        Ok(BtcxTxProbe {
+            total: entry.wallet.transactions().count(),
+            tip: entry.wallet.latest_checkpoint().height(),
+        })
+    })
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxTxDetailInput {
+    pub coinbase: bool,
+    pub txid: String,
+    pub vout: u32,
+    pub sequence: u32,
+    /// Prevout data when the wallet's tx graph knows the funding output
+    /// (always true for the wallet's own spends).
+    pub prev_address: Option<String>,
+    pub prev_value_sat: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxTxDetailOutput {
+    pub n: u32,
+    pub address: Option<String>,
+    pub op_return: bool,
+    pub value_sat: u64,
+    pub script_hex: String,
+    pub script_asm: String,
+}
+
+/// Everything the transaction-detail page shows, served on demand from the
+/// synced BDK graph — the remote-mode stand-in for Core's gettransaction +
+/// verbose getrawtransaction.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxTxDetail {
+    pub txid: String,
+    pub wtxid: String,
+    pub raw_hex: String,
+    pub size: u64,
+    pub vsize: u64,
+    pub weight: u64,
+    pub version: i32,
+    pub locktime: u32,
+    pub direction: String,
+    pub amount_sat: u64,
+    pub fee_sat: Option<u64>,
+    pub confirmations: u64,
+    pub timestamp: Option<u64>,
+    pub block_height: Option<u32>,
+    pub block_hash: Option<String>,
+    pub rbf: bool,
+    pub inputs: Vec<BtcxTxDetailInput>,
+    pub outputs: Vec<BtcxTxDetailOutput>,
+}
+
+#[tauri::command]
+pub fn btcx_wallet_tx_detail(
+    state: State<'_, SharedBtcxWalletState>,
+    txid: String,
+) -> Result<BtcxTxDetail, String> {
+    let network = state.get_config().network;
+    let txid: bitcoin::Txid = txid.parse().map_err(|e| format!("invalid txid: {e}"))?;
+    state.with_entry(|entry| {
+        use bdk_wallet::chain::ChainPosition;
+        let wtx = entry
+            .wallet
+            .get_tx(txid)
+            .ok_or_else(|| "transaction not found in wallet history".to_string())?;
+        let tip = entry.wallet.latest_checkpoint().height();
+        let (confirmations, timestamp, block_height, block_hash) = match wtx.chain_position {
+            ChainPosition::Confirmed { anchor, .. } => (
+                u64::from((tip + 1).saturating_sub(anchor.block_id.height)),
+                Some(anchor.confirmation_time),
+                Some(anchor.block_id.height),
+                Some(anchor.block_id.hash.to_string()),
+            ),
+            ChainPosition::Unconfirmed {
+                first_seen,
+                last_seen,
+            } => (0, first_seen.or(last_seen), None, None),
+        };
+        let tx = wtx.tx_node.tx.clone();
+        let (sent, received) = entry.wallet.sent_and_received(&tx);
+        let (sent, received) = (sent.to_sat(), received.to_sat());
+        let fee = entry.wallet.calculate_fee(&tx).ok().map(|a| a.to_sat());
+        let (direction, amount_sat) = if sent > received {
+            let net_out = sent - received;
+            ("sent", net_out - fee.unwrap_or(0).min(net_out))
+        } else {
+            ("received", received - sent)
+        };
+        let graph = entry.wallet.tx_graph();
+        let coinbase = tx.is_coinbase();
+        let inputs = tx
+            .input
+            .iter()
+            .map(|txin| {
+                let prev = graph.get_txout(txin.previous_output);
+                BtcxTxDetailInput {
+                    coinbase,
+                    txid: txin.previous_output.txid.to_string(),
+                    vout: txin.previous_output.vout,
+                    sequence: txin.sequence.0,
+                    prev_address: prev
+                        .and_then(|o| super::psbt::spk_to_address(network, &o.script_pubkey)),
+                    prev_value_sat: prev.map(|o| o.value.to_sat()),
+                }
+            })
+            .collect();
+        let outputs = tx
+            .output
+            .iter()
+            .enumerate()
+            .map(|(n, out)| BtcxTxDetailOutput {
+                n: n as u32,
+                address: super::psbt::spk_to_address(network, &out.script_pubkey),
+                op_return: out.script_pubkey.is_op_return(),
+                value_sat: out.value.to_sat(),
+                script_hex: format!("{:x}", out.script_pubkey),
+                script_asm: out.script_pubkey.to_asm_string(),
+            })
+            .collect();
+        Ok(BtcxTxDetail {
+            txid: txid.to_string(),
+            wtxid: tx.compute_wtxid().to_string(),
+            raw_hex: bitcoin::consensus::encode::serialize_hex(&*tx),
+            size: tx.total_size() as u64,
+            vsize: tx.vsize() as u64,
+            weight: tx.weight().to_wu(),
+            version: tx.version.0,
+            locktime: tx.lock_time.to_consensus_u32(),
+            direction: direction.into(),
+            amount_sat,
+            fee_sat: fee,
+            confirmations,
+            timestamp,
+            block_height,
+            block_hash,
+            rbf: tx.is_explicitly_rbf(),
+            inputs,
+            outputs,
         })
     })
 }

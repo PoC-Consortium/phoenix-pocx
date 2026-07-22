@@ -306,7 +306,8 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
                   mat-raised-button
                   color="primary"
                   class="full-width action-button"
-                  [disabled]="!forgingValid() || busy()"
+                  [disabled]="!forgingValid() || busy() || watchOnly()"
+                  [matTooltip]="watchOnly() ? ('watch_only' | i18n) : ''"
                   (click)="create()"
                 >
                   @if (busy()) {
@@ -326,7 +327,8 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
                 <button
                   mat-stroked-button
                   class="full-width action-button revoke-button"
-                  [disabled]="busy()"
+                  [disabled]="busy() || watchOnly()"
+                  [matTooltip]="watchOnly() ? ('watch_only' | i18n) : ''"
                   (click)="revoke()"
                 >
                   @if (busy()) {
@@ -453,12 +455,15 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
         width: 100%;
       }
 
+      /* Desktop rhythm — matches the send page's label/field spacing: the
+         field keeps a little subscript air and sections separate clearly.
+         The phone tier re-compresses below. */
       .slim-field {
-        margin-bottom: -8px;
+        margin-bottom: 0;
       }
 
       .section-divider {
-        margin: 12px 0;
+        margin: 18px 0;
       }
 
       /* Send-page section label (uppercase mini-header above the input
@@ -469,7 +474,7 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
         color: rgb(0, 35, 65);
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin: 0 0 4px;
+        margin: 4px 0 8px;
       }
 
       .hint-text {
@@ -789,6 +794,15 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
           display: none;
         }
 
+        /* Phone re-compresses to the exact mobile rhythm. */
+        .slim-field {
+          margin-bottom: -8px;
+        }
+
+        .section-divider {
+          margin: 12px 0;
+        }
+
         .fee-header .fee-title {
           font-size: 11px;
           letter-spacing: 0.4px;
@@ -806,6 +820,10 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   readonly wallet = inject(BtcxWalletService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
+
+  /** Watch-only Core wallet: no private keys, so create/revoke are disabled
+   *  (send is nav-hidden for these wallets; assignment stays viewable). */
+  readonly watchOnly = computed(() => this.walletService.activeWatchOnly());
   private readonly walletRpc = inject(WalletRpcService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly miningRpc = inject(MiningRpcService);
@@ -947,10 +965,18 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     try {
       let addresses: string[];
       if (this.isRemote()) {
-        // Funded wallet addresses — non-change first, then change, deduped.
+        // Funded wallet addresses — non-change first, then change, deduped;
+        // the current receive address leads regardless of funding (a fresh
+        // wallet always has something to select).
         const utxos = await this.wallet.utxos();
         const sorted = [...utxos].sort((a, b) => Number(a.isChange) - Number(b.isChange));
         addresses = [];
+        try {
+          const current = await this.wallet.currentAddress();
+          if (current) addresses.push(current);
+        } catch {
+          // no current address (e.g. spend-only) — funded list only
+        }
         for (const utxo of sorted) {
           if (utxo.address && !addresses.includes(utxo.address)) {
             addresses.push(utxo.address);
@@ -959,13 +985,49 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       } else {
         const walletName = this.walletManager.activeWallet;
         if (!walletName) return;
-        // Receiving addresses (empty label), SegWit v0 only — bech32
-        // starting with bc1q/tb1q or pocx1q/tpocx1q (the node's assignment
-        // RPCs reject everything else).
-        const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
-        addresses = Object.keys(addressMap).filter(address =>
-          /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(address)
-        );
+        // FUNDED addresses via listunspent — matching the remote path's
+        // semantics (the plot address must hold a coin anyway) and, unlike
+        // the address book, rescan-discovered funds of a REIMPORTED
+        // descriptor wallet show up here. SegWit v0 only — the node's
+        // assignment RPCs reject everything else.
+        const utxos = await this.walletRpc.listUnspent(walletName);
+        const seen = new Set<string>();
+        addresses = [];
+        // The FIRST derivation of every external receive chain leads the
+        // list regardless of funding (plots typically bind to it; a fresh
+        // wallet always has something to select) — active current-coin-type
+        // chain first, then legacy restore chains.
+        try {
+          const { descriptors } = await this.walletRpc.listDescriptors(walletName);
+          const sorted = [...descriptors].sort(
+            (a, b) => Number(b.active ?? false) - Number(a.active ?? false)
+          );
+          for (const d of sorted) {
+            if (d.internal || !d.desc.startsWith('wpkh(')) continue;
+            const derived = await this.walletRpc.deriveAddresses(d.desc, [0, 0]);
+            const first = derived[0];
+            if (
+              first &&
+              !seen.has(first) &&
+              /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(first)
+            ) {
+              seen.add(first);
+              addresses.push(first);
+            }
+          }
+        } catch {
+          // pre-descriptor wallet — funded list below is all there is
+        }
+        for (const utxo of utxos) {
+          if (
+            utxo.address &&
+            !seen.has(utxo.address) &&
+            /^(bc1q|tb1q|pocx1q|tpocx1q)[a-z0-9]{38,}$/i.test(utxo.address)
+          ) {
+            seen.add(utxo.address);
+            addresses.push(utxo.address);
+          }
+        }
       }
       this.walletAddresses.set(addresses);
       if (!this.plotAddress && addresses.length > 0) {

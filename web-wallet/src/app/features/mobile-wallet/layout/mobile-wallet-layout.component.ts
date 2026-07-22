@@ -1363,7 +1363,14 @@ export class MobileWalletLayoutComponent implements OnInit {
       groups.push({
         id: 'mining',
         titleKey: 'mining',
-        items: [{ path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' }],
+        items: [
+          // Mining dashboard in the menu whenever this build/mode actually
+          // mines (hybrid mobile) — same destination as the bottom tab.
+          ...(this.appMode.miningEnabled()
+            ? [{ path: '/wallet/mining', icon: 'memory', labelKey: 'mining_dashboard' }]
+            : []),
+          { path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' },
+        ],
       });
     }
 

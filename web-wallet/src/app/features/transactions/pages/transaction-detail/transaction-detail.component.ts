@@ -21,6 +21,7 @@ import {
   WalletTransaction,
 } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
+import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import {
   BlockchainRpcService,
   Transaction,
@@ -447,7 +448,9 @@ type OutputReference =
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 24px;
+        min-height: var(--menu-balance-h);
+        box-sizing: border-box;
+        padding: 0 24px;
         display: flex;
         align-items: center;
 
@@ -458,7 +461,7 @@ type OutputReference =
 
           h1 {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 300;
           }
         }
@@ -1016,6 +1019,7 @@ export class TransactionDetailComponent implements OnInit {
   private readonly walletService = inject(WalletService);
   private readonly walletRpc = inject(WalletRpcService);
   private readonly backendRouter = inject(BackendRouterService);
+  private readonly btcxWallet = inject(BtcxWalletService);
   private readonly blockchainRpc = inject(BlockchainRpcService);
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
@@ -1050,19 +1054,73 @@ export class TransactionDetailComponent implements OnInit {
       return;
     }
 
-    // Remote (Electrum) mode: gettransaction/getrawtransaction have no
-    // equivalent — render the essentials from the wallet's cached history.
+    // Remote (Electrum) mode: the synced BDK graph holds the complete tx —
+    // btcx_wallet_tx_detail serves it on demand, mapped into the SAME wallet
+    // + raw shapes Core's gettransaction/getrawtransaction fill, so the whole
+    // template (in/outputs, block info, raw hex, PoCX markers) just renders.
     if (this.backendRouter.isRemote()) {
       try {
-        const txs = await this.backendRouter.wallet().listTransactions(walletName, 999999, 0);
-        const cached = txs.find(t => t.txid === txid);
-        if (!cached) {
-          this.error.set('Transaction not found in wallet history');
-          return;
-        }
-        this.tx.set({ wallet: { ...cached, hex: '' }, raw: null });
+        const d = await this.btcxWallet.txDetail(txid);
+        const coinbase = d.inputs.some(i => i.coinbase);
+        const sign = d.direction === 'sent' ? -1 : 1;
+        const walletTx: WalletTransaction & { hex?: string } = {
+          txid: d.txid,
+          wtxid: d.wtxid,
+          category: d.direction === 'sent' ? 'send' : coinbase ? 'generate' : 'receive',
+          amount: (sign * d.amountSat) / 1e8,
+          fee: d.direction === 'sent' && d.feeSat !== null ? -d.feeSat / 1e8 : undefined,
+          confirmations: d.confirmations,
+          blockhash: d.blockHash ?? undefined,
+          blockheight: d.blockHeight ?? undefined,
+          blocktime: d.timestamp ?? undefined,
+          time: d.timestamp ?? 0,
+          timereceived: d.timestamp ?? 0,
+          bip125_replaceable: d.rbf ? 'yes' : 'no',
+          hex: d.rawHex,
+        };
+        const raw: Transaction = {
+          txid: d.txid,
+          hash: d.wtxid,
+          version: d.version,
+          size: d.size,
+          vsize: d.vsize,
+          weight: d.weight,
+          locktime: d.locktime,
+          hex: d.rawHex,
+          vin: d.inputs.map(i => ({
+            txid: i.txid,
+            vout: i.vout,
+            sequence: i.sequence,
+            coinbase: i.coinbase ? i.txid : undefined,
+            prevout:
+              i.prevValueSat !== null || i.prevAddress
+                ? {
+                    generated: false,
+                    height: 0,
+                    value: (i.prevValueSat ?? 0) / 1e8,
+                    scriptPubKey: {
+                      asm: '',
+                      hex: '',
+                      address: i.prevAddress ?? undefined,
+                      type: 'witness_v0_keyhash',
+                    },
+                  }
+                : undefined,
+          })),
+          vout: d.outputs.map(o => ({
+            value: o.valueSat / 1e8,
+            n: o.n,
+            scriptPubKey: {
+              asm: o.scriptAsm,
+              hex: o.scriptHex,
+              address: o.address ?? undefined,
+              type: o.opReturn ? 'nulldata' : o.address ? 'witness_v0_keyhash' : 'unknown',
+            },
+          })),
+        };
+        this.tx.set({ wallet: walletTx, raw });
         this.computeValues();
-        await this.detectPocxMarkers({ ...cached, hex: '' }, null);
+        await this.detectPocxMarkers(walletTx, raw);
       } catch (err) {
         this.error.set(err instanceof Error ? err.message : 'Failed to load transaction');
       } finally {

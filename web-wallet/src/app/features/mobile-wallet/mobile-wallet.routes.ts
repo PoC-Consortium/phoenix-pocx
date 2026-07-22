@@ -71,6 +71,13 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        path: 'history/:txid',
+        loadComponent: () =>
+          import('../../features/transactions/pages/transaction-detail/transaction-detail.component').then(
+            m => m.TransactionDetailComponent
+          ),
+      },
+      {
         // Unified responsive coins/balance-details page — the same component
         // the desktop /coins route uses (features/coins).
         path: 'coins',
@@ -105,6 +112,17 @@ export const MOBILE_WALLET_ROUTES: Routes = [
         path: 'psbt',
         loadComponent: () =>
           import('../../features/psbt/pages/psbt/psbt.component').then(m => m.PsbtComponent),
+      },
+      {
+        // Mining dashboard IN the wallet shell (drawer + toolbar) for the
+        // hybrid flavors — the bare /miner mining-layout stays for
+        // mining-only mode. Wallet-only has no mining commands.
+        path: 'mining',
+        canActivate: [notWalletOnlyGuard],
+        loadComponent: () =>
+          import('../../mining/pages/mining-dashboard/mining-dashboard.component').then(
+            m => m.MiningDashboardComponent
+          ),
       },
       {
         path: 'settings',
