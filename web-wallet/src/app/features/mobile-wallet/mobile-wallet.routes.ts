@@ -44,9 +44,13 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        // Unified responsive receive page — the same component the desktop
+        // /receive route uses. WalletReceiveComponent is retired.
         path: 'receive',
         loadComponent: () =>
-          import('./pages/receive/wallet-receive.component').then(m => m.WalletReceiveComponent),
+          import('../../features/receive/pages/receive/receive.component').then(
+            m => m.ReceiveComponent
+          ),
       },
       {
         path: 'send',
