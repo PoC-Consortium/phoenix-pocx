@@ -301,6 +301,8 @@ import {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       /* Fill the routed content column (desktop main-layout .page-wrapper /
          mobile-wallet-layout .wallet-content are both flex columns with a
          bounded height) so the list card can flex into the leftover viewport
@@ -748,7 +750,7 @@ import {
 
       // Responsive — reflow the table to stacked cards below 600px (tablet
       // portrait, phone). The full address wraps (word-break) at full width.
-      @media (max-width: 600px) {
+      @include bp.phone {
         /* Band height comes from --menu-balance-h (shrinks to the mobile
            balance-block height here) — in tandem with the menu balance block
            and the coins page. Only edge padding + title change. */
