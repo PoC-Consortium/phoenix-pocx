@@ -1267,29 +1267,67 @@ import { MiningService } from '../../../../mining/services';
          specific selectors (some with !important), and a same-specificity
          tie is decided by source order. */
       @include bp.phone {
+        /* Exact old-mobile card spec (the retired wallet-home): title 15px
+           with a 20px icon, uniform 16px card padding, 28px amount with a
+           15px unit, 13px breakdown rows at 3px rhythm. Material's card
+           header brings its own min-height/typography — flatten it. */
         .blockchain-status-card mat-card-header,
         .total-balance-card mat-card-header,
         .transactions-card mat-card-header,
         .mine-hint-card mat-card-header {
-          padding: 10px 16px 0 16px !important;
+          padding: 14px 16px 0 16px !important;
+          min-height: 0;
+        }
+
+        .blockchain-status-card mat-card-title,
+        .total-balance-card mat-card-title,
+        .transactions-card mat-card-title,
+        .mine-hint-card mat-card-title {
+          font-size: 15px !important;
+          line-height: 20px !important;
+
+          mat-icon {
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+          }
         }
 
         .blockchain-status-card mat-card-content,
         .total-balance-card mat-card-content {
-          padding: 8px 16px 12px 16px !important;
+          padding: 10px 16px 16px 16px !important;
+        }
+
+        .total-balance-card .coins-link-btn {
+          width: 32px;
+          height: 32px;
+          padding: 0;
         }
 
         .total-balance-card .total-balance {
           font-size: 28px;
-          margin-bottom: 8px;
+          margin-bottom: 10px;
+
+          .unit {
+            font-size: 15px;
+          }
         }
 
         .total-balance-card .balance-breakdown {
-          padding-top: 8px;
+          padding-top: 10px;
 
           .breakdown-item {
-            padding: 2px 0;
+            padding: 3px 0;
+
+            .label,
+            .value {
+              font-size: 13px;
+            }
           }
+        }
+
+        .blockchain-status-card .blockchain-info {
+          gap: 8px 12px;
         }
       }
     `,
