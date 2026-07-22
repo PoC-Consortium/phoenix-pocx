@@ -1914,7 +1914,9 @@ pub struct BtcxTxProbe {
 }
 
 #[tauri::command]
-pub fn btcx_wallet_tx_probe(state: State<'_, SharedBtcxWalletState>) -> Result<BtcxTxProbe, String> {
+pub fn btcx_wallet_tx_probe(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<BtcxTxProbe, String> {
     state.with_entry(|entry| {
         Ok(BtcxTxProbe {
             total: entry.wallet.transactions().count(),
