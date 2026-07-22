@@ -12,7 +12,6 @@ import {
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
-import { AppModeService } from '../../../../core/services/app-mode.service';
 
 /**
  * CoinsComponent — the ONE responsive "Coins & Addresses" (Balance details)
@@ -62,6 +61,8 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       /* Fill the routed content column (desktop main-layout / mobile-wallet-
          layout are both bounded flex columns) so the list card can flex into
          the leftover viewport height — giving the coins list a measurable
@@ -188,7 +189,7 @@ import { AppModeService } from '../../../../core/services/app-mode.service';
         }
       }
 
-      @media (max-width: 600px) {
+      @include bp.phone {
         /* Band height comes from --menu-balance-h (shrinks to the mobile
            balance-block height at this breakpoint). Only the edge padding and
            title size change here. */
@@ -215,7 +216,6 @@ export class CoinsComponent {
   private readonly backend = inject(BackendRouterService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly btcxWallet = inject(BtcxWalletService);
-  private readonly appMode = inject(AppModeService);
   private readonly location = inject(Location);
 
   readonly rows = signal<AddressBalance[]>([]);
@@ -244,26 +244,12 @@ export class CoinsComponent {
     void this.loadCoins();
   }
 
-  /**
-   * The wallet name to query, resolved per shell. The mobile-wallet route
-   * (and every nodeless launch) reads the reactive BTCX status name — always
-   * populated once the wallet is open, and the Electrum backend's listCoins
-   * ignores the argument anyway (it uses the single open BDK wallet). The
-   * desktop shell (Core/managed, or desktop remote mode) reads the wallet
-   * manager's active wallet: BtcxWalletService.walletName() is NOT reliably
-   * populated there — the btcx service is only initialized in nodeless/remote
-   * mode, so in Core mode it would fall back to the literal 'default', which
-   * Core RPC's listCoins would reject. WalletManagerService.activeWallet holds
-   * the real Core wallet name (and the remote group id, which the Electrum
-   * backend ignores).
-   */
-  private resolveWalletName(): string | undefined {
-    if (this.appMode.isNodeless()) return this.btcxWallet.walletName();
-    return this.walletManager.activeWallet ?? undefined;
-  }
-
   private async loadCoins(): Promise<void> {
-    const walletName = this.resolveWalletName();
+    // One wallet-identity source for every shell: the manager's active wallet
+    // (Core wallet name, or the remote group id the Electrum backend ignores).
+    // In the nodeless shell it is fed by the manager's btcx bridge — the
+    // per-page resolveWalletName() fallback this replaced is gone for good.
+    const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
     // Spinner only while the list is still empty — background refreshes update

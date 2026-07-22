@@ -21,6 +21,7 @@ import {
 } from '../../../core/services/btcx-wallet.service';
 import { ElectrumStatusService } from '../../../core/services/electrum-status.service';
 import { AppModeService } from '../../../core/services/app-mode.service';
+import { ViewportService } from '../../../core/services/viewport.service';
 import { BtcxPipe, TimeAgoPipe } from '../../../shared/pipes';
 import { NotificationService } from '../../../shared/services';
 import {
@@ -106,7 +107,16 @@ interface NavGroup {
   template: `
     <mat-sidenav-container class="wallet-layout">
       <!-- Navigation drawer (the desktop main-layout sidenav, mobile-sized) -->
-      <mat-sidenav #drawer mode="over" class="drawer" [fixedInViewport]="false">
+      <!-- Menu behavior is the shared app-wide rule (ViewportService.menuOverlay):
+           overlay + hamburger up to the tablet tier, docked-open above it —
+           identical to the desktop main-layout sidenav. -->
+      <mat-sidenav
+        #drawer
+        [mode]="viewport.menuOverlay() ? 'over' : 'side'"
+        [opened]="!viewport.menuOverlay()"
+        class="drawer"
+        [fixedInViewport]="false"
+      >
         <div class="drawer-header">
           <img src="assets/images/logos/phoenix_v.svg" alt="Phoenix" class="drawer-logo" />
           <span class="drawer-title">Phoenix Wallet</span>
@@ -132,7 +142,7 @@ interface NavGroup {
               routerLink="/wallet"
               routerLinkActive="active"
               [routerLinkActiveOptions]="{ exact: true }"
-              (click)="drawer.close()"
+              (click)="viewport.menuOverlay() && drawer.close()"
             >
               <mat-icon matListItemIcon>dashboard</mat-icon>
               <span matListItemTitle>{{ 'dashboard' | i18n }}</span>
@@ -151,7 +161,7 @@ interface NavGroup {
                     routerLinkActive="active"
                     [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
                     [class.nav-disabled]="disabled"
-                    (click)="!disabled && drawer.close()"
+                    (click)="!disabled && viewport.menuOverlay() && drawer.close()"
                   >
                     <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                     <span matListItemTitle>{{ item.labelKey | i18n }}</span>
@@ -169,7 +179,7 @@ interface NavGroup {
               mat-list-item
               routerLink="/wallet/settings"
               routerLinkActive="active"
-              (click)="drawer.close()"
+              (click)="viewport.menuOverlay() && drawer.close()"
             >
               <mat-icon matListItemIcon>settings</mat-icon>
               <span matListItemTitle>{{ 'settings' | i18n }}</span>
@@ -1219,6 +1229,7 @@ export class MobileWalletLayoutComponent implements OnInit {
   readonly i18n = inject(I18nService);
   readonly wallet = inject(BtcxWalletService);
   readonly electrumStatus = inject(ElectrumStatusService);
+  readonly viewport = inject(ViewportService);
   private readonly appMode = inject(AppModeService);
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);

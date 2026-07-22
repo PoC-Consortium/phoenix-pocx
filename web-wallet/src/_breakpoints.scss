@@ -1,0 +1,47 @@
+// Application-wide responsive breakpoints — the SINGLE source of truth.
+//
+// Values mirror the mining dashboard (the reference layout that renders on all
+// devices): three WIDTH tiers for horizontal collapse + one HEIGHT tier for
+// short screens. Import in any component's inline styles with:
+//
+//     @use 'breakpoints' as bp;
+//     :host { ... }
+//     @include bp.phone { ... }        // <= 600px
+//     @include bp.tablet-down { ... }  // <= 900px
+//     @include bp.desktop-down { ... } // <= 1100px
+//     @include bp.short { ... }        // <= 700px tall
+//
+// Change a number here and every page follows. Never hand-type these pixels.
+
+$phone: 600px; // -> single column / phone
+$tablet: 900px; // desktop grid -> stacked (tablet / narrow desktop)
+$desktop: 1100px; // widest multi-column -> fewer columns
+$short: 700px; // short viewport (landscape phone, short laptop, small window)
+
+// Width tiers (max-width, desktop-first — the layout shrinks at each).
+@mixin phone {
+  @media (max-width: $phone) {
+    @content;
+  }
+}
+
+@mixin tablet-down {
+  @media (max-width: $tablet) {
+    @content;
+  }
+}
+
+@mixin desktop-down {
+  @media (max-width: $desktop) {
+    @content;
+  }
+}
+
+// Height tier — a window can be wide but SHORT; this is orthogonal to width.
+// Use it on views that flex-fill the viewport height so they switch to
+// fixed-height sections + scroll instead of squishing.
+@mixin short {
+  @media (max-height: $short) {
+    @content;
+  }
+}

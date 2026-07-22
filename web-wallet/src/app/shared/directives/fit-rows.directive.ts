@@ -31,6 +31,13 @@ import {
 export class FitRowsDirective implements AfterViewInit, OnDestroy {
   /** Selector of one row inside the container (its live height is used). */
   readonly fitRowSelector = input('.tx-item');
+  /**
+   * Optional selector of a non-row header INSIDE the container (e.g. a
+   * table's `thead`). Its height is subtracted from the container before
+   * dividing, so the header doesn't get counted as row space. No match
+   * (or empty selector) subtracts nothing.
+   */
+  readonly fitHeaderSelector = input('');
   /** Readability floor: never report fewer rows than this. */
   readonly fitMinRows = input(1);
   /** Sanity ceiling for very tall screens. */
@@ -83,7 +90,10 @@ export class FitRowsDirective implements AfterViewInit, OnDestroy {
     const host = this.el.nativeElement;
     const rows = host.querySelectorAll<HTMLElement>(this.fitRowSelector());
     const rowHeight = this.rowStride(rows);
-    const raw = host.clientHeight / rowHeight;
+    const headerSelector = this.fitHeaderSelector();
+    const header = headerSelector ? host.querySelector<HTMLElement>(headerSelector) : null;
+    const available = host.clientHeight - (header?.getBoundingClientRect().height ?? 0);
+    const raw = available / rowHeight;
     const min = this.fitMinRows();
     const max = this.fitMaxRows();
     let fit = Math.min(max, Math.max(min, Math.floor(raw)));

@@ -1,10 +1,11 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, effect, inject, untracked } from '@angular/core';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { WalletRpcService, WalletInfo, ImportResult } from '../rpc/wallet-rpc.service';
 import { BlockchainRpcService, ScanTxOutSetObject } from '../rpc/blockchain-rpc.service';
 import { DescriptorService, WalletDescriptors } from './descriptor.service';
 import { BTCX_COIN_TYPE, BtcxWalletService } from '../../../core/services/btcx-wallet.service';
 import { NodeService } from '../../../node/services/node.service';
+import { AppModeService } from '../../../core/services/app-mode.service';
 
 /**
  * Wallet creation options
@@ -162,6 +163,7 @@ export class WalletManagerService {
   private readonly descriptorService = inject(DescriptorService);
   private readonly btcxWallet = inject(BtcxWalletService);
   private readonly nodeService = inject(NodeService);
+  private readonly appMode = inject(AppModeService);
 
   private readonly loadedWalletsSubject = new BehaviorSubject<string[]>([]);
   private readonly activeWalletSubject = new BehaviorSubject<string | null>(null);
@@ -188,6 +190,52 @@ export class WalletManagerService {
   /** Get loaded wallets */
   get loadedWallets(): string[] {
     return this.loadedWalletsSubject.value;
+  }
+
+  // ============================================================
+  // Nodeless wallet-identity bridge
+  // ============================================================
+
+  /**
+   * Monotonic sequence for the bridge syncs — a newer btcx change
+   * supersedes an in-flight older one (latest wins, no clobbering).
+   */
+  private bridgeSeq = 0;
+
+  constructor() {
+    // The wallet-only / mobile shell drives BtcxWalletService directly (its
+    // drawer switcher calls btcxWallet.select()) and has no wallet-select /
+    // toolbar flow to populate THIS service. Everything built on the seam
+    // (WalletService and with it the dashboard) keys on `activeWallet`, so
+    // mirror the open btcx pocket into the manager whenever it changes:
+    // pocket → group id via refreshLoadedWallets(), adopted as the active
+    // wallet. Desktop shells (managed AND remote) keep their explicit flows —
+    // the bridge only runs in the nodeless shell, where nothing else drives
+    // the manager. This is the root fix that lets ONE shared page work in
+    // every shell without per-page wallet-name fallbacks.
+    effect(() => {
+      if (!this.appMode.isNodeless()) return;
+      // Track only the open-pocket identity; everything else runs untracked.
+      this.btcxWallet.walletActive();
+      this.btcxWallet.walletName();
+      untracked(() => void this.syncActiveFromBtcx());
+    });
+  }
+
+  /** Mirror the btcx open pocket (or its absence) into loaded/active wallet. */
+  private async syncActiveFromBtcx(): Promise<void> {
+    const seq = ++this.bridgeSeq;
+    try {
+      const loaded = await this.refreshLoadedWallets();
+      if (seq !== this.bridgeSeq) return; // superseded by a newer change
+      const next = loaded[0] ?? null;
+      if (next !== this.activeWallet) {
+        this.setActiveWallet(next);
+      }
+    } catch {
+      // Status refresh failed (e.g. the runtime is briefly closed mid-switch)
+      // — keep the current active wallet; the next signal change retries.
+    }
   }
 
   // ============================================================

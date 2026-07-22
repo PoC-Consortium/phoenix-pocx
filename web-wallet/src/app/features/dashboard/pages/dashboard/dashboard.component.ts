@@ -3,7 +3,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   Injector,
-  ViewChild,
   computed,
   effect,
   inject,
@@ -11,14 +10,18 @@ import {
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { DecimalPipe } from '@angular/common';
-import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { FitRowsDirective, FitTextDirective } from '../../../../shared/directives';
+import { TxRowComponent } from '../../../mobile-wallet/components/tx-row/tx-row.component';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
@@ -27,11 +30,20 @@ import {
   WalletRpcService,
 } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BackendRouterService } from '../../../../core/backend/backend-router.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
+import { ViewportService } from '../../../../core/services/viewport.service';
+import {
+  BtcxWalletService,
+  BtcxWalletTx,
+  RECENT_TX_LIMIT,
+} from '../../../../core/services/btcx-wallet.service';
+import { NodeService } from '../../../../node/services/node.service';
 import { BlockchainStateService } from '../../../../bitcoin/services/blockchain-state.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import {
   ClipboardService,
+  ContactsStoreService,
   NotificationService,
   BlockExplorerService,
 } from '../../../../shared/services';
@@ -46,355 +58,622 @@ import {
   AbandonTxDialogData,
   AbandonTxDialogResult,
 } from '../../../transactions/components/abandon-tx-dialog/abandon-tx-dialog.component';
+import { MiningService } from '../../../../mining/services';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    FormsModule,
+    RouterModule,
+    MatFormFieldModule,
+    MatInputModule,
     MatCardModule,
     MatIconModule,
     MatProgressSpinnerModule,
     MatButtonModule,
     MatMenuModule,
     MatDividerModule,
-    MatPaginatorModule,
+    FitRowsDirective,
+    FitTextDirective,
+    TxRowComponent,
     MatTooltipModule,
     I18nPipe,
     DecimalPipe,
     BtcxPipe,
   ],
   template: `
-    <div class="bitcoin-dashboard">
-      <!-- Blockchain Status Card -->
-      <mat-card class="blockchain-status-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>link</mat-icon>
-            {{ 'bitcoin_pocx_network' | i18n }}
-          </mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @if (isLoadingBlockchain() && !hasLoadedBlockchain()) {
-            <div class="loading-state">
-              <mat-spinner diameter="24"></mat-spinner>
-              <span>{{ 'loading_blockchain_info' | i18n }}</span>
-            </div>
-          } @else if (blockchainInfo()) {
-            <div class="blockchain-info">
-              <div class="info-item">
-                <span class="label">{{ 'chain' | i18n }}:</span>
-                <span class="value">{{ getChainName() }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ 'status' | i18n }}:</span>
-                <span
-                  class="value"
-                  [class.syncing]="syncState().phase !== 'synced'"
-                  [class.synced]="syncState().phase === 'synced'"
-                >
-                  {{ getSyncStateWithProgress() }}
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ 'current_block_height' | i18n }}:</span>
-                <span class="value">{{ blockchainInfo().blocks | number }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ 'network_capacity' | i18n }}:</span>
-                <span class="value">{{ getNetworkCapacity() }}</span>
-              </div>
-              <div class="info-item">
-                <span class="label">{{ 'last_block_time' | i18n }}:</span>
-                <span class="value">{{ getLastBlockTime() }}</span>
-              </div>
-            </div>
-          }
-        </mat-card-content>
-      </mat-card>
-
-      <!-- Total Balance Card -->
-      <mat-card class="total-balance-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>account_balance_wallet</mat-icon>
-            {{ 'total_balance' | i18n }}
-          </mat-card-title>
-          <button
-            mat-icon-button
-            class="coins-link-btn"
-            (click)="goToCoins()"
-            [matTooltip]="'coins_title' | i18n"
-          >
-            <mat-icon>toll</mat-icon>
-          </button>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="total-balance">
-            <span class="amount">{{ getTotalAll() | btcx }}</span>
-            <span class="unit">BTCX</span>
+    <!-- Nodeless-shell states (mobile / wallet-only): the btcx wallet may
+         need onboarding, an unlock, or an Electrum server before there is
+         anything to dash-board. Core-mode shells never enter this branch
+         (their auth flow gates the route instead). Ported verbatim from the
+         retired WalletHomeComponent. -->
+    @if (nodelessGate()) {
+      <div class="nodeless-state">
+        @if (!btcxWallet.initialized() && btcxWallet.isLoading()) {
+          <div class="state-loading">
+            <mat-spinner diameter="36"></mat-spinner>
           </div>
+        } @else if (btcxWallet.seedState() === 'none') {
+          <!-- Onboarding entry -->
+          <div class="state-card">
+            <h2>{{ 'mwallet_onboarding_title' | i18n }}</h2>
+            <p class="hint-text">{{ 'mwallet_onboarding_intro' | i18n }}</p>
 
-          <div class="balance-breakdown">
-            <div class="breakdown-item">
-              <span class="label">{{ 'confirmed' | i18n }}:</span>
-              <span class="value confirmed">{{ totalBalance() | btcx }} BTCX</span>
-            </div>
-            @if (pendingBalance() > 0) {
-              <div class="breakdown-item">
-                <span class="label">{{ 'pending' | i18n }}:</span>
-                <span class="value pending">{{ pendingBalance() | btcx }} BTCX</span>
-              </div>
-            }
-            @if (immatureBalance() > 0) {
-              <div class="breakdown-item">
-                <span class="label">{{ 'immature' | i18n }}:</span>
-                <span class="value immature">{{ immatureBalance() | btcx }} BTCX</span>
-              </div>
-            }
+            <button
+              mat-raised-button
+              color="primary"
+              class="full-width"
+              routerLink="/wallet/create"
+            >
+              <mat-icon>add</mat-icon>
+              {{ 'mwallet_create_wallet' | i18n }}
+            </button>
+            <p class="option-hint">{{ 'mwallet_create_wallet_hint' | i18n }}</p>
+
+            <button mat-stroked-button class="full-width" routerLink="/wallet/restore">
+              <mat-icon>restore</mat-icon>
+              {{ 'mwallet_restore_wallet' | i18n }}
+            </button>
+            <p class="option-hint">{{ 'mwallet_restore_wallet_hint' | i18n }}</p>
           </div>
-        </mat-card-content>
-      </mat-card>
+        } @else if (btcxWallet.seedState() === 'locked') {
+          <!-- Unlock form -->
+          <div class="state-card">
+            <h2>{{ 'mwallet_locked_title' | i18n }}</h2>
+            <p class="hint-text">{{ 'mwallet_locked_hint' | i18n }}</p>
 
-      <!-- Balance Chart Card -->
-      <mat-card class="balance-chart-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>show_chart</mat-icon>
-            {{ 'balance_history' | i18n }}
-          </mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @if (chartPoints().length > 1) {
-            <div class="chart-container">
-              <div class="y-axis-labels">
-                @for (label of yAxisLabels(); track $index) {
-                  <span class="y-label">{{ label }}</span>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>{{ 'mwallet_passphrase_label' | i18n }}</mat-label>
+              <input
+                matInput
+                type="password"
+                [(ngModel)]="unlockPassphrase"
+                (keyup.enter)="unlock()"
+                autocomplete="off"
+              />
+            </mat-form-field>
+
+            @if (unlockError()) {
+              <p class="error-text">{{ 'mwallet_unlock_failed' | i18n }}</p>
+            }
+
+            <button
+              mat-raised-button
+              color="primary"
+              class="full-width"
+              [disabled]="!unlockPassphrase || unlocking()"
+              (click)="unlock()"
+            >
+              @if (unlocking()) {
+                <mat-spinner diameter="20"></mat-spinner>
+              } @else {
+                <mat-icon>lock_open</mat-icon>
+              }
+              {{ 'unlock' | i18n }}
+            </button>
+          </div>
+        } @else {
+          <!-- No Electrum server configured -->
+          <div class="state-card empty-card">
+            <mat-icon class="empty-icon">cloud_off</mat-icon>
+            <h3>{{ 'mwallet_no_server_title' | i18n }}</h3>
+            <p class="hint-text">{{ 'mwallet_no_server_hint' | i18n }}</p>
+            <button mat-stroked-button routerLink="/wallet/settings">
+              <mat-icon>settings</mat-icon>
+              {{ 'mwallet_server_settings' | i18n }}
+            </button>
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="bitcoin-dashboard">
+        <!-- Blockchain Status Card -->
+        <mat-card class="blockchain-status-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>link</mat-icon>
+              {{ 'bitcoin_pocx_network' | i18n }}
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            @if (isLoadingBlockchain() && !hasLoadedBlockchain()) {
+              <div class="loading-state">
+                <mat-spinner diameter="24"></mat-spinner>
+                <span>{{ 'loading_blockchain_info' | i18n }}</span>
+              </div>
+            } @else if (blockchainInfo()) {
+              <div class="blockchain-info">
+                <div class="info-item detail-only">
+                  <span class="label">{{ 'chain' | i18n }}</span>
+                  <span class="value">{{ getChainName() }}</span>
+                </div>
+                <!-- Core-only: sync status is IBD/verification semantics. In
+                   Electrum mode it degenerates to a meaningless permanent
+                   "Synced" (the toolbar bolt shows real Electrum health). -->
+                @if (!isRemote()) {
+                  <div class="info-item detail-only">
+                    <span class="label">{{ 'status' | i18n }}</span>
+                    <span
+                      class="value"
+                      [class.syncing]="syncState().phase !== 'synced'"
+                      [class.synced]="syncState().phase === 'synced'"
+                    >
+                      {{ getSyncStateWithProgress() }}
+                    </span>
+                  </div>
                 }
-              </div>
-              <div class="chart-area">
-                <svg viewBox="0 0 280 100" preserveAspectRatio="none" class="balance-chart">
-                  <defs>
-                    <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" style="stop-color:rgba(66, 165, 245, 0.3)" />
-                      <stop offset="100%" style="stop-color:rgba(66, 165, 245, 0.02)" />
-                    </linearGradient>
-                  </defs>
-                  <!-- Grid lines -->
-                  @for (y of [20, 40, 60, 80]; track y) {
-                    <line
-                      [attr.x1]="0"
-                      [attr.y1]="y"
-                      [attr.x2]="280"
-                      [attr.y2]="y"
-                      stroke="rgba(255,255,255,0.1)"
-                      stroke-width="1"
-                    />
-                  }
-                  @for (x of getGridXPositions(); track x) {
-                    <line
-                      [attr.x1]="x"
-                      [attr.y1]="0"
-                      [attr.x2]="x"
-                      [attr.y2]="100"
-                      stroke="rgba(255,255,255,0.1)"
-                      stroke-width="1"
-                    />
-                  }
-                  <!-- Chart area and line -->
-                  <path [attr.d]="getChartAreaPath()" fill="url(#chartGradient)" />
-                  <path
-                    [attr.d]="getChartLinePath()"
-                    fill="none"
-                    stroke="#42a5f5"
-                    stroke-width="2"
-                  />
-                </svg>
-                <div class="chart-labels">
-                  @for (label of chartLabels(); track $index) {
-                    <span class="chart-label">{{ label }}</span>
-                  }
+                <div class="info-item">
+                  <span class="label">
+                    {{ (viewport.phone() ? 'height' : 'current_block_height') | i18n }}
+                  </span>
+                  <span class="value">{{ blockchainInfo().blocks | number }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="label">{{ 'network_capacity' | i18n }}</span>
+                  <span class="value">{{ getNetworkCapacity() }}</span>
+                </div>
+                <div class="info-item detail-only">
+                  <span class="label">{{ 'last_block_time' | i18n }}</span>
+                  <span class="value">{{ getLastBlockTime() }}</span>
                 </div>
               </div>
-            </div>
-          } @else {
-            <div class="chart-placeholder-text">
-              {{ 'no_transaction_history' | i18n }}
-            </div>
-          }
-        </mat-card-content>
-      </mat-card>
+            }
+          </mat-card-content>
+        </mat-card>
 
-      <!-- Transactions Card -->
-      <mat-card class="transactions-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>history</mat-icon>
-            {{ 'recent_transactions' | i18n }}
-          </mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @if (isLoadingTransactions() && !hasLoadedTransactions()) {
-            <div class="loading-state">
-              <mat-spinner diameter="24"></mat-spinner>
-              <span>{{ 'loading_transactions' | i18n }}</span>
-            </div>
-          } @else if (transactions().length === 0) {
-            <div class="empty-state">
-              <mat-icon>receipt_long</mat-icon>
-              <p>{{ 'no_transactions_yet' | i18n }}</p>
-            </div>
-          } @else {
-            <div class="transactions-table-container">
-              <table class="transactions-table">
-                <thead>
-                  <tr>
-                    <th class="col-datetime">{{ 'date' | i18n }}</th>
-                    <th class="col-type">{{ 'type' | i18n }}</th>
-                    <th class="col-amount">{{ 'amount' | i18n }}</th>
-                    <th class="col-account">{{ 'account' | i18n }}</th>
-                    <th class="col-status">{{ 'status' | i18n }}</th>
-                    <th class="col-txid">{{ 'transaction_id' | i18n }}</th>
-                    <th class="col-actions"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (tx of transactions(); track tx.txid + '-' + tx.vout + '-' + tx.category) {
-                    <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
-                      <td class="col-datetime">
-                        <div class="datetime-stack">
-                          <span class="date">{{ formatTxDate(tx) }}</span>
-                          <span class="time">{{ formatTxTime(tx) }}</span>
-                        </div>
-                      </td>
-                      <td class="col-type">
-                        <span class="type-badge">
-                          {{ getTransactionType(tx) }}
-                        </span>
-                      </td>
-                      <td class="col-amount">
-                        <span class="amount-badge">
-                          {{ formatTransactionAmount(tx) }}
-                        </span>
-                      </td>
-                      <td class="col-account">
-                        <span class="account-label">{{ getAccountLabel(tx) }}</span>
-                        <span class="address-text">{{ tx.address || '-' }}</span>
-                      </td>
-                      <td class="col-status">
-                        <span class="status-badge">{{ getConfirmationStatus(tx) }}</span>
-                      </td>
-                      <td class="col-txid">
-                        <span
-                          class="txid-text"
-                          (click)="viewTransactionDetails(tx)"
-                          [matTooltip]="'view_details' | i18n"
-                          >{{ tx.txid }}</span
-                        >
-                      </td>
-                      <td class="col-actions">
-                        <button
-                          mat-icon-button
-                          [matMenuTriggerFor]="txMenu"
-                          [attr.aria-label]="'actions' | i18n"
-                        >
-                          <mat-icon>more_vert</mat-icon>
-                        </button>
-                        <mat-menu #txMenu="matMenu">
-                          <button mat-menu-item (click)="copyToClipboard(tx.txid)">
-                            <mat-icon>file_copy</mat-icon>
-                            <span>{{ 'copy_transaction_id' | i18n }}</span>
-                          </button>
-                          @if (tx.address) {
-                            <button mat-menu-item (click)="copyToClipboard(tx.address)">
-                              <mat-icon>file_copy</mat-icon>
-                              <span>{{ 'copy_address' | i18n }}</span>
-                            </button>
-                          }
-                          <mat-divider></mat-divider>
-                          <button mat-menu-item (click)="openTransactionInExplorer(tx.txid)">
-                            <mat-icon>open_in_new</mat-icon>
-                            <span>{{ 'view_tx_in_explorer' | i18n }}</span>
-                          </button>
-                          @if (tx.address) {
-                            <button mat-menu-item (click)="openAddressInExplorer(tx.address)">
-                              <mat-icon>open_in_new</mat-icon>
-                              <span>{{ 'view_address_in_explorer' | i18n }}</span>
-                            </button>
-                          }
-                          <button mat-menu-item (click)="viewTransactionDetails(tx)">
-                            <mat-icon>info</mat-icon>
-                            <span>{{ 'transaction_details' | i18n }}</span>
-                          </button>
-                          @if (tx.address) {
-                            <mat-divider></mat-divider>
-                            <button mat-menu-item (click)="sendToAddress(tx.address)">
-                              <mat-icon>send</mat-icon>
-                              <span>{{ 'send_to_address' | i18n }}</span>
-                            </button>
-                            <button mat-menu-item (click)="addToContacts(tx)">
-                              <mat-icon>person_add</mat-icon>
-                              <span>{{ 'add_to_contacts' | i18n }}</span>
-                            </button>
-                          }
-                          @if (
-                            tx.confirmations === 0 &&
-                            tx.bip125_replaceable === 'yes' &&
-                            tx.category === 'send'
-                          ) {
-                            <mat-divider></mat-divider>
-                            <button mat-menu-item (click)="openBumpFeeDialog(tx)">
-                              <mat-icon>speed</mat-icon>
-                              <span>{{ 'bump_fee' | i18n }}</span>
-                            </button>
-                          }
-                          @if (tx.confirmations === 0 && tx.category === 'send') {
-                            @if (tx.bip125_replaceable !== 'yes') {
-                              <mat-divider></mat-divider>
-                            }
-                            <button mat-menu-item (click)="openAbandonDialog(tx)">
-                              <mat-icon>delete_forever</mat-icon>
-                              <span>{{ 'abandon_tx' | i18n }}</span>
-                            </button>
-                          }
-                        </mat-menu>
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-            <mat-paginator
-              [length]="allTransactions().length"
-              [pageSize]="txPageSize"
-              [pageSizeOptions]="txPageSizeOptions"
-              [showFirstLastButtons]="true"
-              (page)="onPageChange($event)"
+        <!-- Total Balance Card -->
+        <mat-card class="total-balance-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>account_balance_wallet</mat-icon>
+              {{ 'total_balance' | i18n }}
+            </mat-card-title>
+            <button
+              mat-icon-button
+              class="coins-link-btn"
+              (click)="goToCoins()"
+              [matTooltip]="'coins_title' | i18n"
             >
-            </mat-paginator>
-          }
-        </mat-card-content>
-      </mat-card>
-    </div>
+              <mat-icon>toll</mat-icon>
+            </button>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="total-balance" appFitText [fitTextMinPx]="16">
+              <span class="amount">{{ getTotalAll() | btcx }}</span>
+              <span class="unit">BTCX</span>
+            </div>
+
+            <div class="balance-breakdown">
+              <div class="breakdown-item">
+                <span class="label">{{ 'confirmed' | i18n }}:</span>
+                <span class="value confirmed">{{ totalBalance() | btcx }} BTCX</span>
+              </div>
+              @if (pendingBalance() > 0) {
+                <div class="breakdown-item">
+                  <span class="label">{{ 'pending' | i18n }}:</span>
+                  <span class="value pending">{{ pendingBalance() | btcx }} BTCX</span>
+                </div>
+              }
+              @if (immatureBalance() > 0) {
+                <div class="breakdown-item">
+                  <span class="label">{{ 'immature' | i18n }}:</span>
+                  <span class="value immature">{{ immatureBalance() | btcx }} BTCX</span>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Balance Chart Card -->
+        <mat-card class="balance-chart-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>show_chart</mat-icon>
+              {{ 'balance_history' | i18n }}
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            @if (chartPoints().length > 1) {
+              <div class="chart-container">
+                <div class="y-axis-labels">
+                  @for (label of yAxisLabels(); track $index) {
+                    <span class="y-label">{{ label }}</span>
+                  }
+                </div>
+                <div class="chart-area">
+                  <svg viewBox="0 0 280 100" preserveAspectRatio="none" class="balance-chart">
+                    <defs>
+                      <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:rgba(66, 165, 245, 0.3)" />
+                        <stop offset="100%" style="stop-color:rgba(66, 165, 245, 0.02)" />
+                      </linearGradient>
+                    </defs>
+                    <!-- Grid lines -->
+                    @for (y of [20, 40, 60, 80]; track y) {
+                      <line
+                        [attr.x1]="0"
+                        [attr.y1]="y"
+                        [attr.x2]="280"
+                        [attr.y2]="y"
+                        stroke="rgba(255,255,255,0.1)"
+                        stroke-width="1"
+                      />
+                    }
+                    @for (x of getGridXPositions(); track x) {
+                      <line
+                        [attr.x1]="x"
+                        [attr.y1]="0"
+                        [attr.x2]="x"
+                        [attr.y2]="100"
+                        stroke="rgba(255,255,255,0.1)"
+                        stroke-width="1"
+                      />
+                    }
+                    <!-- Chart area and line -->
+                    <path [attr.d]="getChartAreaPath()" fill="url(#chartGradient)" />
+                    <path
+                      [attr.d]="getChartLinePath()"
+                      fill="none"
+                      stroke="#42a5f5"
+                      stroke-width="2"
+                    />
+                  </svg>
+                  <div class="chart-labels">
+                    @for (label of chartLabels(); track $index) {
+                      <span class="chart-label">{{ label }}</span>
+                    }
+                  </div>
+                </div>
+              </div>
+            } @else {
+              <div class="chart-placeholder-text">
+                {{ 'no_transaction_history' | i18n }}
+              </div>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Transactions Card -->
+        <mat-card class="transactions-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>history</mat-icon>
+              {{ 'recent_transactions' | i18n }}
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            @if (isLoadingTransactions() && !hasLoadedTransactions()) {
+              <div class="loading-state">
+                <mat-spinner diameter="24"></mat-spinner>
+                <span>{{ 'loading_transactions' | i18n }}</span>
+              </div>
+            } @else if (transactions().length === 0) {
+              <div class="empty-state">
+                <mat-icon>receipt_long</mat-icon>
+                <p>{{ 'no_transactions_yet' | i18n }}</p>
+              </div>
+            } @else {
+              <!-- Fit-based recent list (the old mobile-home pattern, now at every
+                 width): the viewport flex-fills the card, FitRowsDirective
+                 measures how many rows fit — that IS the list length; "view
+                 all" goes to the full transactions/history page. The thead is
+                 subtracted from the measure (desktop branch only; the phone
+                 branch has none). -->
+              <div
+                class="tx-fit-viewport"
+                appFitRows
+                [fitRowSelector]="'.fit-row'"
+                [fitHeaderSelector]="'thead'"
+                [fitMinRows]="3"
+                [fitMaxRows]="20"
+                [fitFallbackRowPx]="viewport.phone() ? 96 : 46"
+                (fitRows)="visibleTxCount.set($event)"
+              >
+                @if (viewport.phone()) {
+                  <!-- Phone: the old mobile-home card list — the shared
+                     app-mwallet-tx-row (icon, direction, amount, address,
+                     time, status + row menu). Tap = the row's detail action. -->
+                  @for (tx of phoneTransactions(); track trackTx(tx.src)) {
+                    <div class="tx-item fit-row" (click)="viewTransactionDetails(tx.src)">
+                      <app-mwallet-tx-row [tx]="tx.row" />
+                    </div>
+                  }
+                } @else {
+                  <table class="transactions-table">
+                    <thead>
+                      <tr>
+                        <th class="col-datetime">{{ 'date' | i18n }}</th>
+                        <th class="col-type">{{ 'type' | i18n }}</th>
+                        <th class="col-amount">{{ 'amount' | i18n }}</th>
+                        <th class="col-account">{{ 'account' | i18n }}</th>
+                        <th class="col-status">{{ 'status' | i18n }}</th>
+                        <th class="col-txid">{{ 'transaction_id' | i18n }}</th>
+                        <th class="col-actions"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (tx of transactions(); track trackTx(tx)) {
+                        <tr class="tx-row fit-row" [class.unconfirmed]="tx.confirmations === 0">
+                          <td class="col-datetime">
+                            <div class="datetime-stack">
+                              <span class="date">{{ formatTxDate(tx) }}</span>
+                              <span class="time">{{ formatTxTime(tx) }}</span>
+                            </div>
+                          </td>
+                          <td class="col-type">
+                            <span class="type-badge">
+                              {{ getTransactionType(tx) }}
+                            </span>
+                          </td>
+                          <td class="col-amount">
+                            <span class="amount-badge">
+                              {{ formatTransactionAmount(tx) }}
+                            </span>
+                          </td>
+                          <td class="col-account">
+                            <span class="account-label">{{ getAccountLabel(tx) }}</span>
+                            <span class="address-text">{{ tx.address || '-' }}</span>
+                          </td>
+                          <td class="col-status">
+                            <span class="status-badge">{{ getConfirmationStatus(tx) }}</span>
+                          </td>
+                          <td class="col-txid">
+                            <span
+                              class="txid-text"
+                              (click)="viewTransactionDetails(tx)"
+                              [matTooltip]="'view_details' | i18n"
+                              >{{ tx.txid }}</span
+                            >
+                          </td>
+                          <td class="col-actions">
+                            <button
+                              mat-icon-button
+                              [matMenuTriggerFor]="txMenu"
+                              [attr.aria-label]="'actions' | i18n"
+                            >
+                              <mat-icon>more_vert</mat-icon>
+                            </button>
+                            <mat-menu #txMenu="matMenu">
+                              <button mat-menu-item (click)="copyToClipboard(tx.txid)">
+                                <mat-icon>file_copy</mat-icon>
+                                <span>{{ 'copy_transaction_id' | i18n }}</span>
+                              </button>
+                              @if (tx.address) {
+                                <button mat-menu-item (click)="copyToClipboard(tx.address)">
+                                  <mat-icon>file_copy</mat-icon>
+                                  <span>{{ 'copy_address' | i18n }}</span>
+                                </button>
+                              }
+                              <mat-divider></mat-divider>
+                              <button mat-menu-item (click)="openTransactionInExplorer(tx.txid)">
+                                <mat-icon>open_in_new</mat-icon>
+                                <span>{{ 'view_tx_in_explorer' | i18n }}</span>
+                              </button>
+                              @if (tx.address) {
+                                <button mat-menu-item (click)="openAddressInExplorer(tx.address)">
+                                  <mat-icon>open_in_new</mat-icon>
+                                  <span>{{ 'view_address_in_explorer' | i18n }}</span>
+                                </button>
+                              }
+                              <button mat-menu-item (click)="viewTransactionDetails(tx)">
+                                <mat-icon>info</mat-icon>
+                                <span>{{ 'transaction_details' | i18n }}</span>
+                              </button>
+                              @if (tx.address) {
+                                <mat-divider></mat-divider>
+                                <button mat-menu-item (click)="sendToAddress(tx.address)">
+                                  <mat-icon>send</mat-icon>
+                                  <span>{{ 'send_to_address' | i18n }}</span>
+                                </button>
+                                <button mat-menu-item (click)="addToContacts(tx)">
+                                  <mat-icon>person_add</mat-icon>
+                                  <span>{{ 'add_to_contacts' | i18n }}</span>
+                                </button>
+                              }
+                              @if (
+                                tx.confirmations === 0 &&
+                                tx.bip125_replaceable === 'yes' &&
+                                tx.category === 'send'
+                              ) {
+                                <mat-divider></mat-divider>
+                                <button mat-menu-item (click)="openBumpFeeDialog(tx)">
+                                  <mat-icon>speed</mat-icon>
+                                  <span>{{ 'bump_fee' | i18n }}</span>
+                                </button>
+                              }
+                              @if (tx.confirmations === 0 && tx.category === 'send') {
+                                @if (tx.bip125_replaceable !== 'yes') {
+                                  <mat-divider></mat-divider>
+                                }
+                                <button mat-menu-item (click)="openAbandonDialog(tx)">
+                                  <mat-icon>delete_forever</mat-icon>
+                                  <span>{{ 'abandon_tx' | i18n }}</span>
+                                </button>
+                              }
+                            </mat-menu>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                }
+              </div>
+              <div class="view-all-row">
+                <a (click)="viewAllTransactions()">{{ 'mwallet_view_all' | i18n }}</a>
+              </div>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Mining nudge (nodeless, until mining is configured) — the wallet-side
+           mirror of the setup wizard's create-wallet nudge. -->
+        @if (showMiningHint()) {
+          <mat-card class="mine-hint-card">
+            <mat-card-content>
+              <h3>{{ 'mwallet_mine_hint_title' | i18n }}</h3>
+              <p class="hint-text">{{ 'mwallet_mine_hint_text' | i18n }}</p>
+              <button mat-stroked-button routerLink="/miner/setup">
+                <mat-icon>hardware</mat-icon>
+                {{ 'mwallet_mine_setup' | i18n }}
+              </button>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    }
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
+      /* Nodeless states (onboarding / unlock / no-server) — the retired
+         mobile home's card look, centered in a 480px column at any width. */
+      .nodeless-state {
+        padding: 16px;
+
+        .state-loading {
+          display: flex;
+          justify-content: center;
+          padding: 48px 0;
+        }
+
+        .state-card {
+          max-width: 480px;
+          margin: 0 auto;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          padding: 16px;
+
+          h2 {
+            margin: 0 0 8px;
+            font-size: 18px;
+            font-weight: 500;
+          }
+
+          h3 {
+            margin: 8px 0 4px;
+            font-size: 15px;
+            font-weight: 500;
+          }
+        }
+
+        .empty-card {
+          text-align: center;
+
+          .empty-icon {
+            font-size: 36px;
+            width: 36px;
+            height: 36px;
+            color: rgba(0, 0, 0, 0.3);
+          }
+        }
+
+        .hint-text {
+          color: rgba(0, 0, 0, 0.6);
+          font-size: 13px;
+          margin: 0 0 16px;
+        }
+
+        .option-hint {
+          color: rgba(0, 0, 0, 0.5);
+          font-size: 12px;
+          margin: 6px 0 16px;
+        }
+
+        .error-text {
+          color: #c62828;
+          font-size: 13px;
+          margin: 0 0 12px;
+        }
+
+        .full-width {
+          width: 100%;
+        }
+      }
+
+      :host-context(.dark-theme) .nodeless-state .state-card {
+        background: #424242;
+        color: white;
+
+        .hint-text {
+          color: rgba(255, 255, 255, 0.7);
+        }
+
+        .option-hint {
+          color: rgba(255, 255, 255, 0.5);
+        }
+      }
+
+      /* Fill the routed content column (both shells are bounded flex columns)
+         so the transactions card can flex into the leftover viewport height —
+         the fit-based recent list needs a real height to measure. */
+      :host {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
       .bitcoin-dashboard {
+        flex: 1 1 auto;
+        min-height: 0;
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        grid-template-rows: 250px auto;
+        /* Top cards fixed; the transactions row takes the leftover height
+           (minmax 0 so it can shrink — the fit list sizes to it). */
+        grid-template-rows: 250px minmax(0, 1fr);
         gap: 16px;
         padding: 16px;
         box-sizing: border-box;
 
-        @media (max-width: 1000px) {
+        /* Two-card mode and below: the balance-history chart is dropped
+           entirely (only status + balance remain in the top row), so a single
+           250px row holds them and the transactions card follows. */
+        @include bp.desktop-down {
           grid-template-columns: repeat(2, 1fr);
-          grid-template-rows: 250px 250px auto;
+          grid-template-rows: 250px minmax(0, 1fr);
+
+          .balance-chart-card {
+            display: none;
+          }
+
+          /* Not enough width for the full txid alongside the other columns. */
+          .transactions-table .col-txid {
+            display: none;
+          }
         }
 
-        @media (max-width: 600px) {
+        /* Single-card mode: simplify the Network card to just height +
+           capacity (the old mobile dashboard). chain / status / last-block-time
+           are the "detail-only" rows, hidden here. */
+        @include bp.phone {
           grid-template-columns: 1fr;
-          grid-template-rows: auto;
+          grid-template-rows: auto auto minmax(240px, 1fr);
+
+          /* .info-item qualifier beats the base ".blockchain-status-card
+             .blockchain-info .info-item { display: flex }" rule, which ties a
+             plain .detail-only selector on specificity and wins on order. */
+          .blockchain-status-card .info-item.detail-only {
+            display: none;
+          }
+
+          /* The old mobile network card: two compact stats side by side. */
+          .blockchain-status-card .blockchain-info {
+            grid-template-columns: repeat(2, auto);
+            justify-content: space-between;
+
+            .info-item .label {
+              font-size: 10px;
+              letter-spacing: 0.4px;
+            }
+
+            .info-item .value {
+              font-size: 14px;
+            }
+          }
         }
 
         mat-card {
@@ -607,13 +886,16 @@ import {
           gap: 8px;
           margin-bottom: 12px;
           white-space: nowrap;
+          /* Size lives on the CONTAINER so appFitText can shrink it when the
+             amount would overflow; the amount inherits, the unit stays fixed. */
+          font-size: 32px;
 
           &.clickable {
             cursor: pointer;
           }
 
           .amount {
-            font-size: 32px;
+            font-size: inherit;
             font-weight: 600;
             color: #ffffff;
           }
@@ -661,9 +943,26 @@ import {
         }
       }
 
+      .mine-hint-card {
+        grid-column: 1 / -1;
+        background: #ffffff !important;
+
+        h3 {
+          margin: 0 0 4px;
+          font-size: 15px;
+          font-weight: 500;
+        }
+
+        .hint-text {
+          color: rgba(0, 0, 0, 0.6);
+          font-size: 13px;
+          margin: 0 0 12px;
+        }
+      }
+
       .transactions-card {
         grid-column: 1 / -1;
-        min-height: 300px;
+        min-height: 0;
         background: #ffffff !important;
 
         mat-card-header {
@@ -679,84 +978,56 @@ import {
           }
         }
 
+        /* Bounded flex column (top-aligned, overriding the shared centered
+           mat-card-content) so the fit viewport gets the leftover height. */
         mat-card-content {
           overflow: hidden;
           padding: 8px 16px 0 16px !important;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
+          min-height: 0;
         }
 
-        mat-paginator {
-          background: transparent;
-          margin-top: 0;
+        /* The measured row viewport: basis 0 (height comes from the card, not
+           the rows), overflow hidden — the fit-sized list never scrolls. */
+        .tx-fit-viewport {
+          flex: 1 1 0;
+          min-height: 0;
+          overflow: hidden;
+        }
 
-          ::ng-deep {
-            .mat-mdc-paginator-container {
-              color: #888888;
-              min-height: 40px;
-              padding: 0;
-              align-items: center;
-            }
+        /* Phone: the old mobile-home recent-list card rows. */
+        .tx-item {
+          padding: 6px 0;
+          cursor: pointer;
 
-            .mat-mdc-paginator-page-size {
-              align-items: center;
-            }
+          /* Stretch the row host to the card width (a bare custom element
+             can end up inline-level/shrink-to-fit) so the row's
+             space-between content right-aligns to the card edge. */
+          app-mwallet-tx-row {
+            display: block;
+            width: 100%;
+          }
 
-            .mat-mdc-paginator-page-size-label,
-            .mat-mdc-paginator-range-label {
-              color: #888888;
-              font-size: 12px;
-            }
+          &:not(:last-of-type) {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+          }
+        }
 
-            .mat-mdc-paginator-page-size-select {
-              width: 56px;
-              margin: 0 4px;
+        /* The old mobile-home "view all" affordance, now at every width. */
+        .view-all-row {
+          display: flex;
+          justify-content: flex-end;
+          padding: 8px 0 6px;
+          flex-shrink: 0;
 
-              .mat-mdc-text-field-wrapper {
-                padding: 0 4px;
-
-                .mat-mdc-form-field-flex {
-                  height: 32px;
-                  align-items: center;
-                }
-
-                .mdc-notched-outline__leading,
-                .mdc-notched-outline__notch,
-                .mdc-notched-outline__trailing {
-                  border: none !important;
-                }
-
-                .mat-mdc-form-field-infix {
-                  padding: 0;
-                  min-height: 32px;
-                  display: flex;
-                  align-items: center;
-                }
-              }
-            }
-
-            .mat-mdc-select-value,
-            .mat-mdc-select-arrow {
-              color: #666666 !important;
-            }
-
-            .mat-mdc-icon-button {
-              color: #666666;
-              width: 32px;
-              height: 32px;
-              padding: 4px;
-
-              &:hover:not(:disabled) {
-                color: #333333;
-              }
-
-              &:disabled {
-                color: #cccccc;
-              }
-
-              .mat-mdc-paginator-icon {
-                width: 20px;
-                height: 20px;
-              }
-            }
+          a {
+            font-size: 13px;
+            font-weight: 500;
+            color: #1976d2;
+            text-decoration: none;
+            cursor: pointer;
           }
         }
 
@@ -783,11 +1054,6 @@ import {
             margin-top: 16px;
             color: #666666;
           }
-        }
-
-        .transactions-table-container {
-          overflow: auto;
-          background: #ffffff;
         }
 
         .transactions-table {
@@ -965,8 +1231,6 @@ import {
   ],
 })
 export class DashboardComponent implements AfterViewInit {
-  @ViewChild(MatPaginator, { static: false }) paginator!: MatPaginator;
-
   // Inject centralized state services
   readonly blockchainState = inject(BlockchainStateService);
   readonly walletService = inject(WalletService);
@@ -980,6 +1244,57 @@ export class DashboardComponent implements AfterViewInit {
   private readonly clipboard = inject(ClipboardService);
   private readonly injector = inject(Injector);
   private readonly dialog = inject(MatDialog);
+  private readonly appMode = inject(AppModeService);
+  private readonly nodeService = inject(NodeService);
+  readonly viewport = inject(ViewportService);
+  readonly btcxWallet = inject(BtcxWalletService);
+  private readonly mining = inject(MiningService);
+  private readonly contactsStore = inject(ContactsStoreService);
+
+  /** Electrum/remote mode — Core-only rows (sync status) are hidden. */
+  readonly isRemote = computed(() => this.nodeService.isRemote());
+
+  /**
+   * Nodeless-shell gate: the btcx wallet still needs onboarding, an unlock,
+   * or an Electrum server — show the state card instead of the dashboard.
+   * Always false in the Core-mode shells (their auth flow gates the route).
+   */
+  readonly nodelessGate = computed(() => {
+    if (!this.appMode.isNodeless()) return false;
+    if (!this.btcxWallet.initialized() && this.btcxWallet.isLoading()) return true;
+    return this.btcxWallet.seedState() !== 'unlocked' || !this.btcxWallet.hasElectrumServer();
+  });
+
+  // Unlock form state (nodeless locked seed).
+  unlockPassphrase = '';
+  readonly unlocking = signal(false);
+  readonly unlockError = signal(false);
+
+  // Mining nudge: only in modes where mining can actually run, only once the
+  // mining state has loaded (no flash for configured setups).
+  private readonly miningStateLoaded = signal(false);
+  readonly showMiningHint = computed(
+    () =>
+      this.appMode.isNodeless() &&
+      this.appMode.miningEnabled() &&
+      this.miningStateLoaded() &&
+      !this.mining.isConfigured()
+  );
+
+  async unlock(): Promise<void> {
+    if (!this.unlockPassphrase || this.unlocking()) return;
+    this.unlocking.set(true);
+    this.unlockError.set(false);
+    try {
+      await this.btcxWallet.unlock(this.unlockPassphrase);
+      this.unlockPassphrase = '';
+    } catch (err) {
+      console.error('Unlock failed:', err);
+      this.unlockError.set(true);
+    } finally {
+      this.unlocking.set(false);
+    }
+  }
 
   // Loading states derived from services
   isLoadingBlockchain = computed(() => this.blockchainState.isLoading());
@@ -1013,9 +1328,15 @@ export class DashboardComponent implements AfterViewInit {
 
   // Transactions from WalletService
   allTransactions = computed(() => this.walletService.recentTransactions());
-  transactions = signal<WalletTransaction[]>([]);
-  txPageSize = 10;
-  txPageSizeOptions = [10, 25, 50];
+  // Fit-based recent list (the old mobile-home pattern at every width):
+  // FitRowsDirective measures how many rows fit the card; that IS the list
+  // length. The initial value only covers the first paint.
+  readonly visibleTxCount = signal(6);
+  readonly transactions = computed(() => this.allTransactions().slice(0, this.visibleTxCount()));
+  /** Phone rows mapped for the shared mobile tx-row (source kept for actions). */
+  readonly phoneTransactions = computed(() =>
+    this.transactions().map(tx => ({ src: tx, row: this.toRowTx(tx) }))
+  );
 
   // Chart data
   chartPoints = signal<{ x: number; y: number; balance: number }[]>([]);
@@ -1023,11 +1344,26 @@ export class DashboardComponent implements AfterViewInit {
   yAxisLabels = signal<string[]>([]);
 
   ngAfterViewInit(): void {
+    // Nodeless shell bootstrap (the retired home's ngOnInit): fresh contacts
+    // book for the row menus, wallet runtime up, the tx window pointed at the
+    // recent slice, and the mining state for the nudge (only where the mining
+    // backend exists — Android wallet-only has no such commands).
+    if (this.appMode.isNodeless()) {
+      this.contactsStore.load();
+      void this.btcxWallet.initialize().then(() => {
+        if (this.btcxWallet.walletActive()) {
+          void this.btcxWallet.refreshTransactions(RECENT_TX_LIMIT);
+        }
+      });
+      if (this.appMode.hasMiningBackend()) {
+        void this.mining.getState().then(() => this.miningStateLoaded.set(true));
+      }
+    }
+
     effect(
       () => {
         const txs = this.allTransactions();
         if (txs.length === 0) return;
-        this.updateTransactionPage();
         this.updateBalanceChart(txs);
       },
       { injector: this.injector }
@@ -1197,9 +1533,9 @@ export class DashboardComponent implements AfterViewInit {
     return this.totalBalance() + this.pendingBalance() + this.immatureBalance();
   }
 
-  /** Open the per-address "Coins & Addresses" view. */
+  /** Open the per-address "Coins & Addresses" view (shell-aware route). */
   goToCoins(): void {
-    void this.router.navigate(['/coins']);
+    void this.router.navigate([this.appMode.pageRoute('/coins')]);
   }
 
   // Blockchain info methods
@@ -1314,25 +1650,42 @@ export class DashboardComponent implements AfterViewInit {
     });
   }
 
-  // Pagination
-  updateTransactionPage(): void {
-    // Paginator lives inside the populated-transactions branch of the template,
-    // so on the very first population it does not exist yet — fall back to defaults
-    // so the initial slice can render and the paginator can then mount.
-    const pageIndex = this.paginator?.pageIndex ?? 0;
-    const pageSize = this.paginator?.pageSize ?? this.txPageSize;
-    const start = pageIndex * pageSize;
-    const end = start + pageSize;
-    this.transactions.set(this.allTransactions().slice(start, end));
+  /** Stable identity for a Core-shaped tx row (vout/category disambiguate). */
+  trackTx(tx: WalletTransaction): string {
+    return `${tx.txid}-${tx.vout}-${tx.category}`;
   }
 
-  onPageChange(event: PageEvent): void {
-    this.txPageSize = event.pageSize;
-    this.updateTransactionPage();
+  /** Full transactions/history page (shell-aware route). */
+  viewAllTransactions(): void {
+    void this.router.navigate([this.appMode.pageRoute('/transactions')]);
   }
 
-  // Actions
+  /**
+   * Map a Core-shaped WalletTransaction onto the shared mobile tx-row's
+   * BtcxWalletTx input — display fields only (vsize is not shown by the row).
+   */
+  private toRowTx(tx: WalletTransaction): BtcxWalletTx {
+    return {
+      txid: tx.txid,
+      direction: tx.category === 'send' ? 'sent' : 'received',
+      amountSat: Math.round(Math.abs(tx.amount) * 1e8),
+      feeSat: tx.fee != null ? Math.round(Math.abs(tx.fee) * 1e8) : null,
+      vsize: 0,
+      confirmations: tx.confirmations ?? 0,
+      timestamp: tx.time ?? null,
+      address: tx.address ?? null,
+    };
+  }
+
+  // Actions — all navigation goes through pageRoute() so the SAME component
+  // links correctly under both shells (desktop `/x` vs nodeless `/wallet/x`).
   viewTransactionDetails(tx: WalletTransaction): void {
+    // The nodeless shell has no per-txid detail route — its history page is
+    // the destination; desktop keeps the txid deep-link.
+    if (this.appMode.isNodeless()) {
+      this.router.navigate([this.appMode.pageRoute('/transactions')]);
+      return;
+    }
     this.router.navigate(['/transactions', tx.txid]);
   }
 
@@ -1343,11 +1696,13 @@ export class DashboardComponent implements AfterViewInit {
   addToContacts(tx: WalletTransaction): void {
     if (!tx.address) return;
     // Navigate to contacts with the address
-    this.router.navigate(['/contacts'], { queryParams: { add: tx.address } });
+    this.router.navigate([this.appMode.pageRoute('/contacts')], {
+      queryParams: { add: tx.address },
+    });
   }
 
   sendToAddress(address: string): void {
-    this.router.navigate(['/send'], { queryParams: { to: address } });
+    this.router.navigate([this.appMode.pageRoute('/send')], { queryParams: { to: address } });
   }
 
   openTransactionInExplorer(txid: string): void {

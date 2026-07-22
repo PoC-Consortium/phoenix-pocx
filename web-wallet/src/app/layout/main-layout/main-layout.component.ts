@@ -7,7 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
-import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
+import { ViewportService } from '../../core/services/viewport.service';
 import { Store } from '@ngrx/store';
 import { Subject, takeUntil } from 'rxjs';
 import { I18nPipe } from '../../core/i18n';
@@ -60,8 +60,8 @@ interface NavGroup {
       <!-- Sidebar -->
       <mat-sidenav
         #sidenav
-        [mode]="isMobile() ? 'over' : 'side'"
-        [opened]="!isMobile()"
+        [mode]="viewport.menuOverlay() ? 'over' : 'side'"
+        [opened]="!viewport.menuOverlay()"
         class="sidenav"
       >
         <!-- Header with Logo and Toggle -->
@@ -105,7 +105,7 @@ interface NavGroup {
               mat-list-item
               routerLink="/dashboard"
               routerLinkActive="active"
-              (click)="isMobile() && sidenav.close()"
+              (click)="viewport.menuOverlay() && sidenav.close()"
             >
               <mat-icon matListItemIcon>dashboard</mat-icon>
               <span matListItemTitle>{{ 'dashboard' | i18n }}</span>
@@ -129,7 +129,7 @@ interface NavGroup {
                         : ''
                     "
                     matTooltipPosition="right"
-                    (click)="!item.disabled && isMobile() && sidenav.close()"
+                    (click)="!item.disabled && viewport.menuOverlay() && sidenav.close()"
                   >
                     <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
                     <span matListItemTitle>{{ item.labelKey | i18n }}</span>
@@ -449,7 +449,7 @@ interface NavGroup {
 })
 export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
-  private readonly breakpointObserver = inject(BreakpointObserver);
+  readonly viewport = inject(ViewportService);
   private readonly nodeService = inject(NodeService);
   private readonly walletManager = inject(WalletManagerService);
   private readonly walletService = inject(WalletService);
@@ -460,7 +460,6 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private readonly store = inject(Store);
   private readonly destroy$ = new Subject<void>();
 
-  isMobile = signal(false);
   currentWalletName = signal('No Wallet');
   // Balance from centralized WalletService - auto-updates via polling
   currentBalance = computed(() => this.walletService.totalBalance());
@@ -538,13 +537,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    // Handle responsive breakpoints
-    this.breakpointObserver
-      .observe([Breakpoints.Handset])
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(result => {
-        this.isMobile.set(result.matches);
-      });
+    // Responsive menu mode/opened is bound directly to ViewportService
+    // signals in the template (shared app-wide tiers, no local observer).
 
     // Subscribe to active wallet changes for wallet name display
     this.walletManager.activeWallet$.pipe(takeUntil(this.destroy$)).subscribe(walletName => {
