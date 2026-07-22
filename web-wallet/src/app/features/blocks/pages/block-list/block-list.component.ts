@@ -175,10 +175,14 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
         background: #eaf0f6;
       }
 
+      /* Gradient band on the shared balance-band token (app-wide header
+         height scheme). */
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 24px;
+        min-height: var(--menu-balance-h);
+        box-sizing: border-box;
+        padding: 0 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -191,7 +195,7 @@ import { PocxBlock, BLOCK_COUNT_OPTIONS } from '../../models/block.model';
 
         h1 {
           margin: 0;
-          font-size: 24px;
+          font-size: 20px;
           font-weight: 300;
         }
 

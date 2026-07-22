@@ -137,33 +137,37 @@ type TransactionFilter =
             <mat-icon>file_download</mat-icon>
           </button>
 
-          <!-- Refresh + load limit live in ONE menu (mobile-look rule):
-               Refresh on top, then the limit choices — picking a limit
-               reloads with it. -->
+          <!-- Load limit: its own icon + menu (refresh stays one tap). -->
           <button
             mat-icon-button
             [disabled]="loading()"
-            [matMenuTriggerFor]="refreshMenu"
-            [matTooltip]="'refresh' | i18n"
+            [matMenuTriggerFor]="limitMenu"
+            [matTooltip]="'load_limit' | i18n"
             class="refresh-button"
           >
-            <mat-icon>refresh</mat-icon>
+            <mat-icon>format_list_numbered</mat-icon>
           </button>
-          <mat-menu #refreshMenu="matMenu">
-            <button mat-menu-item (click)="loadTransactions()">
-              <mat-icon>refresh</mat-icon>
-              <span>{{ 'refresh' | i18n }}</span>
-            </button>
-            <mat-divider></mat-divider>
+          <mat-menu #limitMenu="matMenu">
             @for (option of loadLimitOptions; track option.value) {
               <button mat-menu-item (click)="setLoadLimit(option.value)">
                 <mat-icon>{{
                   loadLimit === option.value ? 'radio_button_checked' : 'radio_button_unchecked'
                 }}</mat-icon>
-                <span>{{ 'load_limit' | i18n }}: {{ option.label }}</span>
+                <span>{{ option.label }}</span>
               </button>
             }
           </mat-menu>
+
+          <!-- Refresh: plain one-tap -->
+          <button
+            mat-icon-button
+            [disabled]="loading()"
+            (click)="loadTransactions()"
+            [matTooltip]="'refresh' | i18n"
+            class="refresh-button"
+          >
+            <mat-icon>refresh</mat-icon>
+          </button>
         </div>
       </div>
 

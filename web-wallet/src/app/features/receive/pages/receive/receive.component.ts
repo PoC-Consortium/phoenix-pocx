@@ -27,6 +27,8 @@ interface AddressInfo {
   isUsed: boolean;
   txCount: number;
   label: string;
+  /** Address of a retired legacy (v30 / coin-0) chain. */
+  isLegacy?: boolean;
 }
 
 /**
@@ -84,6 +86,11 @@ interface AddressInfo {
                 [ngModel]="selectedAddress()"
                 (ngModelChange)="selectedAddress.set($event)"
               >
+                <!-- Closed trigger shows ONLY the address — the (label /
+                     never used) suffix belongs to the open panel rows. -->
+                <mat-select-trigger>
+                  <span class="address-option">{{ selectedAddress() }}</span>
+                </mat-select-trigger>
                 @for (addr of existingAddresses(); track addr.address) {
                   <mat-option [value]="addr.address">
                     <span class="address-option"
@@ -684,7 +691,14 @@ export class ReceiveComponent implements OnInit, OnDestroy {
    * always has a matching option.
    */
   private async loadExistingAddressList(walletName: string, ensure?: string): Promise<void> {
-    const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
+    let bookAddresses: string[] = [];
+    try {
+      const addressMap = await this.walletRpc.getAddressesByLabel(walletName, '');
+      bookAddresses = Object.keys(addressMap);
+    } catch {
+      // A freshly reimported wallet may have an EMPTY address book — Core
+      // errors on an unknown label. The descriptor path below still works.
+    }
 
     const usage = new Map<string, { used: boolean; label: string }>();
     try {
@@ -698,17 +712,77 @@ export class ReceiveComponent implements OnInit, OnDestroy {
     } catch {
       // best-effort — used/label fall back to defaults below.
     }
+    // listreceivedbyaddress is ADDRESS-BOOK-bound — on a reimported
+    // descriptor wallet the book is empty, so FUNDED addresses are the
+    // reliable usage signal (a mining wallet's whole history is here).
+    try {
+      const unspent = await this.walletRpc.listUnspent(walletName);
+      for (const u of unspent) {
+        if (!u.address) continue;
+        const entry = usage.get(u.address);
+        if (entry) entry.used = true;
+        else usage.set(u.address, { used: true, label: '' });
+      }
+    } catch {
+      // best-effort
+    }
+
+    // Seed from the wallet's own DESCRIPTORS, not just Core's address book:
+    // a reimported descriptor wallet knows its chains even though no
+    // addresses were ever handed out via getnewaddress here.
+    // - ACTIVE external chains (current coin type): derive the issued
+    //   range 0..next-1.
+    // - INACTIVE external chains (the legacy coin-0 sets a restore imports
+    //   watch-only): they issue nothing, so derive their imported range
+    //   (capped) and keep only addresses with REAL usage — the wallet's
+    //   past addresses.
+    const derived = new Set<string>(bookAddresses);
+    const legacy = new Set<string>();
+    try {
+      const { descriptors } = await this.walletRpc.listDescriptors(walletName);
+      for (const d of descriptors) {
+        if (d.internal) continue; // explicit change chains out
+        if (!d.desc.startsWith('wpkh(')) continue; // bech32 receive chains only
+        // Core tracks the issued range (next) even for INACTIVE imported
+        // legacy chains — those addresses were handed out at some point, so
+        // include them all. Beyond that, scan the (capped) imported range
+        // and keep only addresses with real usage (funded — the book is
+        // empty right after a reimport). NOTE: legacy imports carry no
+        // internal flag, so their change chain is scanned too — its used
+        // addresses are legitimate history.
+        const next = d.next ?? 0;
+        const start = d.range?.[0] ?? 0;
+        const end = Math.min(d.range?.[1] ?? next - 1, start + 299);
+        if (end < start && next <= 0) continue;
+        const scanEnd = Math.max(end, next - 1);
+        if (scanEnd < start) continue;
+        const addrs = await this.walletRpc.deriveAddresses(d.desc, [start, scanEnd]);
+        addrs.forEach((a, i) => {
+          const index = start + i;
+          // ACTIVE chain: every issued address (incl. the current virgin).
+          // INACTIVE legacy chains: USED addresses only — never offer a
+          // never-used legacy address for receiving (the retired chain).
+          if ((d.active && index < next) || usage.get(a)?.used) {
+            derived.add(a);
+            if (!d.active) legacy.add(a);
+          }
+        });
+      }
+    } catch {
+      // Pre-descriptor wallet — the address book is all there is.
+    }
 
     const addresses: AddressInfo[] = [];
-    for (const [address, info] of Object.entries(addressMap)) {
+    for (const address of derived) {
       if (!this.isBech32Address(address)) continue;
       const u = usage.get(address);
       addresses.push({
         address,
-        purpose: (info as { purpose?: string }).purpose || 'receive',
+        purpose: 'receive',
         isUsed: u?.used ?? false,
         txCount: 0,
         label: u?.label ?? '',
+        isLegacy: legacy.has(address),
       });
     }
 
@@ -742,6 +816,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   getAddressDisplayLabel(addr: AddressInfo): string {
     const parts: string[] = [];
     if (addr.label) parts.push(addr.label);
+    if (addr.isLegacy) parts.push('v30');
     if (addr.purpose === 'receive' && !addr.isUsed) parts.push('never used');
     return parts.length > 0 ? ' (' + parts.join(' - ') + ')' : '';
   }

@@ -283,15 +283,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                   </mat-form-field>
                 </div>
               }
-
-              <div class="fee-summary">
-                <span class="fee-label">{{ 'estimated_fee' | i18n }}:</span>
-                <span class="fee-value">
-                  {{ selectedFeeOption?.estimatedFee ?? 0 | number: '1.8-8' }}
-                  {{ currencySymbol() }} ({{ getEstimatedFeeSats() | number: '1.0-0' }}
-                  sats)
-                </span>
-              </div>
             </div>
 
             <!-- Options Section -->
@@ -766,27 +757,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
         }
       }
 
-      /* Exactly the forging-assignment fee-summary treatment: a plain
-         unboxed row — muted label left, tabular value right. */
-      .fee-summary {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        font-size: 12px;
-        margin-top: 10px;
-        margin-bottom: 14px;
-
-        .fee-label {
-          color: rgba(0, 0, 0, 0.6);
-          flex-shrink: 0;
-        }
-
-        .fee-value {
-          text-align: right;
-          font-variant-numeric: tabular-nums;
-        }
-      }
-
       // Options section
       .options-section {
         .option-row {
@@ -998,10 +968,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
 
         .summary-section {
           background: #333;
-        }
-
-        .fee-summary .fee-label {
-          color: rgba(255, 255, 255, 0.6);
         }
 
         .option-row {
