@@ -107,6 +107,17 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           import('../../features/psbt/pages/psbt/psbt.component').then(m => m.PsbtComponent),
       },
       {
+        // Mining dashboard IN the wallet shell (drawer + toolbar) for the
+        // hybrid flavors — the bare /miner mining-layout stays for
+        // mining-only mode. Wallet-only has no mining commands.
+        path: 'mining',
+        canActivate: [notWalletOnlyGuard],
+        loadComponent: () =>
+          import('../../mining/pages/mining-dashboard/mining-dashboard.component').then(
+            m => m.MiningDashboardComponent
+          ),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./pages/settings/wallet-settings.component').then(m => m.WalletSettingsComponent),

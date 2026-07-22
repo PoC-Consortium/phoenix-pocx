@@ -1367,7 +1367,7 @@ export class MobileWalletLayoutComponent implements OnInit {
           // Mining dashboard in the menu whenever this build/mode actually
           // mines (hybrid mobile) — same destination as the bottom tab.
           ...(this.appMode.miningEnabled()
-            ? [{ path: '/miner/dashboard', icon: 'memory', labelKey: 'mining_dashboard' }]
+            ? [{ path: '/wallet/mining', icon: 'memory', labelKey: 'mining_dashboard' }]
             : []),
           { path: '/wallet/assignment', icon: 'swap_horiz', labelKey: 'forging_assignment' },
         ],
