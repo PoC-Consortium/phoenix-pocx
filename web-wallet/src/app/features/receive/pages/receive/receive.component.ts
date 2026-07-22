@@ -76,58 +76,63 @@ type AddressMode = 'existing' | 'generate';
               <span>{{ 'mwallet_receive_v30_blocked' | i18n }}</span>
             </div>
           } @else {
-            <!-- Address Selection -->
-            <div class="form-section">
-              <div class="address-mode-row">
-                <mat-radio-group [(ngModel)]="addressMode" (change)="onAddressModeChange()">
-                  <mat-radio-button value="existing">{{
-                    'use_existing_address' | i18n
-                  }}</mat-radio-button>
-                  <div class="generate-option">
-                    <mat-radio-button value="generate">{{
-                      'generate_new_address' | i18n
+            <!-- Address Selection (hidden for single-address wallets: one
+                 fixed address, nothing to pick or generate) -->
+            @if (!singleAddress()) {
+              <div class="form-section">
+                <div class="address-mode-row">
+                  <mat-radio-group [(ngModel)]="addressMode" (change)="onAddressModeChange()">
+                    <mat-radio-button value="existing">{{
+                      'use_existing_address' | i18n
                     }}</mat-radio-button>
-                    @if (addressMode === 'generate') {
-                      <button
-                        type="button"
-                        class="regenerate-btn"
-                        (click)="generateNewAddress()"
-                        [disabled]="isGenerating()"
-                        [title]="'generate_new' | i18n"
-                      >
-                        @if (isGenerating()) {
-                          <mat-spinner diameter="18"></mat-spinner>
-                        } @else {
-                          <mat-icon>refresh</mat-icon>
-                        }
-                      </button>
-                    }
-                  </div>
-                </mat-radio-group>
-              </div>
-
-              @if (addressMode === 'existing' && canEnumerate()) {
-                @if (!isLoadingAddresses()) {
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'select_address' | i18n }}</mat-label>
-                    <mat-select [(ngModel)]="selectedAddress">
-                      @for (addr of existingAddresses(); track addr.address) {
-                        <mat-option [value]="addr.address">
-                          <span class="address-option"
-                            >{{ addr.address }}{{ getAddressDisplayLabel(addr) }}</span
-                          >
-                        </mat-option>
+                    <div class="generate-option">
+                      <mat-radio-button value="generate">{{
+                        'generate_new_address' | i18n
+                      }}</mat-radio-button>
+                      @if (addressMode === 'generate') {
+                        <button
+                          type="button"
+                          class="regenerate-btn"
+                          (click)="generateNewAddress()"
+                          [disabled]="isGenerating()"
+                          [title]="'generate_new' | i18n"
+                        >
+                          @if (isGenerating()) {
+                            <mat-spinner diameter="18"></mat-spinner>
+                          } @else {
+                            <mat-icon>refresh</mat-icon>
+                          }
+                        </button>
                       }
-                    </mat-select>
-                  </mat-form-field>
-                } @else {
-                  <div class="loading-inline">
-                    <mat-spinner diameter="20"></mat-spinner>
-                    <span>{{ 'loading_addresses' | i18n }}</span>
-                  </div>
+                    </div>
+                  </mat-radio-group>
+                </div>
+
+                @if (addressMode === 'existing' && canEnumerate()) {
+                  @if (!isLoadingAddresses()) {
+                    <mat-form-field appearance="outline" class="full-width">
+                      <mat-label>{{ 'select_address' | i18n }}</mat-label>
+                      <mat-select [(ngModel)]="selectedAddress">
+                        @for (addr of existingAddresses(); track addr.address) {
+                          <mat-option [value]="addr.address">
+                            <span class="address-option"
+                              >{{ addr.address }}{{ getAddressDisplayLabel(addr) }}</span
+                            >
+                          </mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  } @else {
+                    <div class="loading-inline">
+                      <mat-spinner diameter="20"></mat-spinner>
+                      <span>{{ 'loading_addresses' | i18n }}</span>
+                    </div>
+                  }
                 }
-              }
-            </div>
+              </div>
+            } @else {
+              <p class="single-hint">{{ 'mwallet_receive_single_hint' | i18n }}</p>
+            }
 
             <!-- Amount -->
             <div class="form-section">
@@ -198,6 +203,16 @@ type AddressMode = 'existing' | 'generate';
                   </div>
                 </div>
               </div>
+            } @else if (loadError()) {
+              <!-- The old mobile receive's failed-state with retry. -->
+              <div class="no-address">
+                <mat-icon>error_outline</mat-icon>
+                <span>{{ 'mwallet_address_failed' | i18n }}</span>
+                <button mat-stroked-button (click)="loadReceiveAddresses()">
+                  <mat-icon>refresh</mat-icon>
+                  {{ 'retry' | i18n }}
+                </button>
+              </div>
             } @else {
               <div class="no-address">
                 <mat-icon>qr_code</mat-icon>
@@ -211,6 +226,8 @@ type AddressMode = 'existing' | 'generate';
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: block;
         width: 100%;
@@ -222,12 +239,22 @@ type AddressMode = 'existing' | 'generate';
         height: 100%;
       }
 
+      /* Gradient band on the shared balance-band token (in tandem with the
+         menu balance block; shrinks at the phone tier). */
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 24px;
+        min-height: var(--menu-balance-h);
+        box-sizing: border-box;
+        padding: 0 24px;
         display: flex;
         align-items: center;
+      }
+
+      .single-hint {
+        color: rgba(0, 0, 0, 0.55);
+        font-size: 13px;
+        margin: 0 0 16px;
       }
 
       .header-left {
@@ -537,7 +564,11 @@ type AddressMode = 'existing' | 'generate';
       }
 
       /* Responsive */
-      @media (max-width: 500px) {
+      @include bp.phone {
+        .header {
+          padding: 0 16px;
+        }
+
         .address-mode-row mat-radio-group {
           flex-direction: column;
           gap: 8px;
@@ -573,6 +604,18 @@ export class ReceiveComponent implements OnInit, OnDestroy {
   readonly spendOnly = computed(
     () => this.nodeService.isRemote() && this.btcxWallet.descriptorPolicy()?.coinType === 0
   );
+
+  /**
+   * Remote single-address (wpkh-WIF) wallet: ONE fixed address, nothing to
+   * enumerate or generate — the mode radio collapses to a hint (the old
+   * mobile receive's mwallet_receive_single_hint behavior).
+   */
+  readonly singleAddress = computed(
+    () => this.nodeService.isRemote() && this.btcxWallet.singleAddress()
+  );
+
+  /** Address load failed (e.g. wallet runtime briefly closed) — offer retry. */
+  readonly loadError = signal(false);
 
   addressMode: AddressMode = 'existing';
   existingAddresses = signal<AddressInfo[]>([]);
@@ -654,6 +697,7 @@ export class ReceiveComponent implements OnInit, OnDestroy {
     if (!walletName) return;
 
     this.isLoadingAddresses.set(true);
+    this.loadError.set(false);
     try {
       const backend = this.backendRouter.wallet();
       const current = await backend.currentReceiveAddress(walletName);
@@ -674,6 +718,8 @@ export class ReceiveComponent implements OnInit, OnDestroy {
       this.selectedAddress = current;
     } catch (error) {
       console.error('Failed to load addresses:', error);
+      // Only surface the retry state when nothing usable is on screen.
+      if (!this.currentAddress()) this.loadError.set(true);
     } finally {
       this.isLoadingAddresses.set(false);
     }

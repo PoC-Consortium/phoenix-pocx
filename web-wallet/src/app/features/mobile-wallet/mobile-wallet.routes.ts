@@ -44,19 +44,38 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           ),
       },
       {
+        // Unified responsive receive page — the same component the desktop
+        // /receive route uses. WalletReceiveComponent is retired.
         path: 'receive',
         loadComponent: () =>
-          import('./pages/receive/wallet-receive.component').then(m => m.WalletReceiveComponent),
+          import('../../features/receive/pages/receive/receive.component').then(
+            m => m.ReceiveComponent
+          ),
       },
       {
+        // Unified responsive send page — the same component the desktop
+        // /send route uses (seam send, remote fee/unlock branches).
+        // WalletSendComponent is retired.
         path: 'send',
         loadComponent: () =>
-          import('./pages/send/wallet-send.component').then(m => m.WalletSendComponent),
+          import('../../features/send/pages/send/send.component').then(m => m.SendComponent),
       },
       {
+        // Unified responsive transactions page — the same components the
+        // desktop /transactions route uses (list + per-txid detail). The old
+        // WalletHistoryComponent is retired.
         path: 'history',
         loadComponent: () =>
-          import('./pages/history/wallet-history.component').then(m => m.WalletHistoryComponent),
+          import('../../features/transactions/pages/transaction-list/transaction-list.component').then(
+            m => m.TransactionListComponent
+          ),
+      },
+      {
+        path: 'history/:txid',
+        loadComponent: () =>
+          import('../../features/transactions/pages/transaction-detail/transaction-detail.component').then(
+            m => m.TransactionDetailComponent
+          ),
       },
       {
         // Unified responsive coins/balance-details page — the same component
@@ -83,6 +102,14 @@ export const MOBILE_WALLET_ROUTES: Routes = [
           import('../../features/contacts/pages/contact-list/contact-list.component').then(
             m => m.ContactListComponent
           ),
+      },
+      {
+        // PSBT builder — the same desktop component; client-side PSBT ops
+        // (btcx_psbt_*) make it fully functional in the nodeless shell
+        // (Core-only Join stays hidden via its existing isRemote gate).
+        path: 'psbt',
+        loadComponent: () =>
+          import('../../features/psbt/pages/psbt/psbt.component').then(m => m.PsbtComponent),
       },
       {
         path: 'settings',

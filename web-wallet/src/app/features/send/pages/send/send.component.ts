@@ -40,6 +40,7 @@ import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
 import { NodeService } from '../../../../node/services/node.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
 
 interface FeeOption {
   label: string;
@@ -128,7 +129,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
             </app-address-display>
 
             <div class="success-buttons">
-              <button mat-stroked-button routerLink="/transactions">
+              <button mat-stroked-button [routerLink]="appMode.pageRoute('/transactions')">
                 <mat-icon>history</mat-icon>
                 {{ 'view_transactions' | i18n }}
               </button>
@@ -384,6 +385,8 @@ const SANE_PRESET_MAX_SAT_VB = 200;
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       :host {
         display: block;
         width: 100%;
@@ -396,10 +399,14 @@ const SANE_PRESET_MAX_SAT_VB = 200;
       }
 
       // Header styling - blue gradient like old design
+      /* Gradient band on the shared balance-band token (in tandem with the
+         menu balance block; shrinks at the phone tier). */
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
         color: white;
-        padding: 16px 24px;
+        min-height: var(--menu-balance-h);
+        box-sizing: border-box;
+        padding: 0 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -1014,11 +1021,11 @@ const SANE_PRESET_MAX_SAT_VB = 200;
       }
 
       // Responsive
-      @media (max-width: 600px) {
-        .header {
-          .balance-display {
-            display: none;
-          }
+      @include bp.phone {
+        /* Full selector depth — the base rule nests .header .header-right
+           .balance-display, which outranks a shallower hide rule. */
+        .header .header-right .balance-display {
+          display: none;
         }
 
         .fee-options button {
@@ -1064,6 +1071,7 @@ export class SendComponent implements OnInit, OnDestroy {
   readonly isRemote = this.nodeService.isRemote;
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
+  readonly appMode = inject(AppModeService);
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly dialog = inject(MatDialog);

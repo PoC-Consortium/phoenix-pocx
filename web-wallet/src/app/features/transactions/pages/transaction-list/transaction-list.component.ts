@@ -1,4 +1,13 @@
-import { Component, inject, signal, OnInit, OnDestroy, computed } from '@angular/core';
+import {
+  Component,
+  inject,
+  signal,
+  OnInit,
+  OnDestroy,
+  computed,
+  effect,
+  untracked,
+} from '@angular/core';
 import { CommonModule, Location } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -25,6 +34,11 @@ import {
   BlockExplorerService,
 } from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
+import { AppModeService } from '../../../../core/services/app-mode.service';
+import { ViewportService } from '../../../../core/services/viewport.service';
+import { BtcxWalletService, BtcxWalletTx } from '../../../../core/services/btcx-wallet.service';
+import { TxRowComponent } from '../../../mobile-wallet/components/tx-row/tx-row.component';
+import { FitRowsDirective } from '../../../../shared/directives';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import {
   WalletRpcService,
@@ -86,6 +100,8 @@ type TransactionFilter =
     MatTooltipModule,
     MatDatepickerModule,
     MatNativeDateModule,
+    TxRowComponent,
+    FitRowsDirective,
     I18nPipe,
   ],
   template: `
@@ -224,141 +240,164 @@ type TransactionFilter =
               </p>
             </div>
           } @else {
-            <div class="transactions-table-container">
-              <table class="transactions-table">
-                <thead>
-                  <tr>
-                    <th class="col-datetime">{{ 'date' | i18n }}</th>
-                    <th class="col-type">{{ 'type' | i18n }}</th>
-                    <th class="col-amount">{{ 'amount' | i18n }}</th>
-                    <th class="col-account">{{ 'account' | i18n }}</th>
-                    <th class="col-status">{{ 'status' | i18n }}</th>
-                    <th class="col-txid">{{ 'transaction_id' | i18n }}</th>
-                    <th class="col-actions"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (
-                    tx of paginatedTransactions();
-                    track tx.txid + '-' + tx.vout + '-' + tx.category
-                  ) {
-                    <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
-                      <td class="col-datetime">
-                        <div class="datetime-stack">
-                          <span class="date">{{ formatTxDate(tx) }}</span>
-                          <span class="time">{{ formatTxTime(tx) }}</span>
-                        </div>
-                      </td>
-                      <td class="col-type">
-                        <span class="type-badge">{{ getTransactionType(tx) }}</span>
-                      </td>
-                      <td class="col-amount">
-                        <span class="amount-badge">{{ formatTransactionAmount(tx) }}</span>
-                      </td>
-                      <td class="col-account">
-                        <span class="account-label">{{ getAccountLabel(tx) }}</span>
-                        <span class="address-text">{{ tx.address || '-' }}</span>
-                      </td>
-                      <td class="col-status">
-                        <span class="status-badge">{{ getConfirmationStatus(tx) }}</span>
-                      </td>
-                      <td class="col-txid">
-                        <span
-                          class="txid-text"
-                          (click)="viewTransactionDetails(tx)"
-                          [matTooltip]="'view_details' | i18n"
-                          >{{ tx.txid }}</span
-                        >
-                      </td>
-                      <td class="col-actions">
-                        <button
-                          mat-icon-button
-                          [matMenuTriggerFor]="txMenu"
-                          aria-label="More Actions"
-                        >
-                          <mat-icon>more_vert</mat-icon>
-                        </button>
-                        <mat-menu #txMenu="matMenu">
-                          <button mat-menu-item (click)="copyToClipboard(tx.txid)">
-                            <mat-icon>file_copy</mat-icon>
-                            <span>{{ 'copy_transaction_id' | i18n }}</span>
-                          </button>
-                          @if (tx.address) {
-                            <button mat-menu-item (click)="copyToClipboard(tx.address)">
-                              <mat-icon>file_copy</mat-icon>
-                              <span>{{ 'copy_address' | i18n }}</span>
-                            </button>
-                          }
-                          <mat-divider></mat-divider>
-                          <button mat-menu-item (click)="openTransactionInExplorer(tx.txid)">
-                            <mat-icon>open_in_new</mat-icon>
-                            <span>{{ 'view_tx_in_explorer' | i18n }}</span>
-                          </button>
-                          @if (tx.address) {
-                            <button mat-menu-item (click)="openAddressInExplorer(tx.address)">
-                              <mat-icon>open_in_new</mat-icon>
-                              <span>{{ 'view_address_in_explorer' | i18n }}</span>
-                            </button>
-                          }
-                          <button mat-menu-item (click)="viewTransactionDetails(tx)">
-                            <mat-icon>info</mat-icon>
-                            <span>{{ 'transaction_details' | i18n }}</span>
-                          </button>
-                          @if (tx.address) {
-                            <mat-divider></mat-divider>
-                            <button mat-menu-item (click)="sendToAddress(tx.address)">
-                              <mat-icon>send</mat-icon>
-                              <span>{{ 'send_to_address' | i18n }}</span>
-                            </button>
-                            <button mat-menu-item (click)="addToContacts(tx)">
-                              <mat-icon>person_add</mat-icon>
-                              <span>{{ 'add_to_contacts' | i18n }}</span>
-                            </button>
-                          }
-                          @if (
-                            tx.confirmations === 0 &&
-                            tx.bip125_replaceable === 'yes' &&
-                            tx.category === 'send'
-                          ) {
-                            <mat-divider></mat-divider>
-                            <button mat-menu-item (click)="openBumpFeeDialog(tx)">
-                              <mat-icon>speed</mat-icon>
-                              <span>{{ 'bump_fee' | i18n }}</span>
-                            </button>
-                          }
-                          @if (
-                            tx.confirmations === 0 &&
-                            tx.category === 'receive' &&
-                            tx.vout !== undefined &&
-                            cpfpEnabled()
-                          ) {
-                            <mat-divider></mat-divider>
-                            <button mat-menu-item (click)="openCpfpDialog(tx)">
-                              <mat-icon>bolt</mat-icon>
-                              <span>{{ 'speed_up_cpfp' | i18n }}</span>
-                            </button>
-                          }
-                          @if (tx.confirmations === 0 && tx.category === 'send') {
-                            @if (tx.bip125_replaceable !== 'yes') {
-                              <mat-divider></mat-divider>
-                            }
-                            <button mat-menu-item (click)="openAbandonDialog(tx)">
-                              <mat-icon>delete_forever</mat-icon>
-                              <span>{{ 'abandon_tx' | i18n }}</span>
-                            </button>
-                          }
-                        </mat-menu>
-                      </td>
+            @if (viewport.phone()) {
+              <!-- Phone: the old mobile history — TxRow cards, fit-derived
+                   page size (FitRows), tap opens the detail view. -->
+              <div
+                class="tx-card-list"
+                appFitRows
+                [fitRowSelector]="'.tx-item'"
+                [fitMinRows]="3"
+                [fitFallbackRowPx]="96"
+                (fitRows)="onPhoneFit($event)"
+              >
+                @for (
+                  tx of phoneRows();
+                  track tx.src.txid + '-' + tx.src.vout + '-' + tx.src.category
+                ) {
+                  <div class="tx-item" (click)="viewTransactionDetails(tx.src)">
+                    <app-mwallet-tx-row [tx]="tx.row" />
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="transactions-table-container">
+                <table class="transactions-table">
+                  <thead>
+                    <tr>
+                      <th class="col-datetime">{{ 'date' | i18n }}</th>
+                      <th class="col-type">{{ 'type' | i18n }}</th>
+                      <th class="col-amount">{{ 'amount' | i18n }}</th>
+                      <th class="col-account">{{ 'account' | i18n }}</th>
+                      <th class="col-status">{{ 'status' | i18n }}</th>
+                      <th class="col-txid">{{ 'transaction_id' | i18n }}</th>
+                      <th class="col-actions"></th>
                     </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    @for (
+                      tx of paginatedTransactions();
+                      track tx.txid + '-' + tx.vout + '-' + tx.category
+                    ) {
+                      <tr class="tx-row" [class.unconfirmed]="tx.confirmations === 0">
+                        <td class="col-datetime">
+                          <div class="datetime-stack">
+                            <span class="date">{{ formatTxDate(tx) }}</span>
+                            <span class="time">{{ formatTxTime(tx) }}</span>
+                          </div>
+                        </td>
+                        <td class="col-type">
+                          <span class="type-badge">{{ getTransactionType(tx) }}</span>
+                        </td>
+                        <td class="col-amount">
+                          <span class="amount-badge">{{ formatTransactionAmount(tx) }}</span>
+                        </td>
+                        <td class="col-account">
+                          <span class="account-label">{{ getAccountLabel(tx) }}</span>
+                          <span class="address-text">{{ tx.address || '-' }}</span>
+                        </td>
+                        <td class="col-status">
+                          <span class="status-badge">{{ getConfirmationStatus(tx) }}</span>
+                        </td>
+                        <td class="col-txid">
+                          <span
+                            class="txid-text"
+                            (click)="viewTransactionDetails(tx)"
+                            [matTooltip]="'view_details' | i18n"
+                            >{{ tx.txid }}</span
+                          >
+                        </td>
+                        <td class="col-actions">
+                          <button
+                            mat-icon-button
+                            [matMenuTriggerFor]="txMenu"
+                            aria-label="More Actions"
+                          >
+                            <mat-icon>more_vert</mat-icon>
+                          </button>
+                          <mat-menu #txMenu="matMenu">
+                            <button mat-menu-item (click)="copyToClipboard(tx.txid)">
+                              <mat-icon>file_copy</mat-icon>
+                              <span>{{ 'copy_transaction_id' | i18n }}</span>
+                            </button>
+                            @if (tx.address) {
+                              <button mat-menu-item (click)="copyToClipboard(tx.address)">
+                                <mat-icon>file_copy</mat-icon>
+                                <span>{{ 'copy_address' | i18n }}</span>
+                              </button>
+                            }
+                            <mat-divider></mat-divider>
+                            <button mat-menu-item (click)="openTransactionInExplorer(tx.txid)">
+                              <mat-icon>open_in_new</mat-icon>
+                              <span>{{ 'view_tx_in_explorer' | i18n }}</span>
+                            </button>
+                            @if (tx.address) {
+                              <button mat-menu-item (click)="openAddressInExplorer(tx.address)">
+                                <mat-icon>open_in_new</mat-icon>
+                                <span>{{ 'view_address_in_explorer' | i18n }}</span>
+                              </button>
+                            }
+                            <button mat-menu-item (click)="viewTransactionDetails(tx)">
+                              <mat-icon>info</mat-icon>
+                              <span>{{ 'transaction_details' | i18n }}</span>
+                            </button>
+                            @if (tx.address) {
+                              <mat-divider></mat-divider>
+                              <button mat-menu-item (click)="sendToAddress(tx.address)">
+                                <mat-icon>send</mat-icon>
+                                <span>{{ 'send_to_address' | i18n }}</span>
+                              </button>
+                              <button mat-menu-item (click)="addToContacts(tx)">
+                                <mat-icon>person_add</mat-icon>
+                                <span>{{ 'add_to_contacts' | i18n }}</span>
+                              </button>
+                            }
+                            @if (
+                              tx.confirmations === 0 &&
+                              tx.bip125_replaceable === 'yes' &&
+                              tx.category === 'send'
+                            ) {
+                              <mat-divider></mat-divider>
+                              <button mat-menu-item (click)="openBumpFeeDialog(tx)">
+                                <mat-icon>speed</mat-icon>
+                                <span>{{ 'bump_fee' | i18n }}</span>
+                              </button>
+                            }
+                            @if (
+                              tx.confirmations === 0 &&
+                              tx.category === 'receive' &&
+                              tx.vout !== undefined &&
+                              cpfpEnabled()
+                            ) {
+                              <mat-divider></mat-divider>
+                              <button mat-menu-item (click)="openCpfpDialog(tx)">
+                                <mat-icon>bolt</mat-icon>
+                                <span>{{ 'speed_up_cpfp' | i18n }}</span>
+                              </button>
+                            }
+                            @if (tx.confirmations === 0 && tx.category === 'send') {
+                              @if (tx.bip125_replaceable !== 'yes') {
+                                <mat-divider></mat-divider>
+                              }
+                              <button mat-menu-item (click)="openAbandonDialog(tx)">
+                                <mat-icon>delete_forever</mat-icon>
+                                <span>{{ 'abandon_tx' | i18n }}</span>
+                              </button>
+                            }
+                          </mat-menu>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
             <mat-paginator
               [length]="filteredTransactions().length"
-              [pageSize]="pageSize()"
+              [pageSize]="effectivePageSize()"
               [pageIndex]="pageIndex()"
               [pageSizeOptions]="pageSizeOptions"
+              [hidePageSize]="viewport.phone()"
               (page)="onPageChange($event)"
               [showFirstLastButtons]="true"
             >
@@ -370,6 +409,8 @@ type TransactionFilter =
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       .page-layout {
         display: flex;
         flex-direction: column;
@@ -378,10 +419,14 @@ type TransactionFilter =
         background: #eaf0f6;
       }
 
-      /* Header - gradient background */
+      /* Header — gradient band on the shared balance-band height token, in
+         tandem with the menu balance block (min-height: a wrapped control
+         row may grow it). */
       .header {
         background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
-        padding: 16px 24px;
+        min-height: var(--menu-balance-h);
+        box-sizing: border-box;
+        padding: 0 24px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -845,7 +890,7 @@ type TransactionFilter =
         }
       }
 
-      @media (max-width: 899px) {
+      @include bp.tablet-down {
         .filter-row {
           .search-field {
             max-width: none;
@@ -882,13 +927,15 @@ type TransactionFilter =
         }
       }
 
-      @media (max-width: 599px) {
+      @include bp.phone {
         .header {
-          padding: 12px 16px;
+          padding: 0 16px;
         }
 
-        .filter-row {
-          padding: 12px 16px;
+        /* The old mobile history had no filters and no load-limit select. */
+        .filter-row,
+        .limit-field {
+          display: none;
         }
 
         .transactions-card {
@@ -898,6 +945,55 @@ type TransactionFilter =
         .transactions-table {
           .col-status {
             display: none;
+          }
+        }
+
+        /* Height chain for the fit-based card list: bound the card so
+           FitRows can measure the leftover space (coins/contacts pattern). */
+        :host {
+          flex: 1 1 auto;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+
+        .page-layout {
+          flex: 1 1 auto;
+          min-height: 0;
+        }
+
+        .transactions-card {
+          flex: 1 1 0;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+
+          mat-card-content {
+            flex: 1 1 0;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+          }
+        }
+
+        .tx-card-list {
+          flex: 1 1 0;
+          min-height: 0;
+          overflow: hidden;
+        }
+
+        /* The old mobile-home card rows (dashboard recent-list pattern). */
+        .tx-item {
+          padding: 6px 0;
+          cursor: pointer;
+
+          &:not(:last-of-type) {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+          }
+
+          app-mwallet-tx-row {
+            display: block;
+            width: 100%;
           }
         }
       }
@@ -916,6 +1012,21 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly blockExplorer = inject(BlockExplorerService);
   private readonly clipboard = inject(ClipboardService);
   private readonly dialog = inject(MatDialog);
+  private readonly appMode = inject(AppModeService);
+  private readonly btcxWallet = inject(BtcxWalletService);
+  readonly viewport = inject(ViewportService);
+
+  constructor() {
+    // Remote/nodeless mode: new blocks arrive via the background sync — ride
+    // the btcx-wallet:sync signal and reload silently (no spinner flash; the
+    // signal is constant in Core mode, so this is a no-op there).
+    effect(() => {
+      this.btcxWallet.lastSync();
+      untracked(() => {
+        if (this.walletManager.activeWallet) void this.loadTransactions();
+      });
+    });
+  }
   private readonly destroy$ = new Subject<void>();
 
   /** CPFP (child-pays-for-parent) is Core-only — gated on the backend flag. */
@@ -927,6 +1038,12 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   pageIndex = signal(0);
   pageSize = signal(10);
   pageSizeOptions = [10, 25, 50];
+  /** Phone: fit-derived page size (FitRows measures the card list). */
+  readonly phonePageSize = signal(6);
+  /** The page size in effect: fit-derived on phone, the selector elsewhere. */
+  readonly effectivePageSize = computed(() =>
+    this.viewport.phone() ? this.phonePageSize() : this.pageSize()
+  );
   searchQuery = '';
   selectedType: TransactionFilter = 'all';
   dateFrom: Date | null = null;
@@ -1002,8 +1119,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   paginatedTransactions = computed(() => {
     const txs = this.filteredTransactions();
-    const start = this.pageIndex() * this.pageSize();
-    return txs.slice(start, start + this.pageSize());
+    const start = this.pageIndex() * this.effectivePageSize();
+    return txs.slice(start, start + this.effectivePageSize());
   });
 
   oldestTransactionDate = computed(() => {
@@ -1012,6 +1129,37 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     const oldest = txs[txs.length - 1];
     return new Date(oldest.time * 1000);
   });
+
+  /** Phone rows mapped for the shared mobile tx-row (source kept for actions). */
+  readonly phoneRows = computed(() =>
+    this.paginatedTransactions().map(tx => ({ src: tx, row: this.toRowTx(tx) }))
+  );
+
+  /**
+   * Map a Core-shaped WalletTransaction onto the shared mobile tx-row's
+   * BtcxWalletTx input — display fields only (vsize is not shown by the row).
+   */
+  private toRowTx(tx: WalletTransaction): BtcxWalletTx {
+    return {
+      txid: tx.txid,
+      direction: tx.category === 'send' ? 'sent' : 'received',
+      amountSat: Math.round(Math.abs(tx.amount) * 1e8),
+      feeSat: tx.fee != null ? Math.round(Math.abs(tx.fee) * 1e8) : null,
+      vsize: 0,
+      confirmations: tx.confirmations ?? 0,
+      timestamp: tx.time ?? null,
+      address: tx.address ?? null,
+    };
+  }
+
+  /** New measured fit: adopt as page size, keep the first visible row on page. */
+  onPhoneFit(fit: number): void {
+    const oldSize = this.phonePageSize();
+    if (fit === oldSize) return;
+    const firstVisible = this.pageIndex() * oldSize;
+    this.phonePageSize.set(fit);
+    this.pageIndex.set(Math.floor(firstVisible / fit));
+  }
 
   ngOnInit(): void {
     this.loadTransactions();
@@ -1037,7 +1185,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     const walletName = this.walletManager.activeWallet;
     if (!walletName) return;
 
-    this.loading.set(true);
+    // Spinner only while the list is still empty — background sync reloads
+    // update silently instead of flashing the table away.
+    if (this.transactions().length === 0) this.loading.set(true);
 
     try {
       // Load transactions based on load limit (0 = ALL, use large number).
@@ -1202,7 +1352,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   // Actions
   viewTransactionDetails(tx: WalletTransaction): void {
-    this.router.navigate(['/transactions', tx.txid]);
+    this.router.navigate([this.appMode.pageRoute('/transactions'), tx.txid]);
   }
 
   copyToClipboard(text: string): void {
@@ -1211,11 +1361,13 @@ export class TransactionListComponent implements OnInit, OnDestroy {
 
   addToContacts(tx: WalletTransaction): void {
     if (!tx.address) return;
-    this.router.navigate(['/contacts'], { queryParams: { add: tx.address } });
+    this.router.navigate([this.appMode.pageRoute('/contacts')], {
+      queryParams: { add: tx.address },
+    });
   }
 
   sendToAddress(address: string): void {
-    this.router.navigate(['/send'], { queryParams: { to: address } });
+    this.router.navigate([this.appMode.pageRoute('/send')], { queryParams: { to: address } });
   }
 
   openTransactionInExplorer(txid: string): void {
