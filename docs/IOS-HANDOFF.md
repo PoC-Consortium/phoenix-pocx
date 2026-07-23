@@ -6,6 +6,49 @@ machine, so **this file (in the repo) is the source of truth** — the prior
 sessions' auto-memory is machine-local and will NOT be present on the Mac.
 Read `docs/MIGRATION-PLAN.md` and `CLAUDE.md` first for architecture.
 
+## Quick build & deploy cheat-sheet (verified 2026-07-23)
+
+All commands from `web-wallet/`. Prereqs on the Mac: Xcode 26.6, rustup
+targets `aarch64-apple-ios{,-sim}`, `npm ci`, and a generated `gen/apple`
+(`npx tauri ios init` — after ANY fresh init, redo the two fixups below).
+
+**Simulator:**
+```
+npx tauri ios build --debug --target aarch64-sim -f wallet
+# .app → src-tauri/gen/apple/build/arm64-sim/
+xcrun simctl install booted ".../Phoenix Wallet.app"
+xcrun simctl launch booted org.pocx.phoenix
+```
+
+**Physical iPhone** (free Personal Team `X5PR7A2C5C`; install expires
+after 7 days, any redeploy resets the clock; phone cabled + unlocked):
+```
+npx tauri ios build --debug --target aarch64 -f wallet \
+  --export-method debugging \
+  --config '{"bundle":{"iOS":{"developmentTeam":"X5PR7A2C5C"}}}'
+# .ipa → src-tauri/gen/apple/build/arm64/Phoenix Wallet.ipa
+xcrun devicectl list devices                    # get the device UDID
+xcrun devicectl device install app --device <udid> ".../Phoenix Wallet.ipa"
+xcrun devicectl device process launch --device <udid> org.pocx.phoenix
+```
+
+**Rules that always apply:**
+- `-f wallet` is REQUIRED — the mining/wallet flavor split left default
+  features empty; iOS is the wallet-only flavor.
+- NEVER call `xcodebuild` directly — the Xcode project's Rust build phase
+  needs the Tauri CLI's build server (dies on a missing `*-server-addr`
+  file otherwise). Always go through `npx tauri ios build`/`dev`.
+- After a fresh `tauri ios init` (gen/ is gitignored): (1) copy
+  `src-tauri/ios-icons/*` into
+  `gen/apple/Assets.xcassets/AppIcon.appiconset/` or you ship the default
+  Tauri icon; (2) for GUI-Xcode builds prepend
+  `export PATH="/opt/homebrew/bin:$PATH"; ` to the "Build Rust Code"
+  script phase (GUI Xcode doesn't inherit the shell PATH).
+- Error `failed to rename app … Directory not empty` →
+  `rm -rf src-tauri/gen/apple/build` and rebuild.
+- Before pushing: `npm run format:check` AND `cargo fmt --check` — CI
+  Lint runs both and a rebase easily leaves fmt drift.
+
 ## Current state (what's done vs not)
 
 **Done and iOS-ready (no rewrite):**
@@ -56,6 +99,13 @@ The `pocx_plotfile` iOS compile fix (was vendored, upstreamed as
 PoC-Consortium/pocx#76) became moot with the mining/wallet flavor split:
 iOS builds `-f wallet`, so the mining crates are no longer in the iOS
 dependency graph and the vendor copy was dropped.
+
+**2026-07-23:** branch rebased onto master @4c419b4 (25 new commits incl.
+the unified-dashboard PR #185 — it deleted the mobile
+`wallet-home.component.ts`; the iOS mining-nudge gate moved with it: the
+new dashboard hides the nudge via `appMode.miningEnabled()`, no iOS code
+needed). Device build + install + launch re-verified on the physical
+iPhone 17 Pro with the cheat-sheet recipes above.
 
 **Still open:**
 1. Exercise the wallet flows on iOS (create/restore against Electrum,
