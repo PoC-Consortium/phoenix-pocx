@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Pasirinktinai užšifruokite piniginės sėklą diske slaptažodžiu. Jos prireiks piniginei atrakinti siunčiant. Vien atkūrimo frazė visada atkuria jūsų lėšas.",
   "restore_probe_info": "Jūsų sėklos istorija tikrinama per Electrum importuojant — šakos su esamomis lėšomis aptinkamos automatiškai.",
   "psbt_join_unavailable_remote": "Sujungimas negalimas nuotoliniu režimu",
-  "psbt_compose_advanced_unavailable_remote": "Monetų valdymas, OP_RETURN duomenys, užrakinimo laikas, pasirinktinė grąža ir mokesčio atėmimas dar negalimi nuotoliniu režimu",
   "feature_unavailable_remote": "Ši funkcija negalima nuotoliniu (Electrum) režimu",
   "setup_solo_not_available_remote": "Solo kasybai reikia vietinio mazgo — negalima nuotoliniu (Electrum) režimu",
   "move_up": "Perkelti aukštyn",

@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Opțional, criptează seed-ul portofelului pe disc cu o parolă. Îți va fi necesară pentru a debloca portofelul la trimitere. Fraza de recuperare singură îți restaurează întotdeauna fondurile.",
   "restore_probe_info": "Istoricul seed-ului tău este sondat prin Electrum în timpul importului — ramurile cu fonduri existente sunt detectate automat.",
   "psbt_join_unavailable_remote": "Combinarea nu este disponibilă în modul la distanță",
-  "psbt_compose_advanced_unavailable_remote": "Controlul monedelor, datele OP_RETURN, timpul de blocare, restul personalizat și deducerea comisionului nu sunt încă disponibile în modul la distanță",
   "feature_unavailable_remote": "Această funcție nu este disponibilă în modul la distanță (Electrum)",
   "setup_solo_not_available_remote": "Mineritul solo necesită un nod local — indisponibil în modul la distanță (Electrum)",
   "move_up": "Mută în sus",

@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Opcionalment, xifra la llavor del moneder al disc amb una contrasenya. La necessitaràs per desbloquejar el moneder en enviar. La frase de recuperació per si sola sempre restaura els teus fons.",
   "restore_probe_info": "L'historial de la teva llavor es comprova mitjançant Electrum durant la importació — les branques amb fons existents es detecten automàticament.",
   "psbt_join_unavailable_remote": "Combinar no està disponible en mode remot",
-  "psbt_compose_advanced_unavailable_remote": "El control de monedes, les dades OP_RETURN, el temps de bloqueig, el canvi personalitzat i la deducció de la comissió encara no estan disponibles en mode remot",
   "feature_unavailable_remote": "Aquesta funció no està disponible en mode remot (Electrum)",
   "setup_solo_not_available_remote": "La mineria en solitari necessita un node local — no disponible en mode remot (Electrum)",
   "move_up": "Mou amunt",

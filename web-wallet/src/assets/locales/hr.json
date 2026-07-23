@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Po želji šifrirajte sjeme novčanika na disku lozinkom. Trebat će vam za otključavanje novčanika radi slanja. Sama fraza za oporavak uvijek vraća vaša sredstva.",
   "restore_probe_info": "Povijest vašeg sjemena provjerava se putem Electruma tijekom uvoza — grane s postojećim sredstvima automatski se otkrivaju.",
   "psbt_join_unavailable_remote": "Spajanje nije dostupno u udaljenom načinu rada",
-  "psbt_compose_advanced_unavailable_remote": "Kontrola novčića, OP_RETURN podaci, vrijeme zaključavanja, prilagođeni ostatak i oduzimanje naknade još nisu dostupni u udaljenom načinu rada",
   "feature_unavailable_remote": "Ova značajka nije dostupna u udaljenom (Electrum) načinu rada",
   "setup_solo_not_available_remote": "Solo rudarenje treba lokalni čvor — nije dostupno u udaljenom (Electrum) načinu rada",
   "move_up": "Pomakni gore",

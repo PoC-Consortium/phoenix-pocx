@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Optional die Wallet-Seed auf der Festplatte mit einem Passwort verschlüsseln. Du brauchst es, um die Wallet zum Senden zu entsperren. Die Wiederherstellungsphrase allein stellt deine Guthaben immer wieder her.",
   "restore_probe_info": "Der Verlauf deiner Seed wird beim Import über Electrum geprüft — Zweige mit vorhandenem Guthaben werden automatisch erkannt.",
   "psbt_join_unavailable_remote": "Zusammenführen ist im Remote-Modus nicht verfügbar",
-  "psbt_compose_advanced_unavailable_remote": "Coin-Auswahl, OP_RETURN-Daten, Sperrzeit, benutzerdefiniertes Wechselgeld und Gebührenabzug sind im Remote-Modus noch nicht verfügbar",
   "feature_unavailable_remote": "Diese Funktion ist im Remote-Modus (Electrum) nicht verfügbar",
   "setup_solo_not_available_remote": "Solo-Mining benötigt einen lokalen Node — im Remote-Modus (Electrum) nicht verfügbar",
   "move_up": "Nach oben",

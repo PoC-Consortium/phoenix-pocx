@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "İsteğe bağlı olarak cüzdan tohumunu diskte bir parolayla şifreleyin. Gönderim için cüzdanın kilidini açmak üzere buna ihtiyacınız olacak. Yalnızca kurtarma ifadesi her zaman paranızı geri yükler.",
   "restore_probe_info": "Tohumunuzun geçmişi içe aktarma sırasında Electrum üzerinden araştırılır — mevcut fon içeren dallar otomatik olarak algılanır.",
   "psbt_join_unavailable_remote": "Birleştirme uzak modda kullanılamaz",
-  "psbt_compose_advanced_unavailable_remote": "Koin kontrolü, OP_RETURN verisi, kilit süresi, özel para üstü ve ücret düşme henüz uzak modda kullanılamaz",
   "feature_unavailable_remote": "Bu özellik uzak (Electrum) modda kullanılamaz",
   "setup_solo_not_available_remote": "Solo madencilik yerel bir düğüm gerektirir — uzak (Electrum) modda kullanılamaz",
   "move_up": "Yukarı taşı",

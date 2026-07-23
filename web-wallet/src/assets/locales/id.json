@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Secara opsional enkripsi seed dompet di disk dengan kata sandi. Anda akan membutuhkannya untuk membuka kunci dompet saat mengirim. Frasa pemulihan saja selalu memulihkan dana Anda.",
   "restore_probe_info": "Riwayat seed Anda diperiksa melalui Electrum selama impor — cabang dengan dana yang ada terdeteksi secara otomatis.",
   "psbt_join_unavailable_remote": "Gabung tidak tersedia dalam mode jarak jauh",
-  "psbt_compose_advanced_unavailable_remote": "Kontrol koin, data OP_RETURN, locktime, kembalian khusus, dan pengurangan biaya belum tersedia dalam mode jarak jauh",
   "feature_unavailable_remote": "Fitur ini tidak tersedia dalam mode jarak jauh (Electrum)",
   "setup_solo_not_available_remote": "Penambangan solo memerlukan node lokal — tidak tersedia dalam mode jarak jauh (Electrum)",
   "move_up": "Pindahkan ke atas",

@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Chiffrez éventuellement la graine du portefeuille sur le disque avec un mot de passe. Il sera nécessaire pour déverrouiller le portefeuille lors de l'envoi. La phrase de récupération seule restaure toujours vos fonds.",
   "restore_probe_info": "L'historique de votre graine est sondé via Electrum lors de l'import — les branches contenant des fonds existants sont détectées automatiquement.",
   "psbt_join_unavailable_remote": "La fusion n'est pas disponible en mode distant",
-  "psbt_compose_advanced_unavailable_remote": "Le contrôle des pièces, les données OP_RETURN, le temps de verrouillage, la monnaie personnalisée et la déduction des frais ne sont pas encore disponibles en mode distant",
   "feature_unavailable_remote": "Cette fonctionnalité n'est pas disponible en mode distant (Electrum)",
   "setup_solo_not_available_remote": "Le minage en solo nécessite un nœud local — non disponible en mode distant (Electrum)",
   "move_up": "Déplacer vers le haut",

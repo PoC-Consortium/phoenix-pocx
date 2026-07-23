@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Opcjonalnie zaszyfruj ziarno portfela na dysku hasłem. Będzie potrzebne do odblokowania portfela w celu wysyłania. Sama fraza odzyskiwania zawsze przywraca Twoje środki.",
   "restore_probe_info": "Historia Twojego ziarna jest sprawdzana przez Electrum podczas importu — gałęzie z istniejącymi środkami są wykrywane automatycznie.",
   "psbt_join_unavailable_remote": "Łączenie nie jest dostępne w trybie zdalnym",
-  "psbt_compose_advanced_unavailable_remote": "Kontrola monet, dane OP_RETURN, czas blokady, niestandardowa reszta i odejmowanie opłaty nie są jeszcze dostępne w trybie zdalnym",
   "feature_unavailable_remote": "Ta funkcja nie jest dostępna w trybie zdalnym (Electrum)",
   "setup_solo_not_available_remote": "Kopanie solo wymaga lokalnego węzła — niedostępne w trybie zdalnym (Electrum)",
   "move_up": "Przenieś w górę",
