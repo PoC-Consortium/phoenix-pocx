@@ -443,7 +443,14 @@ const UTXO_PAGE_SIZE = 10;
           @if (selectedFee?.custom) {
             <mat-form-field appearance="outline" class="custom-fee-field">
               <mat-label>{{ 'fee_rate' | i18n }} (sat/vB)</mat-label>
-              <input matInput type="number" min="0.1" step="0.001" [(ngModel)]="customFeeRate" />
+              <input
+                matInput
+                type="number"
+                min="0.1"
+                step="0.001"
+                [(ngModel)]="customFeeRate"
+                (ngModelChange)="feeVersion.set(feeVersion() + 1)"
+              />
             </mat-form-field>
           }
         </div>
@@ -1398,7 +1405,7 @@ export class PsbtComposeComponent implements OnInit {
   selectedFee: FeeChip | null = null;
   customFeeRate: number | null = 1;
   /** Bumped on fee selection/edit so computed summaries recalculate */
-  private readonly feeVersion = signal(0);
+  readonly feeVersion = signal(0);
 
   filteredUtxos = computed(() => {
     const text = this.utxoFilterText().trim().toLowerCase();
@@ -1482,7 +1489,9 @@ export class PsbtComposeComponent implements OnInit {
     const rate = this.effectiveFeeRate();
     if (rate === null || rate <= 0) return null;
     const nIn = this.manualCoins() ? Math.max(1, this.selectedOutpoints().size) : 1;
-    const nOut = this.outputs().length + 1 + (this.showData() ? 1 : 0);
+    // MAX (subtract-fee) drains — there is no change output to pay for.
+    const change = this.subtractFeeIndex() !== null ? 0 : 1;
+    const nOut = this.outputs().length + change + (this.showData() ? 1 : 0);
     const vsize = 11 + nIn * 68 + nOut * 31;
     return (rate * vsize) / 1e8;
   });

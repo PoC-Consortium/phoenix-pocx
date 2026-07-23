@@ -270,10 +270,39 @@ pub fn analyze(psbt_base64: &str) -> Result<PsbtAnalyzeDto, String> {
     };
 
     let fee_sat = psbt.fee().ok().map(|f| f.to_sat());
+    // Extractable → exact vsize. Otherwise ESTIMATE it: unsigned weight plus
+    // the standard satisfaction weight of every still-open input (P2WPKH
+    // ~108 WU, P2TR key-path ~66 WU) — so the review shows a fee rate
+    // before signing, not just after finalize.
     let estimated_vsize = if next == "extractor" {
         psbt.clone().extract_tx().ok().map(|tx| tx.vsize() as u64)
     } else {
-        None
+        let tx = &psbt.unsigned_tx;
+        let mut wu = tx.weight().to_wu();
+        let mut known = !tx.input.is_empty();
+        let mut any_witness = false;
+        for (i, inp) in psbt.inputs.iter().enumerate() {
+            if let Some(w) = &inp.final_script_witness {
+                any_witness = true;
+                wu += w.size() as u64;
+            } else {
+                match input_utxo(&psbt, i).map(|u| u.script_pubkey.clone()) {
+                    Some(spk) if spk.is_p2wpkh() => {
+                        any_witness = true;
+                        wu += 108;
+                    }
+                    Some(spk) if spk.is_p2tr() => {
+                        any_witness = true;
+                        wu += 66;
+                    }
+                    _ => known = false,
+                }
+            }
+        }
+        if any_witness {
+            wu += 2; // segwit marker + flag
+        }
+        known.then(|| wu.div_ceil(4))
     };
     let estimated_fee_rate_sat_vb = match (fee_sat, estimated_vsize) {
         (Some(fee), Some(vsize)) if vsize > 0 => Some(fee as f64 / vsize as f64),

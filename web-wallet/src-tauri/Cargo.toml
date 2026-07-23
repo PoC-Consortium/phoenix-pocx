@@ -100,11 +100,11 @@ pocx_aggregator = { version = "1.0.5", optional = true }
 
 
 # Nodeless BTCX wallet stack (shared btcx crates) — gated by the `wallet` feature
-params-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
-keys-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
-seedstore = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
-electrum-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
-wallet-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "292fcc3e9d7853407099666271e5947bc08165d9", optional = true }
+params-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e", optional = true }
+keys-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e", optional = true }
+seedstore = { git = "https://github.com/PoC-Consortium/btcx", rev = "b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e", optional = true }
+electrum-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e", optional = true }
+wallet-btcx = { git = "https://github.com/PoC-Consortium/btcx", rev = "b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e", optional = true }
 bitcoin = { version = "0.32", features = ["serde", "rand-std"], optional = true }
 bdk_wallet = { version = "2", features = ["rusqlite"], optional = true }
 # bech32 with custom HRPs (pocx/tpocx/rpocx) â€” same version the btcx crates use
