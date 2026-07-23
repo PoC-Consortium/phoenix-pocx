@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Crea unha carteira nova ou restaura unha existente a partir da frase de recuperación.",
   "mwallet_onboarding_title": "Configura a túa carteira",
   "mwallet_passphrase_confirm": "Confirmar contrasinal",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Engadir frase de contrasinal BIP39 (25.ª palabra)",
+  "mwallet_bip39_label": "Frase de contrasinal BIP39 (25.ª palabra)",
+  "mwallet_bip39_confirm": "Confirmar a 25.ª palabra",
+  "mwallet_bip39_warning": "Esta 25.ª palabra opcional incorpórase ás túas claves. Se a estableces, a frase de recuperación POR SI SOA NON restaurará os teus fondos — tamén debes lembrar esta palabra exacta. Non é o contrasinal do dispositivo de arriba.",
+  "mwallet_bip39_restore_warning": "Introduce a 25.ª palabra exacta coa que se creou esta carteira. Unha palabra errónea ou ausente deriva unha carteira distinta e baleira.",
   "mwallet_passphrase_hint": "Cifra a semente almacenada neste dispositivo. Non forma parte da frase de recuperación — as palabras por si soas sempre restauran os teus fondos.",
   "mwallet_passphrase_label": "Contrasinal",
   "mwallet_passphrase_mismatch": "Os contrasinais non coinciden",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Volve comprobar as ramas de derivación antigas (v30) desta carteira no servidor Electrum. Os fondos máis antigos aparecen como un peto v30 só de gasto.",
   "scan": "Escanear",
   "upgrade_seed_mismatch": "Esta frase de recuperación non coincide con esta carteira. Introduce a semente exacta a partir da que se creou esta carteira.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Mostrar frase de contrasinal",
+  "hide_passphrase": "Ocultar frase de contrasinal"
 }

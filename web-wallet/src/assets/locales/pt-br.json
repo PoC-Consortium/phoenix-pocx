@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Crie uma nova carteira ou restaure uma existente a partir da frase de recuperação.",
   "mwallet_onboarding_title": "Configure sua carteira",
   "mwallet_passphrase_confirm": "Confirmar senha",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Adicionar frase de senha BIP39 (25ª palavra)",
+  "mwallet_bip39_label": "Frase de senha BIP39 (25ª palavra)",
+  "mwallet_bip39_confirm": "Confirmar a 25ª palavra",
+  "mwallet_bip39_warning": "Esta 25ª palavra opcional é incorporada às suas chaves. Se você a definir, a frase de recuperação SOZINHA NÃO restaurará seus fundos — você também precisa lembrar exatamente esta palavra. Não é a frase de senha do dispositivo acima.",
+  "mwallet_bip39_restore_warning": "Digite exatamente a 25ª palavra com a qual esta carteira foi criada. Uma palavra errada ou ausente deriva uma carteira diferente e vazia.",
   "mwallet_passphrase_hint": "Criptografa a semente armazenada neste dispositivo. Não faz parte da frase de recuperação — as palavras sozinhas sempre restauram seus fundos.",
   "mwallet_passphrase_label": "Senha",
   "mwallet_passphrase_mismatch": "As senhas não correspondem",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Verifica novamente os antigos ramos de derivação (v30) desta carteira no servidor Electrum. Os fundos mais antigos aparecem como um bolso v30 apenas para gasto.",
   "scan": "Escanear",
   "upgrade_seed_mismatch": "Esta frase de recuperação não corresponde a esta carteira. Digite a seed exata a partir da qual esta carteira foi criada.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Mostrar frase de senha",
+  "hide_passphrase": "Ocultar frase de senha"
 }

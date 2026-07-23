@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Utwórz nowy portfel lub przywróć istniejący z frazy odzyskiwania.",
   "mwallet_onboarding_title": "Skonfiguruj swój portfel",
   "mwallet_passphrase_confirm": "Potwierdź hasło",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Dodaj hasło BIP39 (25. słowo)",
+  "mwallet_bip39_label": "Hasło BIP39 (25. słowo)",
+  "mwallet_bip39_confirm": "Potwierdź 25. słowo",
+  "mwallet_bip39_warning": "To opcjonalne 25. słowo jest wplatane w Twoje klucze. Jeśli je ustawisz, SAMA fraza odzyskiwania NIE przywróci Twoich środków — musisz pamiętać także dokładnie to słowo. To nie jest hasło urządzenia powyżej.",
+  "mwallet_bip39_restore_warning": "Wpisz dokładnie to 25. słowo, z którym utworzono ten portfel. Błędne lub brakujące słowo wyprowadza inny, pusty portfel.",
   "mwallet_passphrase_hint": "Szyfruje seed zapisany na tym urządzeniu. Nie jest częścią frazy odzyskiwania — same słowa zawsze przywracają Twoje środki.",
   "mwallet_passphrase_label": "Hasło",
   "mwallet_passphrase_mismatch": "Hasła nie są zgodne",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Ponownie sprawdź stare (v30) gałęzie derywacji tego portfela na serwerze Electrum. Starsze środki pojawią się jako kieszeń v30 tylko do wydania.",
   "scan": "Skanuj",
   "upgrade_seed_mismatch": "Ta fraza odzyskiwania nie pasuje do tego portfela. Wpisz dokładnie ten seed, z którego utworzono ten portfel.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Pokaż hasło",
+  "hide_passphrase": "Ukryj hasło"
 }

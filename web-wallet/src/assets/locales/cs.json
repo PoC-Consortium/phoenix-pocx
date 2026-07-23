@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Vytvořte novou peněženku nebo obnovte existující z obnovovací fráze.",
   "mwallet_onboarding_title": "Nastavte si peněženku",
   "mwallet_passphrase_confirm": "Potvrdit heslo",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Přidat BIP39 heslo (25. slovo)",
+  "mwallet_bip39_label": "BIP39 heslo (25. slovo)",
+  "mwallet_bip39_confirm": "Potvrdit 25. slovo",
+  "mwallet_bip39_warning": "Toto volitelné 25. slovo se stává součástí vašich klíčů. Pokud jej nastavíte, obnovovací fráze SAMA vaše prostředky NEOBNOVÍ — musíte si pamatovat i toto přesné slovo. Není to heslo zařízení výše.",
+  "mwallet_bip39_restore_warning": "Zadejte přesné 25. slovo, se kterým byla tato peněženka vytvořena. Špatné nebo chybějící slovo odvodí jinou, prázdnou peněženku.",
   "mwallet_passphrase_hint": "Šifruje seed uložený na tomto zařízení. Není součástí obnovovací fráze — samotná slova vždy obnoví vaše prostředky.",
   "mwallet_passphrase_label": "Heslo",
   "mwallet_passphrase_mismatch": "Hesla se neshodují",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Znovu zkontrolovat staré (v30) derivační větve této peněženky na serveru Electrum. Starší prostředky se zobrazí jako v30 kapsa určená pouze k utrácení.",
   "scan": "Skenovat",
   "upgrade_seed_mismatch": "Tato obnovovací fráze neodpovídá této peněžence. Zadejte přesně ten seed, ze kterého byla tato peněženka vytvořena.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Zobrazit heslo",
+  "hide_passphrase": "Skrýt heslo"
 }

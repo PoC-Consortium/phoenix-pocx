@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Створіть новий гаманець або відновіть наявний із фрази відновлення.",
   "mwallet_onboarding_title": "Налаштуйте свій гаманець",
   "mwallet_passphrase_confirm": "Підтвердьте пароль",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Додати парольну фразу BIP39 (25-те слово)",
+  "mwallet_bip39_label": "Парольна фраза BIP39 (25-те слово)",
+  "mwallet_bip39_confirm": "Підтвердьте 25-те слово",
+  "mwallet_bip39_warning": "Це необов'язкове 25-те слово вбудовується у ваші ключі. Якщо ви його задасте, фраза відновлення САМА ПО СОБІ НЕ відновить ваші кошти — потрібно пам'ятати й саме це слово. Це не парольна фраза пристрою вище.",
+  "mwallet_bip39_restore_warning": "Введіть точно те 25-те слово, з яким було створено цей гаманець. Неправильне або пропущене слово виводить інший, порожній гаманець.",
   "mwallet_passphrase_hint": "Шифрує seed, збережений на цьому пристрої. Він не є частиною фрази відновлення — самі слова завжди відновлюють ваші кошти.",
   "mwallet_passphrase_label": "Пароль",
   "mwallet_passphrase_mismatch": "Паролі не збігаються",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Повторно перевірте старі (v30) гілки деривації цього гаманця на сервері Electrum. Старіші кошти з'являються як кишеня v30 лише для витрат.",
   "scan": "Сканувати",
   "upgrade_seed_mismatch": "Ця фраза відновлення не відповідає цьому гаманцю. Введіть саме ту фразу відновлення, з якої було створено цей гаманець.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Показати парольну фразу",
+  "hide_passphrase": "Приховати парольну фразу"
 }

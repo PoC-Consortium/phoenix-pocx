@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Creeu una cartera nova o restaureu-ne una d'existent a partir de la frase de recuperació.",
   "mwallet_onboarding_title": "Configureu la vostra cartera",
   "mwallet_passphrase_confirm": "Confirmar contrasenya",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Afegeix frase de contrasenya BIP39 (25a paraula)",
+  "mwallet_bip39_label": "Frase de contrasenya BIP39 (25a paraula)",
+  "mwallet_bip39_confirm": "Confirma la 25a paraula",
+  "mwallet_bip39_warning": "Aquesta 25a paraula opcional s'incorpora a les teves claus. Si la configures, la frase de recuperació SOLA NO restaurarà els teus fons — també has de recordar aquesta paraula exacta. No és la contrasenya del dispositiu de dalt.",
+  "mwallet_bip39_restore_warning": "Introdueix la 25a paraula exacta amb què es va crear aquest moneder. Una paraula errònia o absent deriva un moneder diferent i buit.",
   "mwallet_passphrase_hint": "Xifra la llavor emmagatzemada en aquest dispositiu. No forma part de la frase de recuperació — les paraules per si soles sempre restauren els vostres fons.",
   "mwallet_passphrase_label": "Contrasenya",
   "mwallet_passphrase_mismatch": "Les contrasenyes no coincideixen",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Torna a comprovar les branques de derivació antigues (v30) d'aquesta cartera al servidor Electrum. Els fons antics apareixen com una butxaca v30 només per gastar.",
   "scan": "Escaneja",
   "upgrade_seed_mismatch": "Aquesta frase de recuperació no coincideix amb aquesta cartera. Introduïu la llavor exacta amb què es va crear aquesta cartera.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Mostra la frase de contrasenya",
+  "hide_passphrase": "Amaga la frase de contrasenya"
 }

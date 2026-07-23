@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "नया वॉलेट बनाएं या रिकवरी वाक्यांश से मौजूदा वॉलेट पुनर्स्थापित करें।",
   "mwallet_onboarding_title": "अपना वॉलेट सेट करें",
   "mwallet_passphrase_confirm": "पासफ़्रेज़ की पुष्टि करें",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "BIP39 पासफ्रेज जोड़ें (25वाँ शब्द)",
+  "mwallet_bip39_label": "BIP39 पासफ्रेज (25वाँ शब्द)",
+  "mwallet_bip39_confirm": "25वें शब्द की पुष्टि करें",
+  "mwallet_bip39_warning": "यह वैकल्पिक 25वाँ शब्द आपकी कुंजियों में शामिल हो जाता है। यदि आप इसे सेट करते हैं, तो केवल रिकवरी फ्रेज से आपकी धनराशि बहाल नहीं होगी — आपको यह सटीक शब्द भी याद रखना होगा। यह ऊपर वाला डिवाइस पासफ्रेज नहीं है।",
+  "mwallet_bip39_restore_warning": "वही 25वाँ शब्द दर्ज करें जिसके साथ यह वॉलेट बनाया गया था। गलत या अनुपस्थित शब्द एक अलग, खाली वॉलेट व्युत्पन्न करता है।",
   "mwallet_passphrase_hint": "इस डिवाइस पर संग्रहीत सीड को एन्क्रिप्ट करता है। यह रिकवरी वाक्यांश का हिस्सा नहीं है — केवल शब्द ही हमेशा आपकी धनराशि पुनर्स्थापित करते हैं।",
   "mwallet_passphrase_label": "पासफ़्रेज़",
   "mwallet_passphrase_mismatch": "पासफ़्रेज़ मेल नहीं खाते",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Electrum सर्वर पर इस वॉलेट की पुरानी (v30) डेरिवेशन शाखाओं को फिर से जाँचें। पुरानी धनराशि केवल-खर्च वाले v30 पॉकेट के रूप में दिखाई देती है।",
   "scan": "स्कैन करें",
   "upgrade_seed_mismatch": "यह रिकवरी वाक्यांश इस वॉलेट से मेल नहीं खाता। वही सीड दर्ज करें जिससे यह वॉलेट बनाया गया था।",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "पासफ्रेज दिखाएँ",
+  "hide_passphrase": "पासफ्रेज छिपाएँ"
 }

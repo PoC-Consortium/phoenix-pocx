@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Maak een nieuwe portemonnee aan of herstel een bestaande vanuit de herstelzin.",
   "mwallet_onboarding_title": "Stel uw portemonnee in",
   "mwallet_passphrase_confirm": "Wachtwoordzin bevestigen",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "BIP39-wachtwoordzin toevoegen (25e woord)",
+  "mwallet_bip39_label": "BIP39-wachtwoordzin (25e woord)",
+  "mwallet_bip39_confirm": "Bevestig het 25e woord",
+  "mwallet_bip39_warning": "Dit optionele 25e woord wordt in je sleutels verwerkt. Als je het instelt, herstelt je herstelzin ALLEEN je tegoeden NIET — je moet ook precies dit woord onthouden. Het is niet de apparaatwachtwoordzin hierboven.",
+  "mwallet_bip39_restore_warning": "Voer exact het 25e woord in waarmee deze wallet is aangemaakt. Een verkeerd of ontbrekend woord leidt tot een andere, lege wallet.",
   "mwallet_passphrase_hint": "Versleutelt de seed die op dit apparaat is opgeslagen. Het maakt geen deel uit van de herstelzin — de woorden alleen herstellen altijd uw tegoed.",
   "mwallet_passphrase_label": "Wachtwoordzin",
   "mwallet_passphrase_mismatch": "Wachtwoordzinnen komen niet overeen",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Controleer de oude (v30) afleidingstakken van deze portemonnee opnieuw op de Electrum-server. Ouder tegoed verschijnt als een alleen-uitgeven v30-vakje.",
   "scan": "Scannen",
   "upgrade_seed_mismatch": "Deze herstelzin komt niet overeen met deze portemonnee. Voer exact de seed in waarmee deze portemonnee is aangemaakt.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Wachtwoordzin tonen",
+  "hide_passphrase": "Wachtwoordzin verbergen"
 }

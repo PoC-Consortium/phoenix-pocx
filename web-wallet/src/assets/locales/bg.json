@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Създайте нов портфейл или възстановете съществуващ от фразата за възстановяване.",
   "mwallet_onboarding_title": "Настройте портфейла си",
   "mwallet_passphrase_confirm": "Потвърди паролата",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Добавяне на BIP39 парола (25-та дума)",
+  "mwallet_bip39_label": "BIP39 парола (25-та дума)",
+  "mwallet_bip39_confirm": "Потвърдете 25-ата дума",
+  "mwallet_bip39_warning": "Тази незадължителна 25-та дума се вгражда в ключовете ви. Ако я зададете, фразата за възстановяване САМА по себе си НЯМА да възстанови средствата ви — трябва да помните и точно тази дума. Тя не е паролата на устройството по-горе.",
+  "mwallet_bip39_restore_warning": "Въведете точната 25-та дума, с която е създаден този портфейл. Грешна или липсваща дума извежда друг, празен портфейл.",
   "mwallet_passphrase_hint": "Шифрова seed-а, съхранен на това устройство. Тя не е част от фразата за възстановяване — самите думи винаги възстановяват средствата ви.",
   "mwallet_passphrase_label": "Парола",
   "mwallet_passphrase_mismatch": "Паролите не съвпадат",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Провери повторно старите (v30) клонове на деривация на този портфейл на сървъра Electrum. По-старите средства се показват като джоб v30 само за харчене.",
   "scan": "Сканирай",
   "upgrade_seed_mismatch": "Тази фраза за възстановяване не съответства на този портфейл. Въведи точната seed фраза, от която е създаден този портфейл.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Показване на паролата",
+  "hide_passphrase": "Скриване на паролата"
 }

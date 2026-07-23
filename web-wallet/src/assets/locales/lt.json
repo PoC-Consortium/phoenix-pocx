@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Sukurkite naują piniginę arba atkurkite esamą iš atkūrimo frazės.",
   "mwallet_onboarding_title": "Nustatykite savo piniginę",
   "mwallet_passphrase_confirm": "Patvirtinti slaptafrazę",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Pridėti BIP39 slaptažodį (25-ą žodį)",
+  "mwallet_bip39_label": "BIP39 slaptažodis (25-as žodis)",
+  "mwallet_bip39_confirm": "Patvirtinti 25-ą žodį",
+  "mwallet_bip39_warning": "Šis neprivalomas 25-as žodis įtraukiamas į jūsų raktus. Jį nustačius, atkūrimo frazė VIENA jūsų lėšų NEATKURS — turite atsiminti ir būtent šį žodį. Tai nėra aukščiau esantis įrenginio slaptažodis.",
+  "mwallet_bip39_restore_warning": "Įveskite tikslų 25-ą žodį, su kuriuo ši piniginė buvo sukurta. Neteisingas ar praleistas žodis išveda kitą, tuščią piniginę.",
   "mwallet_passphrase_hint": "Užšifruoja šiame įrenginyje saugomą seed. Ji nėra atkūrimo frazės dalis — vien žodžiai visada atkuria jūsų lėšas.",
   "mwallet_passphrase_label": "Slaptafrazė",
   "mwallet_passphrase_mismatch": "Slaptafrazės nesutampa",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Iš naujo patikrina šios piniginės senąsias (v30) išvedimo šakas Electrum serveryje. Senesnės lėšos rodomos kaip tik išleidimui skirta v30 kišenė.",
   "scan": "Nuskaityti",
   "upgrade_seed_mismatch": "Ši atkūrimo frazė neatitinka šios piniginės. Įveskite būtent tą seed, iš kurios ši piniginė buvo sukurta.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Rodyti slaptažodį",
+  "hide_passphrase": "Slėpti slaptažodį"
 }
