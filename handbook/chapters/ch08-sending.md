@@ -78,10 +78,6 @@ Selecting **Custom** opens a small input where you type your own rate in `sat/vB
 
 Phoenix also falls back to **Custom** *automatically* when Bitcoin-PoCX Core cannot produce a fee estimate — for example on a quiet testnet, or shortly after a node first comes online, when there have been too few recent transactions for the estimator to have anything to learn from. When that happens, Phoenix pre-selects **Custom** with a default rate of **1 sat/vB**, which is at or near the typical minimum relay fee. The send will go through, but it may take longer to confirm than usual; raise the rate before clicking **Send** if you want quicker confirmation.
 
-### The estimated fee line
-
-Below the priority buttons, the line *"Estimated fee: X BTCX (Y sats)"* shows the resulting fee for your current selection — both in BTCX and in raw satoshis, for clarity.
-
 ## Options
 
 Two toggles tweak how the transaction is built:
@@ -105,7 +101,7 @@ When **on**, the transaction is broadcast with the BIP-125 *replaceable* flag se
 A read-only summary at the bottom of the form re-states what you have selected:
 
 - **Amount** — what you typed in the amount field.
-- **Estimated fee** — what the fee section computes.
+- **Estimated fee** — the fee your current priority selection computes, in BTCX.
 - **Total** — *amount + fee* if subtract-fee is off, or just *amount* if it is on.
 
 If your **Total** would exceed your available balance, the value turns red and an *Insufficient balance* warning appears with a yellow icon. The **Send** button stays disabled until the balance is enough.

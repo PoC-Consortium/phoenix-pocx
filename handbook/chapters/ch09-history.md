@@ -13,9 +13,11 @@ From the sidebar, click **Transactions** under the *Transactions* group. The pag
 The header carries four controls:
 
 - A **back arrow** that returns to the previous screen.
-- A **Load limit** drop-down that controls how many recent transactions Phoenix asks Bitcoin-PoCX Core to return. A higher limit means a longer wait at first but a more complete history; a lower limit is fast but may not reach back to older payments. Switch this if you need to look further back than the default window.
 - An **Export CSV** button (download icon) that saves your history to a spreadsheet-friendly file. See *Exporting your history to CSV* below.
-- A **Refresh** button (circular arrow) that re-fetches transactions immediately. Phoenix also refreshes automatically when balances change.
+- A **Load limit** button (numbered-list icon) opening a menu that controls how many recent transactions Phoenix loads. A higher limit means a longer wait at first but a more complete history; a lower limit is fast but may not reach back to older payments. Switch this if you need to look further back than the default window.
+- A **Refresh** button (circular arrow) that re-fetches transactions immediately, in one tap. Phoenix also refreshes automatically when balances change.
+
+On a phone-sized window the header slims down to a **funnel** button and **Refresh**: the funnel expands the filter row (with the load-limit button inside it, and it glows green while open), and CSV export is desktop-only.
 
 ## Filtering the list
 
@@ -61,7 +63,7 @@ The table has seven columns. Reading left to right:
 
 A row whose transaction has zero confirmations is rendered with a slightly muted style — Phoenix's way of saying *"this isn't yet on the chain."*
 
-A paginator at the bottom of the card lets you change the page size and step through the full list. Page size and current position are remembered while you stay on the page.
+A paginator at the bottom of the card steps through the full list. The page size adapts to your window automatically — the table shows exactly as many rows as fit, so there is no page-size picker to manage.
 
 ### Confirmation states
 
@@ -94,7 +96,7 @@ Clicking the three-dot menu on any row opens a contextual list of things you can
 
 ## Looking at a single transaction
 
-Clicking the txid (or selecting **Transaction details** from the row menu) opens the detail page. This is where the full anatomy of a transaction becomes visible.
+Clicking the txid (or selecting **Transaction details** from the row menu) opens the detail page. This is where the full anatomy of a transaction becomes visible — in every node mode: with a local node the data comes from Bitcoin-PoCX Core, and in remote (Electrum) mode Phoenix serves the same view instantly from its own synced wallet data, with no extra server traffic.
 
 ![A transaction detail page: metrics, inputs, and outputs.](images/processed/ch09-transaction-detail.png){width=98%}
 

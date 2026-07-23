@@ -28,12 +28,12 @@ The first row of the card lets you choose between two address modes.
 
 ### Use existing address
 
-This is the default. A drop-down lists every address your wallet has previously generated. Each entry shows:
+This is the default. A drop-down lists every address your wallet has handed out — including, after a restore or re-import, the addresses recovered from the wallet's descriptors, not just the ones this installation generated. Each entry shows:
 
 - The address itself, in bech32 form.
-- Optional metadata in parentheses: a label you previously assigned, and/or *"never used"* if no payment has ever touched it.
+- Optional metadata in parentheses: a label you previously assigned, *"never used"* if no payment has ever touched it, and *"(v30)"* if the address belongs to an older wallet's retired derivation branch.
 
-Pick the entry that suits you. The QR code at the bottom of the card refreshes to match your selection.
+When the screen opens, Phoenix pre-selects your **first never-used address** — ready to share without creating churn in your key tree. Pick a different entry if you prefer; the selected row shows the bare address, and the QR code at the bottom of the card refreshes to match.
 
 ### Generate new address
 

@@ -13,7 +13,7 @@ In remote mode there is no `bitcoind` process anywhere in the picture. Two piece
 - **A local wallet, on your computer.** Phoenix keeps a self-contained wallet — its keys, addresses, and transaction history — in its own data directory on the machine you are using. The keys never leave the device. Every transaction you send is built and signed *locally*, exactly as a hardware or mobile wallet does.
 - **Electrum servers, on the network.** To learn what has arrived, what has confirmed, and to broadcast the transactions it signs, the wallet talks to one or more Electrum servers — lightweight indexers that answer "what is the history of this address?" and "please relay this transaction." Phoenix ships with a default Bitcoin-PoCX server and lets you add your own.
 
-The result behaves like an ordinary Phoenix wallet — dashboard, receive, send, history, contacts, forging assignments, and the Transaction Builder all work — but with no node to install, sync, or maintain.
+The result behaves like an ordinary Phoenix wallet — dashboard, receive, send, history, contacts, forging assignments, and the Transaction Builder all work — but with no node to install, sync, or maintain. The transaction history and its **full detail pages** (inputs, outputs, fee, block data, raw transaction) are served straight from the wallet's local data, so opening them costs no extra server round-trips — even thousand-entry histories list near-instantly.
 
 > **Note** — Remote mode is sometimes labelled the *nodeless* or *Electrum* wallet in the interface. The three terms mean the same thing: a wallet that runs against remote servers instead of a local Bitcoin-PoCX Core.
 
