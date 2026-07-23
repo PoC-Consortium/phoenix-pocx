@@ -21,7 +21,7 @@ use bdk_wallet::{SignOptions, TxOrdering};
 use bitcoin::{Amount, Psbt, ScriptBuf, Sequence};
 use serde::{Deserialize, Serialize};
 
-use electrum_btcx::{SendFee, WalletEntry};
+use electrum_btcx::SendFee;
 
 use super::config::WalletNetwork;
 use super::state::SharedBtcxWalletState;
@@ -490,66 +490,49 @@ pub fn create_funded_psbt(
 
     state.ensure_first_sync()?;
     let psbt = state.with_entry(|entry| {
-        let build = |entry: &mut WalletEntry,
-                     amounts: &[(ScriptBuf, u64)],
-                     forced: Option<&[bitcoin::OutPoint]>|
-         -> Result<Psbt, String> {
-            let mut builder = entry.wallet.build_tx();
-            builder
-                .ordering(TxOrdering::Shuffle)
-                .fee_rate(feerate)
-                // 0xFFFFFFFD: signals RBF AND (being < 0xFFFFFFFE) leaves an
-                // absolute locktime enforceable despite the constant's name.
-                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
-            if let Some(lt) = locktime {
-                builder.nlocktime(lt);
-            }
-            if let Some(outpoints) = forced {
+        // subtract_fee_output carries DRAIN semantics: the builder UI only
+        // sets it via MAX ("everything left"), so the target output receives
+        // whatever the funding set holds beyond the other outputs and the
+        // fee. The typed amount is display-only in that case — building at
+        // full amount + fee can never fund (that WAS the bug: 249.99999889
+        // available of 249.99999999 needed).
+        let mut builder = entry.wallet.build_tx();
+        builder
+            .ordering(TxOrdering::Shuffle)
+            .fee_rate(feerate)
+            // 0xFFFFFFFD: signals RBF AND (being < 0xFFFFFFFE) leaves an
+            // absolute locktime enforceable despite the constant's name.
+            .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
+        if let Some(lt) = locktime {
+            builder.nlocktime(lt);
+        }
+        if let Some(data) = &push_data {
+            builder.add_data(data);
+        }
+        match (&manual_utxos, options.subtract_fee_output) {
+            (Some(outpoints), _) => {
                 builder
                     .add_utxos(outpoints)
                     .map_err(|e| format!("coin selection: {e}"))?;
                 builder.manually_selected_only();
             }
-            if let Some(data) = &push_data {
-                builder.add_data(data);
+            // Auto coins + MAX: the target drains the WHOLE wallet (minus
+            // the other outputs and fee) — spend everything.
+            (None, Some(_)) => {
+                builder.drain_wallet();
             }
-            for (spk, amount_sat) in amounts {
+            (None, None) => {}
+        }
+        for (i, (spk, amount_sat)) in spks.iter().enumerate() {
+            if options.subtract_fee_output == Some(i) {
+                builder.drain_to(spk.clone());
+            } else {
                 builder.add_recipient(spk.clone(), Amount::from_sat(*amount_sat));
             }
-            builder
-                .finish()
-                .map_err(|e| format!("building the transaction: {e}"))
-        };
-
-        let psbt = match options.subtract_fee_output {
-            None => build(entry, &spks, manual_utxos.as_deref())?,
-            Some(target) => {
-                // Two-pass subtract-fee: a probe build at full amounts fixes
-                // the input set and (through it) the exact fee; the real
-                // build reuses THAT input set with the target output reduced
-                // by the fee — identical shape, so the fee stays exact.
-                let probe = build(entry, &spks, manual_utxos.as_deref())?;
-                let fee = probe
-                    .fee()
-                    .map_err(|e| format!("probing the fee: {e}"))?
-                    .to_sat();
-                let inputs: Vec<bitcoin::OutPoint> = probe
-                    .unsigned_tx
-                    .input
-                    .iter()
-                    .map(|i| i.previous_output)
-                    .collect();
-                let mut adjusted = spks.clone();
-                if adjusted[target].1 <= fee {
-                    return Err(format!(
-                        "output {target} ({} sat) cannot cover the {fee} sat fee",
-                        adjusted[target].1
-                    ));
-                }
-                adjusted[target].1 -= fee;
-                build(entry, &adjusted, Some(&inputs))?
-            }
-        };
+        }
+        let psbt = builder
+            .finish()
+            .map_err(|e| format!("building the transaction: {e}"))?;
         // Persist so the coin selection's reveal of a change address
         // survives; the UTXOs stay spendable until a signed tx broadcasts.
         entry
