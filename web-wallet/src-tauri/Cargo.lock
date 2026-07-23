@@ -1654,7 +1654,7 @@ dependencies = [
 [[package]]
 name = "electrum-btcx"
 version = "0.1.0"
-source = "git+https://github.com/PoC-Consortium/btcx?rev=b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e#b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e"
+source = "git+https://github.com/PoC-Consortium/btcx?rev=f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972#f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972"
 dependencies = [
  "anyhow",
  "bdk_wallet",
@@ -3112,7 +3112,7 @@ dependencies = [
 [[package]]
 name = "keys-btcx"
 version = "0.1.0"
-source = "git+https://github.com/PoC-Consortium/btcx?rev=b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e#b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e"
+source = "git+https://github.com/PoC-Consortium/btcx?rev=f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972#f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972"
 dependencies = [
  "anyhow",
  "bip39",
@@ -3965,7 +3965,7 @@ dependencies = [
 [[package]]
 name = "params-btcx"
 version = "0.1.0"
-source = "git+https://github.com/PoC-Consortium/btcx?rev=b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e#b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e"
+source = "git+https://github.com/PoC-Consortium/btcx?rev=f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972#f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972"
 dependencies = [
  "anyhow",
  "bech32",
@@ -5319,7 +5319,7 @@ dependencies = [
 [[package]]
 name = "seedstore"
 version = "0.1.0"
-source = "git+https://github.com/PoC-Consortium/btcx?rev=b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e#b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e"
+source = "git+https://github.com/PoC-Consortium/btcx?rev=f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972#f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972"
 dependencies = [
  "anyhow",
  "bip39",
@@ -7267,7 +7267,7 @@ dependencies = [
 [[package]]
 name = "wallet-btcx"
 version = "0.1.0"
-source = "git+https://github.com/PoC-Consortium/btcx?rev=b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e#b45d6bd5fbd6bb39fec5eb1898fe1ff14c41de9e"
+source = "git+https://github.com/PoC-Consortium/btcx?rev=f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972#f9c51fcf5a0b2209099a4fb9ac51f406a4f3c972"
 dependencies = [
  "anyhow",
  "bdk_wallet",
