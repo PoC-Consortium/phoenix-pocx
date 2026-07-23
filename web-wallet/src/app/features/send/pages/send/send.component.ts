@@ -1276,8 +1276,10 @@ export class SendComponent implements OnInit, OnDestroy {
 
     if (feeRate === null) return;
 
-    // Estimate transaction size (P2WPKH with change output: ~170 vbytes for 1-in-2-out)
-    const estimatedVBytes = 170;
+    // Estimated size for the typical 1-in-2-out P2WPKH send: 11 + 68 + 2*31
+    // = 141 vB — the same formula the Transaction Builder uses, so the two
+    // screens quote the same fee for the same rate.
+    const estimatedVBytes = 141;
     const feeInSats = feeRate * estimatedVBytes;
     this.selectedFeeOption.estimatedFee = feeInSats / 100000000;
   }

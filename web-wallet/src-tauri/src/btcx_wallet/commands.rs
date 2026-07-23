@@ -2205,7 +2205,7 @@ pub async fn btcx_wallet_fee_estimates(
         let chain = backend.chain();
         let vb = |kvb: Option<u64>| kvb.map(|rate| rate as f64 / 1000.0);
         Ok(BtcxFeeEstimates {
-            min_sat_per_vb: backend.params().min_feerate_sat_vb as f64,
+            min_sat_per_vb: backend.params().min_feerate_sat_kvb as f64 / 1000.0,
             fast: vb(chain.fee_estimate_kvb(1).map_err(|e| format!("{e:#}"))?),
             normal: vb(chain.fee_estimate_kvb(6).map_err(|e| format!("{e:#}"))?),
             slow: vb(chain.fee_estimate_kvb(144).map_err(|e| format!("{e:#}"))?),
