@@ -2293,9 +2293,14 @@ export class MiningService {
           // Smart cleanup of activity logs (idle moment after scan)
           this.cleanupActivityLogs();
 
-          // Update Android notification (helps prevent process kill)
+          // Update Android notification (helps prevent process kill).
+          // ONE line per round with the round's best deadline — per-deadline
+          // updates were spam (see miner:deadline-accepted below).
+          const best = this._minerState().currentBlock[event.payload.chain]?.bestDeadline;
           this.updateForegroundNotification(
-            `Mining: Block ${event.payload.height} - Round complete`
+            best !== undefined && best < 86400
+              ? `Mining: Block ${event.payload.height} - best deadline ${best}s`
+              : `Mining: Block ${event.payload.height} - round complete`
           );
         }
       }
@@ -2328,8 +2333,9 @@ export class MiningService {
           return s;
         });
 
-        // Update Android notification with deadline info (helps prevent process kill)
-        this.updateForegroundNotification(`Mining: Deadline ${pocTime}s found`);
+        // No notification here — a busy round accepts MANY deadlines and
+        // updating the persistent notification each time is spam. The
+        // round-finish handler reports the round's best instead.
       }
     );
     this._minerUnlisteners.push(deadlineAcceptedUnlisten);
