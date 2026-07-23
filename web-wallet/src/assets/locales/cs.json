@@ -532,6 +532,7 @@
   "notifications": "Oznameni",
   "notifications_disabled": "Oznameni zakazana",
   "notifications_enabled": "Oznameni povolena",
+  "notifications_mining_always_on": "Oznámení o stavu těžby a plotování jsou vždy zapnutá — vyžaduje je služba na pozadí.",
   "of_label": "z",
   "open_wallet": "Otevrit penezenku",
   "options": "Moznosti",

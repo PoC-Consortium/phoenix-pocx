@@ -532,6 +532,7 @@
   "notifications": "Notificacións",
   "notifications_disabled": "Notificacións desactivadas",
   "notifications_enabled": "Notificacións activadas",
+  "notifications_mining_always_on": "As notificacións de estado de minaría e plotting están sempre activas — o servizo en segundo plano requíreas.",
   "of_label": "de",
   "open_wallet": "Abrir Carteira",
   "options": "Opcións",

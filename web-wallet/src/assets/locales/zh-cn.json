@@ -532,6 +532,7 @@
   "notifications": "通知",
   "notifications_disabled": "通知已禁用",
   "notifications_enabled": "通知已启用",
+  "notifications_mining_always_on": "挖矿和绘图状态通知始终开启 — 后台服务需要它们。",
   "of_label": "共",
   "open_wallet": "打开钱包",
   "options": "选项",

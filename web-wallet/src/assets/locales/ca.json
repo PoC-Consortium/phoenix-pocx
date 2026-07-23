@@ -532,6 +532,7 @@
   "notifications": "Notificacions",
   "notifications_disabled": "Notificacions desactivades",
   "notifications_enabled": "Notificacions activades",
+  "notifications_mining_always_on": "Les notificacions d’estat de mineria i de creació de plots sempre estan actives — el servei en segon pla les requereix.",
   "of_label": "de",
   "open_wallet": "Obrir Cartera",
   "options": "Opcions",

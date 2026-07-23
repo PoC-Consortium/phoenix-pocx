@@ -1,28 +1,36 @@
-# Phoenix Wallet 2.2.0
+# Phoenix Wallet 2.3.0
 
-The biggest update since 2.1 — a redesigned wallet model built around **pockets**, more reliable balance syncing, and full translations across every supported language.
+One app, every device. 2.3.0 unifies the desktop and mobile experience into a single set of responsive pages, brings full transaction details and dramatically faster history to Electrum mode, and integrates mining into the wallet on hybrid builds.
 
-## Wallet pockets
+## One experience across desktop and mobile
 
-Your wallet is now organized around a single recovery phrase with switchable **pockets**, instead of a cluster of separate sibling wallets and upgrade/recover buttons:
+Every main page — dashboard, transactions, send, receive, coins, contacts, forging assignment, and the transaction builder — is now a single component that adapts to your screen, instead of separate desktop and mobile versions. What you learn on one device applies on the other, and improvements land everywhere at once:
 
-- **One wallet, one recovery phrase.** Each wallet shows as a single entry, and inside it are its pockets — **SegWit** (recommended; the one that receives mining rewards), **Taproot**, and, if you hold older coins, a **legacy (v30)** pocket. Switch pockets from the wallet selector, or from the pocket chip next to the wallet name in the toolbar.
-- **Restoring is simpler.** Restore your recovery phrase and all of its pockets are set up for you automatically — no more "Upgrade to v31", "recover old funds", or create-both prompts.
-- **Older (v30) coins are spend-only.** They show up as a spend-only pocket you can drain into your current SegWit or Taproot pocket. Receiving into a legacy pocket is blocked, so no new funds ever land back in the retired branch.
-- **Rename or delete** a wallet and all its pockets together — swipe a wallet in the selector on mobile, or use the selector on desktop.
+- Consistent page headers, titles, and spacing at every window size.
+- Transaction lists page to fit your screen automatically — no more items-per-page pickers.
+- On phones, the transactions page tucks its search and filters behind a funnel button, so the header never crowds.
+- The receive page puts address selection first, with older (v30) addresses labeled.
 
-## Balances that stay correct
+## Electrum mode: full transaction details, much faster
 
-- **Funds sent to another device's address now show up.** If you use the same recovery phrase on more than one device, money sent to an address a *different* device handed out is now discovered automatically — no more balance appearing "stuck" at an older value while the block height keeps climbing.
-- **Incoming payments appear right away** instead of waiting for the next block to confirm.
+- **Tap any transaction** to see everything — inputs and outputs with amounts, size and fee, block info, raw hex, and forging-assignment details — served instantly from the local wallet, with zero extra server traffic.
+- **Transaction history loads in a blink.** Large wallets (1000+ transactions) used to take many seconds to list; the same list now appears near-instantly, and background refreshes skip entirely when nothing changed.
 
-## Now fully translated
+## Mining, integrated (hybrid builds)
 
-The app is now translated across all 25 supported languages. Previously many screens — including much of the wallet and settings — fell back to English.
+- The **mining dashboard and setup wizard live inside the wallet** now — same menu, same toolbar, no jarring switch into a separate mining screen.
+- A **miner status icon** in the toolbar shows at a glance whether you're mining — on desktop and mobile.
+- **Calmer notifications**: instead of a ping for every deadline found, the mining notification updates once per round with the round's best deadline.
+- **Direct I/O is now enabled by default on Android**, matching desktop for better plotting and scanning performance.
+
+## More control over notifications
+
+Mobile settings gained a **Notifications** card: switch payment and connection notifications on or off. (Mining status notifications stay on — Android requires them while mining in the background.)
 
 ## Also improved
 
-- **Coins** page: a cleaner stacked-card layout on mobile.
-- **Mining**: the network-capacity chart is now a live trailing-window graph.
-- **Fees**: more reliable first-attempt fee bumping, and finer fee-rate control and display.
-- Numerous **Android / mobile** fixes for Send, Receive, and forging assignments.
+- Android app flavors now install under their proper names: **Phoenix Suite** (hybrid), **Phoenix Wallet** (wallet-only), **Phoenix Miner** (mining-only).
+- Wallet and pocket selectors collapse to compact icons on narrow screens; balances shrink to fit instead of wrapping.
+- The time-sync indicator only appears when running with a local node, where it matters.
+- Restore flow: paste your entire recovery phrase into any word box to fill the whole grid.
+- Fully translated across all 25 supported languages.

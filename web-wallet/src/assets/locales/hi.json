@@ -532,6 +532,7 @@
   "notifications": "सूचनाएं",
   "notifications_disabled": "सूचनाएं अक्षम",
   "notifications_enabled": "सूचनाएं सक्षम",
+  "notifications_mining_always_on": "माइनिंग और प्लॉटिंग स्थिति सूचनाएँ हमेशा चालू रहती हैं — बैकग्राउंड सेवा को इनकी आवश्यकता है।",
   "of_label": "का",
   "open_wallet": "वॉलेट खोलें",
   "options": "विकल्प",

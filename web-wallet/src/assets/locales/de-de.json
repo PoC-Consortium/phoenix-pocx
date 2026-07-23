@@ -532,6 +532,7 @@
   "notifications": "Benachrichtigungen",
   "notifications_disabled": "Benachrichtigungen deaktiviert",
   "notifications_enabled": "Benachrichtigungen aktiviert",
+  "notifications_mining_always_on": "Mining- und Plotting-Statusbenachrichtigungen sind immer aktiv — der Hintergrunddienst benötigt sie.",
   "of_label": "von",
   "open_wallet": "Wallet oeffnen",
   "options": "Optionen",
