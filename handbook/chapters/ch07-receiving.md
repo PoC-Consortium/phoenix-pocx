@@ -18,28 +18,22 @@ Phoenix uses **bech32 addresses** — the modern, lower-case format that starts 
 
 ## Opening the Receive screen
 
-From the sidebar, click **Receive** under the *Transactions* group. Phoenix opens a single, compact card. Top-to-bottom, the card has four sections: address mode, optional amount, optional label, and the resulting QR code with copy controls.
+From the sidebar, click **Receive** under the *Transactions* group. Phoenix opens a single, compact card. Top-to-bottom: the address selector, the optional amount and label fields, the QR code, copyable **address** and **payment URI** rows, and a **Generate new address** button at the bottom.
 
 ![The Receive screen, with address selection, QR code, and payment URI.](images/processed/ch07-receive.png){width=98%}
 
 ## Choosing an address
 
-The first row of the card lets you choose between two address modes.
-
-### Use existing address
-
-This is the default. A drop-down lists every address your wallet has handed out — including, after a restore or re-import, the addresses recovered from the wallet's descriptors, not just the ones this installation generated. Each entry shows:
+The **Select address** drop-down at the top lists every address your wallet has handed out — including, after a restore or re-import, the addresses recovered from the wallet's descriptors, not just the ones this installation generated. Each entry shows:
 
 - The address itself, in bech32 form.
 - Optional metadata in parentheses: a label you previously assigned, *"never used"* if no payment has ever touched it, and *"(v30)"* if the address belongs to an older wallet's retired derivation branch.
 
-When the screen opens, Phoenix pre-selects your **first never-used address** — ready to share without creating churn in your key tree. Pick a different entry if you prefer; the selected row shows the bare address, and the QR code at the bottom of the card refreshes to match.
+When the screen opens, Phoenix pre-selects your **first never-used address** — ready to share without creating churn in your key tree. Pick a different entry if you prefer; the selected row shows the bare address, and the QR code refreshes to match.
 
 ### Generate new address
 
-Selecting **Generate new address** asks Phoenix to ask Bitcoin-PoCX Core to derive a brand-new address from your wallet's HD key tree. The new address appears immediately, joins your existing list, and becomes the active selection.
-
-A small **refresh** button next to the radio button regenerates again — useful if you accidentally clicked away or want a different fresh address before sharing.
+The **Generate new address** button at the bottom of the card derives a brand-new address from your wallet's HD key tree. The new address appears immediately, joins the list, and becomes the active selection — click again if you want a different fresh address before sharing.
 
 > **Tip** — A standard Bitcoin-style privacy practice is to use a different address for each payment you receive. All addresses still belong to the same wallet, so doing this does not split your balance — it only makes it harder for an outside observer to link your incoming payments together. For mining, the opposite is true: you typically reuse the same *plotting address* for the lifetime of a plot file. Chapter 16 covers that.
 

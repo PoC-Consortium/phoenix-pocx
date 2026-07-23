@@ -9,17 +9,17 @@ running the hybrid (Phoenix Suite) build unless noted.
 
 | Image | Why |
 |-------|-----|
-| `ch06-main-window.png` | Unified dashboard layout (recent list, view-all). |
-| `ch06-sidebar.png` | Version tag now lives in the sidenav header. |
-| `ch06-toolbar.png` | Miner indicator styling; if shot in remote mode, the clock-drift icon is gone there now. |
-| `ch07-receive.png` | Receive redesigned: selector-first, first-unused preselect, "(v30)" tags, address + payment-URI copy rows. |
-| `ch08-send.png` | Fee selector is the compact 4-across chip row; the separate estimated-fee line is gone (summary carries it). |
-| `ch08-send-confirm.png` | Confirm dialog is the (converged) review step. |
-| `ch09-transactions-list.png` | New header: export / load-limit icon-menu / one-tap refresh; fit-derived paging (no page-size picker). |
-| `ch09-transaction-detail.png` | Header aligned to the balance-band height (minor). |
-| `ch19-assignment-tabs.png` | Page unified on the mobile design (section labels, spacing). |
-| `ch19-create-assignment.png` | Same + the pre-existing TODO (select-or-enter forging address). |
-| `ch19-check-status.png` | Same restyle. |
+| ~~`ch06-main-window.png`~~ | DONE 2026-07-23. |
+| ~~`ch06-sidebar.png`~~ | DONE 2026-07-23 (extracted from main-window). |
+| ~~`ch06-toolbar.png`~~ | DONE 2026-07-23 (extracted from main-window). |
+| ~~`ch07-receive.png`~~ | DONE 2026-07-23. |
+| ~~`ch08-send.png`~~ | DONE 2026-07-23. |
+| ~~`ch08-send-confirm.png`~~ | DONE 2026-07-23 (retaken with the BTCX copy fix). |
+| ~~`ch09-transactions-list.png`~~ | DONE 2026-07-23. |
+| ~~`ch09-transaction-detail.png`~~ | SKIPPED per Johnny — existing shot still good. |
+| ~~`ch19-assignment-tabs.png`~~ | DONE 2026-07-23 (card crop; ch19 text reworked to the tabless card). |
+| ~~`ch19-create-assignment.png`~~ | REMOVED per Johnny — prose only. |
+| ~~`ch19-check-status.png`~~ | REMOVED per Johnny — the card shot covers status. |
 
 ## Android — retakes (device required)
 
