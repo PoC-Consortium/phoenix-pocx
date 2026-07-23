@@ -666,6 +666,7 @@
   "notifications": "Notifications",
   "notifications_disabled": "Notifications disabled",
   "notifications_enabled": "Notifications enabled",
+  "notifications_mining_always_on": "Mining and plotting status notifications are always on — the background service requires them.",
   "of_label": "of",
   "open_wallet": "Open Wallet",
   "options": "Options",
