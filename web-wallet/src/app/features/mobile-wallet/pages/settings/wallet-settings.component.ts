@@ -1,17 +1,23 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Store } from '@ngrx/store';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
 import { BtcxWalletService, BtcxNetwork } from '../../../../core/services/btcx-wallet.service';
 import { ElectrumServersEditorComponent } from '../../../../shared/components/electrum-servers-editor/electrum-servers-editor.component';
 import { PageHeaderComponent } from '../../components/page-header/page-header.component';
 import { ElectronService } from '../../../../core/services/electron.service';
+import { SettingsActions } from '../../../../store/settings/settings.actions';
+import { selectNotifications } from '../../../../store/settings/settings.selectors';
+import type { NotificationSettings } from '../../../../store/settings/settings.state';
 
 /**
  * WalletSettingsComponent - mobile wallet settings.
@@ -33,6 +39,7 @@ import { ElectronService } from '../../../../core/services/electron.service';
     MatInputModule,
     MatSelectModule,
     MatProgressSpinnerModule,
+    MatSlideToggleModule,
     I18nPipe,
     ElectrumServersEditorComponent,
     PageHeaderComponent,
@@ -71,6 +78,56 @@ import { ElectronService } from '../../../../core/services/electron.service';
           [showTest]="true"
           (serversChange)="saveServers($event)"
         />
+      </div>
+
+      <!-- Notifications (the desktop settings tab, mobile-sized). Mining/
+           plotting status notifications are NOT listed — the Android
+           foreground service requires its persistent notification, so they
+           are always on. -->
+      <div class="card">
+        <h3>{{ 'notifications' | i18n }}</h3>
+        <div class="toggle-row master">
+          <span>{{
+            notifications().enabled
+              ? ('notifications_enabled' | i18n)
+              : ('notifications_disabled' | i18n)
+          }}</span>
+          <mat-slide-toggle
+            [checked]="notifications().enabled"
+            (change)="setNotification('enabled', $event.checked)"
+          />
+        </div>
+        @if (notifications().enabled) {
+          <div class="toggle-row">
+            <span>{{ 'incoming_payment' | i18n }}</span>
+            <mat-slide-toggle
+              [checked]="notifications().incomingPayment"
+              (change)="setNotification('incomingPayment', $event.checked)"
+            />
+          </div>
+          <div class="toggle-row">
+            <span>{{ 'payment_confirmed' | i18n }}</span>
+            <mat-slide-toggle
+              [checked]="notifications().paymentConfirmed"
+              (change)="setNotification('paymentConfirmed', $event.checked)"
+            />
+          </div>
+          <div class="toggle-row">
+            <span>{{ 'node_connected' | i18n }}</span>
+            <mat-slide-toggle
+              [checked]="notifications().nodeConnected"
+              (change)="setNotification('nodeConnected', $event.checked)"
+            />
+          </div>
+          <div class="toggle-row">
+            <span>{{ 'node_disconnected' | i18n }}</span>
+            <mat-slide-toggle
+              [checked]="notifications().nodeDisconnected"
+              (change)="setNotification('nodeDisconnected', $event.checked)"
+            />
+          </div>
+        }
+        <p class="hint-text">{{ 'notifications_mining_always_on' | i18n }}</p>
       </div>
 
       <!-- Lock (passphrase-encrypted seeds only) -->
@@ -192,11 +249,34 @@ import { ElectronService } from '../../../../core/services/electron.service';
           color: rgba(255, 255, 255, 0.6);
         }
       }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 0;
+        font-size: 14px;
+
+        &.master {
+          font-weight: 500;
+        }
+      }
     `,
   ],
 })
 export class WalletSettingsComponent implements OnInit {
   readonly wallet = inject(BtcxWalletService);
+  private readonly store = inject(Store);
+
+  /** Live notification settings (same store slice the desktop tab edits). */
+  readonly notifications = toSignal(this.store.select(selectNotifications), {
+    requireSync: true,
+  });
+
+  setNotification(key: keyof NotificationSettings, value: boolean): void {
+    this.store.dispatch(SettingsActions.updateNotifications({ notifications: { [key]: value } }));
+  }
+
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
   private readonly electron = inject(ElectronService);

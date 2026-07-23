@@ -1244,6 +1244,8 @@ interface ChainModalData {
   `,
   styles: [
     `
+      @use 'breakpoints' as bp;
+
       * {
         box-sizing: border-box;
       }
@@ -2702,6 +2704,29 @@ interface ChainModalData {
         text-align: right;
         padding-right: 8px;
       }
+
+      /* Phone: the drives summary is 4 monospace stats side by side —
+         desktop sizing overflows a 360-400px card. */
+      @include bp.phone {
+        .drives-summary {
+          justify-content: space-between;
+          gap: 8px;
+          padding: 8px 10px;
+        }
+
+        .drives-summary .summary-value {
+          font-size: 13px;
+        }
+
+        .drives-summary .summary-label {
+          font-size: 9px;
+          letter-spacing: 0.3px;
+        }
+
+        .drive-header .capacity-badge {
+          font-size: 11px;
+        }
+      }
     `,
   ],
 })
@@ -2952,8 +2977,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
       // Custom address until the nodeless wallet state resolves
       // (initMobileWalletAddress may flip this to the wallet address)
       this.useCustomAddress.set(true);
-      this.directIo.set(false); // Direct I/O not reliable on Android
-      this.miningDirectIo.set(false); // Direct I/O not reliable on Android
+      // Direct I/O stays at the enabled default (same as desktop) —
+      // the old "not reliable on Android" blanket-off is obsolete.
     }
 
     // Check for step query parameter FIRST to avoid visual jump

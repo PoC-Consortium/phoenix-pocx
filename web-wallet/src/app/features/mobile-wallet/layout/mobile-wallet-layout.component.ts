@@ -34,6 +34,7 @@ import {
 } from '../../../shared/components';
 import { isInvalidWalletName, isWalletNameTaken } from '../wallet-name';
 import { MobileNavComponent } from '../../../shared/components/mobile-nav/mobile-nav.component';
+import { FitTextDirective } from '../../../shared/directives';
 import { ElectrumServerListComponent } from '../../../shared/components/electrum-server-list/electrum-server-list.component';
 
 /** Width of ONE swipe-revealed action button in the wallet menu, px. */
@@ -101,6 +102,7 @@ interface NavGroup {
     MatTooltipModule,
     MobileNavComponent,
     ElectrumServerListComponent,
+    FitTextDirective,
     BtcxPipe,
     TimeAgoPipe,
     I18nPipe,
@@ -142,8 +144,8 @@ interface NavGroup {
         @if (wallet.hasSeed()) {
           <div class="drawer-wallet-info">
             <div class="drawer-wallet-name">{{ activeLabel() }}</div>
-            <div class="drawer-wallet-balance">
-              {{ (wallet.balance()?.totalSat ?? 0) / 100000000 | btcx }} BTCX
+            <div class="drawer-wallet-balance" appFitText [fitTextMinPx]="11">
+              {{ (wallet.balance()?.totalSat ?? 0) / 100000000 | btcx }}&nbsp;BTCX
             </div>
           </div>
         }
@@ -287,20 +289,23 @@ interface NavGroup {
                   }
                 </div>
               </mat-menu>
-            </div>
 
-            <!-- Miner indicator (the desktop toolbar's hardware icon; the
-                 plotter icon is deliberately omitted — no toolbar space) -->
-            @if (miningAvailable() && miningService.isConfigured()) {
-              <div
-                class="status-indicator"
-                [matTooltip]="
-                  miningService.minerRunning() ? ('miner_running' | i18n) : ('miner_stopped' | i18n)
-                "
-              >
-                <mat-icon [class.miner-active]="miningService.minerRunning()">hardware</mat-icon>
-              </div>
-            }
+              <!-- Miner indicator (the desktop toolbar's hardware icon,
+                   right next to the electrum bolt; the plotter icon is
+                   deliberately omitted — no toolbar space) -->
+              @if (miningAvailable() && miningService.isConfigured()) {
+                <div
+                  class="status-indicator"
+                  [matTooltip]="
+                    miningService.minerRunning()
+                      ? ('miner_running' | i18n)
+                      : ('miner_stopped' | i18n)
+                  "
+                >
+                  <mat-icon [class.miner-active]="miningService.minerRunning()">hardware</mat-icon>
+                </div>
+              }
+            </div>
 
             <div class="toolbar-right">
               @if (wallet.hasSeed()) {
@@ -665,6 +670,8 @@ interface NavGroup {
           font-size: 17px;
           font-weight: 500;
           font-variant-numeric: tabular-nums;
+          /* Never break between amount and unit — FitText shrinks instead. */
+          white-space: nowrap;
         }
       }
 
@@ -1410,6 +1417,12 @@ export class MobileWalletLayoutComponent implements OnInit {
   ngOnInit(): void {
     // Lazy init: only mobile wallet routes touch the btcx wallet backend
     void this.wallet.initialize();
+    // Hybrid flavors: hook up miner state + events so the toolbar's miner
+    // indicator is live without ever visiting the mining dashboard
+    // (idempotent — the dashboard makes the same call).
+    if (this.miningAvailable()) {
+      void this.miningService.initializeMining();
+    }
   }
 
   /** Popover open: fresh server snapshots + tip header (last block time). */
