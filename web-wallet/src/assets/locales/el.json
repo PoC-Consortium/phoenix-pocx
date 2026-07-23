@@ -796,7 +796,7 @@
   "transaction_details": "Λεπτομέρειες συναλλαγής",
   "transaction_failed": "Η συναλλαγή απέτυχε",
   "transaction_id": "ID συναλλαγής",
-  "transaction_irreversible": "Οι συναλλαγές Bitcoin είναι μη αναστρέψιμες. Ελέγξτε ξανά όλες τις λεπτομέρειες πριν επιβεβαιώσετε.",
+  "transaction_irreversible": "Οι συναλλαγές είναι μη αναστρέψιμες. Ελέγξτε προσεκτικά όλα τα στοιχεία πριν την επιβεβαίωση.",
   "transaction_notifications": "Ειδοποιήσεις συναλλαγών",
   "transaction_replaceable": "Αυτή η συναλλαγή μπορεί να αντικατασταθεί με υψηλότερο τέλος",
   "transaction_sent": "Η συναλλαγή στάλθηκε",

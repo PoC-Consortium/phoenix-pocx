@@ -796,7 +796,7 @@
   "transaction_details": "लेनदेन विवरण",
   "transaction_failed": "लेनदेन विफल",
   "transaction_id": "लेनदेन आईडी",
-  "transaction_irreversible": "बिटकॉइन लेनदेन अपरिवर्तनीय हैं। पुष्टि करने से पहले सभी विवरण दोबारा जांचें।",
+  "transaction_irreversible": "लेन-देन अपरिवर्तनीय हैं। पुष्टि करने से पहले सभी विवरण ध्यान से जाँच लें।",
   "transaction_notifications": "लेनदेन सूचनाएं",
   "transaction_replaceable": "इस लेनदेन को उच्च शुल्क के साथ बदला जा सकता है",
   "transaction_sent": "लेनदेन भेजा गया",

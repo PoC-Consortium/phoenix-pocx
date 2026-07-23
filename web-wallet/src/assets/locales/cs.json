@@ -796,7 +796,7 @@
   "transaction_details": "Podrobnosti transakce",
   "transaction_failed": "Transakce selhala",
   "transaction_id": "ID transakce",
-  "transaction_irreversible": "Bitcoin transakce jsou nevratne. Dvakrat zkontrolujte vsechny podrobnosti pred potvrzenim.",
+  "transaction_irreversible": "Transakce jsou nevratné. Před potvrzením pečlivě zkontrolujte všechny údaje.",
   "transaction_notifications": "Oznameni o transakcich",
   "transaction_replaceable": "Tuto transakci lze nahradit vyssim poplatkem",
   "transaction_sent": "Transakce odeslana",

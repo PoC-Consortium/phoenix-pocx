@@ -796,7 +796,7 @@
   "transaction_details": "Detalii tranzacție",
   "transaction_failed": "Tranzacția a eșuat",
   "transaction_id": "ID tranzacție",
-  "transaction_irreversible": "Tranzacțiile Bitcoin sunt ireversibile. Verificați de două ori toate detaliile înainte de confirmare.",
+  "transaction_irreversible": "Tranzacțiile sunt ireversibile. Verifică atent toate detaliile înainte de a confirma.",
   "transaction_notifications": "Notificări tranzacții",
   "transaction_replaceable": "Această tranzacție poate fi înlocuită cu un comision mai mare",
   "transaction_sent": "Tranzacție trimisă",

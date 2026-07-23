@@ -796,7 +796,7 @@
   "transaction_details": "Operacijos detales",
   "transaction_failed": "Operacija nepavyko",
   "transaction_id": "Operacijos ID",
-  "transaction_irreversible": "Bitcoin operacijos yra negrizatmos. Dvigubai patikrinkite visas detales pries patvirtinima.",
+  "transaction_irreversible": "Operacijos yra negrįžtamos. Prieš patvirtindami atidžiai patikrinkite visus duomenis.",
   "transaction_notifications": "Operaciju pranesimai",
   "transaction_replaceable": "Si operacija gali buti pakeista didesniu mokesciu",
   "transaction_sent": "Operacija issiusta",

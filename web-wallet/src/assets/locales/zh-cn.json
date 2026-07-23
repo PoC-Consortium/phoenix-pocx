@@ -796,7 +796,7 @@
   "transaction_details": "交易详情",
   "transaction_failed": "交易失败",
   "transaction_id": "交易ID",
-  "transaction_irreversible": "比特币交易不可逆转。确认前请仔细检查所有详情。",
+  "transaction_irreversible": "交易不可撤销。确认前请仔细核对所有信息。",
   "transaction_notifications": "交易通知",
   "transaction_replaceable": "此交易可以用更高费用替换",
   "transaction_sent": "交易已发送",

@@ -53,19 +53,19 @@ export interface SendConfirmDialogData {
 
       <div class="detail-row">
         <span class="label">{{ 'amount' | i18n }}:</span>
-        <span class="value">{{ data.amount | number: '1.8-8' }} BTC</span>
+        <span class="value">{{ data.amount | number: '1.8-8' }} BTCX</span>
       </div>
 
       <div class="detail-row">
         <span class="label">{{ 'fee' | i18n }}:</span>
-        <span class="value">{{ data.fee | number: '1.8-8' }} BTC</span>
+        <span class="value">{{ data.fee | number: '1.8-8' }} BTCX</span>
       </div>
 
       <mat-divider></mat-divider>
 
       <div class="detail-row total">
         <span class="label">{{ 'total' | i18n }}:</span>
-        <span class="value">{{ data.total | number: '1.8-8' }} BTC</span>
+        <span class="value">{{ data.total | number: '1.8-8' }} BTCX</span>
       </div>
 
       @if (data.subtractFee) {

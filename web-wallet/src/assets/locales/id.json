@@ -796,7 +796,7 @@
   "transaction_details": "Detail Transaksi",
   "transaction_failed": "Transaksi gagal",
   "transaction_id": "ID Transaksi",
-  "transaction_irreversible": "Transaksi Bitcoin tidak dapat dibatalkan. Periksa semua detail sebelum konfirmasi.",
+  "transaction_irreversible": "Transaksi tidak dapat dibatalkan. Periksa kembali semua detail sebelum mengonfirmasi.",
   "transaction_notifications": "Notifikasi Transaksi",
   "transaction_replaceable": "Transaksi ini dapat diganti dengan biaya lebih tinggi",
   "transaction_sent": "Transaksi Terkirim",

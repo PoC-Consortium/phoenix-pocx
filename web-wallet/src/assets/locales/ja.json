@@ -796,7 +796,7 @@
   "transaction_details": "トランザクション詳細",
   "transaction_failed": "トランザクションが失敗しました",
   "transaction_id": "トランザクションID",
-  "transaction_irreversible": "ビットコインのトランザクションは元に戻せません。確認前にすべての詳細を再確認してください。",
+  "transaction_irreversible": "取引は取り消せません。確認する前にすべての詳細をよく確認してください。",
   "transaction_notifications": "トランザクション通知",
   "transaction_replaceable": "このトランザクションはより高い手数料で置き換えることができます",
   "transaction_sent": "トランザクション送信済み",

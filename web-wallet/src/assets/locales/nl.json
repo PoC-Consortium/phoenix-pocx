@@ -796,7 +796,7 @@
   "transaction_details": "Transactie Details",
   "transaction_failed": "Transactie mislukt",
   "transaction_id": "Transactie ID",
-  "transaction_irreversible": "Bitcoin transacties zijn onomkeerbaar. Controleer alle details voordat u bevestigt.",
+  "transaction_irreversible": "Transacties zijn onomkeerbaar. Controleer alle gegevens zorgvuldig voordat je bevestigt.",
   "transaction_notifications": "Transactie Meldingen",
   "transaction_replaceable": "Deze transactie kan worden vervangen met een hogere vergoeding",
   "transaction_sent": "Transactie Verstuurd",
