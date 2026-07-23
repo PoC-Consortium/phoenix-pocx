@@ -1,6 +1,8 @@
-import { Component, computed, inject, signal, viewChild, OnInit } from '@angular/core';
+import { Component, computed, effect, inject, signal, viewChild, OnInit } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { DecimalPipe } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -297,18 +299,18 @@ interface NavGroup {
                 <div
                   class="status-indicator"
                   [matTooltip]="
-                    miningService.minerRunning()
+                    miningService.minerActive()
                       ? ('miner_running' | i18n)
                       : ('miner_stopped' | i18n)
                   "
                 >
-                  <mat-icon [class.miner-active]="miningService.minerRunning()">hardware</mat-icon>
+                  <mat-icon [class.miner-active]="miningService.minerActive()">hardware</mat-icon>
                 </div>
               }
             </div>
 
             <div class="toolbar-right">
-              @if (wallet.hasSeed()) {
+              @if (wallet.hasSeed() && !onMiningPage()) {
                 <!-- Wallet switcher chip (desktop toolbar's wallet selector) -->
                 <!-- Icon-only chip: the toolbar is too narrow for names —
                      the drawer header carries the full wallet · pocket
@@ -474,11 +476,13 @@ interface NavGroup {
                 <div class="toolbar-separator"></div>
               }
 
+              <!-- On the mining pages the gear is the MINER's settings
+                   (the setup wizard), like the mining-only shell. -->
               <button
                 mat-button
                 class="action-button icon-button"
-                [routerLink]="['/wallet/settings']"
-                [matTooltip]="'mwallet_settings_title' | i18n"
+                [routerLink]="onMiningPage() ? '/wallet/mining/setup' : '/wallet/settings'"
+                [matTooltip]="(onMiningPage() ? 'mining_setup' : 'mwallet_settings_title') | i18n"
               >
                 <mat-icon class="secondary-text">settings</mat-icon>
               </button>
@@ -1322,8 +1326,21 @@ export class MobileWalletLayoutComponent implements OnInit {
   private readonly appMode = inject(AppModeService);
   /** Mining exists in this shell (hybrid flavors) — wallet-only has none. */
   readonly miningAvailable = computed(() => this.appMode.miningEnabled());
-  private readonly notification = inject(NotificationService);
+
   private readonly router = inject(Router);
+
+  /** Current router url (NavigationEnd-driven). */
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      map(() => this.router.url)
+    ),
+    { initialValue: this.router.url }
+  );
+
+  /** Mining dashboard/setup: wallet chrome (chips) hides, gear goes to setup. */
+  readonly onMiningPage = computed(() => this.currentUrl().startsWith('/wallet/mining'));
+  private readonly notification = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
   private readonly appUpdateService = inject(AppUpdateService);
 
@@ -1414,15 +1431,22 @@ export class MobileWalletLayoutComponent implements OnInit {
    */
   readonly chain = signal<BtcxChainInfo | null>(null);
 
+  constructor() {
+    // Hybrid flavors: hook up miner state + events so the toolbar's miner
+    // indicator is live without ever visiting the mining dashboard.
+    // Effect (not ngOnInit): launch-mode flags resolve ASYNC, so at init
+    // time miningAvailable() may still be false — this fires when it
+    // flips (initializeMining is idempotent).
+    effect(() => {
+      if (this.miningAvailable()) {
+        void this.miningService.initializeMining();
+      }
+    });
+  }
+
   ngOnInit(): void {
     // Lazy init: only mobile wallet routes touch the btcx wallet backend
     void this.wallet.initialize();
-    // Hybrid flavors: hook up miner state + events so the toolbar's miner
-    // indicator is live without ever visiting the mining dashboard
-    // (idempotent — the dashboard makes the same call).
-    if (this.miningAvailable()) {
-      void this.miningService.initializeMining();
-    }
   }
 
   /** Popover open: fresh server snapshots + tip header (last block time). */

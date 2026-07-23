@@ -179,6 +179,19 @@ export class MiningService {
   // Miner state computed values
   readonly minerState = this._minerState.asReadonly();
   readonly minerRunning = computed(() => this._minerState().running);
+  /**
+   * Miner-is-active for INDICATORS: runtime running flag OR the backend's
+   * persisted mining status. The runtime flag only flips when THIS webview
+   * session called start/stop or hooked the events — after an Android
+   * activity recreate (webview reboot over a live foreground service) it
+   * starts false while the backend is still mining; the backend status
+   * covers that. miner:stopped triggers a refreshState() so the backend
+   * side never sticks.
+   */
+  readonly minerActive = computed(
+    () =>
+      this._minerState().running || (this._state()?.miningStatus.type ?? 'stopped') !== 'stopped'
+  );
   readonly minerStopping = computed(() => this._minerState().stopping);
   readonly minerCapacityTib = computed(() => this._minerState().capacityTib);
   readonly minerQueue = computed(() => this._minerState().queue);
@@ -455,13 +468,15 @@ export class MiningService {
       return;
     }
 
+    // Listeners always — mining can start behind this session's back
+    // (auto-start race, foreground service surviving a webview reload),
+    // and the stopped/progress events must land regardless.
+    await this.setupMinerEventListeners();
+
     // Check if miner is running (anything except 'stopped')
     const isRunning = state.miningStatus.type !== 'stopped';
     if (isRunning) {
-      console.log('MiningService: Miner already running, setting up listeners');
-      await this.setupMinerEventListeners();
-
-      // Update miner runtime state to reflect running status
+      console.log('MiningService: Miner already running');
       this._minerState.update(s => ({ ...s, running: true }));
     }
 
@@ -2341,6 +2356,8 @@ export class MiningService {
         stopping: false,
         queue: [],
       }));
+      // Resync the persisted status so minerActive drops with the runtime.
+      void this.refreshState();
       // Don't cleanup listeners - they stay active permanently
     });
     this._minerUnlisteners.push(stoppedUnlisten);

@@ -136,10 +136,10 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
               <div
                 class="status-indicator"
                 [matTooltip]="
-                  miningService.minerRunning() ? ('miner_running' | i18n) : ('miner_stopped' | i18n)
+                  miningService.minerActive() ? ('miner_running' | i18n) : ('miner_stopped' | i18n)
                 "
               >
-                <mat-icon [class.active]="miningService.minerRunning()">hardware</mat-icon>
+                <mat-icon [class.active]="miningService.minerActive()">hardware</mat-icon>
               </div>
             }
 
