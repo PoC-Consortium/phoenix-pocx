@@ -1924,6 +1924,65 @@ pub struct BtcxTxProbe {
     pub tip: u32,
 }
 
+/// One revealed external (receive) address of the open wallet.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BtcxWalletAddressDto {
+    pub address: String,
+    pub index: u32,
+    /// Some transaction in the wallet's history pays this address.
+    pub used: bool,
+    /// Currently holds an unspent output.
+    pub funded: bool,
+}
+
+/// Every revealed external address with used/funded flags — the remote
+/// counterpart of the Core receive page's address enumeration. Pure local
+/// read (keychain index + synced tx graph), no server traffic.
+#[tauri::command]
+pub fn btcx_wallet_addresses(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<Vec<BtcxWalletAddressDto>, String> {
+    use bdk_wallet::KeychainKind;
+    let network = state.get_config().network;
+    state.with_entry(|entry| {
+        let last = entry.wallet.derivation_index(KeychainKind::External);
+        // Non-wildcard (single-address WIF) descriptors reveal no index —
+        // peek(0) still yields the one fixed address.
+        let upto = last.unwrap_or(0);
+        // One pass over the history: every output script that ever received.
+        let mut received: std::collections::HashSet<bitcoin::ScriptBuf> =
+            std::collections::HashSet::new();
+        for wtx in entry.wallet.transactions() {
+            for out in &wtx.tx_node.tx.output {
+                received.insert(out.script_pubkey.clone());
+            }
+        }
+        let funded: std::collections::HashSet<bitcoin::ScriptBuf> = entry
+            .wallet
+            .list_unspent()
+            .map(|u| u.txout.script_pubkey.clone())
+            .collect();
+        let list = (0..=upto)
+            .map(|i| {
+                let spk = entry
+                    .wallet
+                    .peek_address(KeychainKind::External, i)
+                    .address
+                    .script_pubkey();
+                BtcxWalletAddressDto {
+                    address: super::psbt::spk_to_address(network, &spk).unwrap_or_default(),
+                    index: i,
+                    used: received.contains(&spk),
+                    funded: funded.contains(&spk),
+                }
+            })
+            .filter(|a| !a.address.is_empty())
+            .collect();
+        Ok(list)
+    })
+}
+
 #[tauri::command]
 pub fn btcx_wallet_tx_probe(
     state: State<'_, SharedBtcxWalletState>,
