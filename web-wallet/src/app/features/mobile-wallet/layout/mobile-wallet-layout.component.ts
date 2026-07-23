@@ -222,10 +222,6 @@ interface NavGroup {
 
               <div class="toolbar-separator"></div>
 
-              @if (!wallet.hasSeed()) {
-                <span class="app-name">{{ 'mwallet_title' | i18n }}</span>
-              }
-
               @if (wallet.network() !== 'mainnet') {
                 <span class="network-badge">{{ wallet.network() | i18n }}</span>
               }
@@ -800,15 +796,6 @@ interface NavGroup {
         min-width: 0;
       }
 
-      .app-name {
-        font-size: 16px;
-        font-weight: 500;
-        color: rgba(0, 0, 0, 0.87);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
       /* Wallet switcher chip — the desktop toolbar's .wallet-button, compact. */
       .wallet-chip {
         min-width: 0;
@@ -1250,10 +1237,6 @@ interface NavGroup {
         .wallet-toolbar {
           background-color: #424242 !important;
           color: white !important;
-        }
-
-        .app-name {
-          color: white;
         }
 
         .wallet-chip-content {
