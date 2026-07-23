@@ -19,6 +19,8 @@ The header carries four controls:
 
 On a phone-sized window the header slims down to a **funnel** button and **Refresh**: the funnel expands the filter row (with the load-limit button inside it, and it glows green while open), and CSV export is desktop-only.
 
+![The phone header with the funnel open: search, filters, and the load-limit button in the expanded row.](images/processed/ch09-history-phone-funnel.png){width=45%}
+
 ## Filtering the list
 
 The filter bar below the header narrows what appears in the table. All filters compose; the count line beneath it always reflects the current filtered total.
