@@ -1075,6 +1075,10 @@ interface NavGroup {
           &.electrum-connecting {
             color: rgba(0, 0, 0, 0.38);
           }
+
+          &.miner-active {
+            color: #4caf50;
+          }
         }
 
         &.clickable {
