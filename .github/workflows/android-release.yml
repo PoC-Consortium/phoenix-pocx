@@ -195,10 +195,20 @@ jobs:
           test -f "$STRINGS" || { echo "ERROR: $STRINGS not found (did tauri android init run?)"; exit 1; }
           grep -q '<string name="app_name">' "$STRINGS" || { echo "ERROR: app_name string not found in $STRINGS"; exit 1; }
           sed -i "s#<string name=\"app_name\">[^<]*</string>#<string name=\"app_name\">${PHX_APP_NAME}</string>#" "$STRINGS"
+          # The LAUNCHER label is the ACTIVITY's label — tauri's manifest points
+          # it at main_activity_title, so patching app_name alone leaves the
+          # visible name unchanged. Patch both.
+          sed -i "s#<string name=\"main_activity_title\">[^<]*</string>#<string name=\"main_activity_title\">${PHX_APP_NAME}</string>#" "$STRINGS"
           echo "Set launcher label to: ${PHX_APP_NAME}"
-          grep '<string name="app_name">' "$STRINGS"
-          # Re-assert the new label actually landed.
+          cat "$STRINGS"
+          # Re-assert the new label actually landed (app_name always; the
+          # activity title wherever the template defines it).
           grep -q "<string name=\"app_name\">${PHX_APP_NAME}</string>" "$STRINGS" || { echo "ERROR: app_name patch did not apply"; exit 1; }
+          if grep -q '<string name="main_activity_title">' "$STRINGS"; then
+            grep -q "<string name=\"main_activity_title\">${PHX_APP_NAME}</string>" "$STRINGS" || { echo "ERROR: main_activity_title patch did not apply"; exit 1; }
+          else
+            echo "WARNING: no main_activity_title in strings.xml - launcher label rides app_name"
+          fi
 
       - name: Build Android APK (ARM64 only) — ${{ matrix.flavor }}
         working-directory: web-wallet
