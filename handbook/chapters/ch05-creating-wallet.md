@@ -120,7 +120,7 @@ Pick the right length first. A toggle at the top switches between **12 words** a
 
 ![Importing a wallet: entering an existing recovery phrase.](images/processed/ch05-import-step2-words.png){width=70%}
 
-Type each word in its corresponding numbered slot. As you type:
+Type each word in its corresponding numbered slot — or **paste the whole phrase into any word box** and Phoenix distributes the words across the grid in one go. As you type:
 
 - An **autocomplete dropdown** suggests matching BIP39 words. You can click a suggestion to fill the field, or press **Enter** to accept the highlighted suggestion and jump straight to the next word — so a whole phrase can be entered from the keyboard alone, without reaching for the mouse.
 - After you leave a field, Phoenix marks it with a small red **error icon** if the word you entered is not a valid BIP39 word — usually a typo.

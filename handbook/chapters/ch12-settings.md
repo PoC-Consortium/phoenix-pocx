@@ -152,6 +152,8 @@ The list is split into two groups.
 
 A master toggle near the top of the tab disables every notification at once if you want a quiet session without losing the per-event configuration.
 
+On Android (and the nodeless wallet shell generally), the same controls appear as a **Notifications card** on the wallet Settings page, just below the Electrum servers card: the master switch plus the payment and connection toggles. Mining and plotting **status** notifications are deliberately absent from that card — while mining runs in the background, Android requires the app's persistent notification, so those cannot be switched off. (They are also calmer than they used to be: rather than reporting every deadline found, the mining notification updates once per round with the round's best deadline.)
+
 > **Tip** — *Node disconnected* is the most important toggle for a long-running miner — it tells you immediately when something has gone wrong with Core, before mining starts piling up missed deadlines. The default is *on* for that reason.
 
 ## Tab 3 — Danger Zone

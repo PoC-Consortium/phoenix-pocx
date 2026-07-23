@@ -22,11 +22,19 @@ The one thing it still cannot do is **solo mine** — forging a block yourself r
 
 ## Installing on Android
 
-Installation is covered in Chapter 3 and recapped here. The Android build is distributed as an **APK** on the project's GitHub Releases — it is not on Google Play or F-Droid.
+Installation is covered in Chapter 3 and recapped here. The Android build is distributed as an **APK** on the project's GitHub Releases — it is not on Google Play or F-Droid — and comes in **three flavors**, each installing under its own name:
 
-1. On the device, download `phoenix-pocx-wallet-<version>.apk` from the project site or GitHub Releases.
+| Flavor | Installs as | Contains |
+|--------|-------------|----------|
+| **Hybrid** | **Phoenix Suite** | Wallet **and** miner — everything this chapter describes. |
+| **Wallet-only** | **Phoenix Wallet** | The wallet alone; the mining code is not even compiled in. |
+| **Mining-only** | **Phoenix Miner** | The miner alone, for a dedicated farming device signing elsewhere. |
+
+This chapter assumes the **hybrid** flavor; the other two are simply subsets of it. To install:
+
+1. On the device, download the APK for your flavor from the project site or GitHub Releases.
 2. Open the APK; when Android warns that your browser or file manager is not allowed to install apps, tap **Settings**, enable **Allow from this source**, and return.
-3. Tap **Install**, then open **Phoenix Wallet** from the app drawer.
+3. Tap **Install**, then open the app — **Phoenix Suite**, **Phoenix Wallet**, or **Phoenix Miner** — from the app drawer.
 
 On first launch the app opens straight into wallet onboarding — there is no node-setup wizard, because Android never runs a node.
 
@@ -42,10 +50,11 @@ The first screen is **Set up your wallet** — *"Create a new wallet or restore 
 - **Write down the 24 words.** Phoenix generates a fresh 24-word recovery phrase and shows it once, with the blunt warning it deserves: *"These 24 words are the only backup of your wallet. Write them down on paper and keep them offline. Anyone who knows them can spend your funds."* There is no cloud backup and never will be (see *Seed safety on a phone*, below) — paper is the backup.
 - **Confirm the backup.** Phoenix asks you to re-enter a few of the words from your written copy, exactly as the desktop create flow does, to prove you wrote them down.
 - **Set a device passphrase (optional but recommended).** A passphrase encrypts the seed stored on the device. It is *not* part of the recovery phrase — the words alone always restore your funds — but on a phone it is what stands between a thief who picks up your unlocked device and your seed. On Android especially, **set one** (the reasoning is in *Seed safety on a phone*).
+- **Optionally add a BIP39 passphrase (the "25th word").** Distinct from the device passphrase above, this optional extra word is folded into the keys themselves. If you set one, the 24 words ALONE will **not** restore your funds — you must also supply exactly this word. It is a power-user feature: real protection if you can reliably remember the word, real loss if you cannot. Phoenix warns accordingly.
 
 ### Restoring an existing wallet
 
-Choose **Restore wallet** and enter your 12- or 24-word phrase. Because the phone has no local blockchain to rescan, Phoenix instead checks the phrase's history against your configured Electrum server to find which *derivation branches* hold funds — *"Restoring checks the phrase's history on the configured Electrum server to find the right derivation branch."* It opens the wallet on its **current SegWit** pocket.
+Choose **Restore wallet** and enter your 12- or 24-word phrase — pasting the whole phrase into any word box fills the entire grid at once. If the wallet was created with a BIP39 passphrase (25th word), expand that option and enter the exact word too: a wrong or missing 25th word derives a different, empty wallet. Because the phone has no local blockchain to rescan, Phoenix instead checks the phrase's history against your configured Electrum server to find which *derivation branches* hold funds — *"Restoring checks the phrase's history on the configured Electrum server to find the right derivation branch."* It opens the wallet on its **current SegWit** pocket.
 
 If the phrase has history on other branches too — the Taproot (BIP-86) branch, or an older-coin-type branch — Phoenix restores those alongside as extra **pockets** of the same wallet, so no funds stay hidden on a branch you did not open. You switch between the pockets with the pocket selector (see *Getting around*, below); older funds arrive as spend-only **v30** pockets, described under *Pockets* in Chapter 26.
 
@@ -73,13 +82,15 @@ Two import paths mirror the nodeless imports from Chapter 26:
 
 ## Getting around: the navigation drawer and the two selectors
 
-Once a wallet is open, a **navigation drawer** (the menu icon at the top-left) reaches every part of the app — wallet home, receive, send, history, contacts, forging assignment, mining, and settings.
+Once a wallet is open, two navigation surfaces cover the app. A **bottom navigation bar** carries the everyday trio — **Wallet**, **Mining**, and **Dashboard** — and a **navigation drawer** (the menu icon at the top-left) reaches everything: wallet home, transactions, send, receive, transaction builder, contacts, the mining dashboard, forging assignment, and settings.
+
+Mining is not a separate app-within-the-app any more: the **mining dashboard and its setup wizard open inside the wallet shell**, with the same drawer and toolbar. While you are on a mining page, the toolbar adapts — the wallet and pocket chips step aside and the settings gear leads to the **miner's** setup instead of wallet settings. A **miner icon** next to the Electrum indicator glows green whenever the device is mining, whatever page you are on.
 
 ![The navigation drawer reaches every part of the app.](images/processed/ch23-nav-drawer.png){width=35%}
 
 The toolbar carries two **icon chips** on the right — kept icon-only to save room on a phone — and they are two *separate* dropdowns, one for the wallet and one for the pocket:
 
-![The mobile toolbar: the menu button, the Electrum indicator, and the wallet + pocket chips.](images/processed/ch23-toolbar.png){width=90%}
+![The mobile toolbar: the menu button, the Electrum indicator, the miner status icon, and the wallet + pocket chips.](images/processed/ch23-toolbar.png){width=90%}
 
 - The **wallet selector** lists your **wallets** — one row per recovery phrase — and, below them, **Create new wallet**, **Restore wallet**, and **Import descriptor**. Tapping a wallet switches to it (closing the open one first). **Rename** and **delete** are reached by **swiping** a wallet's row; they act on the whole wallet — every pocket moves or goes together — and you must switch away from the active wallet before renaming or deleting it. Deletion is safe: *"…and all its pockets are removed from the app. Their files are moved to the trash folder on this device — nothing is destroyed, and the recovery phrase always restores the funds."*
 
