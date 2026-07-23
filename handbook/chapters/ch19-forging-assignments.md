@@ -37,20 +37,17 @@ Two timing rules matter, and they are deliberately asymmetric:
 
 ## Where assignments live in Phoenix
 
-Open **Forging Assignment** from the sidebar's *Mining* group. The screen shows the current block height at the top (assignments are measured in blocks, so the live height is your clock) and three tabs:
+Open **Forging Assignment** from the sidebar's *Mining* group. The screen is a single card that adapts to the selected address's state:
 
-- **Create assignment** — delegate forging rights.
-- **Revoke assignment** — reclaim them.
-- **Check status** — inspect the current state of any plot address.
+- **Plot address** at the top — pick or enter the address whose forging you manage. As soon as one is selected, Phoenix checks the chain and shows its **status chip** right beneath: *Unassigned*, *Assigning*, *Assigned* (with the current forging address), or *Revoking*, each with a one-line hint and — during a transition — the live blocks-remaining countdown.
+- **Forging address / pool address** below, when an assignment can be created.
+- A **fee selector** and one **action button** that matches the state: **Create assignment** while unassigned, **Revoke assignment** while assigned. During a transition the card simply reports the countdown — the state machine does not allow a new action until it settles.
 
-![The Forging Assignment screen: three tabs and the live block height.](images/processed/ch19-assignment-tabs.png){width=98%}
+![The Forging Assignment card: plot address with its live status, forging address, fee, and the state-matched action.](images/processed/ch19-assignment-tabs.png){width=60%}
 
 ## Creating an assignment
 
-The **Create assignment** tab needs two addresses.
-
-<!-- TODO screenshot retake: ch19-create-assignment.png — the Forging Address field is now labelled "Forging Address / Pool Address" and is a select-or-enter with an autocomplete dropdown. -->
-![The Create assignment tab: plot address, forging address, and fee.](images/processed/ch19-create-assignment.png){width=60%}
+Creating an assignment needs two addresses.
 
 **Plot address.** A *select-or-enter* field: pick one of your wallet's addresses from the dropdown, or paste an address manually. The dropdown leads with your wallet's **first receive address** of each derivation branch — the address the mining wizard pre-fills as the plotting address — followed by every funded address, so on a fresh wallet there is always something to select. This is the address embedded in the plots whose forging you want to delegate — usually the plotting address you set in the mining wizard (Chapter 15).
 
@@ -62,7 +59,7 @@ When both are filled, click **Create assignment**. Phoenix builds the `OP_RETURN
 
 ## Revoking an assignment
 
-The **Revoke assignment** tab takes a single input: the **plot address** whose assignment you want to cancel (again, select-or-enter). A revocation transaction carries only the plot address — it does not need the forging address, because revoking simply says *"return authority to the owner."*
+When the selected plot address is **Assigned**, the card's action becomes **Revoke assignment** — no other input is needed. A revocation transaction carries only the plot address — it does not need the forging address, because revoking simply says *"return authority to the owner."*
 
 Click **Revoke assignment**, sign and broadcast as before, and the assignment enters the **Revoking** state. Remember the ~720-block (~1 day) delay: the existing forging address keeps signing throughout, and authority only returns to you once revocation completes.
 
@@ -70,13 +67,12 @@ You cannot revoke an assignment that is not active, and you cannot create a new 
 
 ## Checking status
 
-The **Check status** tab is read-only and the safest place to start. Enter (or select) a plot address and click **Check status**; Phoenix queries the chain and reports:
+Status is not a separate step any more — selecting a plot address queries the chain immediately and the chip beneath the selector reports:
 
 - Whether an assignment **exists** at all (*"No assignment exists for this address — you can create one"*).
 - The current **forging address**, if assigned.
 - The block the assignment was **created at** and the block it **activates at**, with a live **blocks remaining** countdown during the activation or revocation window.
 
-![The Check status tab, showing an active assignment.](images/processed/ch19-check-status.png){width=60%}
 
 Use this tab to confirm an assignment activated before you rely on it, to see how many blocks remain in a pending transition, and to verify a pool actually received the delegation you sent it.
 
