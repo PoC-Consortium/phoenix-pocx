@@ -670,11 +670,29 @@ export class ReceiveComponent implements OnInit, OnDestroy {
       if (this.canEnumerate()) {
         await this.loadExistingAddressList(walletName, current);
       } else {
-        this.existingAddresses.set(
-          current
-            ? [{ address: current, purpose: 'receive', isUsed: false, txCount: 0, label: '' }]
-            : []
-        );
+        // Remote/BDK: enumerate every revealed external address locally
+        // (used/funded flags from the synced graph) — newest first, same
+        // as the Core list; the current first-unused is always present.
+        const revealed = await this.btcxWallet.addresses();
+        const list = revealed
+          .sort((a, b) => b.index - a.index)
+          .map(a => ({
+            address: a.address,
+            purpose: 'receive',
+            isUsed: a.used || a.funded,
+            txCount: 0,
+            label: '',
+          }));
+        if (current && !list.some(a => a.address === current)) {
+          list.unshift({
+            address: current,
+            purpose: 'receive',
+            isUsed: false,
+            txCount: 0,
+            label: '',
+          });
+        }
+        this.existingAddresses.set(list);
       }
       this.selectedAddress.set(current);
     } catch (error) {

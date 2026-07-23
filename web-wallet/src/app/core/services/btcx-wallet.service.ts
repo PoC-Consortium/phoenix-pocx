@@ -1044,6 +1044,12 @@ export class BtcxWalletService {
    * `limit: 0` is a cheap count-only query (no items, no per-item work).
    * Both absent = the full history. Throws on failure.
    */
+  /** Every revealed external address with used/funded flags — the remote
+   *  receive page's address enumeration. Pure local read. */
+  async addresses(): Promise<{ address: string; index: number; used: boolean; funded: boolean }[]> {
+    return invoke('btcx_wallet_addresses');
+  }
+
   /** Near-free change probe: history size + tip. Callers compare with the
    *  last probe and skip refetching the list when nothing moved. */
   async txProbe(): Promise<{ total: number; tip: number }> {

@@ -1122,6 +1122,8 @@ pub fn run() {
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_transactions,
             #[cfg(feature = "wallet")]
+            btcx_wallet::commands::btcx_wallet_addresses,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_tx_probe,
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_tx_detail,
