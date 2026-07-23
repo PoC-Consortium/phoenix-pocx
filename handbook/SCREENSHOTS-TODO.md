@@ -25,23 +25,23 @@ running the hybrid (Phoenix Suite) build unless noted.
 
 | Image | Why |
 |-------|-----|
-| `ch23-toolbar.png` | Miner status icon next to the Electrum bolt; the "Wallet" app-name text is gone. |
-| `ch23-nav-drawer.png` | MINING group (Mining Dashboard + Forging Assignment); balance shrinks-to-fit. |
-| `ch23-wallet-setup.png` | Create flow now shows the BIP39 passphrase (25th word) option. |
-| `ch23-mobile-receive.png` | Receive redesigned (selector-first; amount/label collapse on phones). |
-| `ch23-mobile-send.png` | Send redesigned (compact fee chips, amount+MAX row). |
-| `ch23-v30-receive-blocked.png` | Same receive redesign around the blocked state. |
-| `ch23-notification.png` | Notification now shows "Block N — best deadline Xs" (once per round). |
+| ~~`ch23-toolbar.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-nav-drawer.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-wallet-setup.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-mobile-receive.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-mobile-send.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-v30-receive-blocked.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-notification.png`~~ | REMOVED per Johnny — prose only. |
 
 ## Android — new shots
 
 | Proposed name | Content |
 |---------------|---------|
-| `ch23-bottom-nav.png` | The bottom navigation bar: Wallet · Mining · Dashboard. |
-| `ch23-mining-in-shell.png` | Mining dashboard inside the wallet shell (drawer + adapted toolbar visible, miner icon green). |
-| `ch23-settings-notifications.png` | The mobile Settings Notifications card (master + payment/connection toggles, mining-always-on hint). |
-| `ch23-launcher-flavors.png` | *(nice-to-have)* Home screen with Phoenix Suite / Phoenix Wallet / Phoenix Miner icons side by side. |
-| `ch09-history-phone-funnel.png` | *(optional)* Phone transactions header with the funnel open (filter row + load-limit inside). |
+| ~~`ch23-bottom-nav.png`~~ | DONE 2026-07-23 (Wallet · Mining — two tabs). |
+| ~~`ch23-mining-in-shell.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-settings-notifications.png`~~ | DONE 2026-07-23. |
+| ~~`ch23-launcher-flavors.png`~~ | DROPPED per Johnny — the flavors table in ch23 covers it. |
+| ~~`ch09-history-phone-funnel.png`~~ | DONE 2026-07-23 (wired into ch09). |
 
 ## Notes
 

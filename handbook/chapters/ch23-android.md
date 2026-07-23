@@ -82,9 +82,13 @@ Two import paths mirror the nodeless imports from Chapter 26:
 
 ## Getting around: the navigation drawer and the two selectors
 
-Once a wallet is open, two navigation surfaces cover the app. A **bottom navigation bar** carries the everyday trio — **Wallet**, **Mining**, and **Dashboard** — and a **navigation drawer** (the menu icon at the top-left) reaches everything: wallet home, transactions, send, receive, transaction builder, contacts, the mining dashboard, forging assignment, and settings.
+Once a wallet is open, two navigation surfaces cover the app. A **bottom navigation bar** carries the two everyday destinations — **Wallet** and **Mining** — and a **navigation drawer** (the menu icon at the top-left) reaches everything: wallet home, transactions, send, receive, transaction builder, contacts, the mining dashboard, forging assignment, and settings.
+
+![The bottom navigation bar: Wallet and Mining.](images/processed/ch23-bottom-nav.png){width=70%}
 
 Mining is not a separate app-within-the-app any more: the **mining dashboard and its setup wizard open inside the wallet shell**, with the same drawer and toolbar. While you are on a mining page, the toolbar adapts — the wallet and pocket chips step aside and the settings gear leads to the **miner's** setup instead of wallet settings. A **miner icon** next to the Electrum indicator glows green whenever the device is mining, whatever page you are on.
+
+![The mining dashboard inside the wallet shell — adapted toolbar, miner icon green, bottom tabs in reach.](images/processed/ch23-mining-in-shell.png){width=45%}
 
 ![The navigation drawer reaches every part of the app.](images/processed/ch23-nav-drawer.png){width=35%}
 
@@ -160,8 +164,6 @@ Once permissions are granted and mining starts, Phoenix keeps itself running thr
 ### The foreground service
 
 Android only guarantees that a **foreground service** keeps running when the app is backgrounded. Phoenix starts one whenever mining (or plotting) is active. The visible sign is a **persistent notification** in your status bar for as long as the work continues — it shows the current activity and carries a **Stop** button so you can halt mining without opening the app.
-
-![The persistent mining notification on the Android lock screen.](images/processed/ch23-notification.png){width=55%}
 
 The notification is not optional and cannot be dismissed while mining runs — that is how Android distinguishes a legitimate background worker from an app trying to run unseen. Treat it as the at-a-glance indicator that your phone is still mining.
 
