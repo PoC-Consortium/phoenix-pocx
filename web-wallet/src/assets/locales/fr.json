@@ -532,6 +532,7 @@
   "notifications": "Notifications",
   "notifications_disabled": "Notifications desactivees",
   "notifications_enabled": "Notifications activees",
+  "notifications_mining_always_on": "Les notifications d’état du minage et du plotting sont toujours actives — le service en arrière-plan les requiert.",
   "of_label": "sur",
   "open_wallet": "Ouvrir le portefeuille",
   "options": "Options",

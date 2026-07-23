@@ -532,6 +532,7 @@
   "notifications": "Notificări",
   "notifications_disabled": "Notificări dezactivate",
   "notifications_enabled": "Notificări activate",
+  "notifications_mining_always_on": "Notificările de stare pentru minare și plotare sunt mereu active — serviciul din fundal le necesită.",
   "of_label": "din",
   "open_wallet": "Deschide portofel",
   "options": "Opțiuni",

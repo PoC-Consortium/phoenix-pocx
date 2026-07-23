@@ -532,6 +532,7 @@
   "notifications": "Pranesimai",
   "notifications_disabled": "Pranesimai isjungti",
   "notifications_enabled": "Pranesimai ijungti",
+  "notifications_mining_always_on": "Kasybos ir plotų kūrimo būsenos pranešimai visada įjungti — jų reikia foninei paslaugai.",
   "of_label": "is",
   "open_wallet": "Atidaryti pinigine",
   "options": "Parinktys",

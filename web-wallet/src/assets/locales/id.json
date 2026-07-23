@@ -532,6 +532,7 @@
   "notifications": "Notifikasi",
   "notifications_disabled": "Notifikasi dinonaktifkan",
   "notifications_enabled": "Notifikasi diaktifkan",
+  "notifications_mining_always_on": "Notifikasi status mining dan plotting selalu aktif — layanan latar belakang memerlukannya.",
   "of_label": "dari",
   "open_wallet": "Buka Dompet",
   "options": "Opsi",

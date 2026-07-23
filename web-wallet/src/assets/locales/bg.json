@@ -532,6 +532,7 @@
   "notifications": "Известия",
   "notifications_disabled": "Известията са деактивирани",
   "notifications_enabled": "Известията са активирани",
+  "notifications_mining_always_on": "Известията за състоянието на копаене и създаване на плотове са винаги включени — фоновата услуга ги изисква.",
   "of_label": "от",
   "open_wallet": "Отвори портфейла",
   "options": "Опции",

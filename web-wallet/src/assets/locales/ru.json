@@ -532,6 +532,7 @@
   "notifications": "Уведомления",
   "notifications_disabled": "Уведомления отключены",
   "notifications_enabled": "Уведомления включены",
+  "notifications_mining_always_on": "Уведомления о состоянии майнинга и плоттинга всегда включены — они необходимы фоновой службе.",
   "of_label": "из",
   "open_wallet": "Открыть кошелек",
   "options": "Параметры",

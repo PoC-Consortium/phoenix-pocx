@@ -532,6 +532,7 @@
   "notifications": "Meldingen",
   "notifications_disabled": "Meldingen uitgeschakeld",
   "notifications_enabled": "Meldingen ingeschakeld",
+  "notifications_mining_always_on": "Statusmeldingen voor mining en plotting staan altijd aan — de achtergrondservice vereist ze.",
   "of_label": "van",
   "open_wallet": "Portemonnee Openen",
   "options": "Opties",

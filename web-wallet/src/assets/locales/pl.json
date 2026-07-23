@@ -532,6 +532,7 @@
   "notifications": "Powiadomienia",
   "notifications_disabled": "Powiadomienia wylaczone",
   "notifications_enabled": "Powiadomienia wlaczone",
+  "notifications_mining_always_on": "Powiadomienia o stanie kopania i plotowania są zawsze włączone — wymaga ich usługa działająca w tle.",
   "of_label": "z",
   "open_wallet": "Otworz portfel",
   "options": "Opcje",

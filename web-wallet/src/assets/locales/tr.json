@@ -532,6 +532,7 @@
   "notifications": "Bildirimler",
   "notifications_disabled": "Bildirimler devre dışı",
   "notifications_enabled": "Bildirimler etkin",
+  "notifications_mining_always_on": "Madencilik ve plot oluşturma durum bildirimleri her zaman açıktır — arka plan hizmeti bunları gerektirir.",
   "of_label": "/",
   "open_wallet": "Cüzdanı Aç",
   "options": "Seçenekler",

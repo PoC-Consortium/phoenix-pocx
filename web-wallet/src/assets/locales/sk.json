@@ -532,6 +532,7 @@
   "notifications": "Oznamenia",
   "notifications_disabled": "Oznamenia zakazane",
   "notifications_enabled": "Oznamenia povolene",
+  "notifications_mining_always_on": "Oznámenia o stave ťažby a plotovania sú vždy zapnuté — vyžaduje ich služba na pozadí.",
   "of_label": "z",
   "open_wallet": "Otvorit penazenku",
   "options": "Moznosti",

@@ -532,6 +532,7 @@
   "notifications": "Сповіщення",
   "notifications_disabled": "Сповіщення вимкнено",
   "notifications_enabled": "Сповіщення ввімкнено",
+  "notifications_mining_always_on": "Сповіщення про стан майнінгу та плотингу завжди увімкнені — вони потрібні фоновій службі.",
   "of_label": "з",
   "open_wallet": "Відкрити гаманець",
   "options": "Параметри",

@@ -532,6 +532,7 @@
   "notifications": "Ilmoitukset",
   "notifications_disabled": "Ilmoitukset pois kaytosta",
   "notifications_enabled": "Ilmoitukset kaytossa",
+  "notifications_mining_always_on": "Louhinnan ja plottauksen tilailmoitukset ovat aina käytössä — taustapalvelu vaatii ne.",
   "of_label": "/",
   "open_wallet": "Avaa lompakko",
   "options": "Asetukset",

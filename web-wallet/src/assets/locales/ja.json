@@ -532,6 +532,7 @@
   "notifications": "通知",
   "notifications_disabled": "通知が無効になっています",
   "notifications_enabled": "通知が有効になっています",
+  "notifications_mining_always_on": "マイニングとプロット作成のステータス通知は常にオンです — バックグラウンドサービスに必要です。",
   "of_label": "/",
   "open_wallet": "ウォレットを開く",
   "options": "オプション",

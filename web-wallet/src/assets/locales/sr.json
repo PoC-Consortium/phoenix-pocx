@@ -532,6 +532,7 @@
   "notifications": "Обавештења",
   "notifications_disabled": "Обавештења су онемогућена",
   "notifications_enabled": "Обавештења су омогућена",
+  "notifications_mining_always_on": "Обавештења о статусу рударења и плотовања су увек укључена — позадинска услуга их захтева.",
   "of_label": "од",
   "open_wallet": "Отвори новчаник",
   "options": "Опције",

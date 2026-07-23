@@ -532,6 +532,7 @@
   "notifications": "Obavijesti",
   "notifications_disabled": "Obavijesti onemogucene",
   "notifications_enabled": "Obavijesti omogucene",
+  "notifications_mining_always_on": "Obavijesti o statusu rudarenja i plotanja uvijek su uključene — pozadinska usluga ih zahtijeva.",
   "of_label": "od",
   "open_wallet": "Otvori novcanik",
   "options": "Opcije",
