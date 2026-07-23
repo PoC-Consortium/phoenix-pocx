@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "创建新钱包，或从恢复短语恢复现有钱包。",
   "mwallet_onboarding_title": "设置您的钱包",
   "mwallet_passphrase_confirm": "确认口令",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "添加 BIP39 密码短语（第25个词）",
+  "mwallet_bip39_label": "BIP39 密码短语（第25个词）",
+  "mwallet_bip39_confirm": "确认第25个词",
+  "mwallet_bip39_warning": "这个可选的第25个词会融入您的密钥。一旦设置，仅凭恢复短语将无法恢复您的资金 — 您还必须准确记住这个词。它不是上方的设备密码短语。",
+  "mwallet_bip39_restore_warning": "请输入创建此钱包时使用的第25个词。词语错误或缺失会派生出另一个空钱包。",
   "mwallet_passphrase_hint": "加密存储在此设备上的种子。它不是恢复短语的一部分 — 仅凭这些单词就能随时恢复您的资金。",
   "mwallet_passphrase_label": "口令",
   "mwallet_passphrase_mismatch": "口令不匹配",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "在 Electrum 服务器上重新检查此钱包的旧版（v30）派生分支。较早的资金将显示为仅可花费的 v30 口袋。",
   "scan": "扫描",
   "upgrade_seed_mismatch": "此恢复短语与该钱包不匹配。请输入创建此钱包时所用的确切种子。",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "显示密码短语",
+  "hide_passphrase": "隐藏密码短语"
 }

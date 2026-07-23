@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Δημιουργήστε ένα νέο πορτοφόλι ή επαναφέρετε ένα υπάρχον από τη φράση ανάκτησης.",
   "mwallet_onboarding_title": "Ρυθμίστε το πορτοφόλι σας",
   "mwallet_passphrase_confirm": "Επιβεβαίωση κωδικού",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Προσθήκη κωδικού BIP39 (25η λέξη)",
+  "mwallet_bip39_label": "Κωδικός BIP39 (25η λέξη)",
+  "mwallet_bip39_confirm": "Επιβεβαίωση 25ης λέξης",
+  "mwallet_bip39_warning": "Αυτή η προαιρετική 25η λέξη ενσωματώνεται στα κλειδιά σας. Αν την ορίσετε, η φράση ανάκτησης ΑΠΟ ΜΟΝΗ της ΔΕΝ θα επαναφέρει τα κεφάλαιά σας — πρέπει να θυμάστε και αυτήν ακριβώς τη λέξη. Δεν είναι ο κωδικός της συσκευής παραπάνω.",
+  "mwallet_bip39_restore_warning": "Εισαγάγετε την ακριβή 25η λέξη με την οποία δημιουργήθηκε αυτό το πορτοφόλι. Λάθος ή ελλιπής λέξη παράγει ένα διαφορετικό, άδειο πορτοφόλι.",
   "mwallet_passphrase_hint": "Κρυπτογραφεί το seed που αποθηκεύεται σε αυτή τη συσκευή. Δεν αποτελεί μέρος της φράσης ανάκτησης — οι λέξεις από μόνες τους επαναφέρουν πάντα τα κεφάλαιά σας.",
   "mwallet_passphrase_label": "Κωδικός",
   "mwallet_passphrase_mismatch": "Οι κωδικοί δεν ταιριάζουν",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Επανελέγξτε τις παλιές (v30) διακλαδώσεις παραγωγής αυτού του πορτοφολιού στον διακομιστή Electrum. Τα παλαιότερα κεφάλαια εμφανίζονται ως θήκη v30 μόνο για ξόδεμα.",
   "scan": "Σάρωση",
   "upgrade_seed_mismatch": "Αυτή η φράση ανάκτησης δεν ταιριάζει με αυτό το πορτοφόλι. Εισαγάγετε ακριβώς το seed από το οποίο δημιουργήθηκε αυτό το πορτοφόλι.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Εμφάνιση κωδικού",
+  "hide_passphrase": "Απόκρυψη κωδικού"
 }

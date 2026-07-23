@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Создайте новый кошелек или восстановите существующий из фразы восстановления.",
   "mwallet_onboarding_title": "Настройте свой кошелек",
   "mwallet_passphrase_confirm": "Подтвердите пароль",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Добавить парольную фразу BIP39 (25-е слово)",
+  "mwallet_bip39_label": "Парольная фраза BIP39 (25-е слово)",
+  "mwallet_bip39_confirm": "Подтвердите 25-е слово",
+  "mwallet_bip39_warning": "Это необязательное 25-е слово встраивается в ваши ключи. Если вы его зададите, фраза восстановления САМА ПО СЕБЕ НЕ восстановит ваши средства — нужно помнить и именно это слово. Это не парольная фраза устройства выше.",
+  "mwallet_bip39_restore_warning": "Введите точно то 25-е слово, с которым был создан этот кошелёк. Неверное или пропущенное слово выводит другой, пустой кошелёк.",
   "mwallet_passphrase_hint": "Шифрует seed, хранящийся на этом устройстве. Он не является частью фразы восстановления — сами слова всегда восстанавливают ваши средства.",
   "mwallet_passphrase_label": "Пароль",
   "mwallet_passphrase_mismatch": "Пароли не совпадают",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Повторно проверить старые (v30) ветви деривации этого кошелька на сервере Electrum. Старые средства отображаются как карман v30 только для расходования.",
   "scan": "Сканировать",
   "upgrade_seed_mismatch": "Эта фраза восстановления не соответствует данному кошельку. Введите точную seed-фразу, из которой был создан этот кошелек.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Показать парольную фразу",
+  "hide_passphrase": "Скрыть парольную фразу"
 }

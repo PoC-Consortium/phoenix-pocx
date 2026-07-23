@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Créez un nouveau portefeuille ou restaurez-en un existant à partir de sa phrase de récupération.",
   "mwallet_onboarding_title": "Configurer votre portefeuille",
   "mwallet_passphrase_confirm": "Confirmer la phrase secrète",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Ajouter une phrase de passe BIP39 (25e mot)",
+  "mwallet_bip39_label": "Phrase de passe BIP39 (25e mot)",
+  "mwallet_bip39_confirm": "Confirmer le 25e mot",
+  "mwallet_bip39_warning": "Ce 25e mot optionnel est intégré à vos clés. Si vous le définissez, votre phrase de récupération SEULE NE restaurera PAS vos fonds — vous devez aussi retenir ce mot exact. Ce n'est pas la phrase de passe de l'appareil ci-dessus.",
+  "mwallet_bip39_restore_warning": "Saisissez le 25e mot exact avec lequel ce portefeuille a été créé. Un mot erroné ou manquant dérive un portefeuille différent et vide.",
   "mwallet_passphrase_hint": "Chiffre la seed stockée sur cet appareil. Elle ne fait pas partie de la phrase de récupération — les mots seuls restaurent toujours vos fonds.",
   "mwallet_passphrase_label": "Phrase secrète",
   "mwallet_passphrase_mismatch": "Les phrases secrètes ne correspondent pas",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Revérifiez les anciennes branches de dérivation (v30) de ce portefeuille sur le serveur Electrum. Les fonds plus anciens apparaissent comme une poche v30 en dépense uniquement.",
   "scan": "Analyser",
   "upgrade_seed_mismatch": "Cette phrase de récupération ne correspond pas à ce portefeuille. Saisissez la graine exacte à partir de laquelle ce portefeuille a été créé.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Afficher la phrase de passe",
+  "hide_passphrase": "Masquer la phrase de passe"
 }

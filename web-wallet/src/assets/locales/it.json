@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Crea un nuovo portafoglio o ripristinane uno esistente dalla sua frase di recupero.",
   "mwallet_onboarding_title": "Configura il tuo portafoglio",
   "mwallet_passphrase_confirm": "Conferma passphrase",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Aggiungi passphrase BIP39 (25ª parola)",
+  "mwallet_bip39_label": "Passphrase BIP39 (25ª parola)",
+  "mwallet_bip39_confirm": "Conferma la 25ª parola",
+  "mwallet_bip39_warning": "Questa 25ª parola opzionale viene incorporata nelle tue chiavi. Se la imposti, la frase di recupero DA SOLA NON ripristinerà i tuoi fondi — devi ricordare anche questa parola esatta. Non è la passphrase del dispositivo qui sopra.",
+  "mwallet_bip39_restore_warning": "Inserisci la 25ª parola esatta con cui è stato creato questo portafoglio. Una parola errata o mancante deriva un portafoglio diverso e vuoto.",
   "mwallet_passphrase_hint": "Cifra il seed memorizzato su questo dispositivo. Non fa parte della frase di recupero — le parole da sole ripristinano sempre i tuoi fondi.",
   "mwallet_passphrase_label": "Passphrase",
   "mwallet_passphrase_mismatch": "Le passphrase non corrispondono",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Ricontrolla i vecchi rami di derivazione (v30) di questo portafoglio sul server Electrum. I fondi più vecchi appaiono come una tasca v30 di sola spesa.",
   "scan": "Scansiona",
   "upgrade_seed_mismatch": "Questa frase di recupero non corrisponde a questo portafoglio. Inserisci il seed esatto da cui è stato creato questo portafoglio.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Mostra passphrase",
+  "hide_passphrase": "Nascondi passphrase"
 }

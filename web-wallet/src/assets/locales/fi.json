@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Luo uusi lompakko tai palauta olemassa oleva palautuslauseesta.",
   "mwallet_onboarding_title": "Määritä lompakkosi",
   "mwallet_passphrase_confirm": "Vahvista salasana",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Lisää BIP39-salasana (25. sana)",
+  "mwallet_bip39_label": "BIP39-salasana (25. sana)",
+  "mwallet_bip39_confirm": "Vahvista 25. sana",
+  "mwallet_bip39_warning": "Tämä valinnainen 25. sana sisällytetään avaimiisi. Jos asetat sen, palautuslause YKSINÄÄN EI palauta varojasi — sinun on muistettava myös tämä tarkka sana. Se ei ole yllä oleva laitteen salasana.",
+  "mwallet_bip39_restore_warning": "Syötä täsmälleen se 25. sana, jolla tämä lompakko luotiin. Väärä tai puuttuva sana johtaa eri, tyhjään lompakkoon.",
   "mwallet_passphrase_hint": "Salaa tälle laitteelle tallennetun seedin. Se ei ole osa palautuslausetta — sanat yksinään palauttavat aina varasi.",
   "mwallet_passphrase_label": "Salasana",
   "mwallet_passphrase_mismatch": "Salasanat eivät täsmää",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Tarkista tämän lompakon vanhat (v30) johdannaishaarat uudelleen Electrum-palvelimelta. Vanhemmat varat näkyvät vain kulutukseen tarkoitettuna v30-taskuna.",
   "scan": "Skannaa",
   "upgrade_seed_mismatch": "Tämä palautuslause ei vastaa tätä lompakkoa. Syötä täsmälleen se palautuslause, josta tämä lompakko luotiin.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Näytä salasana",
+  "hide_passphrase": "Piilota salasana"
 }

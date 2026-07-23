@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Creați un portofel nou sau restaurați unul existent din fraza de recuperare.",
   "mwallet_onboarding_title": "Configurați-vă portofelul",
   "mwallet_passphrase_confirm": "Confirmați parola",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Adaugă parolă BIP39 (al 25-lea cuvânt)",
+  "mwallet_bip39_label": "Parolă BIP39 (al 25-lea cuvânt)",
+  "mwallet_bip39_confirm": "Confirmă al 25-lea cuvânt",
+  "mwallet_bip39_warning": "Acest al 25-lea cuvânt opțional este încorporat în cheile tale. Dacă îl setezi, fraza de recuperare SINGURĂ NU îți va restaura fondurile — trebuie să reții și acest cuvânt exact. Nu este parola dispozitivului de mai sus.",
+  "mwallet_bip39_restore_warning": "Introdu exact al 25-lea cuvânt cu care a fost creat acest portofel. Un cuvânt greșit sau lipsă derivă un portofel diferit, gol.",
   "mwallet_passphrase_hint": "Criptează seed-ul stocat pe acest dispozitiv. Nu face parte din fraza de recuperare — cuvintele singure vă restaurează întotdeauna fondurile.",
   "mwallet_passphrase_label": "Parolă",
   "mwallet_passphrase_mismatch": "Parolele nu corespund",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Reverifică ramurile vechi de derivare (v30) ale acestui portofel pe serverul Electrum. Fondurile mai vechi apar ca un buzunar v30 disponibil doar pentru cheltuieli.",
   "scan": "Scanează",
   "upgrade_seed_mismatch": "Această frază de recuperare nu se potrivește cu acest portofel. Introduceți exact seed-ul din care a fost creat acest portofel.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Afișează parola",
+  "hide_passphrase": "Ascunde parola"
 }

@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Yeni bir cüzdan oluşturun veya mevcut bir cüzdanı kurtarma ifadesinden geri yükleyin.",
   "mwallet_onboarding_title": "Cüzdanınızı kurun",
   "mwallet_passphrase_confirm": "Parolayı onayla",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "BIP39 parolası ekle (25. kelime)",
+  "mwallet_bip39_label": "BIP39 parolası (25. kelime)",
+  "mwallet_bip39_confirm": "25. kelimeyi onayla",
+  "mwallet_bip39_warning": "Bu isteğe bağlı 25. kelime anahtarlarınıza işlenir. Ayarlarsanız, kurtarma ifadeniz TEK BAŞINA fonlarınızı GERİ GETİRMEZ — bu kelimeyi de tam olarak hatırlamanız gerekir. Yukarıdaki cihaz parolası değildir.",
+  "mwallet_bip39_restore_warning": "Bu cüzdanın oluşturulduğu 25. kelimeyi tam olarak girin. Yanlış veya eksik kelime farklı, boş bir cüzdan türetir.",
   "mwallet_passphrase_hint": "Bu cihazda saklanan seed'i şifreler. Kurtarma ifadesinin parçası değildir — kelimeler tek başına fonlarınızı her zaman geri yükler.",
   "mwallet_passphrase_label": "Parola",
   "mwallet_passphrase_mismatch": "Parolalar eşleşmiyor",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Bu cüzdanın eski (v30) türetme dallarını Electrum sunucusunda yeniden kontrol edin. Eski fonlar yalnızca harcama yapılabilen bir v30 cebi olarak görünür.",
   "scan": "Tara",
   "upgrade_seed_mismatch": "Bu kurtarma ifadesi bu cüzdanla eşleşmiyor. Bu cüzdanın oluşturulduğu tam seed'i girin.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Parolayı göster",
+  "hide_passphrase": "Parolayı gizle"
 }

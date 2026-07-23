@@ -1099,11 +1099,11 @@
   "mwallet_onboarding_intro": "Креирајте нови новчаник или вратите постојећи из фразе за опоравак.",
   "mwallet_onboarding_title": "Подесите свој новчаник",
   "mwallet_passphrase_confirm": "Потврди лозинку",
-  "mwallet_bip39_toggle": "Add BIP39 passphrase (25th word)",
-  "mwallet_bip39_label": "BIP39 passphrase (25th word)",
-  "mwallet_bip39_confirm": "Confirm 25th word",
-  "mwallet_bip39_warning": "This optional 25th word is folded into your keys. If you set it, your recovery phrase ALONE will NOT restore your funds — you must also remember this exact word. It is not the device passphrase above.",
-  "mwallet_bip39_restore_warning": "Enter the exact 25th word this wallet was created with. A wrong or missing word derives a different, empty wallet.",
+  "mwallet_bip39_toggle": "Додај BIP39 лозинку (25. реч)",
+  "mwallet_bip39_label": "BIP39 лозинка (25. реч)",
+  "mwallet_bip39_confirm": "Потврди 25. реч",
+  "mwallet_bip39_warning": "Ова опциона 25. реч се уграђује у ваше кључеве. Ако је поставите, фраза за опоравак САМА НЕЋЕ вратити ваша средства — морате запамтити и тачно ову реч. То није лозинка уређаја изнад.",
+  "mwallet_bip39_restore_warning": "Унесите тачну 25. реч са којом је овај новчаник направљен. Погрешна или изостављена реч изводи други, празан новчаник.",
   "mwallet_passphrase_hint": "Шифрује seed сачуван на овом уређају. Није део фразе за опоравак — саме речи увек враћају ваша средства.",
   "mwallet_passphrase_label": "Лозинка",
   "mwallet_passphrase_mismatch": "Лозинке се не подударају",
@@ -1273,6 +1273,6 @@
   "wallet_rescan_legacy_description": "Поново провери старе (v30) гране деривације овог новчаника на Electrum серверу. Старија средства се појављују као v30 џеп само за трошење.",
   "scan": "Скенирај",
   "upgrade_seed_mismatch": "Ова фраза за опоравак не одговара овом новчанику. Унесите тачан seed из ког је овај новчаник креиран.",
-  "show_passphrase": "Show passphrase",
-  "hide_passphrase": "Hide passphrase"
+  "show_passphrase": "Прикажи лозинку",
+  "hide_passphrase": "Сакриј лозинку"
 }
