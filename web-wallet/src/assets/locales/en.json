@@ -790,7 +790,7 @@
   "transaction_details": "Transaction Details",
   "transaction_failed": "Transaction failed",
   "transaction_id": "Transaction ID",
-  "transaction_irreversible": "Bitcoin transactions are irreversible. Double-check all details before confirming.",
+  "transaction_irreversible": "Transactions are irreversible. Double-check all details before confirming.",
   "transaction_notifications": "Transaction Notifications",
   "transaction_replaceable": "This transaction can be replaced with a higher fee",
   "transaction_sent": "Transaction Sent",

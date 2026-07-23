@@ -41,6 +41,7 @@ import type { Network } from '../../../../store/settings/settings.state';
 import { NodeService } from '../../../../node/services/node.service';
 import { BtcxWalletService } from '../../../../core/services/btcx-wallet.service';
 import { AppModeService } from '../../../../core/services/app-mode.service';
+import { ViewportService } from '../../../../core/services/viewport.service';
 
 interface FeeOption {
   label: string;
@@ -1049,6 +1050,7 @@ export class SendComponent implements OnInit, OnDestroy {
   private readonly notification = inject(NotificationService);
   private readonly router = inject(Router);
   readonly appMode = inject(AppModeService);
+  private readonly viewport = inject(ViewportService);
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly dialog = inject(MatDialog);
@@ -1339,8 +1341,15 @@ export class SendComponent implements OnInit, OnDestroy {
   async confirmAndSend(): Promise<void> {
     if (!this.canSubmit()) return;
 
+    // Center the dialog over the PAGE (the content area right of the docked
+    // sidenav), not the full window — visually it belongs to the send form.
+    // In overlay-menu mode (narrow windows) there is no docked rail.
+    const railPx = this.viewport.menuOverlay() ? 0 : 240;
+    const dialogW = 450;
+    const left = Math.max(0, railPx + (window.innerWidth - railPx) / 2 - dialogW / 2);
     const dialogRef = this.dialog.open(SendConfirmDialogComponent, {
-      width: '450px',
+      width: `${dialogW}px`,
+      position: { left: `${left}px` },
       data: {
         recipientAddress: this.recipientAddress,
         amount: this.amount,

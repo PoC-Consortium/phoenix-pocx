@@ -796,7 +796,7 @@
   "transaction_details": "Szczegoly transakcji",
   "transaction_failed": "Transakcja nieudana",
   "transaction_id": "ID transakcji",
-  "transaction_irreversible": "Transakcje Bitcoin sa nieodwracalne. Sprawdz dokladnie wszystkie szczegoly przed potwierdzeniem.",
+  "transaction_irreversible": "Transakcje są nieodwracalne. Przed potwierdzeniem dokładnie sprawdź wszystkie dane.",
   "transaction_notifications": "Powiadomienia o transakcjach",
   "transaction_replaceable": "Ta transakcja moze byc zastapiona wyzsza oplata",
   "transaction_sent": "Transakcja wyslana",

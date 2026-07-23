@@ -796,7 +796,7 @@
   "transaction_details": "Деталі транзакції",
   "transaction_failed": "Транзакція не вдалася",
   "transaction_id": "ID транзакції",
-  "transaction_irreversible": "Транзакції Bitcoin необоротні. Перевірте всі деталі перед підтвердженням.",
+  "transaction_irreversible": "Транзакції незворотні. Уважно перевірте всі дані перед підтвердженням.",
   "transaction_notifications": "Сповіщення про транзакції",
   "transaction_replaceable": "Цю транзакцію можна замінити з вищою комісією",
   "transaction_sent": "Транзакцію надіслано",

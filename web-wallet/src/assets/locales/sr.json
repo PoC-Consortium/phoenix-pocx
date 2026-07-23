@@ -796,7 +796,7 @@
   "transaction_details": "Детаљи трансакције",
   "transaction_failed": "Трансакција није успела",
   "transaction_id": "ИД трансакције",
-  "transaction_irreversible": "Bitcoin трансакције су неповратне. Проверите све детаље пре потврде.",
+  "transaction_irreversible": "Трансакције су неповратне. Пажљиво проверите све податке пре потврде.",
   "transaction_notifications": "Обавештења о трансакцијама",
   "transaction_replaceable": "Ова трансакција може бити замењена са вишом накнадом",
   "transaction_sent": "Трансакција послата",

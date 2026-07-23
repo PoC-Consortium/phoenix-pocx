@@ -796,7 +796,7 @@
   "transaction_details": "Tapahtuman tiedot",
   "transaction_failed": "Tapahtuma epaonnistui",
   "transaction_id": "Tapahtuman tunnus",
-  "transaction_irreversible": "Bitcoin-tapahtumia ei voi peruuttaa. Tarkista kaikki tiedot ennen vahvistamista.",
+  "transaction_irreversible": "Siirrot ovat peruuttamattomia. Tarkista kaikki tiedot huolellisesti ennen vahvistusta.",
   "transaction_notifications": "Tapahtumailmoitukset",
   "transaction_replaceable": "Tama tapahtuma voidaan korvata korkeammalla maksulla",
   "transaction_sent": "Tapahtuma lahetetty",

@@ -796,7 +796,7 @@
   "transaction_details": "İşlem Detayları",
   "transaction_failed": "İşlem başarısız",
   "transaction_id": "İşlem Kimliği",
-  "transaction_irreversible": "Bitcoin işlemleri geri alınamaz. Onaylamadan önce tüm detayları kontrol edin.",
+  "transaction_irreversible": "İşlemler geri alınamaz. Onaylamadan önce tüm ayrıntıları dikkatlice kontrol edin.",
   "transaction_notifications": "İşlem Bildirimleri",
   "transaction_replaceable": "Bu işlem daha yüksek ücretle değiştirilebilir",
   "transaction_sent": "İşlem Gönderildi",
