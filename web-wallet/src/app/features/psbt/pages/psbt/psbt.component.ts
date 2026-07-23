@@ -1598,6 +1598,22 @@ type PsbtView = 'start' | 'compose' | 'doc' | 'success';
           padding: 16px;
         }
 
+        /* Six footer buttons never fit one row on a phone - wrap into a
+           2x3 grid (the spacer would break the grid, so it goes). */
+        .wizard-footer {
+          flex-wrap: wrap;
+
+          .spacer {
+            display: none;
+          }
+
+          button {
+            flex: 1 1 calc(33.33% - 7px);
+            min-width: 0;
+            padding: 0 4px;
+          }
+        }
+
         .actions button {
           flex: 1 1 auto;
         }
@@ -1974,6 +1990,11 @@ export class PsbtComponent implements OnInit {
           this.psbtService.saveDraft(draft);
         }
       }
+      // AFTER the draft bookkeeping (which resets finalHex for fresh
+      // imports): an already-final document gets its raw hex extracted so
+      // Broadcast is live without an explicit finalize step.
+      await this.ensureFinalHex(this.doc()!);
+      this.syncDraft();
       this.view.set('doc');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -2020,8 +2041,11 @@ export class PsbtComponent implements OnInit {
       }
       if (!(await this.ensureWalletUnlocked(walletName))) return;
       const sigsBefore = document.sigsCollected;
-      // finalize=false keeps sealing an explicit, separate step (the
-      // client-side signer leaves foreign inputs untouched too)
+      // finalize=true: when this signature COMPLETES the transaction it is
+      // sealed in the same action and the flow jumps straight to Broadcast —
+      // the same behavior the client-side (BDK) signer has always had, now
+      // unified across modes. Incomplete signings (multisig, foreign inputs)
+      // still stop at the explicit combine/finalize step.
       const result = this.isRemote()
         ? await this.btcxWallet.psbtProcess(document.base64)
         : await this.walletRpc.walletProcessPsbt(
@@ -2030,13 +2054,14 @@ export class PsbtComponent implements OnInit {
             true,
             'ALL',
             true,
-            false
+            true
           );
       // walletprocesspsbt also acts as an updater (adds derivation/UTXO
       // data), so a changed string does NOT prove a signature was added —
       // compare actual signature counts instead.
       const updated = await this.psbtService.buildDocument(result.psbt);
       this.doc.set(updated);
+      await this.ensureFinalHex(updated);
       this.syncDraft();
       if (updated.sigsCollected > sigsBefore || result.complete) {
         this.notification.success(this.i18n.get('psbt_signed'));
@@ -2161,6 +2186,27 @@ export class PsbtComponent implements OnInit {
       this.docError.set(error instanceof Error ? error.message : String(error));
     } finally {
       this.finalizing.set(false);
+    }
+  }
+
+  /**
+   * A document can arrive ALREADY finalized without finalize() ever running
+   * here — the client-side (BDK) signer seals the PSBT as a side effect once
+   * the last signature lands, and an imported/draft PSBT may be final too.
+   * The broadcast button needs the raw hex, so extract it on demand.
+   */
+  private async ensureFinalHex(document: PsbtDocument): Promise<void> {
+    if (document.status !== 'finalized' || this.finalHex()) return;
+    try {
+      if (this.isRemote()) {
+        const result = await this.btcxWallet.psbtFinalize(document.base64);
+        if (result.complete && result.hex) this.finalHex.set(result.hex);
+      } else {
+        const extracted = await this.walletRpc.finalizePsbt(document.base64, true);
+        if (extracted.hex) this.finalHex.set(extracted.hex);
+      }
+    } catch (error) {
+      console.warn('ensureFinalHex failed:', error);
     }
   }
 

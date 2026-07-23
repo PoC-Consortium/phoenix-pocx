@@ -221,7 +221,7 @@ Once a PSBT exists, a step indicator across the top tracks it through its life: 
 
 *Sign on device* (hardware wallet) is shown but marked **coming soon**.
 
-**Finalize.** Once all required signatures are present (status *Signed*), **Finalize** seals the inputs. After finalizing, the transaction can no longer be edited.
+**Finalize.** Once all required signatures are present (status *Signed*), **Finalize** seals the inputs. After finalizing, the transaction can no longer be edited. When *your own* signature is the one that completes the transaction — the everyday single-signer case — signing seals it in the same action, and the flow jumps straight from Sign to Broadcast; the explicit Finalize stop exists for the multi-party flows, where signatures are collected and combined before sealing.
 
 **Broadcast.** The final step sends the finalized transaction to the network. There are two possible targets: your **local node** (*"bitcoind on this machine"*) when Phoenix runs a managed or external node, and a **remote Electrum server** (*"Broadcast through a remote server — no local node required"*) when a server is configured — the latter is how a nodeless wallet broadcasts without any local node (Chapter 26). On success, Phoenix shows a **Transaction broadcast** confirmation with the copyable txid and buttons to view your transactions or start another.
 

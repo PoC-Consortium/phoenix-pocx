@@ -1287,6 +1287,27 @@ const UTXO_PAGE_SIZE = 10;
 
       // Responsive
       @include bp.phone {
+        /* Manual coin selection: the search field's Material minimum plus
+           the op button and amount box exceed a phone row - wrap, with the
+           search on its own line. */
+        .filter-row {
+          flex-wrap: wrap;
+
+          .grow-field {
+            flex: 1 1 100%;
+          }
+
+          .size-field {
+            flex: 1 1 auto;
+            width: auto;
+          }
+        }
+
+        .utxo-pager {
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+
         .output-row {
           flex-wrap: wrap;
 
