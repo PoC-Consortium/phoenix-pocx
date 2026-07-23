@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Opcionalmente, cifra la semilla de la billetera en el disco con una contraseña. La necesitarás para desbloquear la billetera al enviar. La frase de recuperación por sí sola siempre restaura tus fondos.",
   "restore_probe_info": "El historial de tu semilla se comprueba a través de Electrum durante la importación — las ramas con fondos existentes se detectan automáticamente.",
   "psbt_join_unavailable_remote": "Combinar no está disponible en modo remoto",
-  "psbt_compose_advanced_unavailable_remote": "El control de monedas, los datos OP_RETURN, el tiempo de bloqueo, el cambio personalizado y el descuento de comisión aún no están disponibles en modo remoto",
   "feature_unavailable_remote": "Esta función no está disponible en modo remoto (Electrum)",
   "setup_solo_not_available_remote": "La minería en solitario necesita un nodo local — no disponible en modo remoto (Electrum)",
   "move_up": "Mover arriba",

@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Opcionalmente, cifra a semente da carteira no disco cun contrasinal. Fará falta para desbloquear a carteira ao enviar. A frase de recuperación por si soa sempre restaura os teus fondos.",
   "restore_probe_info": "O historial da túa semente sóndase mediante Electrum durante a importación — as ramas con fondos existentes detéctanse automaticamente.",
   "psbt_join_unavailable_remote": "Combinar non está dispoñible no modo remoto",
-  "psbt_compose_advanced_unavailable_remote": "O control de moedas, os datos OP_RETURN, o tempo de bloqueo, o cambio personalizado e a dedución da comisión aínda non están dispoñibles no modo remoto",
   "feature_unavailable_remote": "Esta función non está dispoñible no modo remoto (Electrum)",
   "setup_solo_not_available_remote": "A minaría en solitario precisa dun nodo local — non dispoñible no modo remoto (Electrum)",
   "move_up": "Mover arriba",

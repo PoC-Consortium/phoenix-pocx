@@ -2405,10 +2405,12 @@ pub fn btcx_psbt_combine(psbts: Vec<String>) -> Result<String, String> {
 pub async fn btcx_wallet_create_funded_psbt(
     outputs: Vec<super::psbt::PsbtRecipient>,
     fee_rate_sat_vb: Option<f64>,
+    options: Option<super::psbt::PsbtComposeOptions>,
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<String, String> {
     let state = state.inner().clone();
-    blocking(move || super::psbt::create_funded_psbt(&state, &outputs, fee_rate_sat_vb)).await
+    blocking(move || super::psbt::create_funded_psbt(&state, &outputs, fee_rate_sat_vb, options))
+        .await
 }
 
 /// The open wallet's unspent outputs (cache read) — the remote-mode

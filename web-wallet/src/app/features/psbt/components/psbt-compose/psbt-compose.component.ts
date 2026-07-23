@@ -370,18 +370,22 @@ const UTXO_PAGE_SIZE = 10;
             </mat-form-field>
           }
 
-          <div class="change-row">
-            <div class="option-info">
-              <span class="option-label">{{ 'psbt_change_auto' | i18n }}</span>
-              <span class="option-hint">{{ 'psbt_change_auto_hint' | i18n }}</span>
+          <!-- Custom change is Core-only: bdk derives change from the
+               internal keychain and has no custom-change hook (#209). -->
+          @if (!isRemote()) {
+            <div class="change-row">
+              <div class="option-info">
+                <span class="option-label">{{ 'psbt_change_auto' | i18n }}</span>
+                <span class="option-hint">{{ 'psbt_change_auto_hint' | i18n }}</span>
+              </div>
+              <mat-slide-toggle
+                [checked]="autoChange()"
+                (change)="onAutoChangeToggle($event.checked)"
+              >
+              </mat-slide-toggle>
             </div>
-            <mat-slide-toggle
-              [checked]="autoChange()"
-              (change)="onAutoChangeToggle($event.checked)"
-            >
-            </mat-slide-toggle>
-          </div>
-          @if (!autoChange()) {
+          }
+          @if (!isRemote() && !autoChange()) {
             <mat-form-field appearance="outline" class="data-field">
               <mat-label>{{ 'psbt_change_address' | i18n }}</mat-label>
               <input
@@ -1817,25 +1821,22 @@ export class PsbtComposeComponent implements OnInit {
 
     try {
       if (this.isRemote()) {
-        // Client-side compose supports the basics: recipients + fee rate
-        // (RBF always on). Coin control, OP_RETURN data, locktime, custom
-        // change and subtract-fee need Core's walletcreatefundedpsbt.
-        if (
-          this.manualCoins() ||
-          (this.showData() && this.dataHex.trim()) ||
-          this.useLocktime() ||
-          this.subtractFeeIndex() !== null ||
-          (!this.autoChange() && this.changeAddress.trim())
-        ) {
-          this.createError.set(this.i18n.get('psbt_compose_advanced_unavailable_remote'));
-          return;
-        }
+        // Client-side compose now carries coin control, OP_RETURN data,
+        // locktime and subtract-fee (RBF always on). Custom change is the
+        // one Core-only remainder — bdk has no custom-change hook (#209) —
+        // and its UI is hidden in remote mode.
         const psbt = await this.btcxWallet.createFundedPsbt(
           this.outputs().map(o => ({
             address: o.address.trim(),
             amountSat: Math.round((o.amount as number) * 1e8),
           })),
-          this.effectiveFeeRate() ?? undefined
+          this.effectiveFeeRate() ?? undefined,
+          {
+            utxos: this.manualCoins() ? [...this.selectedOutpoints()] : undefined,
+            dataHex: this.showData() && this.dataHex.trim() ? this.dataHex.trim() : undefined,
+            locktime: this.useLocktime() && this.locktime ? this.locktime : undefined,
+            subtractFeeOutput: this.subtractFeeIndex() ?? undefined,
+          }
         );
         const doc = await this.btcxWallet.psbtDecode(psbt);
         this.created.emit({ psbt, fee: (doc.feeSat ?? 0) / 1e8 });

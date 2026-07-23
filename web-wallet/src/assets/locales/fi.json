@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Voit halutessasi salata lompakon siemenen levyllä salasanalla. Tarvitset sitä lompakon lukituksen avaamiseen lähettämistä varten. Pelkkä palautuslause palauttaa aina varasi.",
   "restore_probe_info": "Siemenesi historia tutkitaan Electrumin kautta tuonnin aikana — haarat, joissa on varoja, tunnistetaan automaattisesti.",
   "psbt_join_unavailable_remote": "Yhdistäminen ei ole käytettävissä etätilassa",
-  "psbt_compose_advanced_unavailable_remote": "Kolikoiden hallinta, OP_RETURN-data, lukitusaika, mukautettu vaihtoraha ja maksun vähentäminen eivät ole vielä käytettävissä etätilassa",
   "feature_unavailable_remote": "Tämä ominaisuus ei ole käytettävissä etätilassa (Electrum)",
   "setup_solo_not_available_remote": "Yksinlouhinta tarvitsee paikallisen solmun — ei käytettävissä etätilassa (Electrum)",
   "move_up": "Siirrä ylös",

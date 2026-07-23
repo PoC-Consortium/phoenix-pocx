@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Opcionalmente, criptografe a semente da carteira no disco com uma senha. Você precisará dela para desbloquear a carteira ao enviar. A frase de recuperação sozinha sempre restaura seus fundos.",
   "restore_probe_info": "O histórico da sua semente é sondado via Electrum durante a importação — ramos com fundos existentes são detectados automaticamente.",
   "psbt_join_unavailable_remote": "Combinar não está disponível no modo remoto",
-  "psbt_compose_advanced_unavailable_remote": "Controle de moedas, dados OP_RETURN, tempo de bloqueio, troco personalizado e dedução de taxa ainda não estão disponíveis no modo remoto",
   "feature_unavailable_remote": "Este recurso não está disponível no modo remoto (Electrum)",
   "setup_solo_not_available_remote": "A mineração solo precisa de um nó local — não disponível no modo remoto (Electrum)",
   "move_up": "Mover para cima",

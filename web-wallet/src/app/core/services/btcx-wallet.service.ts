@@ -1204,11 +1204,22 @@ export class BtcxWalletService {
   /** Compose a funded UNSIGNED PSBT — client-side `walletcreatefundedpsbt`. */
   async createFundedPsbt(
     outputs: { address: string; amountSat: number }[],
-    feeRateSatVb?: number
+    feeRateSatVb?: number,
+    options?: {
+      /** Manual coin control: spend exactly these "txid:vout" outpoints. */
+      utxos?: string[];
+      /** OP_RETURN payload (hex, max 80 bytes). */
+      dataHex?: string;
+      /** Absolute locktime (consensus u32). */
+      locktime?: number;
+      /** Take the fee out of this output index (Core's subtractFeeFromOutputs). */
+      subtractFeeOutput?: number;
+    }
   ): Promise<string> {
     return invoke<string>('btcx_wallet_create_funded_psbt', {
       outputs,
       feeRateSatVb: feeRateSatVb ?? null,
+      options: options ?? null,
     });
   }
 

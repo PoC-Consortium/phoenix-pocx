@@ -95,7 +95,7 @@ A few capabilities depend on a full node and are therefore disabled or limited w
 
 - **Solo mining is unavailable.** Forging a block yourself means building and validating it locally, which is a full node's job. The mining wizard's **solo** option is disabled in remote mode — *"Solo mining needs a local node — not available in remote (Electrum) mode."* Pool mining, which offloads forging to the pool, works fine.
 - **The Blocks explorer and Peers page are hidden.** Both read data only a full node has (block-by-block detail; the node's peer connections). In remote mode the sidebar does not show them, and navigating to them redirects to the dashboard.
-- **Some advanced Transaction Builder options are not yet available.** Manual coin (UTXO) control, `OP_RETURN` data outputs, custom locktime, a custom change address, subtract-fee, and the *Join* (CoinJoin-style) merge are node-backed features that remote mode does not expose yet — *"Coin control, OP_RETURN data, locktime, custom change and subtract-fee are not available in remote mode yet."* Ordinary composing, signing, combining, finalizing, and broadcasting all work.
+- **The Transaction Builder is almost at parity.** Manual coin (UTXO) control, `OP_RETURN` data outputs, custom locktime, and subtract-fee all work client-side. The two Core-only remainders: a **custom change address** (the option is hidden in remote mode — change always returns to the wallet's own change chain) and the *Join* (CoinJoin-style) merge.
 
 Everything else — the wallet, sending and receiving, history, contacts, pool mining, and forging assignments — is fully available.
 

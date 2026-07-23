@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Facoltativamente cifra il seed del portafoglio sul disco con una password. Ti servirà per sbloccare il portafoglio per l'invio. La frase di recupero da sola ripristina sempre i tuoi fondi.",
   "restore_probe_info": "La cronologia del tuo seed viene sondata tramite Electrum durante l'importazione — i rami con fondi esistenti vengono rilevati automaticamente.",
   "psbt_join_unavailable_remote": "L'unione non è disponibile in modalità remota",
-  "psbt_compose_advanced_unavailable_remote": "Il controllo delle monete, i dati OP_RETURN, il tempo di blocco, il resto personalizzato e la sottrazione della commissione non sono ancora disponibili in modalità remota",
   "feature_unavailable_remote": "Questa funzione non è disponibile in modalità remota (Electrum)",
   "setup_solo_not_available_remote": "Il mining in solo richiede un nodo locale — non disponibile in modalità remota (Electrum)",
   "move_up": "Sposta su",

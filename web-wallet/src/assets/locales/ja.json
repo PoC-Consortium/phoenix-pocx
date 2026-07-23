@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "任意で、ディスク上のウォレットシードをパスワードで暗号化できます。送金時にウォレットのロック解除に必要になります。リカバリーフレーズだけでも常に資金を復元できます。",
   "restore_probe_info": "インポート中に、シードの履歴が Electrum を通じて調べられます — 資金のある分岐は自動的に検出されます。",
   "psbt_join_unavailable_remote": "結合はリモートモードでは利用できません",
-  "psbt_compose_advanced_unavailable_remote": "コインコントロール、OP_RETURN データ、ロックタイム、カスタムおつり、手数料差し引きはリモートモードではまだ利用できません",
   "feature_unavailable_remote": "この機能はリモート（Electrum）モードでは利用できません",
   "setup_solo_not_available_remote": "ソロマイニングにはローカルノードが必要です — リモート（Electrum）モードでは利用できません",
   "move_up": "上へ移動",

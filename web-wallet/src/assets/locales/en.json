@@ -1221,7 +1221,6 @@
   "wallet_encryption_info_local": "Optionally encrypt the wallet seed on disk with a password. You will need it to unlock the wallet for sending. The recovery phrase alone always restores your funds.",
   "restore_probe_info": "Your seed's history is probed over Electrum during the import — branches with existing funds are detected automatically.",
   "psbt_join_unavailable_remote": "Join is not available in remote mode",
-  "psbt_compose_advanced_unavailable_remote": "Coin control, OP_RETURN data, locktime, custom change and subtract-fee are not available in remote mode yet",
   "feature_unavailable_remote": "This feature is not available in remote (Electrum) mode",
   "setup_solo_not_available_remote": "Solo mining needs a local node — not available in remote (Electrum) mode",
   "move_up": "Move up",

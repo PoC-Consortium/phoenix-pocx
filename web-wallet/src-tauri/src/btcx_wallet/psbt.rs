@@ -21,7 +21,7 @@ use bdk_wallet::{SignOptions, TxOrdering};
 use bitcoin::{Amount, Psbt, ScriptBuf, Sequence};
 use serde::{Deserialize, Serialize};
 
-use electrum_btcx::SendFee;
+use electrum_btcx::{SendFee, WalletEntry};
 
 use super::config::WalletNetwork;
 use super::state::SharedBtcxWalletState;
@@ -397,6 +397,28 @@ pub struct PsbtRecipient {
     pub amount_sat: u64,
 }
 
+/// Advanced compose options (all optional) — the client-side counterparts
+/// of Core's `walletcreatefundedpsbt` options the Builder exposes. Custom
+/// change is deliberately absent: bdk derives change from the internal
+/// keychain and has no custom-change hook (issue #209).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PsbtComposeOptions {
+    /// Manual coin control: spend EXACTLY these outpoints ("txid:vout").
+    #[serde(default)]
+    pub utxos: Option<Vec<String>>,
+    /// OP_RETURN payload (hex, max 80 bytes) added as a 0-value data output.
+    #[serde(default)]
+    pub data_hex: Option<String>,
+    /// Absolute locktime (consensus u32: height < 500e6, else unix time).
+    #[serde(default)]
+    pub locktime: Option<u32>,
+    /// Take the fee out of this output (index into `outputs`) instead of
+    /// adding it on top — Core's `subtractFeeFromOutputs`.
+    #[serde(default)]
+    pub subtract_fee_output: Option<usize>,
+}
+
 /// Compose a funded, UNSIGNED PSBT paying `outputs` (client-side
 /// `walletcreatefundedpsbt`): the wallet coin-selects, adds change, and
 /// signals RBF; signing is a separate step (`wallet_process`).
@@ -404,10 +426,45 @@ pub fn create_funded_psbt(
     state: &SharedBtcxWalletState,
     outputs: &[PsbtRecipient],
     fee_rate_sat_vb: Option<f64>,
+    options: Option<PsbtComposeOptions>,
 ) -> Result<String, String> {
     if outputs.is_empty() {
         return Err("Give at least one recipient".to_string());
     }
+    let options = options.unwrap_or_default();
+    if let Some(i) = options.subtract_fee_output {
+        if i >= outputs.len() {
+            return Err(format!("subtractFeeOutput {i} is out of range"));
+        }
+    }
+    let manual_utxos: Option<Vec<bitcoin::OutPoint>> = options
+        .utxos
+        .as_ref()
+        .map(|list| {
+            list.iter()
+                .map(|s| bitcoin::OutPoint::from_str(s).map_err(|e| format!("{s}: {e}")))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?;
+    let push_data: Option<bitcoin::script::PushBytesBuf> = options
+        .data_hex
+        .as_deref()
+        .filter(|h| !h.trim().is_empty())
+        .map(|h| {
+            let bytes = hex_decode(h.trim()).map_err(|e| format!("OP_RETURN data: {e}"))?;
+            if bytes.len() > 80 {
+                return Err(format!(
+                    "OP_RETURN data is {} bytes — the standardness limit is 80",
+                    bytes.len()
+                ));
+            }
+            bitcoin::script::PushBytesBuf::try_from(bytes)
+                .map_err(|e| format!("OP_RETURN data: {e}"))
+        })
+        .transpose()?;
+    let locktime = options
+        .locktime
+        .map(bitcoin::absolute::LockTime::from_consensus);
     let backend = state.backend()?;
     let params = state.get_config().network.params();
     let fee = match fee_rate_sat_vb {
@@ -420,6 +477,7 @@ pub fn create_funded_psbt(
         .map_err(|e| format!("{e:#}"))?;
     let feerate = bitcoin::FeeRate::from_sat_per_kwu((feerate_kvb + 2) / 4);
 
+    #[allow(clippy::type_complexity)]
     let spks: Vec<(ScriptBuf, u64)> = outputs
         .iter()
         .map(|o| {
@@ -432,17 +490,66 @@ pub fn create_funded_psbt(
 
     state.ensure_first_sync()?;
     let psbt = state.with_entry(|entry| {
-        let mut builder = entry.wallet.build_tx();
-        builder
-            .ordering(TxOrdering::Shuffle)
-            .fee_rate(feerate)
-            .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
-        for (spk, amount_sat) in spks {
-            builder.add_recipient(spk, Amount::from_sat(amount_sat));
-        }
-        let psbt = builder
-            .finish()
-            .map_err(|e| format!("building the transaction: {e}"))?;
+        let build = |entry: &mut WalletEntry,
+                     amounts: &[(ScriptBuf, u64)],
+                     forced: Option<&[bitcoin::OutPoint]>|
+         -> Result<Psbt, String> {
+            let mut builder = entry.wallet.build_tx();
+            builder
+                .ordering(TxOrdering::Shuffle)
+                .fee_rate(feerate)
+                // 0xFFFFFFFD: signals RBF AND (being < 0xFFFFFFFE) leaves an
+                // absolute locktime enforceable despite the constant's name.
+                .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
+            if let Some(lt) = locktime {
+                builder.nlocktime(lt);
+            }
+            if let Some(outpoints) = forced {
+                builder
+                    .add_utxos(outpoints)
+                    .map_err(|e| format!("coin selection: {e}"))?;
+                builder.manually_selected_only();
+            }
+            if let Some(data) = &push_data {
+                builder.add_data(data);
+            }
+            for (spk, amount_sat) in amounts {
+                builder.add_recipient(spk.clone(), Amount::from_sat(*amount_sat));
+            }
+            builder
+                .finish()
+                .map_err(|e| format!("building the transaction: {e}"))
+        };
+
+        let psbt = match options.subtract_fee_output {
+            None => build(entry, &spks, manual_utxos.as_deref())?,
+            Some(target) => {
+                // Two-pass subtract-fee: a probe build at full amounts fixes
+                // the input set and (through it) the exact fee; the real
+                // build reuses THAT input set with the target output reduced
+                // by the fee — identical shape, so the fee stays exact.
+                let probe = build(entry, &spks, manual_utxos.as_deref())?;
+                let fee = probe
+                    .fee()
+                    .map_err(|e| format!("probing the fee: {e}"))?
+                    .to_sat();
+                let inputs: Vec<bitcoin::OutPoint> = probe
+                    .unsigned_tx
+                    .input
+                    .iter()
+                    .map(|i| i.previous_output)
+                    .collect();
+                let mut adjusted = spks.clone();
+                if adjusted[target].1 <= fee {
+                    return Err(format!(
+                        "output {target} ({} sat) cannot cover the {fee} sat fee",
+                        adjusted[target].1
+                    ));
+                }
+                adjusted[target].1 -= fee;
+                build(entry, &adjusted, Some(&inputs))?
+            }
+        };
         // Persist so the coin selection's reveal of a change address
         // survives; the UTXOs stay spendable until a signed tx broadcasts.
         entry
@@ -452,6 +559,16 @@ pub fn create_funded_psbt(
         Ok(psbt)
     })?;
     Ok(psbt.to_string())
+}
+
+fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
+    if !s.len().is_multiple_of(2) {
+        return Err("odd-length hex".to_string());
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).map_err(|e| e.to_string()))
+        .collect()
 }
 
 /// One spendable wallet UTXO (`btcx_wallet_utxos`).

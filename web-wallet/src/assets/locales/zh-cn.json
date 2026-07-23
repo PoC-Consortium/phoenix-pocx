@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "可选择使用密码在磁盘上加密钱包种子。发送时您需要用它来解锁钱包。仅凭恢复短语始终可以恢复您的资金。",
   "restore_probe_info": "导入期间，系统会通过 Electrum 探测您种子的历史记录——含有资金的分支会被自动检测到。",
   "psbt_join_unavailable_remote": "远程模式下无法使用合并",
-  "psbt_compose_advanced_unavailable_remote": "币控制、OP_RETURN 数据、锁定时间、自定义找零和减去手续费在远程模式下尚不可用",
   "feature_unavailable_remote": "此功能在远程（Electrum）模式下不可用",
   "setup_solo_not_available_remote": "独立挖矿需要本地节点——在远程（Electrum）模式下不可用",
   "move_up": "上移",

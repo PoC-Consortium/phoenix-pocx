@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Versleutel optioneel de wallet-seed op schijf met een wachtwoord. Je hebt het nodig om de wallet te ontgrendelen voor verzenden. De herstelzin alleen herstelt altijd je tegoed.",
   "restore_probe_info": "De geschiedenis van je seed wordt tijdens het importeren via Electrum gecontroleerd — takken met bestaand tegoed worden automatisch gedetecteerd.",
   "psbt_join_unavailable_remote": "Samenvoegen is niet beschikbaar in externe modus",
-  "psbt_compose_advanced_unavailable_remote": "Muntselectie, OP_RETURN-gegevens, vergrendeltijd, aangepast wisselgeld en aftrek van de vergoeding zijn nog niet beschikbaar in externe modus",
   "feature_unavailable_remote": "Deze functie is niet beschikbaar in externe modus (Electrum)",
   "setup_solo_not_available_remote": "Solo-mining vereist een lokale node — niet beschikbaar in externe modus (Electrum)",
   "move_up": "Omhoog verplaatsen",

@@ -1220,7 +1220,6 @@
   "wallet_encryption_info_local": "Volitelně zašifrujte semeno peněženky na disku heslem. Budete ho potřebovat k odemknutí peněženky pro odesílání. Samotná obnovovací fráze vždy obnoví vaše prostředky.",
   "restore_probe_info": "Historie vašeho semene se během importu prověřuje přes Electrum — větve s existujícími prostředky jsou detekovány automaticky.",
   "psbt_join_unavailable_remote": "Sloučení není ve vzdáleném režimu k dispozici",
-  "psbt_compose_advanced_unavailable_remote": "Správa mincí, data OP_RETURN, čas uzamčení, vlastní drobné a odečtení poplatku zatím nejsou ve vzdáleném režimu k dispozici",
   "feature_unavailable_remote": "Tato funkce není ve vzdáleném režimu (Electrum) k dispozici",
   "setup_solo_not_available_remote": "Sólo těžba vyžaduje lokální uzel — není k dispozici ve vzdáleném režimu (Electrum)",
   "move_up": "Přesunout nahoru",
