@@ -127,9 +127,12 @@ tar = "0.4"
 futures-util = "0.3"
 
 # HTTP client for GitHub API and downloads
-# Use rustls on Android (no OpenSSL cross-compilation needed), native-tls on desktop
-[target.'cfg(not(target_os = "android"))'.dependencies]
+# Use rustls on mobile (no OpenSSL cross-compilation needed), native-tls on desktop
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 reqwest = { version = "0.12", features = ["json", "stream"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 
 # Unix-specific dependencies (Linux + macOS) for filesystem stat fallback
 [target.'cfg(unix)'.dependencies]

@@ -32,7 +32,7 @@ export class AppModeService {
   /** Whether the app is in wallet-only mode (nodeless wallet, no mining) */
   readonly isWalletOnly = signal(false);
 
-  /** Whether running on a mobile platform (Android) - no local node support */
+  /** Whether running on a mobile platform (Android/iOS) - no local node support */
   readonly isMobile = signal(false);
 
   /**
@@ -116,12 +116,13 @@ export class AppModeService {
 
         // Check platform first to detect mobile
         const platform = await invoke<string>('get_platform');
-        if (platform === 'android') {
+        if (platform === 'android' || platform === 'ios') {
           this.isMobile.set(true);
         }
 
-        // Get launch mode ('mobile'/'wallet-mobile' on Android, 'mining'
-        // for --mining-only, 'wallet-mobile' for --wallet-only)
+        // Get launch mode ('mobile'/'wallet-mobile' on Android, always
+        // 'wallet-mobile' on iOS, 'mining' for --mining-only,
+        // 'wallet-mobile' for --wallet-only)
         const mode = await invoke<string>('get_launch_mode');
         if (mode === 'mining') {
           this.isMiningOnly.set(true);

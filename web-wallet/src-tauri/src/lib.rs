@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 #[cfg(desktop)]
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
-#[cfg(not(target_os = "android"))]
+#[cfg(desktop)]
 use tauri::Emitter;
 use tauri::Manager;
 
@@ -142,11 +142,18 @@ pub fn app_data_dir() -> PathBuf {
         PathBuf::from(format!("/data/data/{package}/files"))
     }
 
+    #[cfg(target_os = "ios")]
+    {
+        // Sandbox container: <App>/Library/Application Support
+        dirs::data_dir().unwrap_or_else(|| PathBuf::from("."))
+    }
+
     #[cfg(not(any(
         target_os = "windows",
         target_os = "linux",
         target_os = "macos",
-        target_os = "android"
+        target_os = "android",
+        target_os = "ios"
     )))]
     {
         PathBuf::from(".").join("phoenix-pocx")
@@ -270,11 +277,15 @@ fn get_platform() -> String {
     #[cfg(target_os = "android")]
     return "android".to_string();
 
+    #[cfg(target_os = "ios")]
+    return "ios".to_string();
+
     #[cfg(not(any(
         target_os = "windows",
         target_os = "macos",
         target_os = "linux",
-        target_os = "android"
+        target_os = "android",
+        target_os = "ios"
     )))]
     return "unknown".to_string();
 }
@@ -294,6 +305,7 @@ fn is_dev() -> bool {
 ///   both `mining` + `wallet` → "mobile"   (Hybrid app: mining + nodeless wallet)
 ///   only `wallet`           → "wallet-mobile" (Play Store wallet-only app)
 ///   only `mining`           → "mining"    (sideload pure-miner app, external payout)
+/// iOS: always "wallet-mobile" (mining is banned on the App Store)
 #[tauri::command]
 fn get_launch_mode() -> String {
     // Android is always nodeless. Which surfaces exist is decided at compile
@@ -311,7 +323,12 @@ fn get_launch_mode() -> String {
         return "wallet".to_string();
     }
 
-    #[cfg(not(target_os = "android"))]
+    // iOS is always the wallet-only flavor: no mining (Apple bans it) and
+    // no local node — the nodeless BTCX wallet is the whole app.
+    #[cfg(target_os = "ios")]
+    return "wallet-mobile".to_string();
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
             "mining".to_string()
@@ -398,7 +415,7 @@ fn get_debug_paths() -> DebugPaths {
 
 /// Open a folder in the system file manager
 #[tauri::command]
-#[cfg_attr(target_os = "android", allow(unused_variables))]
+#[cfg_attr(any(target_os = "android", target_os = "ios"), allow(unused_variables))]
 fn open_folder(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
@@ -719,7 +736,7 @@ pub fn run() {
         logging::set_app_handle(app.handle().clone());
 
         // Create and set application menu (desktop only - no menu on mobile)
-        #[cfg(not(target_os = "android"))]
+        #[cfg(desktop)]
         {
             let menu = create_menu(app)?;
             app.set_menu(menu)?;
@@ -773,7 +790,7 @@ pub fn run() {
         }
 
         // Set window title based on launch mode (desktop only)
-        #[cfg(not(target_os = "android"))]
+        #[cfg(desktop)]
         {
             if std::env::args().any(|arg| arg == "--mining-only" || arg == "-m") {
                 if let Some(window) = app.get_webview_window("main") {
@@ -786,7 +803,7 @@ pub fn run() {
     });
 
     // Menu events (desktop only - no menu on mobile)
-    #[cfg(not(target_os = "android"))]
+    #[cfg(desktop)]
     {
         builder = builder.on_menu_event(|app, event| {
             let id = event.id().as_ref();

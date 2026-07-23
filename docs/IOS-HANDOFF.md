@@ -6,6 +6,49 @@ machine, so **this file (in the repo) is the source of truth** — the prior
 sessions' auto-memory is machine-local and will NOT be present on the Mac.
 Read `docs/MIGRATION-PLAN.md` and `CLAUDE.md` first for architecture.
 
+## Quick build & deploy cheat-sheet (verified 2026-07-23)
+
+All commands from `web-wallet/`. Prereqs on the Mac: Xcode 26.6, rustup
+targets `aarch64-apple-ios{,-sim}`, `npm ci`, and a generated `gen/apple`
+(`npx tauri ios init` — after ANY fresh init, redo the two fixups below).
+
+**Simulator:**
+```
+npx tauri ios build --debug --target aarch64-sim -f wallet
+# .app → src-tauri/gen/apple/build/arm64-sim/
+xcrun simctl install booted ".../Phoenix Wallet.app"
+xcrun simctl launch booted org.pocx.phoenix
+```
+
+**Physical iPhone** (free Personal Team `X5PR7A2C5C`; install expires
+after 7 days, any redeploy resets the clock; phone cabled + unlocked):
+```
+npx tauri ios build --debug --target aarch64 -f wallet \
+  --export-method debugging \
+  --config '{"bundle":{"iOS":{"developmentTeam":"X5PR7A2C5C"}}}'
+# .ipa → src-tauri/gen/apple/build/arm64/Phoenix Wallet.ipa
+xcrun devicectl list devices                    # get the device UDID
+xcrun devicectl device install app --device <udid> ".../Phoenix Wallet.ipa"
+xcrun devicectl device process launch --device <udid> org.pocx.phoenix
+```
+
+**Rules that always apply:**
+- `-f wallet` is REQUIRED — the mining/wallet flavor split left default
+  features empty; iOS is the wallet-only flavor.
+- NEVER call `xcodebuild` directly — the Xcode project's Rust build phase
+  needs the Tauri CLI's build server (dies on a missing `*-server-addr`
+  file otherwise). Always go through `npx tauri ios build`/`dev`.
+- After a fresh `tauri ios init` (gen/ is gitignored): (1) copy
+  `src-tauri/ios-icons/*` into
+  `gen/apple/Assets.xcassets/AppIcon.appiconset/` or you ship the default
+  Tauri icon; (2) for GUI-Xcode builds prepend
+  `export PATH="/opt/homebrew/bin:$PATH"; ` to the "Build Rust Code"
+  script phase (GUI Xcode doesn't inherit the shell PATH).
+- Error `failed to rename app … Directory not empty` →
+  `rm -rf src-tauri/gen/apple/build` and rebuild.
+- Before pushing: `npm run format:check` AND `cargo fmt --check` — CI
+  Lint runs both and a rebase easily leaves fmt drift.
+
 ## Current state (what's done vs not)
 
 **Done and iOS-ready (no rewrite):**
@@ -17,20 +60,104 @@ Read `docs/MIGRATION-PLAN.md` and `CLAUDE.md` first for architecture.
   pure Rust + Electrum; no platform-specific wallet code.
 - Mobile UI (`features/mobile-wallet/`) is responsive and touch-built.
 
-**NOT started (this is the iOS work):**
-1. `get_launch_mode()` in `src-tauri/src/lib.rs` (~line 253) has **no iOS
-   branch** — it would fall through to DESKTOP mode. iOS must hard-return
-   `"wallet-mobile"` (iOS = wallet-only always; no mining, Apple bans it and
-   the plot/foreground machinery is Android-only). Add
-   `#[cfg(target_os = "ios")]` returning `"wallet-mobile"`.
-2. `tauri ios init` has never run — no Xcode project exists yet.
-3. iOS `#[cfg]` audit: the Android-only plugins (`tauri-plugin-android-fs`,
-   the custom `storage-permission` / `foreground-service` in
-   `src-tauri/plugins/`) and Android deps must be excluded on iOS; check the
-   `[target.'cfg(target_os=...)']` blocks in Cargo.toml mirror Android's
-   pattern for iOS. rustls/TLS: same class of fix Android needed (electrum
-   dials ssl); verify the TLS provider builds for the iOS target.
-4. Identity decisions (below) — needed before a real bundle.
+**Done in the 2026-07-17 Mac session (all verify gates green):**
+1. ~~`get_launch_mode()` iOS branch~~ — DONE: iOS hard-returns
+   `"wallet-mobile"` (no cargo feature needed). Also added: `get_platform()`
+   returns `"ios"`, `app_data_dir()` iOS branch (sandbox
+   `dirs::data_dir()`), and the three "desktop only" `not(android)` gates
+   (menu creation, window title, `on_menu_event`) corrected to
+   `#[cfg(desktop)]` so they don't fire on iOS.
+2. ~~`tauri ios init`~~ — DONE: `gen/apple/phoenix-pocx.xcodeproj`
+   generates cleanly (gen/ is gitignored, regenerate-fresh model like
+   Android). Init writes the DEFAULT Tauri icons into `Assets.xcassets` —
+   the phoenix icon set is committed in `src-tauri/ios-icons/` (generated
+   via `npx tauri icon` from `icons/icon.png`) and must be copied into
+   `gen/apple/Assets.xcassets/AppIcon.appiconset/` after every init; the
+   CI workflow does this (same pattern as `android-icons/`).
+   Note: init works WITHOUT Xcode; only compiling needs it.
+3. ~~iOS `#[cfg]` audit~~ — DONE: Android plugins were already scoped to
+   the Android Cargo target block (not deps on iOS); added an iOS target
+   block with rustls-tls reqwest mirroring Android; frontend
+   `PlatformService` gained `'ios'`/`isIos`/`isMobile`,
+   `AppModeService.isMobile` now set for iOS, `platform-ios` body class +
+   safe-area CSS (top inset shared with Android, bottom inset for the home
+   indicator). electrum-btcx TLS on the actual iOS target is UNVERIFIED
+   until the first Xcode compile.
+4. `.github/workflows/ios-build-test.yml` — unsigned simulator build on a
+   macOS runner (no Apple account needed), mirroring android-build-test.
+
+**2026-07-18: THE SIMULATOR MILESTONE IS DONE.** The wallet boots on the
+iPhone 17 Pro simulator (iOS 26.5) in wallet-mobile mode. The working
+build recipe (also what the CI workflow runs):
+`npx tauri ios build --debug --target aarch64-sim -f wallet` → .app lands
+in
+`src-tauri/gen/apple/build/arm64-sim/`; install/launch/screenshot via
+`xcrun simctl install/launch/io`. Do NOT invoke xcodebuild directly — the
+Xcode project's Rust build phase needs the Tauri CLI's build server and
+dies with a missing `*-server-addr` file otherwise.
+The `pocx_plotfile` iOS compile fix (was vendored, upstreamed as
+PoC-Consortium/pocx#76) became moot with the mining/wallet flavor split:
+iOS builds `-f wallet`, so the mining crates are no longer in the iOS
+dependency graph and the vendor copy was dropped.
+
+**2026-07-23:** branch rebased onto master @4c419b4 (25 new commits incl.
+the unified-dashboard PR #185 — it deleted the mobile
+`wallet-home.component.ts`; the iOS mining-nudge gate moved with it: the
+new dashboard hides the nudge via `appMode.miningEnabled()`, no iOS code
+needed). Device build + install + launch re-verified on the physical
+iPhone 17 Pro with the cheat-sheet recipes above.
+
+**Still open:**
+1. Exercise the wallet flows on iOS (create/restore against Electrum,
+   send/receive) — only the boot is verified so far.
+2. Personal-iPhone sideload (free Apple ID) — next ladder rung.
+3. Identity decisions (below) — needed before a real bundle.
+4. Store-phase: App Store icon must have NO alpha channel (current icons
+   are transparent PNGs — flatten onto a background for the 1024 marketing
+   icon when that time comes).
+
+## Xcode 26 simulator-runtime gotchas (2026-07-18 session)
+
+- Building from the Xcode GUI (needed for physical-device deploys with a
+  Personal Team): the "Build Rust Code" phase fails with `npm: command
+  not found` because GUI Xcode doesn't inherit the shell PATH. Fix
+  applied to the generated project (gen/apple project.yml + pbxproj):
+  prepend `export PATH="/opt/homebrew/bin:$PATH"; ` to the script. Must
+  be re-applied after a fresh `tauri ios init` (gen/ is not committed).
+- Device dev-run recipe: `npx tauri ios dev -f wallet --open --host
+  <mac-lan-ip> --config '{"build":{"beforeDevCommand":"npm run start --
+  --host 0.0.0.0"}}'` (ng serve binds localhost only by default and tauri waits
+  forever on the LAN URL), then select Personal Team under Signing &
+  Capabilities and hit Run.
+
+- Xcode 26.6 ships SDK 26.5.1 (23F81a) but the ONLY downloadable iOS 26.5
+  simulator runtime is build **23F77** — that mismatch is fine; do not try
+  `-buildVersion 23F81a` (Apple: "not available for download").
+- Don't run `xcodebuild -downloadPlatform iOS` while Xcode's UI Components
+  download is also running — the second registration errors with
+  "Duplicate of <uuid>" and can leave the runtime unregistered.
+- If `simctl runtime list` shows the image Ready but `simctl list
+  runtimes` is empty: run `xcrun simctl runtime scan-and-mount`. Do NOT
+  kill CoreSimulatorService or delete the image (deleting also purges the
+  8.5 GB asset and forces a full re-download).
+- `pocx_plotfile 1.0.5` doesn't compile for iOS (`O_DIRECT` gated on
+  "not macOS" instead of "not Apple"). Irrelevant while iOS builds
+  `-f wallet` (mining crates not compiled) — but if mining crates ever
+  enter an iOS build again, the fix is `target_vendor = "apple"` gates
+  (see closed PoC-Consortium/pocx#76).
+
+## Mac machine state (as of 2026-07-17)
+
+Installed: rustup targets `aarch64-apple-ios` + `aarch64-apple-ios-sim`,
+CocoaPods 1.17 (brew), mas, libimobiledevice, npm deps, generated
+`gen/apple`. **NOT installed: Xcode** — only Command Line Tools are
+present, so there is no iOS SDK and nothing can compile yet. Install it
+with `mas install 497799835` (needs sudo + App Store sign-in) or from the
+App Store app, then:
+`sudo xcode-select -s /Applications/Xcode.app` ·
+`sudo xcodebuild -license accept` · `xcodebuild -runFirstLaunch` (installs
+the iOS platform/simulators; or Xcode ▸ Settings ▸ Components). Then
+`cd web-wallet && npx tauri ios dev` boots the Simulator.
 
 ## The no-registration ladder (do this first, no Apple account needed)
 

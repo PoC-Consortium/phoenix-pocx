@@ -190,12 +190,16 @@ export class AppComponent implements OnInit, OnDestroy {
 
   /**
    * Add platform-specific class to body for CSS targeting.
-   * Adds 'platform-android' on Android for safe area inset handling.
+   * Adds 'platform-android' / 'platform-ios' on mobile for safe area
+   * inset handling.
    */
   private async initPlatformClass(): Promise<void> {
     await this.platformService.initialize();
     if (this.platformService.isAndroid) {
       this.document.body.classList.add('platform-android');
+    }
+    if (this.platformService.isIos) {
+      this.document.body.classList.add('platform-ios');
     }
   }
 
