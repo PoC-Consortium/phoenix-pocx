@@ -1,36 +1,20 @@
-# Phoenix Wallet 2.3.0
+# Phoenix Wallet 2.3.1
 
-One app, every device. 2.3.0 unifies the desktop and mobile experience into a single set of responsive pages, brings full transaction details and dramatically faster history to Electrum mode, and integrates mining into the wallet on hybrid builds.
+A patch release completing what 2.3.0 set out to deliver: the Transaction Builder and the Receive screen now work the same in nodeless (Electrum) mode as they do with a local node, and fee handling got precise.
 
-## One experience across desktop and mobile
+## Transaction Builder — full power in Electrum mode
 
-Every main page — dashboard, transactions, send, receive, coins, contacts, forging assignment, and the transaction builder — is now a single component that adapts to your screen, instead of separate desktop and mobile versions. What you learn on one device applies on the other, and improvements land everywhere at once:
+- **Coin control, OP_RETURN data, and locktime** now work when composing without a local node — everything is built client-side from your own wallet. (A custom change address remains node-only; the option is hidden in nodeless mode.)
+- **Spending exact coins with Max** works correctly: select a coin, hit Max, and the transaction drains exactly that coin minus the real fee — no more "insufficient funds" from the fee being counted twice.
+- The **review step shows the fee rate** before signing, in every mode.
+- When your signature completes a transaction, it is **sealed in the same step** — straight to Broadcast, no separate finalize tap. (Multi-party signing keeps the explicit combine/finalize stop.)
 
-- Consistent page headers, titles, and spacing at every window size.
-- Transaction lists page to fit your screen automatically — no more items-per-page pickers.
-- On phones, the transactions page tucks its search and filters behind a funnel button, so the header never crowds.
-- The receive page puts address selection first, with older (v30) addresses labeled.
+## Fees, precise
 
-## Electrum mode: full transaction details, much faster
+- A **custom fee rate of 0.1 sat/vB is honored** end to end — previously anything below 1 sat/vB was silently raised. Presets and automatic estimates still never go below 1 sat/vB.
+- The Builder's **estimated fee follows the custom rate as you type**, and Send and the Builder now quote the same estimate for the same transaction.
+- The confirm dialog says **BTCX** (it said "BTC"), centered over the page.
 
-- **Tap any transaction** to see everything — inputs and outputs with amounts, size and fee, block info, raw hex, and forging-assignment details — served instantly from the local wallet, with zero extra server traffic.
-- **Transaction history loads in a blink.** Large wallets (1000+ transactions) used to take many seconds to list; the same list now appears near-instantly, and background refreshes skip entirely when nothing changed.
+## Receive — your addresses, everywhere
 
-## Mining, integrated (hybrid builds)
-
-- The **mining dashboard and setup wizard live inside the wallet** now — same menu, same toolbar, no jarring switch into a separate mining screen.
-- A **miner status icon** in the toolbar shows at a glance whether you're mining — on desktop and mobile.
-- **Calmer notifications**: instead of a ping for every deadline found, the mining notification updates once per round with the round's best deadline.
-- **Direct I/O is now enabled by default on Android**, matching desktop for better plotting and scanning performance.
-
-## More control over notifications
-
-Mobile settings gained a **Notifications** card: switch payment and connection notifications on or off. (Mining status notifications stay on — Android requires them while mining in the background.)
-
-## Also improved
-
-- Android app flavors now install under their proper names: **Phoenix Suite** (hybrid), **Phoenix Wallet** (wallet-only), **Phoenix Miner** (mining-only).
-- Wallet and pocket selectors collapse to compact icons on narrow screens; balances shrink to fit instead of wrapping.
-- The time-sync indicator only appears when running with a local node, where it matters.
-- Restore flow: paste your entire recovery phrase into any word box to fill the whole grid.
-- Fully translated across all 25 supported languages.
+- In nodeless (Electrum) mode the Receive screen now lists **every address your wallet has revealed** — newest first, used ones tagged — instead of only the current fresh address. All derived locally, with no extra server traffic.
