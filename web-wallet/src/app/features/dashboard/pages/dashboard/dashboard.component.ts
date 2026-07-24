@@ -1084,6 +1084,27 @@ import { MiningService } from '../../../../mining/services';
           width: 100%;
           border-collapse: collapse;
           font-size: 13px;
+          /* FIXED layout: with auto layout the column widths depend on the
+             RENDERED ROWS, so the fit loop (rows -> widths -> wrapping ->
+             row height -> fit) oscillated on mid widths (pad landscape).
+             Fixed widths + ellipsis make row height width-independent. */
+          table-layout: fixed;
+
+          th.col-datetime {
+            width: 96px;
+          }
+          th.col-type {
+            width: 64px;
+          }
+          th.col-amount {
+            width: 140px;
+          }
+          th.col-status {
+            width: 88px;
+          }
+          th.col-actions {
+            width: 44px;
+          }
 
           thead {
             th {
@@ -1180,10 +1201,13 @@ import { MiningService } from '../../../../mining/services';
               }
 
               .address-text {
+                display: block;
                 font-family: monospace;
                 font-size: 11px;
                 color: rgb(0, 35, 65);
-                word-break: break-all;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
               }
             }
 
@@ -1199,11 +1223,14 @@ import { MiningService } from '../../../../mining/services';
 
             .col-txid {
               .txid-text {
+                display: block;
                 font-family: monospace;
                 font-size: 10px;
                 color: #1565c0;
                 cursor: pointer;
-                word-break: break-all;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
 
                 &:hover {
                   text-decoration: underline;
