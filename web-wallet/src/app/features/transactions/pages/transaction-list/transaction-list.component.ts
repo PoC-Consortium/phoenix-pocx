@@ -741,6 +741,27 @@ type TransactionFilter =
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        /* FIXED layout — same hazard as the dashboard's recent table: with
+           auto layout the rendered rows set the column widths, and the fit
+           loop (rows -> widths -> wrapping -> row height -> fit) can
+           oscillate at mid widths. Width-independent row heights break it. */
+        table-layout: fixed;
+
+        th.col-datetime {
+          width: 96px;
+        }
+        th.col-type {
+          width: 72px;
+        }
+        th.col-amount {
+          width: 150px;
+        }
+        th.col-status {
+          width: 92px;
+        }
+        th.col-actions {
+          width: 44px;
+        }
 
         thead {
           th {
@@ -837,10 +858,13 @@ type TransactionFilter =
             }
 
             .address-text {
+              display: block;
               font-family: monospace;
               font-size: 11px;
               color: rgb(0, 35, 65);
-              word-break: break-all;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
             }
           }
 
@@ -856,11 +880,14 @@ type TransactionFilter =
 
           .col-txid {
             .txid-text {
+              display: block;
               font-family: monospace;
               font-size: 10px;
               color: #1565c0;
               cursor: pointer;
-              word-break: break-all;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
 
               &:hover {
                 text-decoration: underline;
