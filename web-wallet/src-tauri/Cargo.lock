@@ -4102,7 +4102,7 @@ dependencies = [
 
 [[package]]
 name = "phoenix-pocx"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "anyhow",
  "bdk_wallet",
