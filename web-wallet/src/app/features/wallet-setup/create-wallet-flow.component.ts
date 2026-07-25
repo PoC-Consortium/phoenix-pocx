@@ -1,6 +1,5 @@
 import {
   Component,
-  ElementRef,
   OnInit,
   computed,
   inject,
@@ -8,15 +7,11 @@ import {
   output,
   signal,
   viewChild,
-  viewChildren,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Store } from '@ngrx/store';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -24,12 +19,13 @@ import { I18nPipe } from '../../core/i18n';
 import { NodeService } from '../../node/services/node.service';
 import { BtcxWalletService } from '../../core/services/btcx-wallet.service';
 import { WalletManagerService } from '../../bitcoin/services/wallet/wallet-manager.service';
-import { DescriptorService } from '../../bitcoin/services/wallet/descriptor.service';
 import { selectIsTestnet } from '../../store/settings/settings.selectors';
 import {
   StepHeaderComponent,
   MnemonicDisplayComponent,
   Bip39PassphraseSectionComponent,
+  VerifyWordsComponent,
+  AtRestPassphraseSectionComponent,
 } from '../../shared/components';
 import { WalletNameSectionComponent } from '../mobile-wallet/components/wallet-name-section/wallet-name-section.component';
 import {
@@ -66,17 +62,16 @@ type FlowStep = 1 | 2 | 3 | 4;
   standalone: true,
   imports: [
     FormsModule,
-    MatAutocompleteModule,
     MatButtonModule,
     MatCheckboxModule,
-    MatFormFieldModule,
     MatIconModule,
-    MatInputModule,
     MatProgressSpinnerModule,
     I18nPipe,
     StepHeaderComponent,
     MnemonicDisplayComponent,
     Bip39PassphraseSectionComponent,
+    VerifyWordsComponent,
+    AtRestPassphraseSectionComponent,
     WalletNameSectionComponent,
   ],
   template: `
@@ -161,45 +156,14 @@ type FlowStep = 1 | 2 | 3 | 4;
 
         <!-- Step 3: verify -->
         @if (step() === 3) {
-          <p class="hint-text">{{ 'verify_backup_instruction' | i18n }}</p>
-
-          @for (idx of verifyIndices; track idx; let i = $index) {
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'word_number' | i18n: { number: idx + 1 } }}</mat-label>
-              <input
-                #wordInput
-                matInput
-                [(ngModel)]="verifyWords[i]"
-                [disabled]="creating()"
-                [matAutocomplete]="auto"
-                #trigger="matAutocompleteTrigger"
-                (input)="updateSuggestions(i, verifyWords[i])"
-                (keydown.enter)="onWordEnter(i, $event, trigger)"
-                autocomplete="off"
-                autocapitalize="none"
-                spellcheck="false"
-              />
-              <mat-autocomplete
-                #auto="matAutocomplete"
-                [autoActiveFirstOption]="true"
-                (optionSelected)="onWordSelected(i, $event.option.value)"
-              >
-                @for (word of wordSuggestions[i]; track word) {
-                  <mat-option [value]="word">{{ word }}</mat-option>
-                }
-              </mat-autocomplete>
-              @if (verifyWords[i] && !wordCorrect(i)) {
-                <mat-hint class="error-hint">{{ 'incorrect_word' | i18n }}</mat-hint>
-              }
-            </mat-form-field>
-          }
+          <app-verify-words #verifyStep [words]="words()" [disabled]="creating()" />
 
           <div class="button-row">
             <button mat-stroked-button (click)="step.set(2)">{{ 'back' | i18n }}</button>
             <button
               mat-raised-button
               color="primary"
-              [disabled]="!verificationPassed()"
+              [disabled]="!verifyStep.passed()"
               (click)="step.set(4)"
             >
               {{ 'next' | i18n }}
@@ -209,42 +173,13 @@ type FlowStep = 1 | 2 | 3 | 4;
 
         <!-- Step 4: protect (at-rest secret) + create -->
         @if (step() === 4) {
-          <p class="hint-text">
-            {{ (isRemote() ? 'mwallet_passphrase_hint' : 'wallet_encryption_info') | i18n }}
-          </p>
-
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ 'mwallet_passphrase_optional' | i18n }}</mat-label>
-            <input
-              matInput
-              type="password"
-              [(ngModel)]="protectPassphrase"
-              [disabled]="creating()"
-              autocomplete="off"
-            />
-          </mat-form-field>
-
-          @if (protectPassphrase) {
-            <p class="warning-text">
-              <mat-icon class="warning-icon">warning</mat-icon>
-              {{ 'wallet_encryption_warning' | i18n }}
-            </p>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ 'mwallet_passphrase_confirm' | i18n }}</mat-label>
-              <input
-                matInput
-                type="password"
-                [(ngModel)]="protectPassphraseConfirm"
-                [disabled]="creating()"
-                autocomplete="off"
-              />
-            </mat-form-field>
-
-            @if (protectPassphraseConfirm && protectPassphrase !== protectPassphraseConfirm) {
-              <p class="error-text">{{ 'passphrase_mismatch' | i18n }}</p>
-            }
-          }
+          <app-at-rest-passphrase-section
+            #protect
+            [hintKey]="isRemote() ? 'mwallet_passphrase_hint' : 'wallet_encryption_info'"
+            [disabled]="creating()"
+            [(passphrase)]="protectPassphrase"
+            [(passphraseConfirm)]="protectPassphraseConfirm"
+          />
 
           @if (createError()) {
             <p class="error-text">{{ 'mwallet_create_failed' | i18n }}: {{ createError() }}</p>
@@ -257,7 +192,7 @@ type FlowStep = 1 | 2 | 3 | 4;
             <button
               mat-raised-button
               color="primary"
-              [disabled]="creating() || !canCreate()"
+              [disabled]="creating() || !protect.valid() || !canCreate()"
               (click)="create()"
             >
               @if (creating()) {
@@ -287,12 +222,6 @@ type FlowStep = 1 | 2 | 3 | 4;
         border-radius: 0 0 8px 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         padding: 20px;
-      }
-
-      .hint-text {
-        color: rgba(0, 0, 0, 0.6);
-        font-size: 13px;
-        margin: 0 0 12px;
       }
 
       .warning-text {
@@ -327,14 +256,6 @@ type FlowStep = 1 | 2 | 3 | 4;
         margin: 0 0 12px;
       }
 
-      .error-hint {
-        color: #c62828;
-      }
-
-      .full-width {
-        width: 100%;
-      }
-
       .button-row {
         display: flex;
         justify-content: space-between;
@@ -347,17 +268,9 @@ type FlowStep = 1 | 2 | 3 | 4;
           background: #424242;
         }
 
-        .hint-text {
-          color: rgba(255, 255, 255, 0.6);
-        }
-
         .warning-text {
           color: rgba(255, 255, 255, 0.8);
           background: rgba(255, 183, 77, 0.12);
-        }
-
-        .error-hint {
-          color: #ef9a9a;
         }
       }
     `,
@@ -368,7 +281,6 @@ export class CreateWalletFlowComponent implements OnInit {
   private readonly nodeService = inject(NodeService);
   private readonly btcxWallet = inject(BtcxWalletService);
   private readonly walletManager = inject(WalletManagerService);
-  private readonly descriptorService = inject(DescriptorService);
 
   /** Emits the wallet name after a successful create; host navigates. */
   readonly created = output<string>();
@@ -401,12 +313,6 @@ export class CreateWalletFlowComponent implements OnInit {
   useBip39 = false;
   bip39Word = '';
   bip39WordConfirm = '';
-
-  // Step 3: verify (desktop-style: live per-field check)
-  verifyIndices: number[] = [];
-  verifyWords: string[] = ['', '', ''];
-  wordSuggestions: string[][] = [[], [], []];
-  readonly wordInputs = viewChildren<ElementRef<HTMLInputElement>>('wordInput');
 
   // Step 4: protect + commit
   protectPassphrase = '';
@@ -458,7 +364,6 @@ export class CreateWalletFlowComponent implements OnInit {
     this.useBip39 = false;
     this.bip39Word = '';
     this.bip39WordConfirm = '';
-    this.verifyWords = ['', '', ''];
     try {
       this.mnemonic = this.isRemote()
         ? await this.btcxWallet.generateMnemonic()
@@ -480,64 +385,9 @@ export class CreateWalletFlowComponent implements OnInit {
   }
 
   startVerify(): void {
-    const indices: number[] = [];
-    while (indices.length < 3) {
-      const idx = Math.floor(Math.random() * this.words().length);
-      if (!indices.includes(idx)) indices.push(idx);
-    }
-    this.verifyIndices = indices.sort((a, b) => a - b);
-    this.verifyWords = ['', '', ''];
-    this.wordSuggestions = [[], [], []];
+    // The verify component rolls its indices on creation (it lives inside
+    // the step's @if, so every visit gets a fresh selection).
     this.step.set(3);
-  }
-
-  wordCorrect(i: number): boolean {
-    return (
-      this.verifyWords[i]?.toLowerCase().trim() === this.words()[this.verifyIndices[i]]
-    );
-  }
-
-  verificationPassed(): boolean {
-    return this.verifyIndices.every((_, i) => this.wordCorrect(i));
-  }
-
-  updateSuggestions(index: number, value: string): void {
-    this.wordSuggestions[index] = value?.length
-      ? this.descriptorService.getWordSuggestions(value, 8)
-      : [];
-  }
-
-  onWordSelected(index: number, word: string): void {
-    this.verifyWords[index] = word;
-    this.wordSuggestions[index] = [];
-    this.focusNext(index);
-  }
-
-  /**
-   * Enter-to-accept, mirroring the import flow's mnemonic entry: with an
-   * open autocomplete panel Material selects the highlighted option;
-   * otherwise an exact BIP39 word commits and advances.
-   */
-  onWordEnter(index: number, event: Event, trigger: MatAutocompleteTrigger): void {
-    if (event.defaultPrevented) return;
-    if (trigger.panelOpen && trigger.activeOption) return;
-    const typed = (this.verifyWords[index] ?? '').toLowerCase().trim();
-    if (this.descriptorService.getWordlist().includes(typed)) {
-      event.preventDefault();
-      this.verifyWords[index] = typed;
-      this.wordSuggestions[index] = [];
-      this.focusNext(index);
-    }
-  }
-
-  private focusNext(index: number): void {
-    const next = this.wordInputs()[index + 1];
-    if (next) {
-      setTimeout(() => {
-        next.nativeElement.focus();
-        next.nativeElement.select();
-      });
-    }
   }
 
   canCreate(): boolean {

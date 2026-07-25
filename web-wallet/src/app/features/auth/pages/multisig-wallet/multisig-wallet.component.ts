@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, OnInit, OnDestroy } from '@angular/core';
 
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -12,7 +12,6 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
@@ -21,8 +20,13 @@ import {
   StepHeaderComponent,
   MnemonicDisplayComponent,
   MnemonicEntryComponent,
+  Bip39PassphraseSectionComponent,
+  VerifyWordsComponent,
+  AtRestPassphraseSectionComponent,
 } from '../../../../shared/components';
 import type { MnemonicEntryState } from '../../../../shared/components';
+import { WalletNameSectionComponent } from '../../../mobile-wallet/components/wallet-name-section/wallet-name-section.component';
+import { downloadTextFile } from '../../../../shared/utils/download';
 import {
   WalletManagerService,
   WatchOnlyRescan,
@@ -65,12 +69,15 @@ interface CosignerEntry {
     MatRadioModule,
     MatSnackBarModule,
     MatProgressBarModule,
-    MatAutocompleteModule,
     MatTooltipModule,
     I18nPipe,
     StepHeaderComponent,
     MnemonicDisplayComponent,
     MnemonicEntryComponent,
+    Bip39PassphraseSectionComponent,
+    VerifyWordsComponent,
+    AtRestPassphraseSectionComponent,
+    WalletNameSectionComponent,
   ],
   template: `
     <div class="create-wallet-container">
@@ -89,21 +96,12 @@ interface CosignerEntry {
           <!-- Step 1: Name & Policy -->
           @if (currentStep() === 1) {
             <div class="step-content">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
-                <input
-                  matInput
-                  [(ngModel)]="walletName"
-                  (ngModelChange)="onWalletNameChange()"
-                  placeholder="treasury-2of3"
-                  [disabled]="creating()"
-                />
-                @if (walletNameConflict()) {
-                  <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
-                } @else {
-                  <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
-                }
-              </mat-form-field>
+              <app-mwallet-name-section
+                #nameSection
+                [(name)]="walletName"
+                [existingNames]="existingWalletNames()"
+                [disabled]="creating()"
+              />
 
               <div class="policy-row">
                 <mat-form-field appearance="outline" class="policy-field">
@@ -148,7 +146,7 @@ interface CosignerEntry {
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || walletNameConflict() || creating()"
+                  [disabled]="!walletName.trim() || nameSection.hasError() || creating()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -194,6 +192,18 @@ interface CosignerEntry {
                 ></app-mnemonic-entry>
               }
 
+              <!-- BIP39 25th word — folded into the multisig key derivation
+                   (m/48'/...) exactly like a single-sig seed: with it set,
+                   this share's mnemonic alone cannot re-derive the key. On
+                   restore it must match what the share was created with. -->
+              <app-bip39-passphrase-section
+                [mode]="seedMode === 'new' ? 'create' : 'restore'"
+                [disabled]="creating()"
+                [(enabled)]="useBip39"
+                [(passphrase)]="bip39Word"
+                [(passphraseConfirm)]="bip39WordConfirm"
+              />
+
               <div class="step-actions">
                 <button mat-button (click)="prevStep()" [disabled]="creating()">
                   {{ 'back' | i18n }}
@@ -214,32 +224,7 @@ interface CosignerEntry {
           @if (currentStep() === 3) {
             <div class="step-content">
               @if (seedMode === 'new') {
-                <p class="info-text">{{ 'verify_backup_instruction' | i18n }}</p>
-
-                @for (idx of verifyIndices; track idx; let i = $index) {
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'word_number' | i18n: { number: idx + 1 } }}</mat-label>
-                    <input
-                      matInput
-                      [(ngModel)]="verifyWords[i]"
-                      [disabled]="creating()"
-                      [matAutocomplete]="auto"
-                      (input)="updateSuggestions(i, verifyWords[i])"
-                      autocomplete="off"
-                    />
-                    <mat-autocomplete
-                      #auto="matAutocomplete"
-                      (optionSelected)="onWordSelected(i, $event.option.value)"
-                    >
-                      @for (word of wordSuggestions[i]; track word) {
-                        <mat-option [value]="word">{{ word }}</mat-option>
-                      }
-                    </mat-autocomplete>
-                    @if (verifyWords[i] && verifyWords[i] !== mnemonicWords()[idx]) {
-                      <mat-error>{{ 'incorrect_word' | i18n }}</mat-error>
-                    }
-                  </mat-form-field>
-                }
+                <app-verify-words [words]="mnemonicWords()" [disabled]="creating()" />
               } @else {
                 <p class="info-text restored-note">
                   <mat-icon class="ok-icon">check_circle</mat-icon>
@@ -415,34 +400,14 @@ interface CosignerEntry {
                 </div>
               }
 
-              <!-- Optional encryption -->
-              <mat-checkbox [(ngModel)]="useWalletEncryption" class="encryption-checkbox">
-                {{ 'encrypt_wallet' | i18n }}
-              </mat-checkbox>
-
-              @if (useWalletEncryption) {
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>{{ 'wallet_password' | i18n }}</mat-label>
-                  <input
-                    matInput
-                    type="password"
-                    [(ngModel)]="walletPassword"
-                    [disabled]="creating()"
-                  />
-                </mat-form-field>
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>{{ 'confirm_wallet_password' | i18n }}</mat-label>
-                  <input
-                    matInput
-                    type="password"
-                    [(ngModel)]="walletPasswordConfirm"
-                    [disabled]="creating()"
-                  />
-                  @if (walletPassword !== walletPasswordConfirm && walletPasswordConfirm) {
-                    <mat-error>{{ 'password_mismatch' | i18n }}</mat-error>
-                  }
-                </mat-form-field>
-              }
+              <!-- Optional encryption (Core encryptwallet after create) -->
+              <app-at-rest-passphrase-section
+                #protect
+                hintKey="wallet_encryption_info"
+                [disabled]="creating()"
+                [(passphrase)]="walletPassword"
+                [(passphraseConfirm)]="walletPasswordConfirm"
+              />
 
               @if (createError()) {
                 <p class="warning-text">
@@ -458,7 +423,7 @@ interface CosignerEntry {
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="creating() || !walletEncryptionValid()"
+                  [disabled]="creating() || !protect.valid()"
                   (click)="createWallet()"
                 >
                   @if (creating()) {
@@ -781,8 +746,7 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   threshold = 2;
   totalKeys = 3;
   readonly totalKeyChoices = [2, 3, 4, 5, 6, 7];
-  private readonly existingWalletNames = signal<string[]>([]);
-  readonly walletNameConflict = signal(false);
+  readonly existingWalletNames = signal<string[]>([]);
   readonly thresholdChoices = computed(() => {
     void this.totalKeysVersion();
     return Array.from({ length: this.totalKeys }, (_, i) => i + 1);
@@ -796,11 +760,13 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   mnemonicWrittenDown = false;
   restoreMnemonic = '';
   readonly restoreMnemonicValid = signal(false);
+  /** BIP39 25th word — folded into the m/48' derivation of this share. */
+  useBip39 = false;
+  bip39Word = '';
+  bip39WordConfirm = '';
 
   // Step 3
-  verifyIndices: number[] = [];
-  verifyWords: string[] = ['', '', ''];
-  wordSuggestions: string[][] = [[], [], []];
+  private readonly verifyStep = viewChild(VerifyWordsComponent);
 
   // Step 4
   readonly myKeyExpression = signal('');
@@ -812,7 +778,6 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   // Step 5
   readonly previewAddresses = signal<string[]>([]);
   rescanKind: 'now' | 'genesis' = 'genesis';
-  useWalletEncryption = false;
   walletPassword = '';
   walletPasswordConfirm = '';
   readonly createError = signal<string | null>(null);
@@ -822,8 +787,7 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     this.generateMnemonic();
     try {
-      const wallets = await this.walletManager.listAllWallets();
-      this.existingWalletNames.set(wallets.map(name => name.toLowerCase()));
+      this.existingWalletNames.set(await this.walletManager.listAllWallets());
     } catch {
       // Node not reachable — conflict check degrades gracefully
     }
@@ -834,6 +798,8 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
     this.mnemonic = '';
     this.restoreMnemonic = '';
     this.mnemonicWords.set([]);
+    this.bip39Word = '';
+    this.bip39WordConfirm = '';
     this.walletPassword = '';
     this.walletPasswordConfirm = '';
   }
@@ -873,11 +839,6 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   // Step 1: Name & policy
   // ============================================================
 
-  async onWalletNameChange(): Promise<void> {
-    const name = this.walletName.trim().toLowerCase();
-    this.walletNameConflict.set(!!name && this.existingWalletNames().includes(name));
-  }
-
   onTotalKeysChange(): void {
     if (this.threshold > this.totalKeys) {
       this.threshold = this.totalKeys;
@@ -897,11 +858,14 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
     this.mnemonic = this.walletManager.generateMnemonic(256);
     this.mnemonicWords.set(this.descriptorService.mnemonicToWordArray(this.mnemonic));
     this.mnemonicWrittenDown = false;
-    this.selectVerificationIndices();
+    // A new phrase invalidates the 25th-word draft too.
+    this.useBip39 = false;
+    this.bip39Word = '';
+    this.bip39WordConfirm = '';
   }
 
   onSeedModeChange(): void {
-    this.verifyWords = ['', '', ''];
+    this.verifyStep()?.reset();
   }
 
   onRestoreChanged(state: MnemonicEntryState): void {
@@ -910,7 +874,11 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   }
 
   seedStepValid(): boolean {
-    return this.seedMode === 'new' ? this.mnemonicWrittenDown : this.restoreMnemonicValid();
+    const phraseOk =
+      this.seedMode === 'new' ? this.mnemonicWrittenDown : this.restoreMnemonicValid();
+    const bip39Ok =
+      !this.useBip39 || this.seedMode === 'restore' || this.bip39Word === this.bip39WordConfirm;
+    return phraseOk && bip39Ok;
   }
 
   /** The mnemonic in effect (generated or restored) */
@@ -918,27 +886,14 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
     return this.seedMode === 'new' ? this.mnemonic : this.restoreMnemonic.trim().toLowerCase();
   }
 
-  private selectVerificationIndices(): void {
-    const indices = new Set<number>();
-    while (indices.size < 3) {
-      indices.add(Math.floor(Math.random() * 24));
-    }
-    this.verifyIndices = [...indices].sort((a, b) => a - b);
-    this.verifyWords = ['', '', ''];
-    this.wordSuggestions = [[], [], []];
-  }
-
-  updateSuggestions(index: number, value: string): void {
-    this.wordSuggestions[index] = this.descriptorService.getWordSuggestions(value);
-  }
-
-  onWordSelected(index: number, word: string): void {
-    this.verifyWords[index] = word;
+  /** The 25th word in effect ('' when the toggle is off). */
+  private activeBip39(): string {
+    return this.useBip39 ? this.bip39Word : '';
   }
 
   verificationPassed(): boolean {
     if (this.seedMode === 'restore') return true;
-    return this.verifyIndices.every((idx, i) => this.verifyWords[i] === this.mnemonicWords()[idx]);
+    return this.verifyStep()?.passed() ?? false;
   }
 
   // ============================================================
@@ -947,6 +902,7 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
 
   private deriveMyKey(): void {
     const key = this.descriptorService.deriveMultisigKey(this.activeMnemonic(), {
+      passphrase: this.activeBip39(),
       isTestnet: this.isTestnet(),
     });
     this.myKeyExpression.set(key.keyExpression);
@@ -958,13 +914,14 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
     this.snackBar.open(this.i18n.get('msig_key_copied'), undefined, { duration: 2500 });
   }
 
-  saveMyKey(): void {
-    const blob = new Blob([this.myKeyExpression()], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${this.walletName || 'multisig'}-key-${this.myFingerprint()}.txt`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+  async saveMyKey(): Promise<void> {
+    // Shared helper: a detached-anchor download is a silent no-op in the
+    // Tauri webview.
+    await downloadTextFile(
+      `${this.walletName || 'multisig'}-key-${this.myFingerprint()}.txt`,
+      this.myKeyExpression(),
+      'text/plain'
+    );
   }
 
   addCosigner(): void {
@@ -1000,6 +957,7 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
   private buildDescriptors() {
     return this.descriptorService.generateMultisigDescriptors({
       mnemonic: this.activeMnemonic(),
+      passphrase: this.activeBip39(),
       isTestnet: this.isTestnet(),
       threshold: this.threshold,
       cosignerKeys: this.cosigners().map(c => c.keyExpression),
@@ -1024,7 +982,7 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
     }
   }
 
-  saveDescriptorBackup(): void {
+  async saveDescriptorBackup(): Promise<void> {
     const { publicReceiveDescriptor, publicChangeDescriptor } = this.buildDescriptors();
     const content = [
       `# Phoenix multisig descriptor backup`,
@@ -1036,17 +994,11 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
       `change:  ${publicChangeDescriptor}`,
       ``,
     ].join('\n');
-    const blob = new Blob([content], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${this.walletName || 'multisig'}-descriptors.txt`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-  }
-
-  walletEncryptionValid(): boolean {
-    if (!this.useWalletEncryption) return true;
-    return this.walletPassword.length > 0 && this.walletPassword === this.walletPasswordConfirm;
+    await downloadTextFile(
+      `${this.walletName || 'multisig'}-descriptors.txt`,
+      content,
+      'text/plain'
+    );
   }
 
   async createWallet(): Promise<void> {
@@ -1061,7 +1013,7 @@ export class MultisigWalletComponent implements OnInit, OnDestroy {
         importEntries,
       });
 
-      if (this.useWalletEncryption && this.walletPassword) {
+      if (this.walletPassword) {
         await this.walletManager.encryptWallet(this.walletName.trim(), this.walletPassword);
       }
 
