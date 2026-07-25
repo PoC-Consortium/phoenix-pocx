@@ -263,7 +263,10 @@ import { BtcxWalletService, BtcxCompartment } from '../../../../core/services/bt
                         matTooltip="{{ 'watch_only_wallet' | i18n }}"
                         >visibility</mat-icon
                       >
-                    } @else if (wallet.isLoaded && isWalletLocked(wallet)) {
+                    } @else if (isWalletLocked(wallet)) {
+                      <!-- Not gated on isLoaded: a LOCKED btcx wallet is by
+                           definition unloaded (the runtime cannot open), and
+                           this padlock is its only visible unlock affordance. -->
                       <mat-icon
                         class="encryption-icon encryption-icon-action wallet-lock-encrypted-locked"
                         (click)="onUnlockClick(wallet, $event)"
@@ -1162,7 +1165,26 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
 
   async onUnlockClick(wallet: WalletSummary, event: Event): Promise<void> {
     event.stopPropagation();
-    await this.walletUnlock.promptAndUnlockSession(wallet.name);
+    if (await this.walletUnlock.promptAndUnlockSession(wallet.name)) {
+      await this.activateUnlocked(wallet.name);
+    }
+  }
+
+  /**
+   * Remote: unlocking OPENS the runtime (one open wallet) — the unlocked
+   * wallet IS the wallet now, so the active selection must follow or the
+   * toolbar keeps naming the previous one. Core session-unlocks change
+   * nothing about which wallet is active.
+   */
+  private async activateUnlocked(walletName: string): Promise<void> {
+    await this.loadWallets();
+    if (this.isRemote()) {
+      try {
+        this.walletManager.setActiveWallet(walletName);
+      } catch (err) {
+        console.error('Failed to activate unlocked wallet:', err);
+      }
+    }
   }
 
   async onLockClick(wallet: WalletSummary, event: Event): Promise<void> {
@@ -1198,6 +1220,15 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
       }
       await this.loadWallets();
     } catch (err) {
+      if (err instanceof Error && err.message === WalletManagerService.WALLET_LOCKED) {
+        // Locked btcx seed: route into the passphrase prompt, then retry.
+        this.loadingWallets.delete(wallet.name);
+        if (await this.walletUnlock.promptAndUnlockSession(wallet.name)) {
+          this.selectedWallet.set(wallet.name);
+          await this.activateUnlocked(wallet.name);
+        }
+        return;
+      }
       const action = wallet.isLoaded ? 'unload' : 'load';
       const message = err instanceof Error ? err.message : `Failed to ${action} wallet`;
       this.snackBar.open(message, this.i18n.get('dismiss'), { duration: 5000 });
@@ -1227,6 +1258,16 @@ export class WalletSelectComponent implements OnInit, OnDestroy {
       // Navigate to dashboard
       this.router.navigate(['/dashboard']);
     } catch (err) {
+      if (err instanceof Error && err.message === WalletManagerService.WALLET_LOCKED) {
+        // Locked btcx seed: prompt for the at-rest passphrase (the unlock
+        // opens the runtime), then finish the open exactly as intended.
+        this.isOpening.set(false);
+        if (await this.walletUnlock.promptAndUnlockSession(walletName)) {
+          await this.loadWallets();
+          void this.openWallet();
+        }
+        return;
+      }
       const message = err instanceof Error ? err.message : 'Failed to open wallet';
       this.snackBar.open(message, this.i18n.get('dismiss'), { duration: 5000 });
       this.isOpening.set(false);

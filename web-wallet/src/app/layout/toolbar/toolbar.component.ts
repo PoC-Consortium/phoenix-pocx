@@ -35,7 +35,12 @@ import { MiningService } from '../../mining/services';
 import { ClockDriftService } from '../../core/services/clock-drift.service';
 import { ElectrumStatusService } from '../../core/services/electrum-status.service';
 import { BlockchainStateService } from '../../bitcoin/services/blockchain-state.service';
-import { BtcxWalletService, BtcxCompartment } from '../../core/services/btcx-wallet.service';
+import {
+  BtcxWalletService,
+  BtcxCompartment,
+  BtcxWalletGroup,
+} from '../../core/services/btcx-wallet.service';
+import { WalletGroupMenuComponent } from '../../shared/components';
 import { ClockDriftDialogComponent } from '../../shared/components/clock-drift-dialog/clock-drift-dialog.component';
 import { ElectrumServerListComponent } from '../../shared/components/electrum-server-list/electrum-server-list.component';
 
@@ -58,6 +63,7 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
     MatProgressSpinnerModule,
     I18nPipe,
     ElectrumServerListComponent,
+    WalletGroupMenuComponent,
   ],
   template: `
     <mat-toolbar class="toolbar">
@@ -212,7 +218,13 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
         <div class="toolbar-right">
           <!-- Wallet Selector (only if wallets available) -->
           @if (wallets().length > 0) {
-            <button mat-button [matMenuTriggerFor]="walletMenu" class="action-button wallet-button">
+            <button
+              mat-button
+              [matMenuTriggerFor]="walletMenu"
+              #walletMenuTrigger="matMenuTrigger"
+              (menuOpened)="onWalletMenuOpened()"
+              class="action-button wallet-button"
+            >
               <div class="wallet-selector-content">
                 <mat-icon class="wallet-icon" [class.has-wallet]="currentWalletName()"
                   >account_balance_wallet</mat-icon
@@ -225,6 +237,22 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
             </button>
 
             <mat-menu #walletMenu="matMenu" class="wallet-dropdown-menu">
+              @if (nodeService.isRemote()) {
+                <!-- Remote/BDK: the btcx model has ONE open wallet, no
+                     load/unload rows and no timed locks — reuse the mobile
+                     switcher (group rows, swipe rename/delete, create/
+                     restore entries) instead of faking Core semantics. -->
+                <app-wallet-group-menu
+                  #remoteGroupMenu
+                  [showManage]="true"
+                  createLink="/auth/create"
+                  restoreLink="/auth/import"
+                  [switching]="remoteSwitching()"
+                  (selectGroup)="selectRemoteGroup($event)"
+                  (manage)="manageWallets()"
+                  (requestClose)="walletMenuTrigger.closeMenu()"
+                />
+              } @else {
               <button mat-menu-item (click)="manageWallets()" class="manage-wallets-item">
                 <mat-icon>settings</mat-icon>
                 <span>{{ 'manage_wallets' | i18n }}</span>
@@ -266,8 +294,14 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
                     } @else {
                       <span class="wallet-row-watch-placeholder"></span>
                     }
-                    <!-- Column 4: Lock status (only for loaded encrypted non-watch-only wallets) -->
-                    @if (wallet.isLoaded && !wallet.isWatchOnly && wallet.isEncrypted) {
+                    <!-- Column 4: Lock status. Not gated on isLoaded: a
+                         LOCKED btcx wallet is by definition unloaded and
+                         needs the padlock as its unlock affordance. -->
+                    @if (
+                      (wallet.isLoaded || isWalletLocked(wallet)) &&
+                      !wallet.isWatchOnly &&
+                      wallet.isEncrypted
+                    ) {
                       @if (isWalletLocked(wallet)) {
                         <mat-icon
                           class="wallet-row-lock wallet-row-lock-action wallet-lock-encrypted-locked"
@@ -308,6 +342,7 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
                     }
                   </div>
                 </button>
+              }
               }
             </mat-menu>
 
@@ -791,6 +826,9 @@ export class ToolbarComponent implements OnInit, OnDestroy {
     try {
       await this.walletManager.loadRemotePocket(pocket.name);
     } catch (err) {
+      if (await this.promptIfLocked(pocket.name, err)) {
+        return;
+      }
       console.error('Failed to switch pocket:', err);
     } finally {
       this.switchingPocket.set(false);
@@ -940,7 +978,9 @@ export class ToolbarComponent implements OnInit, OnDestroy {
 
   async onUnlockClick(wallet: WalletSummary, event: Event): Promise<void> {
     event.stopPropagation();
-    await this.walletUnlock.promptAndUnlockSession(wallet.name);
+    if (await this.walletUnlock.promptAndUnlockSession(wallet.name)) {
+      await this.activateUnlocked(wallet.name);
+    }
   }
 
   async onLockClick(wallet: WalletSummary, event: Event): Promise<void> {
@@ -957,9 +997,76 @@ export class ToolbarComponent implements OnInit, OnDestroy {
       await this.walletManager.loadWallet(wallet.name, true);
       await this.loadWallets();
     } catch (error) {
+      if (await this.promptIfLocked(wallet.name, error)) {
+        await this.activateUnlocked(wallet.name);
+        return;
+      }
       console.error('Failed to load wallet:', error);
     } finally {
       this.loadingWallets.delete(wallet.name);
+    }
+  }
+
+  /**
+   * Remote: unlocking OPENS the runtime (one open wallet) — the unlocked
+   * wallet IS the wallet now, so the active selection must follow or the
+   * toolbar keeps naming the previous one.
+   */
+  private async activateUnlocked(walletName: string): Promise<void> {
+    await this.loadWallets();
+    if (this.nodeService.isRemote()) {
+      try {
+        this.walletManager.setActiveWallet(walletName);
+      } catch (err) {
+        console.error('Failed to activate unlocked wallet:', err);
+      }
+    }
+  }
+
+  /**
+   * Locked btcx seed (remote mode): route into the passphrase dialog —
+   * unlocking OPENS the runtime. Returns true when unlocked.
+   */
+  private async promptIfLocked(walletName: string, error: unknown): Promise<boolean> {
+    if (!(error instanceof Error) || error.message !== WalletManagerService.WALLET_LOCKED) {
+      return false;
+    }
+    return this.walletUnlock.promptAndUnlockSession(walletName);
+  }
+
+  // Remote-mode switcher (shared WalletGroupMenuComponent) wiring.
+  readonly remoteSwitching = signal<string | null>(null);
+
+  /** Refresh the registry snapshots whenever the switcher opens. */
+  onWalletMenuOpened(): void {
+    if (this.nodeService.isRemote()) {
+      void this.btcxWallet.refreshWallets();
+      void this.btcxWallet.refreshGroups();
+    }
+  }
+
+  /**
+   * Group row tapped in the shared remote switcher: reuse the summary
+   * switching path (smart navigation + locked-seed passphrase prompt).
+   */
+  async selectRemoteGroup(g: BtcxWalletGroup): Promise<void> {
+    const summary = this.wallets().find(w => w.name === g.group);
+    this.remoteSwitching.set(g.group);
+    try {
+      if (summary) {
+        await this.selectWallet(summary);
+      } else {
+        await this.walletManager.loadWallet(g.group, true);
+        await this.loadWallets();
+      }
+    } catch (error) {
+      if (await this.promptIfLocked(g.group, error)) {
+        await this.activateUnlocked(g.group);
+      } else {
+        console.error('Failed to switch wallet group:', error);
+      }
+    } finally {
+      this.remoteSwitching.set(null);
     }
   }
 
@@ -1009,6 +1116,12 @@ export class ToolbarComponent implements OnInit, OnDestroy {
       // Refresh wallet list
       await this.loadWallets();
     } catch (error) {
+      if (await this.promptIfLocked(wallet.name, error)) {
+        this.loadingWallets.delete(wallet.name);
+        await this.loadWallets();
+        void this.selectWallet({ ...wallet, isLoaded: true });
+        return;
+      }
       console.error('Failed to select wallet:', error);
     } finally {
       this.loadingWallets.delete(wallet.name);
@@ -1043,9 +1156,9 @@ export class ToolbarComponent implements OnInit, OnDestroy {
   }
 
   manageWallets(): void {
-    // Clear active wallet and navigate to wallet selection
-    this.walletManager.setActiveWallet(null);
-    this.router.navigate(['/auth']);
+    // Just VISIT the manage page — the open/active wallet stays untouched
+    // (the state flag passes noAuthGuard). Closing is logout's job.
+    this.router.navigate(['/auth'], { state: { manage: true } });
   }
 
   openClockDriftDialog(): void {

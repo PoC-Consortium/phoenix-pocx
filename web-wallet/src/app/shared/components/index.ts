@@ -43,4 +43,5 @@ export { MnemonicEntryComponent } from './mnemonic-entry/mnemonic-entry.componen
 export { Bip39PassphraseSectionComponent } from './bip39-passphrase-section/bip39-passphrase-section.component';
 export { VerifyWordsComponent } from './verify-words/verify-words.component';
 export { AtRestPassphraseSectionComponent } from './at-rest-passphrase-section/at-rest-passphrase-section.component';
+export { WalletGroupMenuComponent } from './wallet-group-menu/wallet-group-menu.component';
 export type { MnemonicEntryState } from './mnemonic-entry/mnemonic-entry.component';

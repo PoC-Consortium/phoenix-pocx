@@ -182,6 +182,17 @@ strip = true
 [profile.dev.package.pocx_hashlib]
 opt-level = 3
 
+# scrypt guards the wallet seed at rest (N=2^15 — deliberately expensive);
+# unoptimized it turns every unlock into a multi-second stall in dev.
+[profile.dev.package.scrypt]
+opt-level = 3
+
+[profile.dev.package.salsa20]
+opt-level = 3
+
+[profile.dev.package.sha2]
+opt-level = 3
+
 [profile.dev.package.pocx_plotter_v2]
 opt-level = 3
 

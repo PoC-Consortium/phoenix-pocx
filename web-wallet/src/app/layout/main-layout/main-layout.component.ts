@@ -564,7 +564,20 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  logout(): void {
+  async logout(): Promise<void> {
+    // Remote/BDK: logout means CLOSE — lock the open wallet (drops the
+    // runtime and any held passphrase) so the selector reflects a truly
+    // logged-out state instead of a nameless-but-open wallet. Core keeps
+    // its multi-wallet semantics: wallets stay loaded, only the active
+    // selection clears.
+    const active = this.walletManager.activeWallet;
+    if (this.nodeService.isRemote() && active) {
+      try {
+        await this.walletManager.lockWallet(active);
+      } catch (err) {
+        console.error('Failed to close wallet on logout:', err);
+      }
+    }
     this.walletManager.setActiveWallet(null);
     this.router.navigate(['/auth']);
   }

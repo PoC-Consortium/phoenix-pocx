@@ -306,11 +306,17 @@ export class WalletManagerService {
           isWatchOnly: false,
           isEncrypted: anyEncrypted,
           // Selector semantics: undefined = no unlock needed, 0 = locked,
-          // >0 = unlocked. Keyring-encrypted seeds auto-unlock → undefined.
-          unlockedUntil: anyLocked
-            ? 0
-            : anyEncrypted && !!open
+          // >0 = unlocked. An OPEN pocket means the group's seed IS
+          // unlocked — sibling compartments report seedLocked merely
+          // because their stores aren't the open one, so anyLocked must
+          // not override an open group (the "still shows locked after
+          // unlock" bug). Keyring-encrypted seeds auto-unlock → undefined.
+          unlockedUntil: open
+            ? anyEncrypted
               ? SESSION_UNLOCK_SECONDS
+              : undefined
+            : anyLocked
+              ? 0
               : undefined,
         };
       });
@@ -904,6 +910,7 @@ export class WalletManagerService {
     this.isLoadingSubject.next(true);
     try {
       await this.btcxWallet.select(pocketName);
+      this.throwIfSeedLocked();
       const loaded = await this.refreshLoadedWallets();
       if (loaded.length > 0) {
         this.setActiveWallet(loaded[0]);
@@ -911,6 +918,19 @@ export class WalletManagerService {
       this.walletsChangedSubject.next();
     } finally {
       this.isLoadingSubject.next(false);
+    }
+  }
+
+  /**
+   * Selecting a locked btcx wallet SUCCEEDS on the Rust side (the runtime
+   * just does not open) — turn that into a typed error so callers can
+   * route into the passphrase prompt instead of reporting "not loaded".
+   */
+  static readonly WALLET_LOCKED = 'WALLET_LOCKED';
+
+  private throwIfSeedLocked(): void {
+    if (this.btcxWallet.seedState() === 'locked') {
+      throw new Error(WalletManagerService.WALLET_LOCKED);
     }
   }
 
@@ -925,6 +945,7 @@ export class WalletManagerService {
     try {
       if (this.nodeService.isRemote()) {
         await this.btcxWallet.select(await this.resolveRemotePocket(walletName));
+        this.throwIfSeedLocked();
       } else {
         await this.walletRpc.loadWallet(walletName, loadOnStartup);
       }
