@@ -10,11 +10,14 @@ import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import { StepHeaderComponent, MnemonicEntryComponent } from '../../../../shared/components';
+import {
+  StepHeaderComponent,
+  MnemonicEntryComponent,
+  Bip39PassphraseSectionComponent,
+} from '../../../../shared/components';
 import type { MnemonicEntryState } from '../../../../shared/components';
 import {
   WalletManagerService,
@@ -50,10 +53,10 @@ import {
     MatCheckboxModule,
     MatSnackBarModule,
     MatProgressBarModule,
-    MatTooltipModule,
     I18nPipe,
     StepHeaderComponent,
     MnemonicEntryComponent,
+    Bip39PassphraseSectionComponent,
   ],
   template: `
     <div class="import-wallet-container">
@@ -125,66 +128,12 @@ import {
                    Core and the local BDK (remote/mobile) wallet paths. It is
                    folded into the derivation and probed for on restore, so a
                    passphrase-protected seed recovers only WITH this word. -->
-              <div class="passphrase-section">
-                <mat-checkbox [(ngModel)]="useBip39Passphrase" class="passphrase-checkbox">
-                  {{ 'use_bip39_passphrase' | i18n }}
-                </mat-checkbox>
-
-                @if (useBip39Passphrase) {
-                  <p class="info-text small">{{ 'bip39_passphrase_info' | i18n }}</p>
-
-                  <p class="warning-text small">
-                    <mat-icon>warning</mat-icon>
-                    {{ 'bip39_passphrase_warning' | i18n }}
-                  </p>
-
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'bip39_passphrase' | i18n }}</mat-label>
-                    <!-- The 25th word is byte-significant: keep the browser /
-                         Android from auto-capitalizing/autocorrecting it when
-                         revealed. -->
-                    <input
-                      matInput
-                      [type]="bip39Visible() ? 'text' : 'password'"
-                      [(ngModel)]="passphrase"
-                      [disabled]="importing()"
-                      autocomplete="off"
-                      autocapitalize="none"
-                      autocorrect="off"
-                      spellcheck="false"
-                    />
-                    <button
-                      mat-icon-button
-                      matSuffix
-                      type="button"
-                      (click)="bip39Visible.set(!bip39Visible())"
-                      [attr.aria-label]="
-                        (bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n
-                      "
-                      [matTooltip]="(bip39Visible() ? 'hide_passphrase' : 'show_passphrase') | i18n"
-                    >
-                      <mat-icon>{{ bip39Visible() ? 'visibility_off' : 'visibility' }}</mat-icon>
-                    </button>
-                  </mat-form-field>
-
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'confirm_bip39_passphrase' | i18n }}</mat-label>
-                    <input
-                      matInput
-                      [type]="bip39Visible() ? 'text' : 'password'"
-                      [(ngModel)]="passphraseConfirm"
-                      [disabled]="importing()"
-                      autocomplete="off"
-                      autocapitalize="none"
-                      autocorrect="off"
-                      spellcheck="false"
-                    />
-                    @if (passphrase !== passphraseConfirm && passphraseConfirm) {
-                      <mat-error>{{ 'passphrase_mismatch' | i18n }}</mat-error>
-                    }
-                  </mat-form-field>
-                }
-              </div>
+              <app-bip39-passphrase-section
+                mode="restore"
+                [disabled]="importing()"
+                [(enabled)]="useBip39Passphrase"
+                [(passphrase)]="passphrase"
+              />
 
               <div class="step-actions">
                 <button mat-button (click)="prevStep()" [disabled]="importing()">
@@ -193,7 +142,7 @@ import {
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!mnemonicValid() || importing() || !bip39PassphraseValid()"
+                  [disabled]="!mnemonicValid() || importing()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -366,15 +315,6 @@ import {
         }
       }
 
-      .passphrase-section {
-        margin: 16px 0;
-        padding: 16px;
-        background: rgba(0, 0, 0, 0.02);
-        border-radius: 4px;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-      }
-
-      .passphrase-checkbox,
       .encryption-checkbox {
         display: block;
         margin-bottom: 12px;
@@ -450,12 +390,10 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
   readonly mnemonicValid = signal(false);
   @ViewChild(MnemonicEntryComponent) private mnemonicEntry?: MnemonicEntryComponent;
 
-  // BIP39 Passphrase (25th word)
+  // BIP39 Passphrase (25th word) — restore mode: no confirm field, the
+  // descriptor-branch probe is the real check on the word.
   useBip39Passphrase = false;
   passphrase = '';
-  passphraseConfirm = '';
-  /** Reveal toggle for the BIP39 25th-word inputs (verify what was typed). */
-  readonly bip39Visible = signal(false);
 
   // Bitcoin Core Wallet Encryption
   useWalletEncryption = false;
@@ -503,11 +441,6 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     if (this.currentStep() > 1) {
       this.currentStep.update(s => s - 1);
     }
-  }
-
-  bip39PassphraseValid(): boolean {
-    if (!this.useBip39Passphrase) return true;
-    return this.passphrase === this.passphraseConfirm;
   }
 
   walletEncryptionValid(): boolean {
@@ -628,7 +561,6 @@ export class ImportWalletComponent implements OnInit, OnDestroy {
     this.mnemonicValid.set(false);
     this.mnemonicEntry?.reset();
     this.passphrase = '';
-    this.passphraseConfirm = '';
     this.useBip39Passphrase = false;
     this.walletPassword = '';
     this.walletPasswordConfirm = '';

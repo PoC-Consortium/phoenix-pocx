@@ -609,3 +609,12 @@ a {
     }
   }
 }
+
+// The app renders its own visibility toggles on secret fields (BIP39 word,
+// passphrases) — suppress the WebView2/Edge NATIVE password-reveal eye that
+// appears inside password inputs once text is entered, which otherwise
+// shows a second, redundant hide/unhide icon next to ours.
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
