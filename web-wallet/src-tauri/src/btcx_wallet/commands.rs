@@ -1703,6 +1703,40 @@ pub async fn btcx_wallet_current_address(
     blocking(move || current_address_impl(&state)).await
 }
 
+/// The FIRST derivation (external index 0) of the open wallet — the
+/// deterministic plot/mining address, matching the Core path (which
+/// derives descriptor index 0). Reveals index 0 when the wallet has not
+/// revealed anything yet (a no-op otherwise), so the sync worker watches
+/// it; for a single-address wallet this is simply its one address.
+#[tauri::command]
+pub async fn btcx_wallet_first_address(
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    blocking(move || first_address_impl(&state)).await
+}
+
+/// `btcx_wallet_first_address` behind a testable seam.
+pub fn first_address_impl(state: &SharedBtcxWalletState) -> Result<String, String> {
+    let network = state.get_config().network;
+    let address = state.with_entry(|entry| {
+        // Ensure index 0 is revealed (no-op when anything is revealed
+        // already) so its script is subscribed and incoming funds are seen.
+        let _ = entry
+            .wallet
+            .reveal_addresses_to(bdk_wallet::KeychainKind::External, 0);
+        entry
+            .wallet
+            .persist(&mut entry.conn)
+            .map_err(|e| format!("persisting wallet: {e}"))?;
+        let info = entry.wallet.peek_address(bdk_wallet::KeychainKind::External, 0);
+        super::psbt::spk_to_address(network, &info.address.script_pubkey())
+            .ok_or_else(|| "Unsupported address script".to_string())
+    })?;
+    let _ = state.poke();
+    Ok(address)
+}
+
 /// `btcx_wallet_current_address` behind a testable seam — the regtest
 /// integration suite drives it against a live stack.
 pub fn current_address_impl(state: &SharedBtcxWalletState) -> Result<String, String> {
