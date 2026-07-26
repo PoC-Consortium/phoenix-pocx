@@ -33,6 +33,7 @@ import {
   NotificationService,
   BlockExplorerService,
 } from '../../../../shared/services';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { AppModeService } from '../../../../core/services/app-mode.service';
 import { ViewportService } from '../../../../core/services/viewport.service';
@@ -1072,6 +1073,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
   private readonly blockExplorer = inject(BlockExplorerService);
   private readonly clipboard = inject(ClipboardService);
   private readonly dialog = inject(MatDialog);
+  private readonly walletUnlock = inject(WalletUnlockService);
   private readonly appMode = inject(AppModeService);
   private readonly btcxWallet = inject(BtcxWalletService);
   readonly viewport = inject(ViewportService);
@@ -1492,6 +1494,9 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     if (!walletName) return;
 
     try {
+      // Signing pre-flight: a locked encrypted wallet would otherwise fail
+      // with a raw RPC -13 error instead of the passphrase prompt.
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) return;
       // Routed through the mode's backend (Core RPC or the local BDK wallet).
       const newTxid = await this.backendRouter.wallet().bumpFee(walletName, txid, options.feeRate);
 
@@ -1504,7 +1509,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       // Also refresh wallet service for balance updates
       this.walletService.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : this.i18n.get('bump_fee_error');
+      const message = error instanceof Error ? error.message : String(error) || this.i18n.get('bump_fee_error');
       this.notification.error(message);
     }
   }
@@ -1534,6 +1539,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
     if (!walletName || tx.vout === undefined) return;
 
     try {
+      // Signing pre-flight (see executeBumpFee).
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) return;
       // Core-only: spends the parent's output with a high-fee child, dragging
       // the parent into the same package.
       const childTxid = await this.backendRouter
@@ -1547,7 +1554,7 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       this.loadTransactions();
       this.walletService.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : this.i18n.get('cpfp_error');
+      const message = error instanceof Error ? error.message : String(error) || this.i18n.get('cpfp_error');
       this.notification.error(message);
     }
   }

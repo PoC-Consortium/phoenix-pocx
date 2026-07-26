@@ -51,10 +51,14 @@ import { isInvalidWalletName, isWalletNameTaken } from '../../wallet-name';
         autocapitalize="none"
         spellcheck="false"
       />
+      <!-- Rendered as mat-hint, not mat-error: with a validator-less ngModel
+           the control never enters Material's error state, so mat-error
+           would silently never display (the "Next disabled but no message
+           anywhere" bug). Hints always render. -->
       @if (conflict()) {
-        <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
+        <mat-hint class="error-hint">{{ 'wallet_name_conflict' | i18n }}</mat-hint>
       } @else if (invalid()) {
-        <mat-error>{{ 'wallet_name_invalid_local' | i18n }}</mat-error>
+        <mat-hint class="error-hint">{{ 'wallet_name_invalid_local' | i18n }}</mat-hint>
       } @else {
         <mat-hint>{{ 'wallet_name_hint_local' | i18n }}</mat-hint>
       }
@@ -92,8 +96,16 @@ import { isInvalidWalletName, isWalletNameTaken } from '../../wallet-name';
         width: 100%;
       }
 
+      .error-hint {
+        color: #c62828;
+      }
+
       :host-context(.dark-theme) .hint-text {
         color: rgba(255, 255, 255, 0.6);
+      }
+
+      :host-context(.dark-theme) .error-hint {
+        color: #ef9a9a;
       }
     `,
   ],

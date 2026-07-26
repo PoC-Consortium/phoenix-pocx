@@ -23,13 +23,9 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { Store } from '@ngrx/store';
 import { firstValueFrom } from 'rxjs';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
-import {
-  AddressDisplayComponent,
-  ConfirmDialogComponent,
-  PassphraseDialogComponent,
-} from '../../../../shared';
-import type { PassphraseDialogResult } from '../../../../shared';
+import { AddressDisplayComponent, ConfirmDialogComponent } from '../../../../shared';
 import { NotificationService } from '../../../../shared/services';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
@@ -1639,6 +1635,7 @@ export class PsbtComponent implements OnInit {
   private readonly psbtService = inject(PsbtService);
   private readonly notification = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
+  private readonly walletUnlock = inject(WalletUnlockService);
   private readonly i18n = inject(I18nService);
   private readonly location = inject(Location);
   private readonly router = inject(Router);
@@ -2039,7 +2036,7 @@ export class PsbtComponent implements OnInit {
           return;
         }
       }
-      if (!(await this.ensureWalletUnlocked(walletName))) return;
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) return;
       const sigsBefore = document.sigsCollected;
       // finalize=true: when this signature COMPLETES the transaction it is
       // sealed in the same action and the flow jumps straight to Broadcast —
@@ -2445,32 +2442,4 @@ export class PsbtComponent implements OnInit {
     return `${id.slice(0, 8)}…${id.slice(-4)}`;
   }
 
-  private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
-    if (this.isRemote()) {
-      // Local wallet: only a passphrase-encrypted seed can be locked.
-      const status = await this.btcxWallet.refreshStatus();
-      if (status?.seed !== 'locked') return true;
-      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-        width: '400px',
-        data: { walletName, timeout: 60 },
-      });
-      const result: PassphraseDialogResult | null = await firstValueFrom(dialogRef.afterClosed());
-      if (!result) return false;
-      await this.btcxWallet.unlock(result.passphrase);
-      return true;
-    }
-
-    const info = await this.walletRpc.getWalletInfo(walletName);
-    if (info.unlocked_until === undefined || info.unlocked_until > 0) {
-      return true; // not encrypted, or already unlocked
-    }
-    const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-      width: '400px',
-      data: { walletName, timeout: 60 },
-    });
-    const result: PassphraseDialogResult | null = await firstValueFrom(dialogRef.afterClosed());
-    if (!result) return false;
-    await this.walletRpc.walletPassphrase(walletName, result.passphrase, result.timeout);
-    return true;
-  }
 }

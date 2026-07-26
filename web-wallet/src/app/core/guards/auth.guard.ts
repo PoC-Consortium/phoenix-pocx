@@ -20,13 +20,19 @@ export const authGuard: CanActivateFn = () => {
 
 /**
  * NoAuthGuard protects auth routes when user is already authenticated.
- * Redirects to /dashboard if a wallet is already active.
+ * Redirects to /dashboard if a wallet is already active — EXCEPT for an
+ * explicit "manage wallets" navigation (state flag), which may visit the
+ * page with the wallet open and untouched.
  */
 export const noAuthGuard: CanActivateFn = () => {
   const walletManager = inject(WalletManagerService);
   const router = inject(Router);
 
   if (!walletManager.activeWallet) {
+    return true;
+  }
+
+  if (router.getCurrentNavigation()?.extras.state?.['manage']) {
     return true;
   }
 

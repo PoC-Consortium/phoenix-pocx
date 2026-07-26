@@ -239,14 +239,29 @@ impl BtcxWalletState {
         self.config.lock().map(|c| c.clone()).unwrap_or_default()
     }
 
-    /// Update + persist the configuration.
+    /// Update + persist the configuration, MERGE-SAFELY across processes:
+    /// under the cross-process file lock the mutation is applied to the
+    /// FRESH on-disk state (another instance — prod next to dev, a
+    /// double-launch — may have written since we loaded), written back
+    /// only when it actually changed anything, and adopted as the new
+    /// in-memory state. This is what makes a concurrent instance's
+    /// registry additions survive our saves instead of being clobbered
+    /// by a stale in-memory copy.
     pub fn update_config(
         &self,
         f: impl FnOnce(&mut BtcxWalletConfig),
     ) -> Result<BtcxWalletConfig, String> {
         let mut guard = self.config.lock().map_err(|_| "config lock poisoned")?;
-        f(&mut guard);
-        guard.save()?;
+        let _file_lock = BtcxWalletConfig::lock_config_file()?;
+        let fresh = BtcxWalletConfig::load();
+        let before = serde_json::to_string(&fresh).map_err(|e| format!("{e}"))?;
+        let mut updated = fresh;
+        f(&mut updated);
+        let after = serde_json::to_string(&updated).map_err(|e| format!("{e}"))?;
+        if after != before {
+            updated.save()?;
+        }
+        *guard = updated;
         Ok(guard.clone())
     }
 

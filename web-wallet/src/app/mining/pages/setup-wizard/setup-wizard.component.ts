@@ -3164,7 +3164,8 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
         // A non-segwit wallet's addresses can't mine — leave the field
         // on its "no wallet" text instead of fetching one.
         if (this.btcxWallet.walletActive() && !this.walletNotSegwit()) {
-          const address = await this.btcxWallet.newAddress();
+          // First derivation (index 0) — identical to the Core path below.
+          const address = await this.btcxWallet.firstAddress();
           this.walletAddress.set(address);
         }
       } catch (error) {
@@ -3253,17 +3254,20 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
     });
     if (selection === 'wallet') {
       this.useCustomAddress.set(false);
-      await this.fetchMobileWalletAddress();
     }
+    // Fetch the wallet's address EAGERLY whenever the wallet can provide
+    // one (guards inside no-op otherwise) — the selection above only
+    // decides which radio is pre-picked, but the "use wallet address"
+    // option must always SHOW its address, matching desktop-remote.
+    // Without this, any wizard visit past the first run left the label
+    // on "no wallet connected" until the radio was clicked.
+    await this.fetchMobileWalletAddress();
   }
 
   /**
-   * Fetch ONE receive address from the nodeless wallet for plotting.
-   *
-   * wallet-btcx's `wallet_new_address` hands out addresses under a capped
-   * scheme (reveal fresh while < 20 unused are outstanding, then recycle
-   * the oldest unused), so repeated calls can never run the gap limit away.
-   * The wizard still fetches at most once per session, and on Save the
+   * Fetch the wallet's FIRST derivation (external index 0) for plotting —
+   * deterministic and identical to what the desktop Core path derives, so
+   * every mode suggests the same address for the same wallet. On Save the
    * address persists into the mining config (`plottingAddress`); later
    * visits reload it from there and never ask the wallet again - plots and
    * rewards stay bound to one account id.
@@ -3274,7 +3278,7 @@ export class SetupWizardComponent implements OnInit, OnDestroy {
 
     this.walletAddressLoading.set(true);
     try {
-      const address = await this.btcxWallet.newAddress();
+      const address = await this.btcxWallet.firstAddress();
       this.walletAddress.set(address);
     } catch (error) {
       console.error('Failed to fetch mobile wallet address:', error);

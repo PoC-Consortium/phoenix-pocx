@@ -1117,6 +1117,7 @@ pub fn run() {
             btcx_wallet::commands::btcx_wallet_new_address,
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_current_address,
+            btcx_wallet::commands::btcx_wallet_first_address,
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_balance,
             #[cfg(feature = "wallet")]

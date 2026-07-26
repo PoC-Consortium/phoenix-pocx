@@ -14,6 +14,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Store } from '@ngrx/store';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { StepHeaderComponent } from '../../../../shared/components';
+import { WalletNameSectionComponent } from '../../../mobile-wallet/components/wallet-name-section/wallet-name-section.component';
 import {
   WalletManagerService,
   type WatchOnlyRescan,
@@ -64,6 +65,7 @@ interface PendingEntry {
     MatRadioModule,
     I18nPipe,
     StepHeaderComponent,
+    WalletNameSectionComponent,
   ],
   template: `
     <div class="watch-only-container">
@@ -84,21 +86,12 @@ interface PendingEntry {
             <div class="step-content">
               <p class="info-text">{{ 'watch_only_description' | i18n }}</p>
 
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ 'wallet_name' | i18n }}</mat-label>
-                <input
-                  matInput
-                  [(ngModel)]="walletName"
-                  (ngModelChange)="onWalletNameChange()"
-                  placeholder="My Watch Wallet"
-                  [disabled]="creating()"
-                />
-                @if (walletNameConflict()) {
-                  <mat-error>{{ 'wallet_name_conflict' | i18n }}</mat-error>
-                } @else {
-                  <mat-hint>{{ 'wallet_name_hint' | i18n }}</mat-hint>
-                }
-              </mat-form-field>
+              <app-mwallet-name-section
+                #nameSection
+                [(name)]="walletName"
+                [existingNames]="existingWalletNames()"
+                [disabled]="creating()"
+              />
               <div class="step-actions">
                 <button mat-button routerLink="/auth">
                   {{ 'back' | i18n }}
@@ -106,7 +99,7 @@ interface PendingEntry {
                 <button
                   mat-raised-button
                   color="primary"
-                  [disabled]="!walletName || walletNameConflict() || creating()"
+                  [disabled]="!walletName.trim() || nameSection.hasError() || creating()"
                   (click)="nextStep()"
                 >
                   {{ 'next' | i18n }}
@@ -440,9 +433,8 @@ export class WatchOnlyComponent implements OnInit {
   walletName = '';
   creating = signal(false);
 
-  // Existing wallet names (for conflict check on step 1)
-  private readonly existingWalletNames = signal<string[]>([]);
-  readonly walletNameConflict = signal(false);
+  // Existing wallet names (for the shared name section's conflict check)
+  readonly existingWalletNames = signal<string[]>([]);
 
   // Current entry being typed
   entryInput = '';
@@ -475,13 +467,6 @@ export class WatchOnlyComponent implements OnInit {
     } catch {
       // RPC unreachable — skip the check; commit-time RPC will surface the real error.
     }
-  }
-
-  onWalletNameChange(): void {
-    const target = this.walletName.trim().toLowerCase();
-    this.walletNameConflict.set(
-      target.length > 0 && this.existingWalletNames().some(n => n.toLowerCase() === target)
-    );
   }
 
   getCurrentStepTitle(): string {

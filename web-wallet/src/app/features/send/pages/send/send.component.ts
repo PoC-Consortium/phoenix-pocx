@@ -25,8 +25,8 @@ interface Contact {
   address: string;
   createdAt: number;
 }
-import { AddressDisplayComponent, PassphraseDialogComponent } from '../../../../shared';
-import type { PassphraseDialogResult } from '../../../../shared';
+import { AddressDisplayComponent } from '../../../../shared';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import { NotificationService } from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
@@ -339,6 +339,7 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                   <span>{{ 'insufficient_balance' | i18n }}</span>
                 </div>
               }
+
             </div>
 
             <!-- Error Display -->
@@ -1054,6 +1055,7 @@ export class SendComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly dialog = inject(MatDialog);
+  private readonly walletUnlock = inject(WalletUnlockService);
   private readonly i18n = inject(I18nService);
   private readonly store = inject(Store);
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
@@ -1370,35 +1372,6 @@ export class SendComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
-    if (this.isRemote()) {
-      // Local wallet: only a passphrase-encrypted seed can be locked.
-      const status = await this.btcxWallet.refreshStatus();
-      if (status?.seed !== 'locked') return true;
-      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-        width: '400px',
-        data: { walletName, timeout: 60 },
-      });
-      const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-      if (!result) return false; // user cancelled
-      await this.btcxWallet.unlock(result.passphrase);
-      return true;
-    }
-
-    const info = await this.walletRpc.getWalletInfo(walletName);
-    if (info.unlocked_until === undefined || info.unlocked_until > 0) {
-      return true; // not encrypted, or already unlocked
-    }
-    const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-      width: '400px',
-      data: { walletName, timeout: 60 },
-    });
-    const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-    if (!result) return false; // user cancelled
-    await this.walletRpc.walletPassphrase(walletName, result.passphrase, result.timeout);
-    return true;
-  }
-
   async sendTransaction(): Promise<void> {
     if (this.sending()) return;
     // Final validation gate — paste + immediate click can bypass the input event.
@@ -1410,7 +1383,7 @@ export class SendComponent implements OnInit, OnDestroy {
     this.sendError.set(null);
 
     try {
-      if (!(await this.ensureWalletUnlocked(walletName))) {
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) {
         this.sending.set(false);
         return;
       }
@@ -1435,8 +1408,17 @@ export class SendComponent implements OnInit, OnDestroy {
       // Refresh wallet state so dashboard shows updated balance immediately
       this.walletService.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : this.i18n.get('transaction_failed');
+      // Tauri command rejections are plain STRINGS, not Error instances —
+      // stringify them so the real backend reason (e.g. BDK's dust-limit
+      // message) reaches the user instead of a generic "failed". The
+      // backend is the single source of truth for WHY a send is invalid;
+      // no client-side pre-checks.
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error) || this.i18n.get('transaction_failed');
       this.sendError.set(message);
+      this.notification.error(message);
     } finally {
       this.sending.set(false);
     }

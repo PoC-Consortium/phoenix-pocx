@@ -1015,6 +1015,15 @@ export class BtcxWalletService {
   }
 
   /**
+   * FIRST derivation (external index 0) — the deterministic plot/mining
+   * address, matching the Core path's descriptor-index-0 derivation. For a
+   * single-address wallet this is its one address.
+   */
+  async firstAddress(): Promise<string> {
+    return invoke<string>('btcx_wallet_first_address');
+  }
+
+  /**
    * CURRENT receive address — the lowest-index revealed-but-unused
    * external address, revealing a fresh one only when none is outstanding
    * (BDK next-unused semantics, the desktop receive page's behavior).

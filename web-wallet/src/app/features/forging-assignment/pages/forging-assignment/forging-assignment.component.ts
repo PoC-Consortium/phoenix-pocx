@@ -21,8 +21,7 @@ import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { HashTruncatePipe } from '../../../../shared/pipes';
 import { DecimalInputDirective } from '../../../../shared/directives';
 import { Contact, ContactsStoreService, NotificationService } from '../../../../shared/services';
-import { PassphraseDialogComponent } from '../../../../shared';
-import type { PassphraseDialogResult } from '../../../../shared';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import {
   ConfirmDialogComponent,
   ConfirmDialogData,
@@ -147,22 +146,37 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
         <div class="card">
           @if (walletAddresses().length === 0) {
             <p class="hint-text">{{ 'mwallet_assignment_no_funded' | i18n }}</p>
-          } @else {
-            <!-- Send-page-style section label (desktop widths only) -->
-            <h3 class="section-label">{{ 'plot_address' | i18n }}</h3>
-            <mat-form-field appearance="outline" class="full-width slim-field">
-              <mat-label>{{ 'plot_address' | i18n }}</mat-label>
-              <mat-select
-                [(ngModel)]="plotAddress"
-                (ngModelChange)="checkStatus()"
-                [disabled]="busy()"
-              >
-                @for (addr of walletAddresses(); track addr) {
-                  <mat-option [value]="addr">{{ addr | hashTruncate: 16 : 8 }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
           }
+          <!-- Send-page-style section label (desktop widths only) -->
+          <h3 class="section-label">{{ 'plot_address' | i18n }}</h3>
+          <!-- Free entry with the wallet's addresses as suggestions: any
+               address can be status-CHECKED (the lookup works by script
+               history / RPC, not wallet ownership) — creating or revoking
+               still requires the wallet to own the plot address. -->
+          <mat-form-field appearance="outline" class="full-width slim-field">
+            <mat-label>{{ 'plot_address' | i18n }}</mat-label>
+            <input
+              matInput
+              [ngModel]="plotAddress"
+              (ngModelChange)="onPlotAddressInput($event)"
+              [matAutocomplete]="plotAuto"
+              [disabled]="busy()"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+            <mat-autocomplete
+              #plotAuto="matAutocomplete"
+              (optionSelected)="onPlotAddressInput($event.option.value)"
+            >
+              @for (addr of walletAddresses(); track addr) {
+                <mat-option [value]="addr">{{ addr | hashTruncate: 16 : 8 }}</mat-option>
+              }
+            </mat-autocomplete>
+            @if (plotAddress && !plotAddressValid()) {
+              <mat-hint class="error-hint">{{ 'setup_address_invalid_tooltip' | i18n }}</mat-hint>
+            }
+          </mat-form-field>
 
           <!-- Status -->
           @if (plotAddress) {
@@ -492,6 +506,10 @@ const ASSIGNMENT_PREVIEW_VSIZE_VB = 170;
         color: #c62828;
         font-size: 13px;
         margin: 0 0 12px;
+      }
+
+      .error-hint {
+        color: #c62828;
       }
 
       .suffix-valid {
@@ -834,6 +852,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly notifications = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
+  private readonly walletUnlock = inject(WalletUnlockService);
   private readonly store = inject(Store);
 
   /** Remote (Electrum) mode: assignments run client-side, no node RPC. */
@@ -966,16 +985,17 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
       let addresses: string[];
       if (this.isRemote()) {
         // Funded wallet addresses — non-change first, then change, deduped;
-        // the current receive address leads regardless of funding (a fresh
-        // wallet always has something to select).
+        // the FIRST derivation (index 0) leads regardless of funding —
+        // identical semantics to the Core path below and to the mining
+        // setup wizard, so every surface suggests the same address.
         const utxos = await this.wallet.utxos();
         const sorted = [...utxos].sort((a, b) => Number(a.isChange) - Number(b.isChange));
         addresses = [];
         try {
-          const current = await this.wallet.currentAddress();
-          if (current) addresses.push(current);
+          const first = await this.wallet.firstAddress();
+          if (first) addresses.push(first);
         } catch {
-          // no current address (e.g. spend-only) — funded list only
+          // no derivable address (e.g. spend-only) — funded list only
         }
         for (const utxo of sorted) {
           if (utxo.address && !addresses.includes(utxo.address)) {
@@ -1106,6 +1126,27 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     return Math.ceil((this.getSelectedFeeRate() ?? 1) * ASSIGNMENT_PREVIEW_VSIZE_VB);
   }
 
+  /** Valid PoCX address of ANY network kind — good enough to query status. */
+  plotAddressValid(): boolean {
+    return validatePocxAddress(this.plotAddress).kind === 'valid';
+  }
+
+  /**
+   * Typed or picked plot address. Only a fully valid address fires the
+   * status lookup (typing a partial one just clears the stale status);
+   * this restores the free-entry "check any address" workflow the
+   * select-only field had dropped.
+   */
+  onPlotAddressInput(value: string): void {
+    this.plotAddress = value.trim();
+    if (this.plotAddressValid()) {
+      void this.checkStatus();
+    } else {
+      this.status.set(null);
+      this.statusError.set(null);
+    }
+  }
+
   async checkStatus(): Promise<void> {
     const address = this.plotAddress;
     if (!address || this.statusLoading()) return;
@@ -1182,40 +1223,6 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Encrypted-wallet unlock, per mode (the unified send page's flow):
-   * remote checks the local seed lock, node mode the Core wallet's
-   * `unlocked_until`. Prompts with the shared passphrase dialog.
-   */
-  private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
-    if (this.isRemote()) {
-      // Local wallet: only a passphrase-encrypted seed can be locked.
-      const status = await this.wallet.refreshStatus();
-      if (status?.seed !== 'locked') return true;
-      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-        width: '400px',
-        data: { walletName, timeout: 60 },
-      });
-      const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-      if (!result) return false; // user cancelled
-      await this.wallet.unlock(result.passphrase);
-      return true;
-    }
-
-    const info = await this.walletRpc.getWalletInfo(walletName);
-    if (info.unlocked_until === undefined || info.unlocked_until > 0) {
-      return true; // not encrypted, or already unlocked
-    }
-    const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-      width: '400px',
-      data: { walletName, timeout: 60 },
-    });
-    const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-    if (!result) return false; // user cancelled
-    await this.walletRpc.walletPassphrase(walletName, result.passphrase, result.timeout);
-    return true;
-  }
-
   async create(): Promise<void> {
     if (!this.forgingValid() || this.busy()) return;
     const walletName = this.walletManager.activeWallet;
@@ -1225,7 +1232,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     }
     this.busy.set(true);
     try {
-      if (!(await this.ensureWalletUnlocked(walletName))) {
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) {
         return;
       }
       const feeRate = this.getSelectedFeeRate();
@@ -1277,7 +1284,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     }
     this.busy.set(true);
     try {
-      if (!(await this.ensureWalletUnlocked(walletName))) {
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) {
         return;
       }
       const feeRate = this.getSelectedFeeRate();

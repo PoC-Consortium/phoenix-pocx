@@ -12,6 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { NotificationService } from '../../../../shared/services';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import { BtcxPipe, ByteSizePipe } from '../../../../shared/pipes';
 import { HashRefComponent } from '../../../../shared/components';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
@@ -1026,6 +1027,7 @@ export class TransactionDetailComponent implements OnInit {
   private readonly notification = inject(NotificationService);
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
+  private readonly walletUnlock = inject(WalletUnlockService);
 
   Math = Math;
 
@@ -1440,6 +1442,9 @@ export class TransactionDetailComponent implements OnInit {
     if (!walletName) return;
 
     try {
+      // Signing pre-flight: a locked encrypted wallet would otherwise fail
+      // with a raw RPC -13 error instead of the passphrase prompt.
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) return;
       // Routed through the mode's backend (Core RPC or the local BDK wallet).
       const newTxid = await this.backendRouter.wallet().bumpFee(walletName, txid, options.feeRate);
 
@@ -1453,7 +1458,7 @@ export class TransactionDetailComponent implements OnInit {
       // Navigate to the new transaction
       this.loadTransaction(newTxid);
     } catch (error) {
-      const message = error instanceof Error ? error.message : this.i18n.get('bump_fee_error');
+      const message = error instanceof Error ? error.message : String(error) || this.i18n.get('bump_fee_error');
       this.notification.error(message);
     }
   }

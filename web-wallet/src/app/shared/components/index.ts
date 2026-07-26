@@ -40,4 +40,8 @@ export { StepHeaderComponent } from './step-header/step-header.component';
 // Seed phrase (shared by create-wallet / import-wallet / multisig wizards)
 export { MnemonicDisplayComponent } from './mnemonic-display/mnemonic-display.component';
 export { MnemonicEntryComponent } from './mnemonic-entry/mnemonic-entry.component';
+export { Bip39PassphraseSectionComponent } from './bip39-passphrase-section/bip39-passphrase-section.component';
+export { VerifyWordsComponent } from './verify-words/verify-words.component';
+export { AtRestPassphraseSectionComponent } from './at-rest-passphrase-section/at-rest-passphrase-section.component';
+export { WalletGroupMenuComponent } from './wallet-group-menu/wallet-group-menu.component';
 export type { MnemonicEntryState } from './mnemonic-entry/mnemonic-entry.component';

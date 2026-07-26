@@ -46,6 +46,10 @@ phoenix-pocx/
 │   │   │   │   ├── models/
 │   │   │   │   │   └── mining.models.ts              # Types & capacity calculations
 │   │   │   │   └── components/                       # Dialogs, charts, etc.
+│   │   │   ├── wallet-setup/# THE create/restore wizards (shared by the
+│   │   │   │                # desktop /auth hosts and the mobile shell)
+│   │   │   │   ├── create-wallet-flow.component.ts   # 4-step create (Core+BDK commit seam)
+│   │   │   │   └── restore-wallet-flow.component.ts  # single-page restore (branch report)
 │   │   │   ├── shared/      # Shared components, services
 │   │   │   ├── store/       # NgRx store
 │   │   │   │   ├── wallet/  # Wallet state management
@@ -182,6 +186,20 @@ failover).
    (`btcx_psbt_*`).
 4. **Disabled in remote**: solo mining (pool/custom only), blocks explorer,
    peers page (guarded by `notRemoteGuard`).
+5. **Wallet lifecycle is UNIFIED** (2.4.0): `features/wallet-setup/` holds
+   THE create and restore wizards; `/auth/create`, `/auth/import`,
+   `/wallet/create`, `/wallet/restore` are thin hosts. Shared sections in
+   `shared/components/`: mnemonic-display (CSS-counter indexes → numbers
+   not copyable; container-query columns), mnemonic-entry,
+   bip39-passphrase-section (create/restore modes), verify-words,
+   at-rest-passphrase-section, wallet-group-menu (the btcx switcher —
+   mobile toolbar chip AND desktop-remote toolbar; Core keeps its own
+   load/unload menu). Remote lock semantics: seed lock == wallet closed
+   (open ⇔ unlocked, no timed sessions); "Manage Wallets" visits /auth
+   with the wallet untouched (`state: {manage: true}` passes noAuthGuard),
+   Logout locks (btcx_wallet_lock). Signing pre-flight everywhere:
+   `WalletUnlockService.ensureUnlockedForSigning` (send, assignments,
+   PSBT, RBF, CPFP).
 
 ### Node Layer (Managed Node)
 The node module provides optional managed node functionality:
@@ -268,6 +286,11 @@ Located in `src-tauri/src/btcx_wallet/`, built on the shared btcx crates
 - **config.rs** — `btcx_wallet_config.json`: network, per-network ordered
   Electrum server lists, NAMED wallet registry (`wallets`/`active_wallet`)
   with per-wallet descriptor policy; legacy single-wallet layout migration.
+  Saves are MERGE-SAFE and change-only (2.4.0): `update_config` applies the
+  mutation to the fresh on-disk state under a cross-process file lock (fs4)
+  and skips no-op writes — several running instances (prod beside dev)
+  merge instead of clobbering; balance snapshots persist only when the sat
+  value changes.
 - **state.rs** — seed store (per active wallet), Electrum pool, one open
   wallet runtime (bdk handle + SyncWorker), `btcx-wallet:sync` emitter
   (height + aggregate health), chain-only Electrum broadcast.
@@ -280,7 +303,8 @@ Located in `src-tauri/src/btcx_wallet/`, built on the shared btcx crates
   `walletcreatefundedpsbt` + `btcx_wallet_utxos`.
 - **commands.rs** — all `btcx_wallet_*`/`btcx_psbt_*`/`btcx_electrum_*`
   Tauri commands (wallet registry: list/select/close/delete; health/probe/
-  chain-info for the remote-mode UI).
+  chain-info for the remote-mode UI; `btcx_wallet_first_address` = external
+  index 0, the deterministic plot/mining address matching the Core path).
 
 Data layout: `btcx-wallet/<network>/<name>/{seed.mnemonic, wallet/btcx.sqlite}`;
 deleted wallets move to `<network>/.trash/`, never removed.

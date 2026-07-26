@@ -332,7 +332,8 @@ impl BtcxWalletConfig {
         }
     }
 
-    /// Save config to disk.
+    /// Save config to disk (atomic tmp + rename, so a concurrent reader
+    /// never sees a half-written file).
     pub fn save(&self) -> Result<(), String> {
         let path = Self::config_path();
         if let Some(parent) = path.parent() {
@@ -340,9 +341,34 @@ impl BtcxWalletConfig {
         }
         let contents = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize config: {e}"))?;
-        fs::write(&path, contents).map_err(|e| format!("Failed to write config: {e}"))?;
+        let tmp = path.with_extension("json.tmp");
+        fs::write(&tmp, contents).map_err(|e| format!("Failed to write config: {e}"))?;
+        fs::rename(&tmp, &path).map_err(|e| format!("Failed to install config: {e}"))?;
         log::info!("BTCX wallet config saved to {}", path.display());
         Ok(())
+    }
+
+    /// Take the EXCLUSIVE cross-process config lock (blocking). The lock
+    /// is a sibling `.lock` file; dropping the returned handle releases
+    /// it. Serializes read-modify-write cycles across app INSTANCES — a
+    /// second running Phoenix (prod next to dev, a double-launch) must
+    /// merge into the file instead of clobbering it with its own stale
+    /// in-memory copy.
+    pub fn lock_config_file() -> Result<fs::File, String> {
+        let path = Self::config_path().with_extension("lock");
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create config dir: {e}"))?;
+        }
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&path)
+            .map_err(|e| format!("Failed to open config lock: {e}"))?;
+        fs4::fs_std::FileExt::lock_exclusive(&file)
+            .map_err(|e| format!("Failed to lock config: {e}"))?;
+        Ok(file)
     }
 
     /// The Electrum servers configured for the ACTIVE network.
@@ -414,7 +440,12 @@ impl BtcxWalletConfig {
     }
 
     /// Record one wallet's balance snapshot (selector display), stamping
-    /// the current time. No-op if the wallet is not registered.
+    /// the current time. No-op if the wallet is not registered — and no-op
+    /// when `sat` is UNCHANGED: height/at are only staleness metadata
+    /// riding along with a balance, and skipping the touch keeps the
+    /// steady-state config write count at zero (an idle wallet must not
+    /// rewrite the registry file every sync tick — the multi-instance
+    /// clobber hazard).
     pub fn set_balance_snapshot(
         &mut self,
         network: WalletNetwork,
@@ -423,6 +454,9 @@ impl BtcxWalletConfig {
         height: u32,
     ) {
         if let Some(mut meta) = self.wallet_meta(network, name) {
+            if meta.balance_snapshot.map(|s| s.sat) == Some(sat) {
+                return;
+            }
             meta.balance_snapshot = Some(BalanceSnapshot {
                 sat,
                 height,
