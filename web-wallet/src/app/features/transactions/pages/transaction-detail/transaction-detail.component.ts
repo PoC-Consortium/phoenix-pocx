@@ -1458,7 +1458,8 @@ export class TransactionDetailComponent implements OnInit {
       // Navigate to the new transaction
       this.loadTransaction(newTxid);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error) || this.i18n.get('bump_fee_error');
+      const message =
+        error instanceof Error ? error.message : String(error) || this.i18n.get('bump_fee_error');
       this.notification.error(message);
     }
   }

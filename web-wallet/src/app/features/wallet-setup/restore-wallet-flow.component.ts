@@ -1,4 +1,13 @@
-import { Component, OnInit, ViewChild, computed, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  ViewChild,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -185,7 +194,9 @@ import {
               <button
                 mat-raised-button
                 color="primary"
-                [disabled]="!mnemonicValid() || nameSection.hasError() || !protect.valid() || restoring()"
+                [disabled]="
+                  !mnemonicValid() || nameSection.hasError() || !protect.valid() || restoring()
+                "
                 (click)="restore()"
               >
                 @if (restoring()) {

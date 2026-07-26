@@ -1729,7 +1729,9 @@ pub fn first_address_impl(state: &SharedBtcxWalletState) -> Result<String, Strin
             .wallet
             .persist(&mut entry.conn)
             .map_err(|e| format!("persisting wallet: {e}"))?;
-        let info = entry.wallet.peek_address(bdk_wallet::KeychainKind::External, 0);
+        let info = entry
+            .wallet
+            .peek_address(bdk_wallet::KeychainKind::External, 0);
         super::psbt::spk_to_address(network, &info.address.script_pubkey())
             .ok_or_else(|| "Unsupported address script".to_string())
     })?;

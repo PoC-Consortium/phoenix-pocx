@@ -253,96 +253,96 @@ import { ElectrumServerListComponent } from '../../shared/components/electrum-se
                   (requestClose)="walletMenuTrigger.closeMenu()"
                 />
               } @else {
-              <button mat-menu-item (click)="manageWallets()" class="manage-wallets-item">
-                <mat-icon>settings</mat-icon>
-                <span>{{ 'manage_wallets' | i18n }}</span>
-              </button>
-              <mat-divider></mat-divider>
-              @for (wallet of wallets(); track wallet.name) {
-                <button
-                  mat-menu-item
-                  class="wallet-row"
-                  [class.wallet-loaded]="wallet.isLoaded"
-                  [class.wallet-unloaded]="!wallet.isLoaded"
-                  (click)="selectWallet(wallet)"
-                  [disabled]="isWalletLoading(wallet.name)"
-                >
-                  <div class="wallet-row-content">
-                    <!-- Column 1: Wallet icon -->
-                    <mat-icon class="wallet-row-icon">account_balance_wallet</mat-icon>
-                    <!-- Column 2: Wallet name (+ multisig glyph) -->
-                    <span class="wallet-row-name">{{ wallet.name || '(default)' }}</span>
-                    @if (wallet.multisig) {
-                      <mat-icon
-                        class="wallet-row-multisig"
-                        [matTooltip]="
-                          'msig_wallet_tooltip'
-                            | i18n
-                              : {
-                                  required: wallet.multisig.requiredSigs,
-                                  total: wallet.multisig.totalKeys,
-                                }
-                        "
-                        >group</mat-icon
-                      >
-                    }
-                    <!-- Column 3: Watch-only indicator (only for loaded watch-only wallets) -->
-                    @if (wallet.isLoaded && wallet.isWatchOnly) {
-                      <mat-icon class="wallet-row-watch" matTooltip="{{ 'watch_only' | i18n }}"
-                        >visibility</mat-icon
-                      >
-                    } @else {
-                      <span class="wallet-row-watch-placeholder"></span>
-                    }
-                    <!-- Column 4: Lock status. Not gated on isLoaded: a
+                <button mat-menu-item (click)="manageWallets()" class="manage-wallets-item">
+                  <mat-icon>settings</mat-icon>
+                  <span>{{ 'manage_wallets' | i18n }}</span>
+                </button>
+                <mat-divider></mat-divider>
+                @for (wallet of wallets(); track wallet.name) {
+                  <button
+                    mat-menu-item
+                    class="wallet-row"
+                    [class.wallet-loaded]="wallet.isLoaded"
+                    [class.wallet-unloaded]="!wallet.isLoaded"
+                    (click)="selectWallet(wallet)"
+                    [disabled]="isWalletLoading(wallet.name)"
+                  >
+                    <div class="wallet-row-content">
+                      <!-- Column 1: Wallet icon -->
+                      <mat-icon class="wallet-row-icon">account_balance_wallet</mat-icon>
+                      <!-- Column 2: Wallet name (+ multisig glyph) -->
+                      <span class="wallet-row-name">{{ wallet.name || '(default)' }}</span>
+                      @if (wallet.multisig) {
+                        <mat-icon
+                          class="wallet-row-multisig"
+                          [matTooltip]="
+                            'msig_wallet_tooltip'
+                              | i18n
+                                : {
+                                    required: wallet.multisig.requiredSigs,
+                                    total: wallet.multisig.totalKeys,
+                                  }
+                          "
+                          >group</mat-icon
+                        >
+                      }
+                      <!-- Column 3: Watch-only indicator (only for loaded watch-only wallets) -->
+                      @if (wallet.isLoaded && wallet.isWatchOnly) {
+                        <mat-icon class="wallet-row-watch" matTooltip="{{ 'watch_only' | i18n }}"
+                          >visibility</mat-icon
+                        >
+                      } @else {
+                        <span class="wallet-row-watch-placeholder"></span>
+                      }
+                      <!-- Column 4: Lock status. Not gated on isLoaded: a
                          LOCKED btcx wallet is by definition unloaded and
                          needs the padlock as its unlock affordance. -->
-                    @if (
-                      (wallet.isLoaded || isWalletLocked(wallet)) &&
-                      !wallet.isWatchOnly &&
-                      wallet.isEncrypted
-                    ) {
-                      @if (isWalletLocked(wallet)) {
+                      @if (
+                        (wallet.isLoaded || isWalletLocked(wallet)) &&
+                        !wallet.isWatchOnly &&
+                        wallet.isEncrypted
+                      ) {
+                        @if (isWalletLocked(wallet)) {
+                          <mat-icon
+                            class="wallet-row-lock wallet-row-lock-action wallet-lock-encrypted-locked"
+                            (click)="onUnlockClick(wallet, $event)"
+                            [matTooltip]="'unlock_wallet_for_session_tooltip' | i18n"
+                            >lock</mat-icon
+                          >
+                        } @else {
+                          <mat-icon
+                            class="wallet-row-lock wallet-row-lock-action wallet-lock-encrypted-unlocked"
+                            (click)="onLockClick(wallet, $event)"
+                            [matTooltip]="'lock_wallet_tooltip' | i18n"
+                            >lock_open</mat-icon
+                          >
+                        }
+                      } @else if (!wallet.isWatchOnly) {
+                        <span class="wallet-row-lock-placeholder"></span>
+                      }
+                      <!-- Column 5: Load (unloaded) / Eject (loaded) action -->
+                      @if (wallet.isLoaded) {
                         <mat-icon
-                          class="wallet-row-lock wallet-row-lock-action wallet-lock-encrypted-locked"
-                          (click)="onUnlockClick(wallet, $event)"
-                          [matTooltip]="'unlock_wallet_for_session_tooltip' | i18n"
-                          >lock</mat-icon
+                          class="wallet-row-eject"
+                          (click)="ejectWallet(wallet, $event)"
+                          matTooltip="{{ 'unload_wallet' | i18n }}"
+                          >eject</mat-icon
                         >
                       } @else {
                         <mat-icon
-                          class="wallet-row-lock wallet-row-lock-action wallet-lock-encrypted-unlocked"
-                          (click)="onLockClick(wallet, $event)"
-                          [matTooltip]="'lock_wallet_tooltip' | i18n"
-                          >lock_open</mat-icon
+                          class="wallet-row-load"
+                          (click)="onLoadClick(wallet, $event)"
+                          matTooltip="{{ 'load_wallet' | i18n }}"
+                          >play_arrow</mat-icon
                         >
                       }
-                    } @else if (!wallet.isWatchOnly) {
-                      <span class="wallet-row-lock-placeholder"></span>
-                    }
-                    <!-- Column 5: Load (unloaded) / Eject (loaded) action -->
-                    @if (wallet.isLoaded) {
-                      <mat-icon
-                        class="wallet-row-eject"
-                        (click)="ejectWallet(wallet, $event)"
-                        matTooltip="{{ 'unload_wallet' | i18n }}"
-                        >eject</mat-icon
-                      >
-                    } @else {
-                      <mat-icon
-                        class="wallet-row-load"
-                        (click)="onLoadClick(wallet, $event)"
-                        matTooltip="{{ 'load_wallet' | i18n }}"
-                        >play_arrow</mat-icon
-                      >
-                    }
-                    <!-- Loading spinner -->
-                    @if (isWalletLoading(wallet.name)) {
-                      <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
-                    }
-                  </div>
-                </button>
-              }
+                      <!-- Loading spinner -->
+                      @if (isWalletLoading(wallet.name)) {
+                        <mat-spinner diameter="16" class="wallet-row-spinner"></mat-spinner>
+                      }
+                    </div>
+                  </button>
+                }
               }
             </mat-menu>
 

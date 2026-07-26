@@ -339,7 +339,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                   <span>{{ 'insufficient_balance' | i18n }}</span>
                 </div>
               }
-
             </div>
 
             <!-- Error Display -->

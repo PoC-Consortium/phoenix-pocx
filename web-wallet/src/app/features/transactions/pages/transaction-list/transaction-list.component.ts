@@ -1509,7 +1509,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       // Also refresh wallet service for balance updates
       this.walletService.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error) || this.i18n.get('bump_fee_error');
+      const message =
+        error instanceof Error ? error.message : String(error) || this.i18n.get('bump_fee_error');
       this.notification.error(message);
     }
   }
@@ -1554,7 +1555,8 @@ export class TransactionListComponent implements OnInit, OnDestroy {
       this.loadTransactions();
       this.walletService.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error) || this.i18n.get('cpfp_error');
+      const message =
+        error instanceof Error ? error.message : String(error) || this.i18n.get('cpfp_error');
       this.notification.error(message);
     }
   }
