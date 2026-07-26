@@ -180,10 +180,6 @@ interface CosignerEntry {
                   [disabled]="creating()"
                   (regenerate)="generateMnemonic()"
                 ></app-mnemonic-display>
-
-                <mat-checkbox [(ngModel)]="mnemonicWrittenDown" class="confirm-checkbox">
-                  {{ 'confirm_backup_written' | i18n }}
-                </mat-checkbox>
               } @else {
                 <p class="info-text">{{ 'msig_restore_info' | i18n }}</p>
                 <app-mnemonic-entry
@@ -203,6 +199,14 @@ interface CosignerEntry {
                 [(passphrase)]="bip39Word"
                 [(passphraseConfirm)]="bip39WordConfirm"
               />
+
+              @if (seedMode === 'new') {
+                <!-- The ack comes LAST (create-flow order): the 25th word is
+                     part of what gets written down. -->
+                <mat-checkbox [(ngModel)]="mnemonicWrittenDown" class="confirm-checkbox">
+                  {{ 'confirm_backup_written' | i18n }}
+                </mat-checkbox>
+              }
 
               <div class="step-actions">
                 <button mat-button (click)="prevStep()" [disabled]="creating()">
