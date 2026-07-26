@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "अज्ञात त्रुटि",
   "all": "सभी",
   "amount": "राशि",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "राशि (वैकल्पिक)",
   "assignment_active": "असाइनमेंट सक्रिय है और फोर्जिंग सक्षम है",
   "assignment_created_success": "असाइनमेंट सफलतापूर्वक बनाया गया",

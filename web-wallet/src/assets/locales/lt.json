@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Nežinoma klaida",
   "all": "Visi",
   "amount": "Suma",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Suma (neprivaloma)",
   "assignment_active": "Priskyrimas aktyvus ir kalimas ijungtas",
   "assignment_created_success": "Priskyrimas sekmingai sukurtas",

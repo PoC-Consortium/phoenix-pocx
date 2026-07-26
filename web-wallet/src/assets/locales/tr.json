@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Bilinmeyen hata",
   "all": "Tümü",
   "amount": "Miktar",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Miktar (İsteğe Bağlı)",
   "assignment_active": "Atama aktif ve dövme etkin",
   "assignment_created_success": "Atama başarıyla oluşturuldu",

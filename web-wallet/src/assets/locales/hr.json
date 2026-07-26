@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Nepoznata greška",
   "all": "Sve",
   "amount": "Iznos",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Iznos (Neobavezno)",
   "assignment_active": "Dodjela je aktivna i kovanje je omoguceno",
   "assignment_created_success": "Dodjela uspjesno kreirana",

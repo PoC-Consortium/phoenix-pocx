@@ -25,8 +25,8 @@ interface Contact {
   address: string;
   createdAt: number;
 }
-import { AddressDisplayComponent, PassphraseDialogComponent } from '../../../../shared';
-import type { PassphraseDialogResult } from '../../../../shared';
+import { AddressDisplayComponent } from '../../../../shared';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import { NotificationService } from '../../../../shared/services';
 import { WalletManagerService } from '../../../../bitcoin/services/wallet/wallet-manager.service';
 import { WalletService } from '../../../../bitcoin/services/wallet/wallet.service';
@@ -34,7 +34,10 @@ import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.se
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { SendConfirmDialogComponent } from '../../components/send-confirm-dialog/send-confirm-dialog.component';
 import { Store } from '@ngrx/store';
-import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
+import {
+  validatePocxAddress,
+  dustThresholdSats,
+} from '../../../../bitcoin/utils/address-validation';
 import { parsePaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
@@ -337,6 +340,13 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                 <div class="balance-warning">
                   <mat-icon>warning</mat-icon>
                   <span>{{ 'insufficient_balance' | i18n }}</span>
+                </div>
+              }
+
+              @if (dustShortfall(); as dustMin) {
+                <div class="balance-warning">
+                  <mat-icon>warning</mat-icon>
+                  <span>{{ 'amount_below_dust' | i18n: { sats: dustMin } }}</span>
                 </div>
               }
             </div>
@@ -1054,6 +1064,7 @@ export class SendComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly location = inject(Location);
   private readonly dialog = inject(MatDialog);
+  private readonly walletUnlock = inject(WalletUnlockService);
   private readonly i18n = inject(I18nService);
   private readonly store = inject(Store);
   readonly network = toSignal(this.store.select(selectNetwork), { initialValue: 'mainnet' });
@@ -1323,8 +1334,22 @@ export class SendComponent implements OnInit, OnDestroy {
       this.amount > 0 &&
       this.selectedFeeOption &&
       hasFeeRate &&
-      this.hasSufficientBalance()
+      this.hasSufficientBalance() &&
+      this.dustShortfall() === null
     );
+  }
+
+  /**
+   * Dust pre-check: the threshold (sat) the entered amount falls short of,
+   * or null when fine — catches a below-dust send with a friendly message
+   * BEFORE the backend rejects it with a raw relay error. Threshold is per
+   * output type (P2WPKH 294, P2TR/P2WSH 330, legacy 546).
+   */
+  dustShortfall(): number | null {
+    if (!this.amount || this.amount <= 0 || !this.addressValid()) return null;
+    const sats = Math.round(this.amount * 100_000_000);
+    const threshold = dustThresholdSats(this.recipientAddress);
+    return sats < threshold ? threshold : null;
   }
 
   /**
@@ -1370,35 +1395,6 @@ export class SendComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
-    if (this.isRemote()) {
-      // Local wallet: only a passphrase-encrypted seed can be locked.
-      const status = await this.btcxWallet.refreshStatus();
-      if (status?.seed !== 'locked') return true;
-      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-        width: '400px',
-        data: { walletName, timeout: 60 },
-      });
-      const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-      if (!result) return false; // user cancelled
-      await this.btcxWallet.unlock(result.passphrase);
-      return true;
-    }
-
-    const info = await this.walletRpc.getWalletInfo(walletName);
-    if (info.unlocked_until === undefined || info.unlocked_until > 0) {
-      return true; // not encrypted, or already unlocked
-    }
-    const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-      width: '400px',
-      data: { walletName, timeout: 60 },
-    });
-    const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-    if (!result) return false; // user cancelled
-    await this.walletRpc.walletPassphrase(walletName, result.passphrase, result.timeout);
-    return true;
-  }
-
   async sendTransaction(): Promise<void> {
     if (this.sending()) return;
     // Final validation gate — paste + immediate click can bypass the input event.
@@ -1410,7 +1406,7 @@ export class SendComponent implements OnInit, OnDestroy {
     this.sendError.set(null);
 
     try {
-      if (!(await this.ensureWalletUnlocked(walletName))) {
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) {
         this.sending.set(false);
         return;
       }
@@ -1435,7 +1431,13 @@ export class SendComponent implements OnInit, OnDestroy {
       // Refresh wallet state so dashboard shows updated balance immediately
       this.walletService.refresh();
     } catch (error) {
-      const message = error instanceof Error ? error.message : this.i18n.get('transaction_failed');
+      // Tauri command rejections are plain STRINGS, not Error instances —
+      // stringify them so the real backend reason (e.g. BDK's dust-limit
+      // message) reaches the banner instead of a generic "failed".
+      const message =
+        error instanceof Error
+          ? error.message
+          : String(error) || this.i18n.get('transaction_failed');
       this.sendError.set(message);
     } finally {
       this.sending.set(false);

@@ -21,8 +21,7 @@ import { I18nPipe, I18nService } from '../../../../core/i18n';
 import { HashTruncatePipe } from '../../../../shared/pipes';
 import { DecimalInputDirective } from '../../../../shared/directives';
 import { Contact, ContactsStoreService, NotificationService } from '../../../../shared/services';
-import { PassphraseDialogComponent } from '../../../../shared';
-import type { PassphraseDialogResult } from '../../../../shared';
+import { WalletUnlockService } from '../../../../shared/services/wallet-unlock.service';
 import {
   ConfirmDialogComponent,
   ConfirmDialogData,
@@ -853,6 +852,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly notifications = inject(NotificationService);
   private readonly dialog = inject(MatDialog);
+  private readonly walletUnlock = inject(WalletUnlockService);
   private readonly store = inject(Store);
 
   /** Remote (Electrum) mode: assignments run client-side, no node RPC. */
@@ -1223,40 +1223,6 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * Encrypted-wallet unlock, per mode (the unified send page's flow):
-   * remote checks the local seed lock, node mode the Core wallet's
-   * `unlocked_until`. Prompts with the shared passphrase dialog.
-   */
-  private async ensureWalletUnlocked(walletName: string): Promise<boolean> {
-    if (this.isRemote()) {
-      // Local wallet: only a passphrase-encrypted seed can be locked.
-      const status = await this.wallet.refreshStatus();
-      if (status?.seed !== 'locked') return true;
-      const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-        width: '400px',
-        data: { walletName, timeout: 60 },
-      });
-      const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-      if (!result) return false; // user cancelled
-      await this.wallet.unlock(result.passphrase);
-      return true;
-    }
-
-    const info = await this.walletRpc.getWalletInfo(walletName);
-    if (info.unlocked_until === undefined || info.unlocked_until > 0) {
-      return true; // not encrypted, or already unlocked
-    }
-    const dialogRef = this.dialog.open(PassphraseDialogComponent, {
-      width: '400px',
-      data: { walletName, timeout: 60 },
-    });
-    const result: PassphraseDialogResult | null = await dialogRef.afterClosed().toPromise();
-    if (!result) return false; // user cancelled
-    await this.walletRpc.walletPassphrase(walletName, result.passphrase, result.timeout);
-    return true;
-  }
-
   async create(): Promise<void> {
     if (!this.forgingValid() || this.busy()) return;
     const walletName = this.walletManager.activeWallet;
@@ -1266,7 +1232,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     }
     this.busy.set(true);
     try {
-      if (!(await this.ensureWalletUnlocked(walletName))) {
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) {
         return;
       }
       const feeRate = this.getSelectedFeeRate();
@@ -1318,7 +1284,7 @@ export class ForgingAssignmentComponent implements OnInit, OnDestroy {
     }
     this.busy.set(true);
     try {
-      if (!(await this.ensureWalletUnlocked(walletName))) {
+      if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) {
         return;
       }
       const feeRate = this.getSelectedFeeRate();

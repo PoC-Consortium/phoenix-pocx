@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Eroare necunoscută",
   "all": "Toate",
   "amount": "Sumă",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Sumă (Opțional)",
   "assignment_active": "Atribuirea este activă și forjarea este activată",
   "assignment_created_success": "Atribuirea a fost creată cu succes",

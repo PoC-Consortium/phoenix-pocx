@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Nieznany błąd",
   "all": "Wszystkie",
   "amount": "Kwota",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Kwota (Opcjonalnie)",
   "assignment_active": "Przypisanie jest aktywne i forging jest wlaczony",
   "assignment_created_success": "Przypisanie utworzone pomyslnie",

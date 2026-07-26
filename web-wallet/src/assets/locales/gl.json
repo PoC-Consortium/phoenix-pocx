@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Erro descoñecido",
   "all": "Todo",
   "amount": "Cantidade",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Cantidade (Opcional)",
   "assignment_active": "A asignación está activa e a forxa está habilitada",
   "assignment_created_success": "Asignación creada con éxito",

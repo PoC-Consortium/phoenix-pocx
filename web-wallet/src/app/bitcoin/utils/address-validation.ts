@@ -66,3 +66,31 @@ export function validatePocxAddress(raw: string): AddressValidation {
   }
   return { kind: 'invalid_format' };
 }
+
+/**
+ * Dust threshold (sat) of an output paying `address` — Core's
+ * GetDustThreshold at the default 3 sat/vB dustrelayfee: P2WPKH 294,
+ * P2WSH/P2TR 330, P2PKH 546, P2SH 540. Unknown or invalid input returns
+ * the conservative 546 (callers gate on a VALID address anyway).
+ */
+export function dustThresholdSats(raw: string): number {
+  const addr = raw.trim().toLowerCase();
+  for (const consts of Object.values(POCX_NETWORKS)) {
+    if (!addr.startsWith(consts.hrp + '1')) continue;
+    const versionChar = addr[consts.hrp.length + 1];
+    if (versionChar === 'p') return 330; // taproot
+    if (versionChar === 'q') {
+      try {
+        const decoded = bech32.decode(addr as `${string}1${string}`);
+        const program = bech32.fromWords(decoded.words.slice(1));
+        return program.length === 20 ? 294 : 330; // P2WPKH vs P2WSH
+      } catch {
+        return 546;
+      }
+    }
+    return 546;
+  }
+  const validation = validatePocxAddress(raw);
+  if (validation.kind === 'valid' && validation.type === 'P2SH') return 540;
+  return 546;
+}

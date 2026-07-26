@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Неизвестная ошибка",
   "all": "Все",
   "amount": "Сумма",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Сумма (необязательно)",
   "assignment_active": "Назначение активно, форжинг включен",
   "assignment_created_success": "Назначение успешно создано",

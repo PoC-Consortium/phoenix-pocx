@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Неизвестна грешка",
   "all": "Всички",
   "amount": "Количество",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Сума (незадължително)",
   "assignment_active": "Възлагането е активно, коването е разрешено",
   "assignment_created_success": "Възлагането на ковашки права е създадено успешно",

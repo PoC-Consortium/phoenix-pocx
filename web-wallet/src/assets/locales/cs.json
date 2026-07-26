@@ -57,6 +57,7 @@
   "aggregator_unknown_error": "Neznámá chyba",
   "all": "Vse",
   "amount": "Castka",
+  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Castka (Volitelne)",
   "assignment_active": "Prirazeni je aktivni a kovani je povoleno",
   "assignment_created_success": "Prirazeni uspesne vytvoreno",
