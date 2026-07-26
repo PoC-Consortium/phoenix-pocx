@@ -79,6 +79,7 @@ tauri-plugin-http = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+fs4 = "0.13"
 dirs = "6"
 log = "0.4"
 log4rs = "1"
