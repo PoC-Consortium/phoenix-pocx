@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "不明なエラー",
   "all": "すべて",
   "amount": "金額",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "金額（任意）",
   "assignment_active": "割り当てはアクティブで、フォージングが有効です",
   "assignment_created_success": "割り当てが正常に作成されました",

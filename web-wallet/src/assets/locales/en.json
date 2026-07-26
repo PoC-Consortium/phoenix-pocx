@@ -51,7 +51,6 @@
   "aggregator_unknown_error": "Unknown error",
   "all": "All",
   "amount": "Amount",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Amount (Optional)",
   "assignment_active": "Assignment is active and forging is enabled",
   "assignment_created_success": "Assignment created successfully",

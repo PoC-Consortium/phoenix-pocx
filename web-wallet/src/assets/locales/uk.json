@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Невідома помилка",
   "all": "Усі",
   "amount": "Сума",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Сума (необов'язково)",
   "assignment_active": "Призначення активне, ковка увімкнена",
   "assignment_created_success": "Призначення ковки успішно створено",

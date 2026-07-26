@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Tuntematon virhe",
   "all": "Kaikki",
   "amount": "Maara",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Maara (valinnainen)",
   "assignment_active": "Siirto on aktiivinen ja takonta on kaynnissa",
   "assignment_created_success": "Siirto luotu onnistuneesti",

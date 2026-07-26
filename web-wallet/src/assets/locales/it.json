@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Errore sconosciuto",
   "all": "Tutti",
   "amount": "Importo",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Importo (Opzionale)",
   "assignment_active": "L'assegnazione e attiva e il forging e abilitato",
   "assignment_created_success": "Assegnazione creata con successo",

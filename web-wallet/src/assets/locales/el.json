@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Άγνωστο σφάλμα",
   "all": "Όλα",
   "amount": "Ποσό",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Ποσό (Προαιρετικό)",
   "assignment_active": "Η ανάθεση είναι ενεργή και η σφυρηλάτηση είναι ενεργοποιημένη",
   "assignment_created_success": "Η ανάθεση δημιουργήθηκε επιτυχώς",

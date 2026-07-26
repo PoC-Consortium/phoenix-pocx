@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Error tidak diketahui",
   "all": "Semua",
   "amount": "Jumlah",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Jumlah (Opsional)",
   "assignment_active": "Penugasan aktif dan forging diaktifkan",
   "assignment_created_success": "Penugasan berhasil dibuat",

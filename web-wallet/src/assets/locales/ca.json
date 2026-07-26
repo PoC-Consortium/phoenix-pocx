@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Error desconegut",
   "all": "Tots",
   "amount": "Import",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Import (Opcional)",
   "assignment_active": "L'assignació és activa i la forja està habilitada",
   "assignment_created_success": "Assignació creada amb èxit",

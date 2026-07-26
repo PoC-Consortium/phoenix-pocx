@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Error desconocido",
   "all": "Todos",
   "amount": "Monto",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Monto (Opcional)",
   "assignment_active": "La asignación está activa y la forja está habilitada",
   "assignment_created_success": "Asignación creada exitosamente",

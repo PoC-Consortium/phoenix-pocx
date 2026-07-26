@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "未知错误",
   "all": "全部",
   "amount": "金额",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "金额（可选）",
   "assignment_active": "分配已激活且锻造已启用",
   "assignment_created_success": "分配创建成功",

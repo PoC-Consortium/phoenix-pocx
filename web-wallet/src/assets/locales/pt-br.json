@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Erro desconhecido",
   "all": "Todos",
   "amount": "Valor",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Valor (Opcional)",
   "assignment_active": "A atribuição está ativa e o forjamento está habilitado",
   "assignment_created_success": "Atribuição criada com sucesso",

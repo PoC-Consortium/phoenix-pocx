@@ -34,10 +34,7 @@ import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.se
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { SendConfirmDialogComponent } from '../../components/send-confirm-dialog/send-confirm-dialog.component';
 import { Store } from '@ngrx/store';
-import {
-  validatePocxAddress,
-  dustThresholdSats,
-} from '../../../../bitcoin/utils/address-validation';
+import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { parsePaymentUri } from '../../../../bitcoin/utils/payment-uri';
 import { selectNetwork } from '../../../../store/settings/settings.selectors';
 import type { Network } from '../../../../store/settings/settings.state';
@@ -343,12 +340,6 @@ const SANE_PRESET_MAX_SAT_VB = 200;
                 </div>
               }
 
-              @if (dustShortfall(); as dustMin) {
-                <div class="balance-warning">
-                  <mat-icon>warning</mat-icon>
-                  <span>{{ 'amount_below_dust' | i18n: { sats: dustMin } }}</span>
-                </div>
-              }
             </div>
 
             <!-- Error Display -->
@@ -1334,22 +1325,8 @@ export class SendComponent implements OnInit, OnDestroy {
       this.amount > 0 &&
       this.selectedFeeOption &&
       hasFeeRate &&
-      this.hasSufficientBalance() &&
-      this.dustShortfall() === null
+      this.hasSufficientBalance()
     );
-  }
-
-  /**
-   * Dust pre-check: the threshold (sat) the entered amount falls short of,
-   * or null when fine — catches a below-dust send with a friendly message
-   * BEFORE the backend rejects it with a raw relay error. Threshold is per
-   * output type (P2WPKH 294, P2TR/P2WSH 330, legacy 546).
-   */
-  dustShortfall(): number | null {
-    if (!this.amount || this.amount <= 0 || !this.addressValid()) return null;
-    const sats = Math.round(this.amount * 100_000_000);
-    const threshold = dustThresholdSats(this.recipientAddress);
-    return sats < threshold ? threshold : null;
   }
 
   /**
@@ -1433,12 +1410,15 @@ export class SendComponent implements OnInit, OnDestroy {
     } catch (error) {
       // Tauri command rejections are plain STRINGS, not Error instances —
       // stringify them so the real backend reason (e.g. BDK's dust-limit
-      // message) reaches the banner instead of a generic "failed".
+      // message) reaches the user instead of a generic "failed". The
+      // backend is the single source of truth for WHY a send is invalid;
+      // no client-side pre-checks.
       const message =
         error instanceof Error
           ? error.message
           : String(error) || this.i18n.get('transaction_failed');
       this.sendError.set(message);
+      this.notification.error(message);
     } finally {
       this.sending.set(false);
     }

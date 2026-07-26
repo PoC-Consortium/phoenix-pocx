@@ -57,7 +57,6 @@
   "aggregator_unknown_error": "Unbekannter Fehler",
   "all": "Alle",
   "amount": "Betrag",
-  "amount_below_dust": "Amount is below the dust threshold — this address type needs at least {sats} sat.",
   "amount_optional": "Betrag (Optional)",
   "assignment_active": "Zuweisung ist aktiv und Forging ist aktiviert",
   "assignment_created_success": "Zuweisung erfolgreich erstellt",
