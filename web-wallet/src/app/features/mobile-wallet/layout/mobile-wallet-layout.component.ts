@@ -322,7 +322,7 @@ interface NavGroup {
                     importLink="/wallet/import"
                     (selectGroup)="switchToGroup($event)"
                     (requestClose)="walletMenuTrigger.closeMenu()"
-                  /></mat-menu>
+                /></mat-menu>
 
                 <!-- Pocket chip (icon-only): the active wallet's
                      compartments, greyed out while nothing is open or

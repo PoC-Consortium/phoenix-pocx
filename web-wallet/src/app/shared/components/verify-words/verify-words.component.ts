@@ -132,9 +132,7 @@ export class VerifyWordsComponent {
 
   /** True once every requested word is typed correctly. */
   passed(): boolean {
-    return (
-      this.verifyIndices.length > 0 && this.verifyIndices.every((_, i) => this.wordCorrect(i))
-    );
+    return this.verifyIndices.length > 0 && this.verifyIndices.every((_, i) => this.wordCorrect(i));
   }
 
   updateSuggestions(index: number, value: string): void {
