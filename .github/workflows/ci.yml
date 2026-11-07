@@ -160,4 +160,8 @@ jobs:
         # tauri -> plist 1.9.0 (latest); plist only parses our own bundle
         # metadata, not attacker-controlled XML. Drop the ignores once a
         # plist release depends on quick-xml >= 0.41.
-        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195
+        # RUSTSEC-2026-0381: webpki-roots 0.25 (distrusted emSign roots still
+        # bundled) via electrum-client 0.21 <- electrum-btcx (pinned btcx rev).
+        # The 1.x copy reqwest uses is already >= 1.0.10. Drop the ignore once
+        # the btcx pin moves to an electrum-client on webpki-roots 1.x.
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195 --ignore RUSTSEC-2026-0381

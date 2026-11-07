@@ -124,7 +124,11 @@ fn extract_from_zip(archive_path: &Path, dest: &Path) -> Result<(), String> {
 
     for i in 0..archive.len() {
         if let Ok(entry) = archive.by_index(i) {
-            let name = entry.name();
+            // zip 9: the name decodes lazily (cp437/UTF-8) and can fail for
+            // a malformed entry — skip those, they cannot be bitcoind.
+            let Ok(name) = entry.name() else {
+                continue;
+            };
             if name.ends_with(BITCOIND_BINARY) && !name.contains("test") {
                 bitcoind_entry_name = Some(name.to_string());
                 break;

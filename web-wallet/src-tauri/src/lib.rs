@@ -1164,6 +1164,7 @@ pub fn run() {
             btcx_wallet::commands::btcx_psbt_combine,
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_create_funded_psbt,
+            #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_commit_tx,
             #[cfg(feature = "wallet")]
             btcx_wallet::commands::btcx_wallet_utxos,

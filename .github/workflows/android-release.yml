@@ -1,7 +1,12 @@
 name: Android Release
 
 on:
-  workflow_dispatch:  # Manual trigger only, no inputs needed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build for and upload to (e.g. v2.4.1). Leave empty for the latest release — which may be a DRAFT, so pin it when a release is being staged.'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -44,18 +49,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Get latest release tag
+      - name: Resolve release tag
         id: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
+          # An explicit tag wins (the staging flow: release.yml drafted it,
+          # the APKs are attached BEFORE publish). Without one, fall back to
+          # the newest release — note that `gh release list` orders by
+          # creation date and includes drafts.
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+            gh release view "$TAG" --repo ${{ github.repository }} --json tagName > /dev/null
+          else
+            TAG=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
+          fi
           if [ -z "$TAG" ]; then
             echo "No release found!"
             exit 1
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "Found latest release: $TAG"
+          echo "Building for release: $TAG"
 
       - name: Compute version identity
         id: version
