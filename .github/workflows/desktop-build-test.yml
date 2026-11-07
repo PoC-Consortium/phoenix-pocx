@@ -135,6 +135,10 @@ jobs:
           # Extract AppImage
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
+          # --appimage-extract creates 0700 dirs / 0770 binaries; current
+          # appimagetool refuses to pack anything other users cannot read
+          # and execute ("found 1 ERROR(S) in the AppDir", 2026-11).
+          chmod -R a+rX squashfs-root
 
           # Remove hardware-specific EGL libraries (must come from host GPU driver)
           echo "Removing bundled EGL libraries..."
@@ -289,6 +293,11 @@ jobs:
 
       - name: Submit macOS DMG for notarization
         if: matrix.os_name == 'macOS'
+        # Submission can fail for reasons outside the build (e.g. Apple's
+        # 403 "required agreement missing or expired" until the developer
+        # agreement is re-accepted). The DMG is already signed; let it
+        # upload and notarize + staple later via staple-notarization.yml.
+        continue-on-error: true
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
