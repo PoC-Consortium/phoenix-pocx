@@ -105,6 +105,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default list is "tools platform-tools"; the legacy
+          # `tools` package is gone from the SDK repository (sdkmanager exits
+          # 1 on the Ubuntu 26 runner image, 2026-11). Everything else
+          # (build-tools, platforms) is pulled by Gradle; the NDK below.
+          packages: platform-tools
 
       - name: Install Android NDK
         run: |
