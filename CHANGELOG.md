@@ -1,3 +1,18 @@
+# Phoenix Wallet 2.4.1
+
+A safety patch for sending. Everyone using nodeless (Electrum) mode should update before their next send.
+
+## Fixed
+
+- **"Subtract fee from amount" in nodeless mode sent the whole wallet.** With the toggle on, the typed amount was ignored and every coin in the wallet went to the recipient (issue #222 — a 200 sat test send swept ~2000 BTCX). The option now means what it says on both backends: the fee comes out of the amount you typed, the rest stays in your wallet, and a send too small to pay its own fee is refused outright. Local-node (Core) mode was never affected.
+- **You now confirm the real transaction.** The confirm dialog used to show the wallet's own estimate, and the actual transaction was only built after you confirmed. The wallet now builds the transaction first and shows exactly what will be signed — the amount the recipient receives, the fee with its rate and size, change returning to your wallet, the number of inputs, and the total leaving the wallet. Nothing is signed until you confirm; cancelling moves nothing.
+- **Sent transactions show up immediately in nodeless mode** — balance, activity and fee-bump availability no longer wait for the next sync.
+- **Transaction Builder (nodeless):** "Max" on an output takes the fee out of that output the way Core does, and change is labelled as change in the review step.
+
+## Maintenance
+
+- Dependency refresh for the security audits (Angular 21.2.26, zip 9, rustls/h2 lines). The Android release workflow can be pinned to a release tag.
+
 # Phoenix Wallet 2.4.0
 
 The wallet-lifecycle release: creating, restoring and switching wallets is now ONE set of flows across desktop and mobile, Core and Electrum — plus a structural fix that makes running several Phoenix instances safe.
