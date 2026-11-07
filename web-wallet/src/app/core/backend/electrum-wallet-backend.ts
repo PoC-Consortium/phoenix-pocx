@@ -10,6 +10,9 @@ import {
   WalletCapabilities,
   WalletCoin,
   ELECTRUM_CAPABILITIES,
+  PreparedSend,
+  PreparedSendInput,
+  PreparedSendOutput,
 } from './wallet-backend.model';
 
 const SATS_PER_BTC = 100_000_000;
@@ -136,28 +139,77 @@ export class ElectrumWalletBackend implements WalletBackend {
     }));
   }
 
-  async sendToAddress(
+  async prepareSend(
     _walletName: string,
     address: string,
     amount: number,
     options: WalletBackendSendOptions = {}
-  ): Promise<string> {
-    // subtractFeeFromAmount is the "send max" affordance — BDK expresses it
-    // as a sweep (fee off the swept amount).
-    if (options.subtractFeeFromAmount) {
-      return this.btcxWallet.send({
-        address,
-        sendAll: true,
-        feeRateSatVb: options.feeRate,
-        feeTarget: options.feeRate === undefined ? (options.confTarget ?? 6) : undefined,
-      });
-    }
-    return this.btcxWallet.send({
-      address,
-      amountSat: Math.round(amount * SATS_PER_BTC),
-      feeRateSatVb: options.feeRate,
-      feeTarget: options.feeRate === undefined ? (options.confTarget ?? 6) : undefined,
+  ): Promise<PreparedSend> {
+    // The client-side walletcreatefundedpsbt over the local BDK wallet.
+    // subtractFeeOutput 0 carries Core's subtract-fee semantics (fee out of
+    // the recipient output, change kept) — NOT a sweep. Issue #222: the old
+    // path mapped the flag to a whole-wallet sweep regardless of amount.
+    const psbt = await this.btcxWallet.createFundedPsbt(
+      [{ address, amountSat: Math.round(amount * SATS_PER_BTC) }],
+      options.feeRate,
+      options.subtractFeeFromAmount ? { subtractFeeOutput: 0 } : undefined
+    );
+    const [decoded, analysis] = await Promise.all([
+      this.btcxWallet.psbtDecode(psbt),
+      this.btcxWallet.psbtAnalyze(psbt),
+    ]);
+
+    const inputs: PreparedSendInput[] = decoded.vin.map((vin, i) => {
+      const meta = decoded.inputs[i];
+      return {
+        txid: vin.txid,
+        vout: vin.vout,
+        amount: meta?.utxoValueSat != null ? meta.utxoValueSat / SATS_PER_BTC : null,
+        address: meta?.utxoAddress ?? null,
+      };
     });
+    const outputs: PreparedSendOutput[] = decoded.vout.map(vout => ({
+      address: vout.address ?? null,
+      amount: vout.valueSat / SATS_PER_BTC,
+      isChange: vout.isChange,
+    }));
+    const recipient = outputs.find(o => !o.isChange && o.address === address);
+    if (!recipient) {
+      throw new Error('The prepared transaction has no output for the recipient');
+    }
+    if (decoded.feeSat == null) {
+      throw new Error('The prepared transaction has no fee information');
+    }
+    const fee = decoded.feeSat / SATS_PER_BTC;
+    const vsize = analysis.estimatedVsize ?? null;
+    const feeRateSatVb = analysis.estimatedFeeRateSatVb ?? (vsize ? decoded.feeSat / vsize : null);
+    const change = outputs.filter(o => o.isChange).reduce((sum, o) => sum + o.amount, 0);
+    const spent = outputs.filter(o => !o.isChange).reduce((sum, o) => sum + o.amount, 0);
+    return {
+      psbt,
+      recipientAddress: address,
+      recipientAmount: recipient.amount,
+      fee,
+      feeRateSatVb,
+      vsize,
+      inputs,
+      outputs,
+      change,
+      totalDebit: spent + fee,
+    };
+  }
+
+  async commitSend(_walletName: string, prepared: PreparedSend): Promise<string> {
+    // sign (bdk finalizes its own inputs as it signs) → finalize if needed
+    // → broadcast through the open wallet, which folds the spend in at once.
+    let signed = await this.btcxWallet.psbtProcess(prepared.psbt);
+    if (!signed.complete || !signed.hex) {
+      signed = await this.btcxWallet.psbtFinalize(signed.psbt);
+    }
+    if (!signed.complete || !signed.hex) {
+      throw new Error('The wallet could not fully sign the transaction');
+    }
+    return this.btcxWallet.commitTx(signed.hex);
   }
 
   async bumpFee(_walletName: string, txid: string, feeRateSatVb?: number): Promise<string> {

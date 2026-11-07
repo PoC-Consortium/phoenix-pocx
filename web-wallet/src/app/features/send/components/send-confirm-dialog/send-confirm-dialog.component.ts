@@ -6,12 +6,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { I18nPipe } from '../../../../core/i18n';
+import type { PreparedSend } from '../../../../core/backend/wallet-backend.model';
 
 export interface SendConfirmDialogData {
-  recipientAddress: string;
-  amount: number;
-  fee: number;
-  total: number;
+  /** The ACTUAL unsigned transaction the backend built — what gets signed on confirm. */
+  prepared: PreparedSend;
   subtractFee: boolean;
   /**
    * F5: when set (sat/vB), a server-resolved preset fee is abnormally high;
@@ -22,7 +21,8 @@ export interface SendConfirmDialogData {
 
 /**
  * Confirmation dialog for sending Bitcoin.
- * Shows transaction details and asks for final confirmation.
+ * Shows the prepared transaction — its real recipient amount, fee, change
+ * and inputs as the backend built it — and asks for final confirmation.
  */
 @Component({
   selector: 'app-send-confirm-dialog',
@@ -48,24 +48,42 @@ export interface SendConfirmDialogData {
 
       <div class="detail-row recipient-row">
         <span class="label">{{ 'recipient' | i18n }}:</span>
-        <span class="address-full">{{ data.recipientAddress }}</span>
+        <span class="address-full">{{ data.prepared.recipientAddress }}</span>
       </div>
-
       <div class="detail-row">
-        <span class="label">{{ 'amount' | i18n }}:</span>
-        <span class="value">{{ data.amount | number: '1.8-8' }} BTCX</span>
+        <span class="label">{{ 'recipient_receives' | i18n }}:</span>
+        <span class="value">{{ data.prepared.recipientAmount | number: '1.8-8' }} BTCX</span>
       </div>
-
       <div class="detail-row">
         <span class="label">{{ 'fee' | i18n }}:</span>
-        <span class="value">{{ data.fee | number: '1.8-8' }} BTCX</span>
+        <span class="value">
+          {{ data.prepared.fee | number: '1.8-8' }} BTCX
+          @if (data.prepared.feeRateSatVb != null && data.prepared.vsize != null) {
+            <span class="detail-sub">{{
+              'fee_rate_detail'
+                | i18n
+                  : {
+                      rate: (data.prepared.feeRateSatVb | number: '1.0-2') ?? '0',
+                      vsize: data.prepared.vsize,
+                    }
+            }}</span>
+          }
+        </span>
       </div>
-
+      @if (data.prepared.change > 0) {
+        <div class="detail-row">
+          <span class="label">{{ 'change_back_to_wallet' | i18n }}:</span>
+          <span class="value">{{ data.prepared.change | number: '1.8-8' }} BTCX</span>
+        </div>
+      }
+      <div class="detail-row">
+        <span class="label">{{ 'inputs' | i18n }}:</span>
+        <span class="value">{{ data.prepared.inputs.length }}</span>
+      </div>
       <mat-divider></mat-divider>
-
       <div class="detail-row total">
-        <span class="label">{{ 'total' | i18n }}:</span>
-        <span class="value">{{ data.total | number: '1.8-8' }} BTCX</span>
+        <span class="label">{{ 'total_deducted' | i18n }}:</span>
+        <span class="value">{{ data.prepared.totalDebit | number: '1.8-8' }} BTCX</span>
       </div>
 
       @if (data.subtractFee) {
@@ -151,6 +169,14 @@ export interface SendConfirmDialogData {
           font-family: monospace;
           font-weight: 500;
           color: rgb(0, 35, 65);
+          text-align: right;
+
+          .detail-sub {
+            display: block;
+            font-size: 11px;
+            font-weight: 400;
+            color: #666;
+          }
         }
 
         &.recipient-row {
@@ -251,6 +277,10 @@ export interface SendConfirmDialogData {
         .value,
         .address-full {
           color: #ffffff;
+        }
+
+        .value .detail-sub {
+          color: #aaa;
         }
 
         .address-full {

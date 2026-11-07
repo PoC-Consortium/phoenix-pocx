@@ -427,6 +427,10 @@ export interface BtcxPsbtDecode {
     address?: string;
     scriptHex: string;
     opReturn: boolean;
+    /** The open wallet owns this script. */
+    isMine: boolean;
+    /** The open wallet's change keychain owns this script. */
+    isChange: boolean;
   }[];
   inputs: {
     index: number;
@@ -1214,6 +1218,18 @@ export class BtcxWalletService {
   /** Merge signatures from several copies — client-side `combinepsbt`. */
   async psbtCombine(psbts: string[]): Promise<string> {
     return invoke<string>('btcx_psbt_combine', { psbts });
+  }
+
+  /**
+   * Broadcast a fully signed transaction through the OPEN wallet and fold
+   * it into the wallet at once (balance, activity, RBF eligibility) — the
+   * Send page's commit step. Unlike `broadcastTx` this needs the wallet
+   * open. Returns the txid. Throws on failure.
+   */
+  async commitTx(txHex: string): Promise<string> {
+    const txid = await invoke<string>('btcx_wallet_commit_tx', { txHex });
+    await this.refreshAll();
+    return txid;
   }
 
   /** Compose a funded UNSIGNED PSBT — client-side `walletcreatefundedpsbt`. */

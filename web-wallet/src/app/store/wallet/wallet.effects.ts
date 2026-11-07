@@ -131,27 +131,10 @@ export class WalletEffects {
     )
   );
 
-  /**
-   * Send transaction
-   */
-  sendTransaction$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(WalletActions.sendTransaction),
-      withLatestFrom(this.store.select(selectActiveWallet)),
-      exhaustMap(([{ address, amount, options }, walletName]) => {
-        if (!walletName) {
-          return of(WalletActions.sendTransactionFailure({ error: 'No active wallet' }));
-        }
-        return this.backendRouter
-          .wallet()
-          .sendToAddress(walletName, address, amount, options || {})
-          .then(
-            txid => WalletActions.sendTransactionSuccess({ txid }),
-            error => WalletActions.sendTransactionFailure({ error: error.message })
-          );
-      })
-    )
-  );
+  // Sends are not dispatched through the store: the Send page drives
+  // WalletService.prepareSend → confirm dialog → commitSend directly, so the
+  // confirmed transaction is the one that gets signed. The
+  // sendTransaction* actions stay for state bookkeeping only.
 
   /**
    * Refresh all data after sending transaction

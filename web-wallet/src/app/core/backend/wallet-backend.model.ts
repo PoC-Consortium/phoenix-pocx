@@ -49,13 +49,25 @@ export interface WalletBackend {
    */
   listCoins(walletName: string): Promise<WalletCoin[]>;
 
-  /** Send `amount` BTC to `address`; returns the txid. */
-  sendToAddress(
+  /**
+   * Build the UNSIGNED transaction paying `amount` BTC to `address` and
+   * decode it — the Send page shows THIS (real inputs, outputs, change,
+   * fee) for confirmation, never its own estimate. Nothing is signed or
+   * broadcast; `commitSend` does that after the user confirms. Core:
+   * `walletcreatefundedpsbt` + `decodepsbt`; Electrum: the client-side
+   * counterparts over the local BDK wallet. `subtractFeeFromAmount` takes
+   * the fee out of the recipient output (Core's `subtractFeeFromOutputs`)
+   * in BOTH backends — the typed amount is what leaves the wallet.
+   */
+  prepareSend(
     walletName: string,
     address: string,
     amount: number,
     options?: WalletBackendSendOptions
-  ): Promise<string>;
+  ): Promise<PreparedSend>;
+
+  /** Sign, finalize and broadcast a prepared send; returns the txid. */
+  commitSend(walletName: string, prepared: PreparedSend): Promise<string>;
 
   /** RBF-bump a wallet transaction; returns the replacement txid. */
   bumpFee(walletName: string, txid: string, feeRateSatVb?: number): Promise<string>;
@@ -122,6 +134,45 @@ export interface WalletBackendDetails {
 }
 
 export type CoreAddressType = 'legacy' | 'p2sh-segwit' | 'bech32' | 'bech32m';
+
+/** One input of a prepared send (amounts in BTC). */
+export interface PreparedSendInput {
+  txid: string;
+  vout: number;
+  amount: number | null;
+  address: string | null;
+}
+
+/** One output of a prepared send (amounts in BTC). */
+export interface PreparedSendOutput {
+  address: string | null;
+  amount: number;
+  /** Returns to this wallet's change keychain. */
+  isChange: boolean;
+}
+
+/**
+ * The ACTUAL transaction a send will broadcast, as built and decoded by the
+ * backend — what the confirm dialog shows. Amounts in BTC.
+ */
+export interface PreparedSend {
+  /** Unsigned PSBT (base64) — the handle `commitSend` signs and broadcasts. */
+  psbt: string;
+  recipientAddress: string;
+  /** What the recipient output carries (typed amount minus fee when subtracting). */
+  recipientAmount: number;
+  fee: number;
+  /** sat/vB of the final transaction, when the backend can estimate it. */
+  feeRateSatVb: number | null;
+  /** Virtual size in vB, when the backend can estimate it. */
+  vsize: number | null;
+  inputs: PreparedSendInput[];
+  outputs: PreparedSendOutput[];
+  /** Sum of change outputs (0 when none). */
+  change: number;
+  /** Everything leaving the wallet for good: non-change outputs + fee. */
+  totalDebit: number;
+}
 
 export interface WalletBackendSendOptions {
   comment?: string;

@@ -33,6 +33,7 @@ import { WalletService } from '../../../../bitcoin/services/wallet/wallet.servic
 import { WalletRpcService } from '../../../../bitcoin/services/rpc/wallet-rpc.service';
 import { BlockchainRpcService } from '../../../../bitcoin/services/rpc/blockchain-rpc.service';
 import { SendConfirmDialogComponent } from '../../components/send-confirm-dialog/send-confirm-dialog.component';
+import type { PreparedSend } from '../../../../core/backend/wallet-backend.model';
 import { Store } from '@ngrx/store';
 import { validatePocxAddress } from '../../../../bitcoin/utils/address-validation';
 import { parsePaymentUri } from '../../../../bitcoin/utils/payment-uri';
@@ -1341,8 +1342,41 @@ export class SendComponent implements OnInit, OnDestroy {
     return option.feeRate > SANE_PRESET_MAX_SAT_VB;
   }
 
+  /**
+   * Send click: build the REAL transaction (unsigned) through the mode's
+   * backend and put ITS decoded inputs, outputs, change and fee in front of
+   * the user — not the page's 141 vB estimate. Nothing is signed or
+   * broadcast until they confirm (issue #222: the summary and the broadcast
+   * transaction must never disagree again).
+   */
   async confirmAndSend(): Promise<void> {
-    if (!this.canSubmit()) return;
+    if (!this.canSubmit() || this.sending()) return;
+    // Final validation gate — paste + immediate click can bypass the input event.
+    if (!this.validateAddress()) return;
+    if (!this.amount) return;
+
+    this.sending.set(true);
+    this.sendError.set(null);
+    let prepared: PreparedSend;
+    try {
+      // Use explicit fee_rate when available (custom or estimated), conf_target as fallback
+      const feeRate =
+        this.selectedFeeOption?.label === 'fee_custom'
+          ? (this.customFeeRate ?? undefined)
+          : (this.selectedFeeOption?.feeRate ?? undefined);
+
+      prepared = await this.walletService.prepareSend(this.recipientAddress, this.amount, {
+        subtractFeeFromAmount: this.subtractFee,
+        replaceable: this.enableRbf,
+        confTarget: this.selectedFeeOption?.blocks ?? 6,
+        feeRate,
+      });
+    } catch (error) {
+      this.failSend(error);
+      return;
+    } finally {
+      this.sending.set(false);
+    }
 
     // Center the dialog over the PAGE (the content area right of the docked
     // sidenav), not the full window — visually it belongs to the send form.
@@ -1354,10 +1388,7 @@ export class SendComponent implements OnInit, OnDestroy {
       width: `${dialogW}px`,
       position: { left: `${left}px` },
       data: {
-        recipientAddress: this.recipientAddress,
-        amount: this.amount,
-        fee: this.selectedFeeOption?.estimatedFee ?? 0,
-        total: this.getTotalAmount(),
+        prepared,
         subtractFee: this.subtractFee,
         // F5: when set, the dialog shows a high-fee warning and gates confirm
         // behind an explicit acknowledgement checkbox.
@@ -1367,38 +1398,24 @@ export class SendComponent implements OnInit, OnDestroy {
 
     const confirmed = await dialogRef.afterClosed().toPromise();
     if (confirmed) {
-      await this.sendTransaction();
+      await this.sendTransaction(prepared);
     }
   }
 
-  async sendTransaction(): Promise<void> {
+  /** Confirmed: sign, finalize and broadcast exactly the prepared transaction. */
+  async sendTransaction(prepared: PreparedSend): Promise<void> {
     if (this.sending()) return;
-    // Final validation gate — paste + immediate click can bypass the input event.
-    if (!this.validateAddress()) return;
     const walletName = this.walletManager.activeWallet;
-    if (!walletName || !this.amount) return;
+    if (!walletName) return;
 
     this.sending.set(true);
     this.sendError.set(null);
 
     try {
       if (!(await this.walletUnlock.ensureUnlockedForSigning(walletName))) {
-        this.sending.set(false);
         return;
       }
-      // Use explicit fee_rate when available (custom or estimated), conf_target as fallback
-      const feeRate =
-        this.selectedFeeOption?.label === 'fee_custom'
-          ? (this.customFeeRate ?? undefined)
-          : (this.selectedFeeOption?.feeRate ?? undefined);
-
-      // Routed through the mode's backend (Core RPC or the local BDK wallet).
-      const txid = await this.walletService.sendToAddress(this.recipientAddress, this.amount, {
-        subtractFeeFromAmount: this.subtractFee,
-        replaceable: this.enableRbf,
-        confTarget: this.selectedFeeOption?.blocks ?? 6,
-        feeRate,
-      });
+      const txid = await this.walletService.commitSend(prepared);
 
       this.sentTxid.set(txid);
       this.showSuccess.set(true);
@@ -1407,20 +1424,24 @@ export class SendComponent implements OnInit, OnDestroy {
       // Refresh wallet state so dashboard shows updated balance immediately
       this.walletService.refresh();
     } catch (error) {
-      // Tauri command rejections are plain STRINGS, not Error instances —
-      // stringify them so the real backend reason (e.g. BDK's dust-limit
-      // message) reaches the user instead of a generic "failed". The
-      // backend is the single source of truth for WHY a send is invalid;
-      // no client-side pre-checks.
-      const message =
-        error instanceof Error
-          ? error.message
-          : String(error) || this.i18n.get('transaction_failed');
-      this.sendError.set(message);
-      this.notification.error(message);
+      this.failSend(error);
     } finally {
       this.sending.set(false);
     }
+  }
+
+  /**
+   * Surface a prepare/commit failure. Tauri command rejections are plain
+   * STRINGS, not Error instances — stringify them so the real backend
+   * reason (e.g. BDK's dust-limit message) reaches the user instead of a
+   * generic "failed". The backend is the single source of truth for WHY a
+   * send is invalid; no client-side pre-checks.
+   */
+  private failSend(error: unknown): void {
+    const message =
+      error instanceof Error ? error.message : String(error) || this.i18n.get('transaction_failed');
+    this.sendError.set(message);
+    this.notification.error(message);
   }
 
   resetForm(): void {

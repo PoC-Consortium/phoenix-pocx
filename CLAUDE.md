@@ -200,6 +200,16 @@ failover).
    Logout locks (btcx_wallet_lock). Signing pre-flight everywhere:
    `WalletUnlockService.ensureUnlockedForSigning` (send, assignments,
    PSBT, RBF, CPFP).
+6. **Send = prepare → confirm → commit** (issue #222): the Send page never
+   confirms its own estimate. `WalletBackend.prepareSend` builds the
+   UNSIGNED tx (`walletcreatefundedpsbt` / `btcx_wallet_create_funded_psbt`)
+   and decodes it; the dialog shows the real recipient amount, fee, change
+   and inputs; `commitSend` signs + finalizes + broadcasts that exact PSBT
+   (`btcx_wallet_commit_tx` folds it into the open BDK wallet at once).
+   "Subtract fee from amount" means Core's `subtractFeeFromOutputs` on BOTH
+   backends (fee out of the recipient output, change kept — `psbt.rs`
+   `build_subtract_fee`, three deterministic bdk passes); the old
+   remote-mode mapping to a whole-wallet sweep is gone.
 
 ### Node Layer (Managed Node)
 The node module provides optional managed node functionality:
