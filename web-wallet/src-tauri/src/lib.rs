@@ -1,3 +1,9 @@
+// clippy 1.99 (CI stable) flags `Result<_, ()>` returns (result_unit_err).
+// Eleven Tauri commands in mining/aggregator use exactly that as their IPC
+// contract (the frontend treats any rejection as "failed"); changing the
+// error type is a wire change, not a lint fix — allowed crate-wide.
+#![allow(clippy::result_unit_err)]
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
