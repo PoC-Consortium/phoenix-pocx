@@ -6,6 +6,7 @@ import { CookieAuthService } from '../../../core/auth/cookie-auth.service';
 import { TransactionStateService } from '../transaction-state.service';
 import { NodeService } from '../../../node/services/node.service';
 import { BackendRouterService } from '../../../core/backend/backend-router.service';
+import type { PreparedSend } from '../../../core/backend/wallet-backend.model';
 import { BtcxWalletService } from '../../../core/services/btcx-wallet.service';
 
 /**
@@ -309,18 +310,30 @@ export class WalletService implements OnDestroy {
   // ============================================================
 
   /**
-   * Send bitcoin to an address
+   * Build and decode the transaction a send WOULD broadcast — nothing is
+   * signed or sent. The Send page confirms this, not an estimate.
    */
-  async sendToAddress(address: string, amount: number, options: SendOptions = {}): Promise<string> {
+  async prepareSend(
+    address: string,
+    amount: number,
+    options: SendOptions = {}
+  ): Promise<PreparedSend> {
     const walletName = this.requireActiveWallet();
-
-    const txid = await this.backendRouter.wallet().sendToAddress(walletName, address, amount, {
+    return this.backendRouter.wallet().prepareSend(walletName, address, amount, {
       comment: options.comment,
       subtractFeeFromAmount: options.subtractFeeFromAmount,
       replaceable: options.replaceable ?? true,
       confTarget: options.confTarget ?? 6,
       feeRate: options.feeRate,
     });
+  }
+
+  /**
+   * Sign, finalize and broadcast a prepared send; returns the txid.
+   */
+  async commitSend(prepared: PreparedSend): Promise<string> {
+    const walletName = this.requireActiveWallet();
+    const txid = await this.backendRouter.wallet().commitSend(walletName, prepared);
 
     // Refresh state after sending
     await this.refresh();

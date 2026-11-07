@@ -269,12 +269,24 @@ fn regtest_end_to_end() {
     {
         let entry = handle.lock().unwrap();
         assert_eq!(
-            tx_display_address(&entry, WalletNetwork::Regtest, &activity[0]).as_deref(),
+            tx_display_address(
+                &entry,
+                WalletNetwork::Regtest,
+                &activity[0],
+                &tx_of(&entry, &activity[0].txid)
+            )
+            .as_deref(),
             Some(miner_addr.as_str()),
             "sent entry shows the counterparty output address"
         );
         assert_eq!(
-            tx_display_address(&entry, WalletNetwork::Regtest, &activity[1]).as_deref(),
+            tx_display_address(
+                &entry,
+                WalletNetwork::Regtest,
+                &activity[1],
+                &tx_of(&entry, &activity[1].txid)
+            )
+            .as_deref(),
             Some(address.as_str()),
             "received entry shows our receiving address"
         );
@@ -304,7 +316,13 @@ fn regtest_end_to_end() {
     {
         let entry = handle.lock().unwrap();
         assert_eq!(
-            tx_display_address(&entry, WalletNetwork::Regtest, &activity[0]).as_deref(),
+            tx_display_address(
+                &entry,
+                WalletNetwork::Regtest,
+                &activity[0],
+                &tx_of(&entry, &activity[0].txid)
+            )
+            .as_deref(),
             Some(miner_addr.as_str()),
             "sweep entry shows the counterparty output address"
         );
@@ -494,6 +512,20 @@ fn regtest_verify_chain_runs_on_home_and_restore() {
     std::env::remove_var("PHOENIX_DATA_DIR");
     std::env::remove_var("PACT_DISABLE_KEYRING");
     println!("verify-chain-on-home/restore smoke: OK (verify_chain passed, fresh restore opened)");
+}
+
+/// The wallet's copy of `txid` (for the display-address helper, which
+/// reads the outputs off the transaction itself).
+fn tx_of(entry: &electrum_btcx::WalletEntry, txid: &str) -> bitcoin::Transaction {
+    let txid: bitcoin::Txid = txid.parse().unwrap();
+    entry
+        .wallet
+        .get_tx(txid)
+        .expect("tx in wallet")
+        .tx_node
+        .tx
+        .as_ref()
+        .clone()
 }
 
 /// Fund `address` from the node's miner wallet and confirm it with one
@@ -1455,4 +1487,180 @@ fn regtest_rename_wallet_preserves_funds() {
     std::env::remove_var("PHOENIX_DATA_DIR");
     std::env::remove_var("PACT_DISABLE_KEYRING");
     println!("wallet rename smoke: OK (payroll -> salaries -> salaries-2026, funds intact)");
+}
+
+/// The regtest miner wallet's fresh receive address (the counterparty for
+/// sends in these tests).
+fn miner_address() -> String {
+    let wallets = rpc(None, "listwallets", serde_json::json!([]));
+    let wallet_name = wallets[0]
+        .as_str()
+        .expect("a loaded miner wallet on the regtest node")
+        .to_string();
+    rpc(Some(&wallet_name), "getnewaddress", serde_json::json!([]))
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+/// Issue #222 — "subtract fee from amount" on the nodeless wallet, live:
+/// the Send page's prepare → sign → commit path over the client-side
+/// funded PSBT. Before the fix the flag mapped to a whole-wallet sweep for
+/// ANY typed amount (the reporter lost ~2000 BTCX sending 200 sat). Now it
+/// carries Core's semantics:
+///
+/// 1. a 200 sat send that cannot carry its own fee is REJECTED by bdk's
+///    dust rule — nothing is built, nothing moves;
+/// 2. 0.1 BTCX subtract-fee → the recipient gets 0.1 minus the fee, the
+///    change comes back, and exactly 0.1 leaves the wallet;
+/// 3. the full balance subtract-fee (the MAX button) is still a clean
+///    sweep: one output, no change, balance to zero;
+/// 4. `commit_tx` folds the spend into the open wallet immediately (the
+///    balance drops before the block is mined).
+#[test]
+#[ignore = "needs a running regtest bitcoind (127.0.0.1:18443) + electrs (127.0.0.1:60401)"]
+fn regtest_subtract_fee_send() {
+    use phoenix_pocx_lib::btcx_wallet::psbt::{
+        analyze, commit_tx, create_funded_psbt, decode, wallet_process, PsbtComposeOptions,
+        PsbtRecipient,
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    std::env::set_var("PHOENIX_DATA_DIR", dir.path());
+    std::env::set_var("PACT_DISABLE_KEYRING", "1");
+
+    let state = phoenix_pocx_lib::btcx_wallet::create_btcx_wallet_state();
+    state
+        .update_config(|c| {
+            c.network = WalletNetwork::Regtest;
+            c.set_servers(WalletNetwork::Regtest, vec![ELECTRUM_URL.to_string()]);
+        })
+        .unwrap();
+
+    let seed_dir = tempfile::tempdir().unwrap();
+    let mut scratch = seedstore::SeedStore::open(seed_dir.path(), None).unwrap();
+    let mnemonic = scratch.create_seed(None, 24).unwrap();
+    create_wallet_impl(&state, None, &mnemonic, None, "", Some("sub".into()), None)
+        .expect("create wallet");
+    let address = state.backend().unwrap().wallet_new_address().unwrap();
+    fund_and_mine(&address, 0.5);
+    wait_for_balance(&state, 50_000_000, "after funding");
+    let miner = miner_address();
+
+    let subtract = |amount_sat: u64, rate: f64| {
+        create_funded_psbt(
+            &state,
+            &[PsbtRecipient {
+                address: miner.clone(),
+                amount_sat,
+            }],
+            Some(rate),
+            Some(PsbtComposeOptions {
+                subtract_fee_output: Some(0),
+                ..Default::default()
+            }),
+        )
+    };
+
+    // 1. The reporter's send: 200 sat with the fee taken out of it. The
+    //    fee alone (~141 sat at 1 sat/vB) leaves a sub-dust recipient —
+    //    bdk refuses, and the wallet is untouched (NOT swept).
+    let err = subtract(200, 1.0).expect_err("200 sat minus the fee must be rejected");
+    let lower = err.to_lowercase();
+    assert!(
+        lower.contains("dust") || lower.contains("too small"),
+        "expected a dust/too-small rejection, got: {err}"
+    );
+    assert_eq!(
+        state.backend().unwrap().wallet_balance().unwrap(),
+        50_000_000,
+        "a rejected prepare must not move anything"
+    );
+
+    // 2. 0.1 BTCX subtract-fee at 2 sat/vB: recipient = 0.1 − fee, change
+    //    kept, inputs − outputs = fee, fee ≈ 2 sat/vB × vsize.
+    let psbt = subtract(10_000_000, 2.0).expect("0.1 BTCX subtract-fee prepare");
+    let decoded = decode(WalletNetwork::Regtest, &psbt, Some(&state)).unwrap();
+    let analysis = analyze(&psbt).unwrap();
+    let fee = decoded.fee_sat.expect("fee known for a wallet-built psbt");
+    let to_miner: Vec<_> = decoded
+        .vout
+        .iter()
+        .filter(|o| o.address.as_deref() == Some(miner.as_str()))
+        .collect();
+    assert_eq!(
+        to_miner.len(),
+        1,
+        "exactly one recipient output: {:?}",
+        decoded.vout
+    );
+    assert_eq!(
+        to_miner[0].value_sat,
+        10_000_000 - fee,
+        "the fee comes OUT of the typed amount"
+    );
+    assert!(!to_miner[0].is_change && !to_miner[0].is_mine);
+    let change: Vec<_> = decoded.vout.iter().filter(|o| o.is_change).collect();
+    assert_eq!(change.len(), 1, "the change output is stamped as change");
+    let in_sum: u64 = decoded
+        .inputs
+        .iter()
+        .map(|i| i.utxo_value_sat.unwrap())
+        .sum();
+    let out_sum: u64 = decoded.vout.iter().map(|o| o.value_sat).sum();
+    assert_eq!(in_sum - out_sum, fee);
+    assert_eq!(
+        in_sum - change[0].value_sat,
+        10_000_000,
+        "exactly 0.1 BTCX leaves the wallet"
+    );
+    let vsize = analysis
+        .estimated_vsize
+        .expect("vsize estimate for p2wpkh inputs");
+    // bdk prices the fee per weight unit; the vB figure is rounded up, so
+    // the fee may sit up to 1 sat under 2 × vsize (and a few over).
+    assert!(
+        fee + 1 >= 2 * vsize && fee <= 2 * vsize + 4,
+        "fee {fee} sat should be ~2 sat/vB × {vsize} vB"
+    );
+
+    // Sign + commit: the balance reflects the spend at once, then confirms.
+    let signed = wallet_process(&state, &psbt).unwrap();
+    assert!(signed.complete, "bdk signs and finalizes its own inputs");
+    let txid = commit_tx(&state, signed.hex.as_deref().unwrap()).expect("commit");
+    assert_eq!(txid.len(), 64);
+    assert_eq!(
+        state.backend().unwrap().wallet_balance().unwrap(),
+        40_000_000,
+        "commit folds the spend into the wallet before the block"
+    );
+    mine_block(&miner);
+    wait_for_balance(
+        &state,
+        40_000_000,
+        "after the 0.1 subtract-fee send confirmed",
+    );
+
+    // 3. MAX: the whole balance subtract-fee is a sweep — one output, no
+    //    change, everything minus the fee to the recipient.
+    let psbt = subtract(40_000_000, 1.0).expect("sweep prepare");
+    let decoded = decode(WalletNetwork::Regtest, &psbt, Some(&state)).unwrap();
+    assert_eq!(
+        decoded.vout.len(),
+        1,
+        "a sweep has no change output: {:?}",
+        decoded.vout
+    );
+    let fee = decoded.fee_sat.unwrap();
+    assert_eq!(decoded.vout[0].value_sat, 40_000_000 - fee);
+    assert_eq!(decoded.vout[0].address.as_deref(), Some(miner.as_str()));
+    let signed = wallet_process(&state, &psbt).unwrap();
+    commit_tx(&state, signed.hex.as_deref().unwrap()).expect("commit sweep");
+    assert_eq!(state.backend().unwrap().wallet_balance().unwrap(), 0);
+    mine_block(&miner);
+    wait_for_balance(&state, 0, "after the sweep confirmed");
+
+    rpc(None, "setmocktime", serde_json::json!([0]));
+    std::env::remove_var("PACT_DISABLE_KEYRING");
+    println!("subtract-fee send (issue #222): OK");
 }

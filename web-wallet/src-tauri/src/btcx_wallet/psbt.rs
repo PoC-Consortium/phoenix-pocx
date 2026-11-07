@@ -21,7 +21,7 @@ use bdk_wallet::{SignOptions, TxOrdering};
 use bitcoin::{Amount, Psbt, ScriptBuf, Sequence};
 use serde::{Deserialize, Serialize};
 
-use electrum_btcx::SendFee;
+use electrum_btcx::{SendFee, WalletEntry};
 
 use super::config::WalletNetwork;
 use super::state::SharedBtcxWalletState;
@@ -83,6 +83,10 @@ pub struct PsbtVoutDto {
     pub script_hex: String,
     /// True for OP_RETURN outputs (rendered as data, not an address).
     pub op_return: bool,
+    /// The open wallet owns this script (either keychain).
+    pub is_mine: bool,
+    /// The open wallet's INTERNAL (change) keychain owns this script.
+    pub is_change: bool,
 }
 
 /// Per-input PSBT metadata as the decode view shows it.
@@ -137,10 +141,38 @@ fn input_utxo(psbt: &Psbt, index: usize) -> Option<bitcoin::TxOut> {
     prev.output.get(vout).cloned()
 }
 
-/// Decode a PSBT for display (client-side `decodepsbt`).
-pub fn decode(network: WalletNetwork, psbt_base64: &str) -> Result<PsbtDecodeDto, String> {
+/// Decode a PSBT for display (client-side `decodepsbt`). With `wallet`,
+/// outputs are stamped with the open wallet's ownership (mine / change);
+/// without one, or with no wallet open, both flags stay false.
+pub fn decode(
+    network: WalletNetwork,
+    psbt_base64: &str,
+    wallet: Option<&SharedBtcxWalletState>,
+) -> Result<PsbtDecodeDto, String> {
     let psbt = parse_psbt(psbt_base64)?;
     let tx = &psbt.unsigned_tx;
+
+    // (is_mine, is_change) per output, from the open wallet's keychains.
+    let ownership: Vec<(bool, bool)> = wallet
+        .and_then(|state| {
+            state
+                .with_entry(|entry| {
+                    Ok(tx
+                        .output
+                        .iter()
+                        .map(|o| {
+                            let keychain = entry.wallet.derivation_of_spk(o.script_pubkey.clone());
+                            (
+                                keychain.is_some(),
+                                keychain.map(|(k, _)| k)
+                                    == Some(bdk_wallet::KeychainKind::Internal),
+                            )
+                        })
+                        .collect())
+                })
+                .ok()
+        })
+        .unwrap_or_else(|| vec![(false, false); tx.output.len()]);
 
     let vin = tx
         .input
@@ -161,6 +193,8 @@ pub fn decode(network: WalletNetwork, psbt_base64: &str) -> Result<PsbtDecodeDto
             address: spk_to_address(network, &o.script_pubkey),
             script_hex: o.script_pubkey.to_hex_string(),
             op_return: o.script_pubkey.is_op_return(),
+            is_mine: ownership[n].0,
+            is_change: ownership[n].1,
         })
         .collect();
     let inputs: Vec<PsbtInputDto> = psbt
@@ -518,50 +552,33 @@ pub fn create_funded_psbt(
         .collect::<Result<_, _>>()?;
 
     state.ensure_first_sync()?;
+    let cfg = TxShape {
+        push_data,
+        locktime,
+    };
     let psbt = state.with_entry(|entry| {
-        // subtract_fee_output carries DRAIN semantics: the builder UI only
-        // sets it via MAX ("everything left"), so the target output receives
-        // whatever the funding set holds beyond the other outputs and the
-        // fee. The typed amount is display-only in that case — building at
-        // full amount + fee can never fund (that WAS the bug: 249.99999889
-        // available of 249.99999999 needed).
-        let mut builder = entry.wallet.build_tx();
-        builder
-            .ordering(TxOrdering::Shuffle)
-            .fee_rate(feerate)
-            // 0xFFFFFFFD: signals RBF AND (being < 0xFFFFFFFE) leaves an
-            // absolute locktime enforceable despite the constant's name.
-            .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
-        if let Some(lt) = locktime {
-            builder.nlocktime(lt);
-        }
-        if let Some(data) = &push_data {
-            builder.add_data(data);
-        }
-        match (&manual_utxos, options.subtract_fee_output) {
-            (Some(outpoints), _) => {
-                builder
-                    .add_utxos(outpoints)
-                    .map_err(|e| format!("coin selection: {e}"))?;
-                builder.manually_selected_only();
+        let psbt = match options.subtract_fee_output {
+            None => {
+                // Fee on top: the recipients get exactly what was typed and
+                // the wallet funds amounts + fee (auto coins, or exactly the
+                // manual set).
+                let recipients: Vec<(ScriptBuf, Amount)> = spks
+                    .iter()
+                    .map(|(spk, sat)| (spk.clone(), Amount::from_sat(*sat)))
+                    .collect();
+                build_tx(
+                    entry,
+                    &cfg,
+                    manual_utxos.as_deref(),
+                    FeePolicy::Rate(feerate),
+                    &recipients,
+                    None,
+                )?
             }
-            // Auto coins + MAX: the target drains the WHOLE wallet (minus
-            // the other outputs and fee) — spend everything.
-            (None, Some(_)) => {
-                builder.drain_wallet();
+            Some(target) => {
+                build_subtract_fee(entry, &cfg, &spks, target, manual_utxos.as_deref(), feerate)?
             }
-            (None, None) => {}
-        }
-        for (i, (spk, amount_sat)) in spks.iter().enumerate() {
-            if options.subtract_fee_output == Some(i) {
-                builder.drain_to(spk.clone());
-            } else {
-                builder.add_recipient(spk.clone(), Amount::from_sat(*amount_sat));
-            }
-        }
-        let psbt = builder
-            .finish()
-            .map_err(|e| format!("building the transaction: {e}"))?;
+        };
         // Persist so the coin selection's reveal of a change address
         // survives; the UTXOs stay spendable until a signed tx broadcasts.
         entry
@@ -571,6 +588,208 @@ pub fn create_funded_psbt(
         Ok(psbt)
     })?;
     Ok(psbt.to_string())
+}
+
+/// The parts of a composed transaction that every build pass shares.
+struct TxShape {
+    push_data: Option<bitcoin::script::PushBytesBuf>,
+    locktime: Option<bitcoin::absolute::LockTime>,
+}
+
+/// How a build pass pays for itself.
+#[derive(Clone, Copy)]
+enum FeePolicy {
+    Rate(bitcoin::FeeRate),
+    Absolute(Amount),
+}
+
+/// One bdk build: RBF-signalling, shuffled, with the shared shape applied.
+/// `inputs` pins the coin set (no further selection); `drain` sends the
+/// remainder after `recipients` and the fee to that script instead of
+/// creating change.
+fn build_tx(
+    entry: &mut WalletEntry,
+    cfg: &TxShape,
+    inputs: Option<&[bitcoin::OutPoint]>,
+    fee: FeePolicy,
+    recipients: &[(ScriptBuf, Amount)],
+    drain: Option<ScriptBuf>,
+) -> Result<Psbt, String> {
+    let mut builder = entry.wallet.build_tx();
+    builder
+        .ordering(TxOrdering::Shuffle)
+        // 0xFFFFFFFD: signals RBF AND (being < 0xFFFFFFFE) leaves an
+        // absolute locktime enforceable despite the constant's name.
+        .set_exact_sequence(Sequence::ENABLE_RBF_NO_LOCKTIME);
+    match fee {
+        FeePolicy::Rate(rate) => builder.fee_rate(rate),
+        FeePolicy::Absolute(amount) => builder.fee_absolute(amount),
+    };
+    if let Some(lt) = cfg.locktime {
+        builder.nlocktime(lt);
+    }
+    if let Some(data) = &cfg.push_data {
+        builder.add_data(data);
+    }
+    if let Some(outpoints) = inputs {
+        builder
+            .add_utxos(outpoints)
+            .map_err(|e| format!("coin selection: {e}"))?;
+        builder.manually_selected_only();
+    }
+    for (spk, amount) in recipients {
+        builder.add_recipient(spk.clone(), *amount);
+    }
+    if let Some(spk) = drain {
+        builder.drain_to(spk);
+    }
+    builder
+        .finish()
+        .map_err(|e| format!("building the transaction: {e}"))
+}
+
+/// Core's `subtractFeeFromOutputs` semantics on bdk: coins are selected for
+/// the FULL typed amounts, the fee comes out of output `target`, and any
+/// change the selection produced stays in the wallet. bdk only knows
+/// "fee on top" and "drain", so it takes three deterministic passes:
+///
+/// 1. fee 0 at the full amounts → the coin set that funds exactly the
+///    amounts, and whether that leaves a change output (bdk's own dust
+///    verdict, which pass 3 inherits unchanged).
+/// 2. the same coins pinned at the requested feerate, in the SAME shape
+///    (change present: the target at its dust floor so change absorbs the
+///    slack; no change: the target as a drain) → bdk's exact fee for that
+///    shape.
+/// 3. the same coins pinned, that fee set absolutely, the target reduced
+///    by it (plus the dust change a no-change shape folds into the fee,
+///    as Core does). Too small a target fails here with bdk's own dust
+///    error — the backend is the single judge of that, no client precheck.
+///
+/// Issue #222: the previous MAX-only drain mapping sent the whole wallet
+/// for ANY typed amount; a sweep (amount = everything) still comes out
+/// identical: pass 1 selects every coin and leaves no change.
+fn build_subtract_fee(
+    entry: &mut WalletEntry,
+    cfg: &TxShape,
+    spks: &[(ScriptBuf, u64)],
+    target: usize,
+    manual_utxos: Option<&[bitcoin::OutPoint]>,
+    feerate: bitcoin::FeeRate,
+) -> Result<Psbt, String> {
+    let (target_spk, target_sat) = spks[target].clone();
+    let others: Vec<(ScriptBuf, Amount)> = spks
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != target)
+        .map(|(_, (spk, sat))| (spk.clone(), Amount::from_sat(*sat)))
+        .collect();
+    let mut full = others.clone();
+    full.push((target_spk.clone(), Amount::from_sat(target_sat)));
+
+    // Pass 1: which coins fund exactly the amounts, and is there change?
+    let shape = build_tx(
+        entry,
+        cfg,
+        manual_utxos,
+        FeePolicy::Absolute(Amount::ZERO),
+        &full,
+        None,
+    )?;
+    let inputs: Vec<bitcoin::OutPoint> = shape
+        .unsigned_tx
+        .input
+        .iter()
+        .map(|i| i.previous_output)
+        .collect();
+    let recipient_spks: Vec<&ScriptBuf> = spks.iter().map(|(spk, _)| spk).collect();
+    let change_sat: u64 = shape
+        .unsigned_tx
+        .output
+        .iter()
+        .filter(|o| !o.script_pubkey.is_op_return() && !recipient_spks.contains(&&o.script_pubkey))
+        .map(|o| o.value.to_sat())
+        .sum();
+    let has_change = change_sat > 0;
+    // Pass 1's fee is whatever bdk could not place in a change output
+    // (sub-dust leftovers, or nothing) — Core folds the same into the fee.
+    let dust_leftover = shape.fee().map_err(|e| format!("{e}"))?.to_sat();
+
+    // Pass 2: bdk's exact fee for the final shape at the requested rate.
+    let probe = if has_change {
+        let mut probe_outputs = others.clone();
+        probe_outputs.push((target_spk.clone(), target_spk.minimal_non_dust()));
+        build_tx(
+            entry,
+            cfg,
+            Some(&inputs),
+            FeePolicy::Rate(feerate),
+            &probe_outputs,
+            None,
+        )?
+    } else {
+        build_tx(
+            entry,
+            cfg,
+            Some(&inputs),
+            FeePolicy::Rate(feerate),
+            &others,
+            Some(target_spk.clone()),
+        )?
+    };
+    let fee_sat = probe.fee().map_err(|e| format!("{e}"))?.to_sat();
+
+    // Pass 3: the real transaction — fee out of the target, change intact.
+    let net_sat = target_sat.checked_sub(fee_sat).ok_or_else(|| {
+        format!("The amount ({target_sat} sat) is too small to pay the fee ({fee_sat} sat)")
+    })?;
+    let mut final_outputs = others;
+    final_outputs.push((target_spk, Amount::from_sat(net_sat)));
+    let absolute = if has_change {
+        fee_sat
+    } else {
+        fee_sat + dust_leftover
+    };
+    build_tx(
+        entry,
+        cfg,
+        Some(&inputs),
+        FeePolicy::Absolute(Amount::from_sat(absolute)),
+        &final_outputs,
+        None,
+    )
+}
+
+// ============================================================================
+// Commit (sign-and-broadcast's last step for the Send page)
+// ============================================================================
+
+/// Broadcast a fully signed transaction through the OPEN wallet's Electrum
+/// servers and fold it into the wallet at once — the counterpart of
+/// `wallet_send`'s tail for a transaction the page prepared, confirmed and
+/// signed as a PSBT. Unlike the chain-only `btcx_broadcast_tx`, the balance,
+/// the activity feed and RBF eligibility reflect the spend immediately
+/// instead of after the next sync tick. Returns the txid.
+pub fn commit_tx(state: &SharedBtcxWalletState, tx_hex: &str) -> Result<String, String> {
+    let tx: bitcoin::Transaction = bitcoin::consensus::encode::deserialize_hex(tx_hex.trim())
+        .map_err(|e| format!("Not a valid raw transaction: {e}"))?;
+    let backend = state.backend()?;
+    // Broadcast-before-persist, like wallet-btcx sends and the assignment
+    // path: a crash re-learns the tx from our own script history.
+    let txid = super::assignments::fan_broadcast(&backend, &tx)?;
+    state.with_entry(|entry| {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        entry.wallet.apply_unconfirmed_txs([(tx.clone(), now)]);
+        entry
+            .wallet
+            .persist(&mut entry.conn)
+            .map_err(|e| format!("persisting wallet: {e}"))?;
+        Ok(())
+    })?;
+    let _ = state.poke();
+    Ok(txid)
 }
 
 fn hex_decode(s: &str) -> Result<Vec<u8>, String> {
@@ -650,7 +869,7 @@ mod tests {
 
     #[test]
     fn decode_rejects_garbage() {
-        assert!(decode(WalletNetwork::Regtest, "garbage").is_err());
+        assert!(decode(WalletNetwork::Regtest, "garbage", None).is_err());
         assert!(analyze("garbage").is_err());
     }
 

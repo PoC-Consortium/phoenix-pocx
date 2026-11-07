@@ -14,6 +14,9 @@ import {
   WalletCoin,
   CoreAddressType,
   CORE_CAPABILITIES,
+  PreparedSend,
+  PreparedSendInput,
+  PreparedSendOutput,
 } from './wallet-backend.model';
 
 /**
@@ -190,19 +193,91 @@ export class CoreWalletBackend implements WalletBackend {
     }));
   }
 
-  async sendToAddress(
+  async prepareSend(
     walletName: string,
     address: string,
     amount: number,
     options: WalletBackendSendOptions = {}
-  ): Promise<string> {
-    return this.walletRpc.sendToAddress(walletName, address, amount, {
-      comment: options.comment,
-      subtractFeeFromAmount: options.subtractFeeFromAmount,
-      replaceable: options.replaceable ?? true,
-      confTarget: options.confTarget ?? 6,
-      feeRate: options.feeRate,
+  ): Promise<PreparedSend> {
+    // walletcreatefundedpsbt is sendtoaddress minus sign+broadcast: same
+    // coin selection, change and subtract-fee semantics, but the result
+    // can be shown BEFORE anything is signed. sendtoaddress also sets an
+    // anti-fee-sniping locktime at the tip; pass the same here so the two
+    // paths build identical transactions. Core rejects fee_rate together
+    // with conf_target, so exactly one of them goes.
+    const height = await this.blockchainRpc.getBlockCount();
+    const funded = await this.walletRpc.walletCreateFundedPsbt(
+      walletName,
+      [],
+      [{ [address]: amount }],
+      height,
+      {
+        add_inputs: true,
+        replaceable: options.replaceable ?? true,
+        ...(options.subtractFeeFromAmount ? { subtractFeeFromOutputs: [0] } : {}),
+        ...(options.feeRate !== undefined
+          ? { fee_rate: options.feeRate }
+          : { conf_target: options.confTarget ?? 6 }),
+      }
+    );
+    const [decoded, analysis] = await Promise.all([
+      this.walletRpc.decodePsbt(funded.psbt),
+      this.walletRpc.analyzePsbt(funded.psbt),
+    ]);
+
+    const inputs: PreparedSendInput[] = decoded.tx.vin.map((vin, i) => {
+      const utxo = decoded.inputs[i]?.witness_utxo;
+      return {
+        txid: vin.txid,
+        vout: vin.vout,
+        amount: utxo?.amount ?? null,
+        address: utxo?.scriptPubKey.address ?? null,
+      };
     });
+    const outputs: PreparedSendOutput[] = decoded.tx.vout.map(vout => ({
+      address: vout.scriptPubKey.address ?? null,
+      amount: vout.value,
+      isChange: vout.n === funded.changepos,
+    }));
+    const recipient = outputs.find(o => !o.isChange && o.address === address);
+    if (!recipient) {
+      throw new Error('The prepared transaction has no output for the recipient');
+    }
+    const fee = decoded.fee ?? funded.fee;
+    const vsize = analysis.estimated_vsize ?? null;
+    // estimated_feerate is BTC/kvB → sat/vB.
+    const feeRateSatVb =
+      analysis.estimated_feerate != null
+        ? analysis.estimated_feerate * 100_000
+        : vsize
+          ? (fee * 1e8) / vsize
+          : null;
+    const change = outputs.filter(o => o.isChange).reduce((sum, o) => sum + o.amount, 0);
+    const spent = outputs.filter(o => !o.isChange).reduce((sum, o) => sum + o.amount, 0);
+    return {
+      psbt: funded.psbt,
+      recipientAddress: address,
+      recipientAmount: recipient.amount,
+      fee,
+      feeRateSatVb,
+      vsize,
+      inputs,
+      outputs,
+      change,
+      totalDebit: spent + fee,
+    };
+  }
+
+  async commitSend(walletName: string, prepared: PreparedSend): Promise<string> {
+    const processed = await this.walletRpc.walletProcessPsbt(walletName, prepared.psbt);
+    if (!processed.complete) {
+      throw new Error('The wallet could not fully sign the transaction');
+    }
+    const finalized = await this.walletRpc.finalizePsbt(processed.psbt);
+    if (!finalized.complete || !finalized.hex) {
+      throw new Error('Failed to finalize the transaction');
+    }
+    return this.blockchainRpc.sendRawTransaction(finalized.hex);
   }
 
   async bumpFee(walletName: string, txid: string, feeRateSatVb?: number): Promise<string> {

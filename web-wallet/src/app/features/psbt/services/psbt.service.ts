@@ -170,8 +170,14 @@ export class PsbtService {
           dataHex: vout.scriptHex.length > 4 ? vout.scriptHex.slice(4) : undefined,
         };
       }
-      const kind: PsbtOutputView['kind'] =
-        vout.address && ownAddresses.has(vout.address) ? 'mine' : 'external';
+      // The decoder stamps the open wallet's keychains on each output, so
+      // change is recognised as change (not 'mine'); the UTXO-address set
+      // stays as the fallback for a closed wallet.
+      const kind: PsbtOutputView['kind'] = vout.isChange
+        ? 'change'
+        : vout.isMine || (vout.address && ownAddresses.has(vout.address))
+          ? 'mine'
+          : 'external';
       return { index: vout.n, address: vout.address, amount: vout.valueSat / 1e8, kind };
     });
 

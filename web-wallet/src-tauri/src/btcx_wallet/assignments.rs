@@ -227,7 +227,10 @@ fn build_and_send_marker(
 /// any acceptance wins (the wallet-btcx `broadcast_fan` pattern; that
 /// method is private, so it is reproduced over the backend's public
 /// chain/views accessors).
-fn fan_broadcast(backend: &BdkWalletBackend, tx: &Transaction) -> Result<String, String> {
+pub(crate) fn fan_broadcast(
+    backend: &BdkWalletBackend,
+    tx: &Transaction,
+) -> Result<String, String> {
     let mut last_err: Option<String> = None;
     let mut tried = false;
     for server in std::iter::once(backend.chain()).chain(backend.views().iter()) {

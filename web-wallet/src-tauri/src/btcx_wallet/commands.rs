@@ -2456,7 +2456,7 @@ pub fn btcx_psbt_decode(
     psbt_base64: String,
     state: State<'_, SharedBtcxWalletState>,
 ) -> Result<super::psbt::PsbtDecodeDto, String> {
-    super::psbt::decode(state.get_config().network, &psbt_base64)
+    super::psbt::decode(state.get_config().network, &psbt_base64, Some(&state))
 }
 
 /// Analyze a PSBT's signing progress — client-side `analyzepsbt`.
@@ -2506,6 +2506,19 @@ pub async fn btcx_wallet_create_funded_psbt(
     let state = state.inner().clone();
     blocking(move || super::psbt::create_funded_psbt(&state, &outputs, fee_rate_sat_vb, options))
         .await
+}
+
+/// Broadcast a fully signed transaction through the open wallet's Electrum
+/// servers and fold it into the wallet immediately — the Send page's commit
+/// step after prepare (`btcx_wallet_create_funded_psbt`) → confirm → sign.
+/// Returns the txid.
+#[tauri::command]
+pub async fn btcx_wallet_commit_tx(
+    tx_hex: String,
+    state: State<'_, SharedBtcxWalletState>,
+) -> Result<String, String> {
+    let state = state.inner().clone();
+    blocking(move || super::psbt::commit_tx(&state, &tx_hex)).await
 }
 
 /// The open wallet's unspent outputs (cache read) — the remote-mode
